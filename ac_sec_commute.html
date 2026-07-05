@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VRT Employee Commute & Attendance System v2</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=Noto+Sans+Khmer:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans','Noto Sans Khmer',system-ui,sans-serif;background:#f4f6fb;color:#1a2332;font-size:13px}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#c4cdd5;border-radius:3px}
+.header{background:linear-gradient(135deg,#1e3a5f 0%,#2a5f8f 60%,#3b82b0 100%);padding:14px 22px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.logo{width:44px;height:44px;background:rgba(255,255,255,.12);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:26px;border:1px solid rgba(255,255,255,.08);flex-shrink:0}
+.h-title{font-size:15px;font-weight:800;color:#fff;line-height:1.3}.h-sub{font-size:10px;color:#93c5fd;margin-top:2px}
+.h-stats{margin-left:auto;display:flex;gap:22px}
+.hstat{text-align:right}.hstat-v{font-size:18px;font-weight:800;color:#93c5fd;font-family:'DM Sans',monospace;line-height:1}
+.hstat-l{font-size:9px;color:#93c5fd;text-transform:uppercase;letter-spacing:.04em;opacity:.8}
+.lang-group{display:flex;gap:3px;margin-left:12px}
+.lang-btn{padding:4px 10px;border-radius:6px;border:1.5px solid rgba(255,255,255,.2);background:transparent;color:#fff;cursor:pointer;font-weight:700;font-size:10px;font-family:inherit;transition:all .15s}
+.lang-btn:hover{background:rgba(255,255,255,.1)}.lang-btn.on{background:rgba(255,255,255,.18);border-color:#fff}
+.tabs{background:#fff;border-bottom:2px solid #e2e6f0;display:flex;padding:0 20px;overflow-x:auto;gap:0}
+.tab{padding:11px 14px;font-size:12px;cursor:pointer;color:#6b7a9e;border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;font-weight:600;transition:all .15s;user-select:none}
+.tab:hover{color:#1a2332;background:#f0f4ff}.tab.on{color:#1e3a5f;border-bottom-color:#2a5f8f;background:#eff6ff}
+.sec{display:none;padding:18px 22px;max-width:1440px;margin:0 auto}.sec.on{display:block}
+.card{background:#fff;border:1px solid #e2e6f0;border-radius:12px;padding:18px;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.03)}
+.ct{font-size:11px;font-weight:800;color:#5a6a7e;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;display:flex;align-items:center;gap:7px}
+.ct::before{content:'';width:3px;height:11px;background:#2a5f8f;border-radius:2px}
+.kpi-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(125px,1fr));gap:10px;margin-bottom:14px}
+.kpi{background:#fff;border:1px solid #e2e6f0;border-radius:10px;padding:12px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.03)}
+.kpi-n{font-size:22px;font-weight:800;font-family:'DM Sans',monospace;line-height:1;color:#1e3a5f}.kpi-u{font-size:10px;color:#6b7a9e;margin-left:2px;font-weight:400}
+.kpi-l{font-size:10px;color:#6b7a9e;margin-top:5px}.kpi-icon{font-size:18px;margin-bottom:3px}
+.frow{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+select,.inp{background:#fff;border:1px solid #d0d5e8;color:#1a2332;padding:7px 10px;border-radius:7px;font-size:12px;font-family:inherit;cursor:pointer;outline:none;transition:border .15s}
+select:focus,.inp:focus{border-color:#2a5f8f;box-shadow:0 0 0 2px rgba(42,95,143,.08)}.inp{cursor:text}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:8px 15px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:inherit;transition:all .15s}
+.btn:hover{filter:brightness(.92)}
+.btn-b{background:#2a5f8f;color:#fff}.btn-g{background:#fff;color:#5a6a7e;border:1px solid #d0d5e8}.btn-g:hover{background:#f7f8fc}
+.btn-s{background:#0d6b50;color:#fff}.btn-r{background:#fff5f5;color:#c62828;border:1px solid #fecaca}
+.btn-ex{background:#e8f2fc;color:#1a73c7;border:1px solid #93c5fd;font-size:11px;padding:5px 12px}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:9px 10px;color:#5a6a7e;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid #e2e6f0;background:#f7f8fb;white-space:nowrap;user-select:none}
+td{padding:8px 10px;border-bottom:1px solid #eef0f6;white-space:nowrap}
+tr:hover td{background:#f0f6ff}
+.mono{font-family:'DM Sans',monospace}
+.badge{display:inline-block;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700;letter-spacing:.03em}
+.b-blue{background:#e8f2fc;color:#1a73c7}.b-green{background:#e3f5ed;color:#0d8050}.b-red{background:#fdeaea;color:#c62828}.b-amber{background:#fef3c7;color:#92400e}
+.drop{border:2.5px dashed #c5c9d8;border-radius:12px;padding:36px 20px;text-align:center;cursor:pointer;transition:all .2s;position:relative;background:#fafbfc}
+.drop:hover,.drop.drag{border-color:#2a5f8f;background:#eff6ff}
+.drop input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.toast{position:fixed;top:18px;right:18px;z-index:9999;padding:12px 20px;border-radius:9px;font-weight:700;font-size:12px;box-shadow:0 4px 16px rgba(0,0,0,.1);animation:toastIn .3s ease;font-family:inherit}
+.toast-ok{background:#e3f5ed;color:#0d8050}.toast-err{background:#fdeaea;color:#c62828}.toast-info{background:#e8f2fc;color:#1a73c7}
+@keyframes toastIn{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:translateY(0)}}
+.al{padding:10px 14px;border-radius:8px;font-size:12px;margin-bottom:10px;line-height:1.7}
+.al-ok{background:#e3f5ed;border:1px solid #6ee7b7;color:#065f46}
+.al-w{background:#fdf6e3;border:1px solid #fcd34d;color:#92400e}
+.al-i{background:#e8f2fc;border:1px solid #93c5fd;color:#1e40af}
+.modal-overlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;background:rgba(15,25,40,.4);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay.open{opacity:1;pointer-events:auto}
+.modal{background:#fff;border-radius:14px;padding:24px 26px;width:640px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 16px 48px rgba(0,0,0,.15);transform:translateY(10px);transition:transform .2s}
+.modal-overlay.open .modal{transform:translateY(0)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.form-group{margin-bottom:10px}
+.form-group label{display:block;font-size:10px;font-weight:700;color:#5a6a7e;margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em}
+.form-group .inp,.form-group select{width:100%}
+.empty{text-align:center;padding:44px 20px;color:#8b95b8;font-size:13px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.chart-box{position:relative;height:280px}
+.capbar{height:8px;background:#e2e6f0;border-radius:4px;overflow:hidden;margin-top:4px}
+.capfill{height:100%;border-radius:4px;transition:width .3s}
+.pager{display:flex;align-items:center;gap:6px;justify-content:center;margin-top:10px;font-size:12px}
+.pager button{padding:4px 10px;border-radius:5px;border:1px solid #d0d5e8;background:#fff;cursor:pointer;font-size:11px;font-weight:600;color:#5a6a7e}
+.pager button:hover{background:#f0f4ff}.pager button:disabled{opacity:.4;cursor:default}
+@media(max-width:700px){.header{padding:10px 14px}.h-stats{display:none}.sec{padding:12px 14px}.g2{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.kpi-strip{grid-template-columns:repeat(auto-fill,minmax(100px,1fr))}}
+</style>
+</head>
+<body>
+
+<div class="header">
+<div class="logo">🚌</div>
+<div>
+  <div class="h-title" id="hTitle">VRT 員工通勤與出勤系統</div>
+  <div class="h-sub">VANTAGE RIVER TEXTILES · Employee Commute & Attendance System v2</div>
+</div>
+<div class="h-stats">
+  <div class="hstat"><div class="hstat-v" id="hCar">0</div><div class="hstat-l" id="hlCar">乘車記錄</div></div>
+  <div class="hstat"><div class="hstat-v" id="hBike">0</div><div class="hstat-l" id="hlBike">摩托車</div></div>
+  <div class="hstat"><div class="hstat-v" id="hLate">0</div><div class="hstat-l" id="hlLate">遲到紀錄</div></div>
+</div>
+<div class="lang-group">
+  <button class="lang-btn on" data-l="zh" onclick="setLang('zh')">中文</button>
+  <button class="lang-btn" data-l="en" onclick="setLang('en')">EN</button>
+  <button class="lang-btn" data-l="km" onclick="setLang('km')">ខ្មែរ</button>
+</div>
+</div>
+
+<div class="tabs" id="tabBar">
+  <div class="tab on" data-t="car" onclick="goTab('car',this)">🚌 <span class="tl" data-k="tCar">人員運輸</span></div>
+  <div class="tab" data-t="bike" onclick="goTab('bike',this)">🏍️ <span class="tl" data-k="tBike">摩托車記錄</span></div>
+  <div class="tab" data-t="late" onclick="goTab('late',this)">⏰ <span class="tl" data-k="tLate">遲到早退記錄</span></div>
+  <div class="tab" data-t="rank" onclick="goTab('rank',this)">📊 <span class="tl" data-k="tRank">異常統計</span></div>
+  <div class="tab" data-t="trend" onclick="goTab('trend',this)">📈 <span class="tl" data-k="tTrend">趨勢圖表</span></div>
+  <div class="tab" data-t="data" onclick="goTab('data',this)">💾 <span class="tl" data-k="tData">資料管理</span></div>
+</div>
+
+<!-- ══ SEC: CAR ══ -->
+<div class="sec on" id="sec-car">
+  <div class="kpi-strip" id="carKpi"></div>
+  <div class="card">
+    <div class="ct">🚌 <span class="tl" data-k="carTitle">人員上下班運輸</span> / Amount of Employees Apply Car / ចំនួនអ្នកជិះឡាន</div>
+    <div class="frow">
+      <select id="carMonth" onchange="renderCar()"><option value="">ALL</option></select>
+      <input class="inp" id="carSearch" placeholder="Search..." oninput="renderCar()" style="width:160px">
+      <button class="btn btn-b" onclick="openForm('car')">+ <span class="tl" data-k="addRec">新增</span></button>
+      <button class="btn btn-ex" onclick="exportTab('car')">⬇ Excel</button>
+      <span id="carMeta" style="font-size:11px;color:#8b95b8;margin-left:auto"></span>
+    </div>
+    <div class="tw"><table><thead id="carHead"></thead><tbody id="carBody"></tbody></table></div>
+    <div class="pager" id="carPager"></div>
+  </div>
+</div>
+
+<!-- ══ SEC: BIKE ══ -->
+<div class="sec" id="sec-bike">
+  <div class="kpi-strip" id="bikeKpi"></div>
+  <div class="card">
+    <div class="ct">🏍️ <span class="tl" data-k="bikeTitle">人員騎摩托車</span> / Motor Bike Record / កំណត់ត្រាម៉ូតូ</div>
+    <div class="frow">
+      <select id="bikeMonth" onchange="renderBike()"><option value="">ALL</option></select>
+      <input class="inp" id="bikeSearch" placeholder="Search..." oninput="renderBike()" style="width:160px">
+      <button class="btn btn-b" onclick="openForm('bike')">+ <span class="tl" data-k="addRec">新增</span></button>
+      <button class="btn btn-ex" onclick="exportTab('bike')">⬇ Excel</button>
+      <span id="bikeMeta" style="font-size:11px;color:#8b95b8;margin-left:auto"></span>
+    </div>
+    <div class="tw"><table><thead id="bikeHead"></thead><tbody id="bikeBody"></tbody></table></div>
+    <div class="pager" id="bikePager"></div>
+  </div>
+</div>
+
+<!-- ══ SEC: LATE ══ -->
+<div class="sec" id="sec-late">
+  <div class="kpi-strip" id="lateKpi"></div>
+  <div class="card">
+    <div class="ct">⏰ <span class="tl" data-k="lateTitle">遲到早退記錄</span> / Come Late Record / របាយការណ៍អ្នកមកយឺត</div>
+    <div class="frow">
+      <select id="lateMonth" onchange="renderLate()"><option value="">ALL</option></select>
+      <input class="inp" id="lateSearch" placeholder="Search..." oninput="renderLate()" style="width:160px">
+      <button class="btn btn-b" onclick="openForm('late')">+ <span class="tl" data-k="addRec">新增</span></button>
+      <button class="btn btn-ex" onclick="exportTab('late')">⬇ Excel</button>
+      <span id="lateMeta" style="font-size:11px;color:#8b95b8;margin-left:auto"></span>
+    </div>
+    <div class="tw"><table><thead id="lateHead"></thead><tbody id="lateBody"></tbody></table></div>
+    <div class="pager" id="latePager"></div>
+  </div>
+</div>
+
+<!-- ══ SEC: RANKING ══ -->
+<div class="sec" id="sec-rank">
+  <div class="card">
+    <div class="ct">📊 <span class="tl" data-k="rankTitle">異常遲到人員總表</span> / Frequent Late Employees / បុគ្គលិកមកយឺតញឹកញាប់</div>
+    <div class="frow">
+      <select id="rankMonth" onchange="renderRank()"><option value="">ALL</option></select>
+      <button class="btn btn-ex" onclick="exportRank()">⬇ Excel</button>
+    </div>
+    <div class="kpi-strip" id="rankKpi"></div>
+    <div class="tw"><table><thead id="rankHead"></thead><tbody id="rankBody"></tbody></table></div>
+  </div>
+  <div class="card">
+    <div class="ct">🏭 <span class="tl" data-k="deptRank">部門遲到統計</span> / Late by Department / តាមផ្នែក</div>
+    <div class="tw"><table><thead id="deptHead"></thead><tbody id="deptBody"></tbody></table></div>
+  </div>
+</div>
+
+<!-- ══ SEC: TREND ══ -->
+<div class="sec" id="sec-trend">
+  <div class="frow">
+    <button class="btn btn-b" id="btnDaily" onclick="setTrendPeriod('daily')"><span class="tl" data-k="daily">每日</span></button>
+    <button class="btn btn-g" id="btnWeekly" onclick="setTrendPeriod('weekly')"><span class="tl" data-k="weekly">每週</span></button>
+    <button class="btn btn-g" id="btnMonthly" onclick="setTrendPeriod('monthly')"><span class="tl" data-k="monthly">每月</span></button>
+    <button class="btn btn-g" id="btnYearly" onclick="setTrendPeriod('yearly')"><span class="tl" data-k="yearly">每年</span></button>
+    <select id="trendMonthFilter" onchange="renderTrend()" style="margin-left:8px"><option value="">ALL</option></select>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="ct">🚌 <span class="tl" data-k="carTrend">乘車人數趨勢</span> / Car Transport Trend</div><div class="chart-box"><canvas id="cCarTrend"></canvas></div></div>
+    <div class="card"><div class="ct">🏍️ <span class="tl" data-k="bikeTrend">摩托車趨勢</span> / Motor Bike Trend</div><div class="chart-box"><canvas id="cBikeTrend"></canvas></div></div>
+  </div>
+  <div class="g2" style="margin-top:14px">
+    <div class="card"><div class="ct">⏰ <span class="tl" data-k="lateTrend">遲到人數趨勢</span> / Late Count Trend</div><div class="chart-box"><canvas id="cLateTrend"></canvas></div></div>
+    <div class="card"><div class="ct">🏭 <span class="tl" data-k="deptTrend">部門遲到分佈</span> / Late by Dept</div><div class="chart-box"><canvas id="cDeptPie"></canvas></div></div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <div class="ct">📋 <span class="tl" data-k="periodTable">期間報表</span></div>
+    <div class="tw"><table><thead id="trendHead"></thead><tbody id="trendBody"></tbody></table></div>
+  </div>
+</div>
+
+<!-- ══ SEC: DATA ══ -->
+<div class="sec" id="sec-data">
+  <div class="card">
+    <div class="ct">📥 <span class="tl" data-k="impTitle">匯入 Excel 資料</span> / Import Excel / នាំចូល Excel</div>
+    <div class="al al-i" style="margin-bottom:12px">
+      <b>ℹ️</b> 支援三種 Excel 格式：乘車人員(Amount of employees apply car)、摩托車(Motor Bike)、遲到記錄(Come Late Register)。系統會自動識別，並從分頁名稱(Sheet Tab)提取正確年/月。
+    </div>
+    <div class="drop" id="dropzone">
+      <input type="file" multiple accept=".xlsx,.xls" onchange="handleFiles(event)">
+      <div style="font-size:36px;margin-bottom:8px">📁</div>
+      <div style="font-size:15px;font-weight:700;color:#1a2332">拖放 Excel 檔案到這裡 / Drop Excel files here</div>
+      <div style="font-size:11px;color:#8b95b8;margin-top:6px">.xlsx / .xls · 多檔同時拖入 · 自動合併</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ct">💾 已儲存資料狀況 / Saved Data Status</div>
+    <div id="dbInfo"></div>
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-g" onclick="backupJSON()">⬇ 備份 JSON</button>
+      <label class="btn btn-g" style="cursor:pointer">⬆ 還原 JSON<input type="file" accept=".json" style="display:none" onchange="restoreJSON(event)"></label>
+      <button class="btn btn-s" onclick="exportAllExcel()">📥 匯出全部 Excel</button>
+      <button class="btn btn-r" onclick="clearAll()">🗑 清除所有資料</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL ══ -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+<div class="modal">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <h3 id="modalTitle" style="font-size:14px;font-weight:800;color:#1e3a5f"></h3>
+    <button class="btn btn-g" onclick="closeModal()" style="padding:4px 10px">✕</button>
+  </div>
+  <div id="modalBody"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+    <button class="btn btn-g" onclick="closeModal()">取消 Cancel</button>
+    <button class="btn btn-b" onclick="saveForm()">儲存 Save</button>
+  </div>
+</div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  I18N — Using actual Unicode chars, not escape sequences
+// ═══════════════════════════════════════════════════════════
+const I18N={
+zh:{
+hTitle:'VRT 員工通勤與出勤系統',hlCar:'乘車記錄',hlBike:'摩托車',hlLate:'遲到紀錄',
+tCar:'人員運輸',tBike:'摩托車記錄',tLate:'遲到早退記錄',tRank:'異常統計',tTrend:'趨勢圖表',tData:'資料管理',
+carTitle:'人員上下班運輸',bikeTitle:'人員騎摩托車',lateTitle:'遲到早退記錄',
+rankTitle:'異常遲到人員總表',deptRank:'部門遲到統計',
+addRec:'新增',cancel:'取消',save:'儲存',noData:'無資料',imported:'已匯入',saved:'已儲存',deleted:'已刪除',exported:'已匯出',
+confirmDel:'確定刪除？',confirmClear:'清除所有資料？此操作無法復原。',
+impTitle:'匯入 Excel 資料',
+date:'日期',driver:'司機',plate:'車牌',morning:'早班',evening:'晚班',total:'總計',remarks:'備註',
+buildingA:'A棟',buildingB:'B棟',
+name:'姓名',dept:'部門',comeLate:'遲到/早退',companyId:'工號',checkIn:'入廠',checkOut:'出廠',gatekeeper:'警衛',hour:'時數',
+records:'筆記錄',totalPeople:'總人數',avgDaily:'日均',
+editRec:'編輯紀錄',addNewRec:'新增紀錄',
+daily:'每日',weekly:'每週',monthly:'每月',yearly:'每年',
+carTrend:'乘車人數趨勢',bikeTrend:'摩托車趨勢',lateTrend:'遲到人數趨勢',deptTrend:'部門遲到分佈',periodTable:'期間報表',
+timesLate:'遲到次數',rank:'排名',frequency:'頻率'
+},
+en:{
+hTitle:'VRT Employee Commute & Attendance',hlCar:'Car Records',hlBike:'Motorbike',hlLate:'Late Records',
+tCar:'Car Transport',tBike:'Motor Bike',tLate:'Late/Leave Early',tRank:'Statistics',tTrend:'Trend Charts',tData:'Data Mgmt',
+carTitle:'Amount of Employees Apply Car',bikeTitle:'Motor Bike Record',lateTitle:'Come Late Record',
+rankTitle:'Frequent Late Employees',deptRank:'Late by Department',
+addRec:'Add',cancel:'Cancel',save:'Save',noData:'No data',imported:'Imported',saved:'Saved',deleted:'Deleted',exported:'Exported',
+confirmDel:'Delete this record?',confirmClear:'Clear all data? This cannot be undone.',
+impTitle:'Import Excel Data',
+date:'Date',driver:'Driver',plate:'Car Plate',morning:'Morning',evening:'Evening',total:'Total',remarks:'Remarks',
+buildingA:'Building A',buildingB:'Building B',
+name:'Name',dept:'Dept',comeLate:'Come Late/Leave Early',companyId:'Company ID',checkIn:'Check In',checkOut:'Check Out',gatekeeper:'Gatekeeper',hour:'Hour',
+records:'records',totalPeople:'Total People',avgDaily:'Daily Avg',
+editRec:'Edit Record',addNewRec:'Add New Record',
+daily:'Daily',weekly:'Weekly',monthly:'Monthly',yearly:'Yearly',
+carTrend:'Car Transport Trend',bikeTrend:'Motorbike Trend',lateTrend:'Late Count Trend',deptTrend:'Late by Dept',periodTable:'Period Report',
+timesLate:'Times Late',rank:'Rank',frequency:'Frequency'
+},
+km:{
+hTitle:'VRT របាយការណ៍ការចូលធ្វើការ',hlCar:'កំណត់ត្រាឡាន',hlBike:'ម៉ូតូ',hlLate:'មកយឺត',
+tCar:'ការដឹកជញ្ជូន',tBike:'ម៉ូតូ',tLate:'មកយឺត/ចេញមុន',tRank:'ស្ថិតិ',tTrend:'គំនូសតាង',tData:'គ្រប់គ្រងទិន្នន័យ',
+carTitle:'ចំនួនអ្នកជិះឡាន',bikeTitle:'កំណត់ត្រាម៉ូតូ',lateTitle:'របាយការណ៍អ្នកមកយឺត',
+rankTitle:'បុគ្គលិកមកយឺតញឹកញាប់',deptRank:'តាមផ្នែក',
+addRec:'បន្ថែម',cancel:'បោះបង់',save:'រក្សាទុក',noData:'គ្មានទិន្នន័យ',imported:'បាននាំចូល',saved:'បានរក្សាទុក',deleted:'បានលុប',exported:'បាននាំចេញ',
+confirmDel:'លុប?',confirmClear:'លុបទាំងអស់?',
+impTitle:'នាំចូល Excel',
+date:'កាលបរិច្ឆេទ',driver:'អ្នកបើក',plate:'ស្លាកលេខ',morning:'ពេលព្រឹក',evening:'ពេលល្ងាច',total:'សរុប',remarks:'សំគាល់',
+buildingA:'អគារ A',buildingB:'អគារ B',
+name:'ឈ្មោះ',dept:'ផ្នែក',comeLate:'មកយឺត/ចេញមុន',companyId:'អត្តលេខ',checkIn:'ពេលចូល',checkOut:'ពេលចេញ',gatekeeper:'សន្តិសុខ',hour:'ម៉ោង',
+records:'កំណត់ត្រា',totalPeople:'សរុបមនុស្ស',avgDaily:'មាorg់មាប្រចាំថ្ងៃ',
+editRec:'កែសម្រួល',addNewRec:'បន្ថែមថ្មី',
+daily:'ប្រចាំថ្ងៃ',weekly:'ប្រចាំសប្តាហ៍',monthly:'ប្រចាំខែ',yearly:'ប្រចាំឆ្នាំ',
+carTrend:'និន្នាការឡាន',bikeTrend:'និន្នាការម៉ូតូ',lateTrend:'និន្នាការមកយឺត',deptTrend:'តាមផ្នែក',periodTable:'របាយការណ៍រយៈពេល',
+timesLate:'ចំនួនមកយឺត',rank:'ចំណាត់ថ្នាក់',frequency:'ប្រេកង់'
+}
+};
+
+let lang=localStorage.getItem('vrt_commute_lang')||'zh';
+function T(k){return I18N[lang]?.[k]||I18N.en[k]||k}
+function setLang(l){lang=l;localStorage.setItem('vrt_commute_lang',l);
+  document.querySelectorAll('.lang-btn').forEach(b=>b.classList.toggle('on',b.dataset.l===l));
+  applyLang();
+}
+function applyLang(){
+  document.querySelectorAll('.tl').forEach(el=>{const k=el.dataset.k;if(k)el.textContent=T(k)});
+  document.getElementById('hTitle').textContent=T('hTitle');
+  document.getElementById('hlCar').textContent=T('hlCar');
+  document.getElementById('hlBike').textContent=T('hlBike');
+  document.getElementById('hlLate').textContent=T('hlLate');
+  renderAll();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  DATA
+// ═══════════════════════════════════════════════════════════
+const LS_CAR='vrt_car_db',LS_BIKE='vrt_bike_db',LS_LATE='vrt_late_db';
+let CAR=[],BIKE=[],LATE=[];
+let editId=null,editType=null;
+let carPage=0,bikePage=0,latePage=0;
+const PAGE_SIZE=50;
+let charts={};
+let trendPeriod='daily';
+
+function save(){localStorage.setItem(LS_CAR,JSON.stringify(CAR));localStorage.setItem(LS_BIKE,JSON.stringify(BIKE));localStorage.setItem(LS_LATE,JSON.stringify(LATE))}
+function load(){try{CAR=JSON.parse(localStorage.getItem(LS_CAR))||[]}catch{CAR=[]}try{BIKE=JSON.parse(localStorage.getItem(LS_BIKE))||[]}catch{BIKE=[]}try{LATE=JSON.parse(localStorage.getItem(LS_LATE))||[]}catch{LATE=[]}}
+
+// ═══════════════════════════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════════════════════════
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}
+function toast(m,t='ok'){document.querySelectorAll('.toast').forEach(x=>x.remove());const d=document.createElement('div');d.className='toast toast-'+t;d.textContent=m;document.body.appendChild(d);setTimeout(()=>d.remove(),3000)}
+function cleanNum(v){if(v==null||v==='')return 0;const s=String(v).replace(/[^\d.\-]/g,'');return parseFloat(s)||0}
+function destroyCharts(){Object.values(charts).forEach(c=>{try{c.destroy()}catch{}});charts={}}
+
+const MON_MAP={january:'01',february:'02',march:'03',april:'04',may:'05',june:'06',july:'07',august:'08',september:'09',october:'10',november:'11',december:'12'};
+const WEEKDAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+// Extract year+month from sheet tab name like "January 2025", "July 2025", "May-2025"
+function extractYearMonthFromSheet(sheetName){
+  const s=sheetName.trim().replace(/\s+/g,' ');
+  // "January 2025" or "February 2025 " or "May-2025"
+  const m=s.match(/([A-Za-z]+)\s*[-]?\s*(\d{4})/i);
+  if(m){
+    const mon=MON_MAP[m[1].toLowerCase()];
+    if(mon)return{year:m[2],month:mon};
+  }
+  // "2025 January"
+  const m2=s.match(/(\d{4})\s*[-]?\s*([A-Za-z]+)/i);
+  if(m2){
+    const mon=MON_MAP[m2[2].toLowerCase()];
+    if(mon)return{year:m2[1],month:mon};
+  }
+  return null;
+}
+
+// Parse date from cell value, using sheetYM as fallback for year/month
+function parseVRTDate(v, sheetYM){
+  if(!v)return'';
+  const s=String(v).trim().split('\n')[0].trim();
+  // "2025-January-01" format
+  const m1=s.match(/^(\d{4})-([A-Za-z]+)-(\d{1,2})/);
+  if(m1){
+    const mm=MON_MAP[m1[2].toLowerCase()];
+    if(mm){
+      // Use sheet year if available and cell year seems wrong
+      let yr=m1[1];
+      if(sheetYM && sheetYM.year && yr!==sheetYM.year){
+        yr=sheetYM.year; // Trust sheet tab name for year
+      }
+      return `${yr}-${mm}-${m1[3].padStart(2,'0')}`;
+    }
+  }
+  // ISO "2025-01-01"
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)){
+    let d=s.slice(0,10);
+    if(sheetYM&&sheetYM.year&&!d.startsWith(sheetYM.year)){
+      d=sheetYM.year+d.slice(4);
+    }
+    return d;
+  }
+  // Excel serial number
+  const n=Number(s);if(!isNaN(n)&&n>40000&&n<60000){const dt=new Date((n-25569)*86400000);return dt.toISOString().slice(0,10)}
+  // Date object
+  if(v instanceof Date&&!isNaN(v))return v.toISOString().slice(0,10);
+  // "DD/MM/YYYY"
+  const m2=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(m2){
+    let yr=m2[3];
+    if(sheetYM&&sheetYM.year)yr=sheetYM.year;
+    return `${yr}-${m2[2].padStart(2,'0')}-${m2[1].padStart(2,'0')}`;
+  }
+  // Just day number with sheet context
+  const dayOnly=s.match(/^(\d{1,2})$/);
+  if(dayOnly&&sheetYM){
+    return `${sheetYM.year}-${sheetYM.month}-${dayOnly[1].padStart(2,'0')}`;
+  }
+  return '';
+}
+
+function fmtDate(d){
+  if(!d)return'—';
+  try{const dt=new Date(d+'T00:00:00');if(isNaN(dt))return d;
+    const day=dt.getDate();const mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][dt.getMonth()];
+    return `${String(day).padStart(2,'0')} ${mon} ${dt.getFullYear()} (${WEEKDAYS[dt.getDay()]})`;
+  }catch{return d}
+}
+
+function getWeekKey(d){const dt=new Date(d+'T00:00:00');const day=dt.getDay();const mon=new Date(dt);mon.setDate(dt.getDate()-((day+6)%7));return mon.toISOString().slice(0,10)}
+
+// ═══════════════════════════════════════════════════════════
+//  TABS
+// ═══════════════════════════════════════════════════════════
+function goTab(t,el){
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.sec').forEach(x=>x.classList.remove('on'));
+  if(el)el.classList.add('on');
+  document.getElementById('sec-'+t).classList.add('on');
+  if(t==='car')renderCar();else if(t==='bike')renderBike();else if(t==='late')renderLate();else if(t==='rank')renderRank();else if(t==='trend')renderTrend();else updateDBCard();
+}
+function updateHeader(){document.getElementById('hCar').textContent=CAR.length;document.getElementById('hBike').textContent=BIKE.length;document.getElementById('hLate').textContent=LATE.length}
+
+// ═══════════════════════════════════════════════════════════
+//  MONTH SELECTORS
+// ═══════════════════════════════════════════════════════════
+function fillMonths(db,selId){
+  const months=[...new Set(db.map(r=>(r.date||'').slice(0,7)).filter(Boolean))].sort();
+  const sel=document.getElementById(selId);const cur=sel.value;
+  sel.innerHTML='<option value="">ALL</option>'+months.map(m=>`<option value="${m}"${m===cur?' selected':''}>${m}</option>`).join('');
+}
+function filterRecs(db,monthId,searchId){
+  const month=document.getElementById(monthId).value;
+  const q=(document.getElementById(searchId).value||'').toLowerCase();
+  return db.filter(r=>{
+    if(month&&!(r.date||'').startsWith(month))return false;
+    if(q){const str=JSON.stringify(r).toLowerCase();if(!str.includes(q))return false}
+    return true;
+  });
+}
+function renderPager(cid,total,curPage,fn){
+  const tp=Math.ceil(total/PAGE_SIZE);const el=document.getElementById(cid);
+  if(tp<=1){el.innerHTML='';return}
+  el.innerHTML=`<button ${curPage===0?'disabled':''} onclick="${fn}(${curPage-1})">◀</button><span>${curPage+1} / ${tp}</span><button ${curPage>=tp-1?'disabled':''} onclick="${fn}(${curPage+1})">▶</button><span style="margin-left:8px;font-size:11px;color:#8b95b8">(${total} ${T('records')})</span>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  CAR TAB
+// ═══════════════════════════════════════════════════════════
+function renderCar(){
+  fillMonths(CAR,'carMonth');
+  const recs=filterRecs(CAR,'carMonth','carSearch');
+  const totM=recs.reduce((s,r)=>s+(r.morning||0),0),totE=recs.reduce((s,r)=>s+(r.evening||0),0);
+  const days=[...new Set(recs.map(r=>r.date))].length;
+  document.getElementById('carKpi').innerHTML=`
+    <div class="kpi"><div class="kpi-icon">📋</div><div class="kpi-n">${recs.length}</div><div class="kpi-l">${T('records')}</div></div>
+    <div class="kpi"><div class="kpi-icon">🌅</div><div class="kpi-n">${totM.toLocaleString()}</div><div class="kpi-l">${T('morning')}</div></div>
+    <div class="kpi"><div class="kpi-icon">🌆</div><div class="kpi-n">${totE.toLocaleString()}</div><div class="kpi-l">${T('evening')}</div></div>
+    <div class="kpi"><div class="kpi-icon">👥</div><div class="kpi-n">${(totM+totE).toLocaleString()}</div><div class="kpi-l">${T('totalPeople')}</div></div>
+    <div class="kpi"><div class="kpi-icon">📅</div><div class="kpi-n">${days?Math.round((totM+totE)/days):0}</div><div class="kpi-l">${T('avgDaily')}</div></div>`;
+  document.getElementById('carMeta').textContent=`${recs.length} ${T('records')}`;
+  document.getElementById('carHead').innerHTML=`<tr><th>#</th><th>${T('date')}</th><th>${T('driver')}</th><th>${T('plate')}</th><th>${T('morning')}</th><th>${T('evening')}</th><th>${T('total')}</th><th>${T('remarks')}</th><th></th></tr>`;
+  const start=carPage*PAGE_SIZE;const page=recs.slice(start,start+PAGE_SIZE);
+  document.getElementById('carBody').innerHTML=page.length?page.map((r,i)=>`<tr>
+    <td>${start+i+1}</td><td>${fmtDate(r.date)}</td><td style="font-weight:600">${esc(r.driver)}</td><td class="mono">${esc(r.plate)}</td>
+    <td class="mono">${r.morning||0}</td><td class="mono">${r.evening||0}</td><td class="mono" style="font-weight:700">${(r.morning||0)+(r.evening||0)}</td>
+    <td style="color:#5a6a7e;font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis">${esc(r.remarks)}</td>
+    <td><button class="btn btn-g" style="padding:2px 8px;font-size:11px" onclick="openEdit('car','${r.id}')">✏️</button> <button class="btn btn-r" style="padding:2px 8px;font-size:11px" onclick="deleteRec('car','${r.id}')">✕</button></td></tr>`).join(''):`<tr><td colspan="9" class="empty">${T('noData')}</td></tr>`;
+  renderPager('carPager',recs.length,carPage,'setCarPage');
+}
+function setCarPage(p){carPage=p;renderCar()}
+
+// ═══════════════════════════════════════════════════════════
+//  BIKE TAB
+// ═══════════════════════════════════════════════════════════
+function renderBike(){
+  fillMonths(BIKE,'bikeMonth');
+  const recs=filterRecs(BIKE,'bikeMonth','bikeSearch');
+  const totA=recs.reduce((s,r)=>s+(r.buildingA||0),0),totB=recs.reduce((s,r)=>s+(r.buildingB||0),0);
+  const days=[...new Set(recs.map(r=>r.date))].length;
+  document.getElementById('bikeKpi').innerHTML=`
+    <div class="kpi"><div class="kpi-icon">📋</div><div class="kpi-n">${recs.length}</div><div class="kpi-l">${T('records')}</div></div>
+    <div class="kpi"><div class="kpi-icon">🏭</div><div class="kpi-n">${totA.toLocaleString()}</div><div class="kpi-l">${T('buildingA')}</div></div>
+    <div class="kpi"><div class="kpi-icon">🏢</div><div class="kpi-n">${totB.toLocaleString()}</div><div class="kpi-l">${T('buildingB')}</div></div>
+    <div class="kpi"><div class="kpi-icon">🏍️</div><div class="kpi-n">${(totA+totB).toLocaleString()}</div><div class="kpi-l">${T('total')}</div></div>
+    <div class="kpi"><div class="kpi-icon">📅</div><div class="kpi-n">${days?Math.round((totA+totB)/days):0}</div><div class="kpi-l">${T('avgDaily')}</div></div>`;
+  document.getElementById('bikeMeta').textContent=`${recs.length} ${T('records')}`;
+  document.getElementById('bikeHead').innerHTML=`<tr><th>#</th><th>${T('date')}</th><th>${T('buildingA')}</th><th>${T('buildingB')}</th><th>${T('total')}</th><th>${T('remarks')}</th><th></th></tr>`;
+  const start=bikePage*PAGE_SIZE;const page=recs.slice(start,start+PAGE_SIZE);
+  document.getElementById('bikeBody').innerHTML=page.length?page.map((r,i)=>`<tr>
+    <td>${start+i+1}</td><td>${fmtDate(r.date)}</td><td class="mono">${r.buildingA||0}</td><td class="mono">${r.buildingB||0}</td>
+    <td class="mono" style="font-weight:700">${(r.buildingA||0)+(r.buildingB||0)}</td>
+    <td style="color:#5a6a7e;font-size:11px">${esc(r.remarks)}</td>
+    <td><button class="btn btn-g" style="padding:2px 8px;font-size:11px" onclick="openEdit('bike','${r.id}')">✏️</button> <button class="btn btn-r" style="padding:2px 8px;font-size:11px" onclick="deleteRec('bike','${r.id}')">✕</button></td></tr>`).join(''):`<tr><td colspan="7" class="empty">${T('noData')}</td></tr>`;
+  renderPager('bikePager',recs.length,bikePage,'setBikePage');
+}
+function setBikePage(p){bikePage=p;renderBike()}
+
+// ═══════════════════════════════════════════════════════════
+//  LATE TAB
+// ═══════════════════════════════════════════════════════════
+function renderLate(){
+  fillMonths(LATE,'lateMonth');
+  const recs=filterRecs(LATE,'lateMonth','lateSearch');
+  const depts={};recs.forEach(r=>{const d=r.dept||'?';depts[d]=(depts[d]||0)+1});
+  const topDept=Object.entries(depts).sort((a,b)=>b[1]-a[1])[0];
+  const days=[...new Set(recs.map(r=>r.date))].length;
+  document.getElementById('lateKpi').innerHTML=`
+    <div class="kpi"><div class="kpi-icon">⏰</div><div class="kpi-n">${recs.length}</div><div class="kpi-l">${T('records')}</div></div>
+    <div class="kpi"><div class="kpi-icon">📅</div><div class="kpi-n">${days}</div><div class="kpi-l">Days</div></div>
+    <div class="kpi"><div class="kpi-icon">📊</div><div class="kpi-n">${days?(recs.length/days).toFixed(1):0}</div><div class="kpi-l">${T('avgDaily')}</div></div>
+    <div class="kpi"><div class="kpi-icon">🏭</div><div class="kpi-n" style="font-size:13px">${topDept?esc(topDept[0]):'-'}</div><div class="kpi-l">Top Dept (${topDept?topDept[1]:0})</div></div>`;
+  document.getElementById('lateMeta').textContent=`${recs.length} ${T('records')}`;
+  document.getElementById('lateHead').innerHTML=`<tr><th>#</th><th>${T('date')}</th><th>${T('name')}</th><th>${T('dept')}</th><th>${T('comeLate')}</th><th>${T('companyId')}</th><th>${T('checkIn')}</th><th>${T('checkOut')}</th><th>${T('gatekeeper')}</th><th>${T('hour')}</th><th>${T('remarks')}</th><th></th></tr>`;
+  const start=latePage*PAGE_SIZE;const page=recs.slice(start,start+PAGE_SIZE);
+  document.getElementById('lateBody').innerHTML=page.length?page.map((r,i)=>`<tr>
+    <td>${start+i+1}</td><td>${fmtDate(r.date)}</td><td style="font-weight:600">${esc(r.name)}</td>
+    <td><span class="badge b-blue">${esc(r.dept)}</span></td>
+    <td><span class="badge ${r.comeLate==='V'?'b-amber':'b-green'}">${esc(r.comeLate)||'-'}</span></td>
+    <td class="mono">${esc(r.companyId)}</td><td class="mono">${esc(r.checkIn)}</td><td class="mono">${esc(r.checkOut)}</td>
+    <td>${esc(r.gatekeeper)}</td><td style="font-size:11px">${esc(r.hour)}</td>
+    <td style="color:#5a6a7e;font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis">${esc(r.remarks)}</td>
+    <td><button class="btn btn-g" style="padding:2px 8px;font-size:11px" onclick="openEdit('late','${r.id}')">✏️</button> <button class="btn btn-r" style="padding:2px 8px;font-size:11px" onclick="deleteRec('late','${r.id}')">✕</button></td></tr>`).join(''):`<tr><td colspan="12" class="empty">${T('noData')}</td></tr>`;
+  renderPager('latePager',recs.length,latePage,'setLatePage');
+}
+function setLatePage(p){latePage=p;renderLate()}
+
+// ═══════════════════════════════════════════════════════════
+//  RANKING TAB — Frequent late employees
+// ═══════════════════════════════════════════════════════════
+function renderRank(){
+  fillMonths(LATE,'rankMonth');
+  const month=document.getElementById('rankMonth').value;
+  const recs=month?LATE.filter(r=>(r.date||'').startsWith(month)):LATE;
+  // Employee ranking
+  const byPerson={};
+  recs.forEach(r=>{
+    const key=(r.companyId||'')+'_'+(r.name||'');
+    if(!byPerson[key])byPerson[key]={name:r.name,companyId:r.companyId,dept:r.dept,count:0,dates:[]};
+    byPerson[key].count++;byPerson[key].dates.push(r.date);
+    if(r.dept&&r.dept!=='#N/A')byPerson[key].dept=r.dept;
+  });
+  const sorted=Object.values(byPerson).sort((a,b)=>b.count-a.count);
+  const top3=sorted.filter(p=>p.count>=3).length;
+  const top5=sorted.filter(p=>p.count>=5).length;
+  document.getElementById('rankKpi').innerHTML=`
+    <div class="kpi"><div class="kpi-icon">👤</div><div class="kpi-n">${sorted.length}</div><div class="kpi-l">Total People</div></div>
+    <div class="kpi"><div class="kpi-icon">⚠️</div><div class="kpi-n">${top3}</div><div class="kpi-l">≥3 times</div></div>
+    <div class="kpi"><div class="kpi-icon">🚨</div><div class="kpi-n">${top5}</div><div class="kpi-l">≥5 times</div></div>
+    <div class="kpi"><div class="kpi-icon">📊</div><div class="kpi-n">${sorted.length?(sorted.reduce((s,p)=>s+p.count,0)/sorted.length).toFixed(1):0}</div><div class="kpi-l">Avg frequency</div></div>`;
+  document.getElementById('rankHead').innerHTML=`<tr><th>${T('rank')}</th><th>${T('companyId')}</th><th>${T('name')}</th><th>${T('dept')}</th><th>${T('timesLate')}</th><th>Bar</th><th>Dates</th></tr>`;
+  const maxCount=sorted.length?sorted[0].count:1;
+  document.getElementById('rankBody').innerHTML=sorted.length?sorted.slice(0,100).map((p,i)=>{
+    const pct=Math.round(p.count/maxCount*100);
+    const cls=p.count>=5?'b-red':p.count>=3?'b-amber':'b-green';
+    return `<tr>
+      <td style="font-weight:700">${i+1}</td><td class="mono">${esc(p.companyId)}</td><td style="font-weight:600">${esc(p.name)}</td>
+      <td><span class="badge b-blue">${esc(p.dept)}</span></td>
+      <td><span class="badge ${cls}" style="font-size:12px;padding:3px 10px">${p.count}</span></td>
+      <td style="min-width:120px"><div class="capbar"><div class="capfill" style="width:${pct}%;background:${p.count>=5?'#c62828':p.count>=3?'#e6a700':'#0d8050'}"></div></div></td>
+      <td style="font-size:10px;color:#6b7a9e;max-width:200px;overflow:hidden;text-overflow:ellipsis">${[...new Set(p.dates)].sort().join(', ')}</td>
+    </tr>`}).join(''):`<tr><td colspan="7" class="empty">${T('noData')}</td></tr>`;
+  // Dept ranking
+  const byDept={};
+  recs.forEach(r=>{const d=r.dept||'Unknown';byDept[d]=(byDept[d]||0)+1});
+  const deptSorted=Object.entries(byDept).sort((a,b)=>b[1]-a[1]);
+  const deptMax=deptSorted.length?deptSorted[0][1]:1;
+  document.getElementById('deptHead').innerHTML=`<tr><th>#</th><th>${T('dept')}</th><th>${T('timesLate')}</th><th>%</th><th>Bar</th></tr>`;
+  document.getElementById('deptBody').innerHTML=deptSorted.length?deptSorted.map((d,i)=>{
+    const pct=Math.round(d[1]/recs.length*100);
+    return `<tr><td>${i+1}</td><td style="font-weight:600">${esc(d[0])}</td><td class="mono" style="font-weight:700">${d[1]}</td><td class="mono">${pct}%</td>
+    <td style="min-width:140px"><div class="capbar"><div class="capfill" style="width:${Math.round(d[1]/deptMax*100)}%;background:#2a5f8f"></div></div></td></tr>`}).join(''):'';
+}
+function exportRank(){
+  const month=document.getElementById('rankMonth').value;
+  const recs=month?LATE.filter(r=>(r.date||'').startsWith(month)):LATE;
+  const byPerson={};
+  recs.forEach(r=>{const key=(r.companyId||'')+'_'+(r.name||'');if(!byPerson[key])byPerson[key]={name:r.name,companyId:r.companyId,dept:r.dept,count:0};byPerson[key].count++;if(r.dept&&r.dept!=='#N/A')byPerson[key].dept=r.dept});
+  const sorted=Object.values(byPerson).sort((a,b)=>b.count-a.count);
+  const data=[['Rank','Company ID','Name','Dept','Times Late']];
+  sorted.forEach((p,i)=>data.push([i+1,p.companyId,p.name,p.dept,p.count]));
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(data),'Late_Ranking');
+  XLSX.writeFile(wb,`VRT_Late_Ranking_${month||'ALL'}_${new Date().toISOString().slice(0,10)}.xlsx`);
+  toast(T('exported'));
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TREND TAB — Charts
+// ═══════════════════════════════════════════════════════════
+function setTrendPeriod(p){
+  trendPeriod=p;
+  ['Daily','Weekly','Monthly','Yearly'].forEach(n=>{
+    const btn=document.getElementById('btn'+n);
+    btn.className=n.toLowerCase()===p?'btn btn-b':'btn btn-g';
+  });
+  renderTrend();
+}
+
+function renderTrend(){
+  destroyCharts();
+  // Fill month filter
+  const allDates=[...CAR.map(r=>r.date),...BIKE.map(r=>r.date),...LATE.map(r=>r.date)].filter(Boolean);
+  const months=[...new Set(allDates.map(d=>d.slice(0,7)))].sort();
+  const tf=document.getElementById('trendMonthFilter');const curVal=tf.value;
+  tf.innerHTML='<option value="">ALL</option>'+months.map(m=>`<option value="${m}"${m===curVal?' selected':''}>${m}</option>`).join('');
+  // Show/hide month filter for daily/weekly
+  tf.style.display=(trendPeriod==='daily'||trendPeriod==='weekly')?'':'none';
+
+  const mf=tf.value;
+
+  // Group data by period
+  function groupBy(db,keyFn,valFn){
+    const map={};
+    db.forEach(r=>{
+      if(mf&&!(r.date||'').startsWith(mf))return;
+      const k=keyFn(r);if(!k)return;
+      map[k]=(map[k]||0)+valFn(r);
+    });
+    return Object.entries(map).sort((a,b)=>a[0].localeCompare(b[0]));
+  }
+  function countBy(db,keyFn){
+    const map={};
+    db.forEach(r=>{
+      if(mf&&!(r.date||'').startsWith(mf))return;
+      const k=keyFn(r);if(!k)return;
+      map[k]=(map[k]||0)+1;
+    });
+    return Object.entries(map).sort((a,b)=>a[0].localeCompare(b[0]));
+  }
+
+  let keyFn;
+  if(trendPeriod==='daily')keyFn=r=>r.date;
+  else if(trendPeriod==='weekly')keyFn=r=>r.date?getWeekKey(r.date):null;
+  else if(trendPeriod==='monthly')keyFn=r=>(r.date||'').slice(0,7);
+  else keyFn=r=>(r.date||'').slice(0,4);
+
+  // Car: total people (morning+evening) per day grouped by date
+  const carData=groupBy(CAR,keyFn,r=>(r.morning||0)+(r.evening||0));
+  const bikeData=groupBy(BIKE,keyFn,r=>(r.buildingA||0)+(r.buildingB||0));
+  const lateData=countBy(LATE,keyFn);
+
+  const chartOpts=(label,color)=>({type:'bar',options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true},x:{ticks:{maxRotation:45,font:{size:10}}}}}});
+
+  charts.car=new Chart(document.getElementById('cCarTrend'),{
+    ...chartOpts(),type:'bar',
+    data:{labels:carData.map(d=>d[0]),datasets:[{label:T('totalPeople'),data:carData.map(d=>d[1]),backgroundColor:'#2a5f8f',borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true},x:{ticks:{maxRotation:45,font:{size:10}}}}}
+  });
+  charts.bike=new Chart(document.getElementById('cBikeTrend'),{
+    type:'bar',
+    data:{labels:bikeData.map(d=>d[0]),datasets:[{label:T('total'),data:bikeData.map(d=>d[1]),backgroundColor:'#e6a700',borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true},x:{ticks:{maxRotation:45,font:{size:10}}}}}
+  });
+  charts.late=new Chart(document.getElementById('cLateTrend'),{
+    type:'line',
+    data:{labels:lateData.map(d=>d[0]),datasets:[{label:T('timesLate'),data:lateData.map(d=>d[1]),borderColor:'#c62828',backgroundColor:'rgba(198,40,40,.1)',fill:true,tension:.3,pointRadius:2}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true},x:{ticks:{maxRotation:45,font:{size:10}}}}}
+  });
+  // Dept pie
+  const deptMap={};
+  LATE.forEach(r=>{if(mf&&!(r.date||'').startsWith(mf))return;const d=r.dept||'?';deptMap[d]=(deptMap[d]||0)+1});
+  const deptArr=Object.entries(deptMap).sort((a,b)=>b[1]-a[1]).slice(0,12);
+  const COLORS=['#2a5f8f','#e6a700','#c62828','#0d8050','#7c3aed','#0369a1','#d97706','#dc2626','#059669','#6d28d9','#1a73c7','#92400e'];
+  charts.deptPie=new Chart(document.getElementById('cDeptPie'),{
+    type:'doughnut',
+    data:{labels:deptArr.map(d=>d[0]),datasets:[{data:deptArr.map(d=>d[1]),backgroundColor:COLORS}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10}}}}}
+  });
+
+  // Period summary table
+  document.getElementById('trendHead').innerHTML=`<tr><th>Period</th><th>🚌 Car People</th><th>🏍️ Bike Total</th><th>⏰ Late Count</th></tr>`;
+  // Merge all period keys
+  const allKeys=[...new Set([...carData.map(d=>d[0]),...bikeData.map(d=>d[0]),...lateData.map(d=>d[0])])].sort();
+  const carMap=Object.fromEntries(carData),bikeMap=Object.fromEntries(bikeData),lateMap=Object.fromEntries(lateData);
+  document.getElementById('trendBody').innerHTML=allKeys.length?allKeys.map(k=>`<tr>
+    <td style="font-weight:600">${k}</td>
+    <td class="mono">${(carMap[k]||0).toLocaleString()}</td>
+    <td class="mono">${(bikeMap[k]||0).toLocaleString()}</td>
+    <td class="mono">${lateMap[k]||0}</td>
+  </tr>`).join(''):`<tr><td colspan="4" class="empty">${T('noData')}</td></tr>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  DB CARD
+// ═══════════════════════════════════════════════════════════
+function updateDBCard(){
+  const el=document.getElementById('dbInfo');if(!el)return;
+  const carDates=CAR.length?`(${CAR.map(r=>r.date).filter(Boolean).sort()[0]} ~ ${CAR.map(r=>r.date).filter(Boolean).sort().pop()})`:'';
+  const bikeDates=BIKE.length?`(${BIKE.map(r=>r.date).filter(Boolean).sort()[0]} ~ ${BIKE.map(r=>r.date).filter(Boolean).sort().pop()})`:'';
+  const lateDates=LATE.length?`(${LATE.map(r=>r.date).filter(Boolean).sort()[0]} ~ ${LATE.map(r=>r.date).filter(Boolean).sort().pop()})`:'';
+  el.innerHTML=`<div style="display:flex;gap:20px;flex-wrap:wrap;font-size:13px">
+    <div>🚌 <b>Car:</b> ${CAR.length} ${T('records')} ${carDates}</div>
+    <div>🏍️ <b>Bike:</b> ${BIKE.length} ${T('records')} ${bikeDates}</div>
+    <div>⏰ <b>Late:</b> ${LATE.length} ${T('records')} ${lateDates}</div>
+    <div>💾 <b>Total:</b> ${CAR.length+BIKE.length+LATE.length}</div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  FORMS (MODAL)
+// ═══════════════════════════════════════════════════════════
+function openForm(type){editId=null;editType=type;document.getElementById('modalTitle').textContent=T('addNewRec');document.getElementById('modalBody').innerHTML=getFormHTML(type,{});document.getElementById('modalOverlay').classList.add('open')}
+function openEdit(type,id){const db=type==='car'?CAR:type==='bike'?BIKE:LATE;const rec=db.find(r=>r.id===id);if(!rec)return;editId=id;editType=type;document.getElementById('modalTitle').textContent=T('editRec');document.getElementById('modalBody').innerHTML=getFormHTML(type,rec);document.getElementById('modalOverlay').classList.add('open')}
+function closeModal(){document.getElementById('modalOverlay').classList.remove('open');editId=null;editType=null}
+
+function getFormHTML(type,r){
+  if(type==='car')return`<div class="form-grid">
+    <div class="form-group"><label>${T('date')} 日期 កាលបរិច្ឆេទ</label><input class="inp" type="date" id="f_date" value="${r.date||new Date().toISOString().slice(0,10)}"></div>
+    <div class="form-group"><label>${T('driver')} 司機 អ្នកបើក</label><input class="inp" id="f_driver" value="${esc(r.driver||'')}"></div>
+    <div class="form-group"><label>${T('plate')} 車牌 ស្លាកលេខ</label><input class="inp" id="f_plate" value="${esc(r.plate||'')}"></div>
+    <div class="form-group"><label>${T('morning')} 早班 ពេលព្រឹក</label><input class="inp" type="number" id="f_morning" value="${r.morning||0}"></div>
+    <div class="form-group"><label>${T('evening')} 晚班 ពេលល្ងាច</label><input class="inp" type="number" id="f_evening" value="${r.evening||0}"></div>
+    <div class="form-group"><label>${T('remarks')} 備註 សំគាល់</label><input class="inp" id="f_remarks" value="${esc(r.remarks||'')}"></div></div>`;
+  if(type==='bike')return`<div class="form-grid">
+    <div class="form-group"><label>${T('date')} 日期</label><input class="inp" type="date" id="f_date" value="${r.date||new Date().toISOString().slice(0,10)}"></div>
+    <div class="form-group"><label>${T('buildingA')} A棟 អគារ A</label><input class="inp" type="number" id="f_buildingA" value="${r.buildingA||0}"></div>
+    <div class="form-group"><label>${T('buildingB')} B棟 អគារ B</label><input class="inp" type="number" id="f_buildingB" value="${r.buildingB||0}"></div>
+    <div class="form-group"><label>${T('remarks')} 備註</label><input class="inp" id="f_remarks" value="${esc(r.remarks||'')}"></div></div>`;
+  if(type==='late')return`<div class="form-grid">
+    <div class="form-group"><label>${T('date')} 日期</label><input class="inp" type="date" id="f_date" value="${r.date||new Date().toISOString().slice(0,10)}"></div>
+    <div class="form-group"><label>${T('name')} 姓名 ឈ្មោះ</label><input class="inp" id="f_name" value="${esc(r.name||'')}"></div>
+    <div class="form-group"><label>${T('dept')} 部門 ផ្នែក</label><input class="inp" id="f_dept" value="${esc(r.dept||'')}"></div>
+    <div class="form-group"><label>${T('comeLate')}</label><select class="inp" id="f_comeLate"><option value="V" ${(r.comeLate||'V')==='V'?'selected':''}>V (遲到 Come Late)</option><option value="Leave Early" ${r.comeLate==='Leave Early'?'selected':''}>Leave Early (早退)</option></select></div>
+    <div class="form-group"><label>${T('companyId')} 工號</label><input class="inp" id="f_companyId" value="${esc(r.companyId||'')}"></div>
+    <div class="form-group"><label>${T('checkIn')} 入廠</label><input class="inp" id="f_checkIn" value="${esc(r.checkIn||'')}"></div>
+    <div class="form-group"><label>${T('checkOut')} 出廠</label><input class="inp" id="f_checkOut" value="${esc(r.checkOut||'')}"></div>
+    <div class="form-group"><label>${T('gatekeeper')} 警衛</label><input class="inp" id="f_gatekeeper" value="${esc(r.gatekeeper||'')}"></div>
+    <div class="form-group"><label>${T('hour')} 時數</label><input class="inp" id="f_hour" value="${esc(r.hour||'')}"></div>
+    <div class="form-group"><label>${T('remarks')} 備註</label><input class="inp" id="f_remarks" value="${esc(r.remarks||'')}"></div></div>`;
+  return'';
+}
+
+function saveForm(){
+  const type=editType;if(!type)return;
+  const gv=id=>{const el=document.getElementById(id);return el?el.value.trim():''};
+  let rec={};
+  if(type==='car'){rec={date:gv('f_date'),driver:gv('f_driver'),plate:gv('f_plate'),morning:cleanNum(gv('f_morning')),evening:cleanNum(gv('f_evening')),remarks:gv('f_remarks')};if(!rec.date||!rec.driver){toast('Date & Driver required','err');return}}
+  else if(type==='bike'){rec={date:gv('f_date'),buildingA:cleanNum(gv('f_buildingA')),buildingB:cleanNum(gv('f_buildingB')),remarks:gv('f_remarks')};if(!rec.date){toast('Date required','err');return}}
+  else{rec={date:gv('f_date'),name:gv('f_name'),dept:gv('f_dept'),comeLate:gv('f_comeLate'),companyId:gv('f_companyId'),checkIn:gv('f_checkIn'),checkOut:gv('f_checkOut'),gatekeeper:gv('f_gatekeeper'),hour:gv('f_hour'),remarks:gv('f_remarks')};if(!rec.date){toast('Date required','err');return}}
+  const db=type==='car'?CAR:type==='bike'?BIKE:LATE;
+  if(editId){const idx=db.findIndex(r=>r.id===editId);if(idx>=0){rec.id=editId;db[idx]=rec}}
+  else{rec.id=crypto.randomUUID();db.push(rec)}
+  save();updateHeader();closeModal();
+  if(type==='car')renderCar();else if(type==='bike')renderBike();else renderLate();
+  toast(T('saved'));
+}
+function deleteRec(type,id){if(!confirm(T('confirmDel')))return;if(type==='car')CAR=CAR.filter(r=>r.id!==id);else if(type==='bike')BIKE=BIKE.filter(r=>r.id!==id);else LATE=LATE.filter(r=>r.id!==id);save();updateHeader();if(type==='car')renderCar();else if(type==='bike')renderBike();else renderLate();toast(T('deleted'))}
+
+// ═══════════════════════════════════════════════════════════
+//  EXCEL IMPORT — Fixed date parsing with sheet tab name
+// ═══════════════════════════════════════════════════════════
+function setupDrop(){const dz=document.getElementById('dropzone');if(!dz)return;dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag')});dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag');processFiles(e.dataTransfer.files)})}
+function handleFiles(e){processFiles(e.target.files);e.target.value=''}
+
+function processFiles(files){
+  let totalCar=0,totalBike=0,totalLate=0;
+  const fileArr=Array.from(files);
+  let processed=0;
+  fileArr.forEach(file=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const data=new Uint8Array(e.target.result);
+      const wb=XLSX.read(data,{type:'array',cellDates:true});
+      wb.SheetNames.forEach(sn=>{
+        const snLower=sn.toLowerCase().trim();
+        // Skip non-data sheets
+        if(snLower==='chart'||snLower==='list worker')return;
+        // Skip old Myanmar format sheets (August without year, September without year)
+        if(snLower==='august '||snLower==='august'||snLower==='september'){
+          // Check if it looks like old Myanmar format by inspecting first cell
+          const ws=wb.Sheets[sn];
+          const json=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+          if(json.length>0){
+            const firstCell=String(json[0]?.[0]||'').toLowerCase();
+            if(firstCell.includes('karisma'))return; // Old Myanmar format
+          }
+        }
+
+        // Extract year/month from sheet tab name
+        const sheetYM=extractYearMonthFromSheet(sn);
+
+        const ws=wb.Sheets[sn];
+        const json=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+        if(json.length<3)return;
+
+        // Detect type by content
+        const flat=json.slice(0,6).flat().map(v=>String(v||'').toLowerCase()).join(' ');
+        if(flat.includes('motor bike')||flat.includes('building')){
+          totalBike+=parseBikeSheet(json,sn,sheetYM);
+        }else if(flat.includes('come late')||flat.includes('gatekeeper')||flat.includes('check in')){
+          totalLate+=parseLateSheet(json,sn,sheetYM);
+        }else if(flat.includes('amount of empl')||flat.includes('driver name')||flat.includes('car plate')){
+          totalCar+=parseCarSheet(json,sn,sheetYM);
+        }
+      });
+      processed++;
+      if(processed===fileArr.length){
+        save();updateHeader();updateDBCard();
+        const msg=[];
+        if(totalCar)msg.push(`🚌 Car: ${totalCar}`);
+        if(totalBike)msg.push(`🏍️ Bike: ${totalBike}`);
+        if(totalLate)msg.push(`⏰ Late: ${totalLate}`);
+        toast(`${T('imported')}: ${msg.join(', ')||'0 records'}`);
+        const activeTab=document.querySelector('.tab.on');
+        if(activeTab)goTab(activeTab.dataset.t,activeTab);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function parseCarSheet(json,sheetName,sheetYM){
+  let count=0,currentDate='';
+  let headerRow=-1;
+  for(let i=0;i<Math.min(6,json.length);i++){
+    const rowStr=json[i].map(v=>String(v||'').toLowerCase()).join('|');
+    if(rowStr.includes('date')||rowStr.includes('no.')){headerRow=i;break}
+  }
+  if(headerRow<0)headerRow=2;
+  const startRow=headerRow+2;
+  for(let i=startRow;i<json.length;i++){
+    const row=json[i];if(!row||row.length<3)continue;
+    const dateVal=String(row[1]||'').trim();
+    const driverVal=String(row[2]||'').trim();
+    if(!driverVal||driverVal.toLowerCase()==='holiday'||driverVal.toLowerCase().includes('total'))continue;
+    if(dateVal)currentDate=parseVRTDate(dateVal,sheetYM);
+    if(!currentDate)continue;
+    const morning=cleanNum(row[4]);const evening=cleanNum(row[5]);
+    if(morning===0&&evening===0)continue;
+    const exists=CAR.some(r=>r.date===currentDate&&r.driver===driverVal&&r.plate===String(row[3]||'').trim());
+    if(exists)continue;
+    CAR.push({id:crypto.randomUUID(),date:currentDate,driver:driverVal,plate:String(row[3]||'').trim(),morning,evening,remarks:String(row[8]||row[7]||'').trim()});
+    count++;
+  }
+  return count;
+}
+
+function parseBikeSheet(json,sheetName,sheetYM){
+  let count=0,headerRow=-1;
+  for(let i=0;i<Math.min(5,json.length);i++){
+    const rowStr=json[i].map(v=>String(v||'').toLowerCase()).join('|');
+    if(rowStr.includes('date')||rowStr.includes('building')){headerRow=i;break}
+  }
+  if(headerRow<0)headerRow=2;
+  for(let i=headerRow+1;i<json.length;i++){
+    const row=json[i];if(!row||row.length<2)continue;
+    const dateStr=String(row[0]||'').trim();if(!dateStr)continue;
+    const date=parseVRTDate(dateStr,sheetYM);if(!date)continue;
+    const buildA=String(row[1]||'').trim();
+    if(buildA.toLowerCase().includes('holiday')||buildA.toLowerCase().includes('from ')){
+      if(!BIKE.some(r=>r.date===date)){BIKE.push({id:crypto.randomUUID(),date,buildingA:0,buildingB:0,remarks:buildA});count++}
+      continue;
+    }
+    const a=cleanNum(row[1]),b=cleanNum(row[2]);
+    if(a===0&&b===0)continue;
+    if(BIKE.some(r=>r.date===date))continue;
+    BIKE.push({id:crypto.randomUUID(),date,buildingA:a,buildingB:b,remarks:String(row[4]||'').trim()});
+    count++;
+  }
+  return count;
+}
+
+function parseLateSheet(json,sheetName,sheetYM){
+  let count=0,headerRow=-1;
+  for(let i=0;i<Math.min(7,json.length);i++){
+    const rowStr=json[i].map(v=>String(v||'').toLowerCase()).join('|');
+    if(rowStr.includes('no.')||rowStr.includes('date')){headerRow=i;break}
+  }
+  if(headerRow<0)headerRow=2;
+  const startRow=headerRow+3; // skip 3 trilingual header rows
+  let currentDate='';
+  for(let i=startRow;i<json.length;i++){
+    const row=json[i];if(!row||row.length<3)continue;
+    const dateVal=String(row[1]||'').trim();
+    const nameVal=String(row[2]||'').trim();
+    if(!nameVal||nameVal.toLowerCase().includes('total'))continue;
+    if(dateVal)currentDate=parseVRTDate(dateVal,sheetYM);
+    if(!currentDate)continue;
+    const companyId=String(row[5]||'').trim();
+    const exists=LATE.some(r=>r.date===currentDate&&r.name===nameVal&&r.companyId===companyId);
+    if(exists)continue;
+    const cleanName=nameVal==='#N/A'?'(Unknown)':nameVal;
+    const cleanDept=String(row[3]||'').trim();
+    LATE.push({id:crypto.randomUUID(),date:currentDate,name:cleanName,dept:cleanDept==='#N/A'?'':cleanDept,comeLate:String(row[4]||'').trim(),companyId,checkIn:String(row[6]||'').trim(),checkOut:String(row[7]||'').trim(),gatekeeper:String(row[8]||'').trim(),hour:String(row[9]||'').trim(),remarks:String(row[10]||'').trim()});
+    count++;
+  }
+  return count;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  EXPORT
+// ═══════════════════════════════════════════════════════════
+function exportTab(type){
+  let ws,name;
+  if(type==='car'){const recs=filterRecs(CAR,'carMonth','carSearch');const data=[['Date','Driver','Car Plate','Morning','Evening','Total','Remarks']];recs.forEach(r=>data.push([r.date,r.driver,r.plate,r.morning||0,r.evening||0,(r.morning||0)+(r.evening||0),r.remarks]));ws=XLSX.utils.aoa_to_sheet(data);name='Car_Transport'}
+  else if(type==='bike'){const recs=filterRecs(BIKE,'bikeMonth','bikeSearch');const data=[['Date','Building A','Building B','Total','Remark']];recs.forEach(r=>data.push([r.date,r.buildingA||0,r.buildingB||0,(r.buildingA||0)+(r.buildingB||0),r.remarks]));ws=XLSX.utils.aoa_to_sheet(data);name='Motor_Bike'}
+  else{const recs=filterRecs(LATE,'lateMonth','lateSearch');const data=[['Date','Name','Dept','Come Late','Company ID','Check In','Check Out','Gatekeeper','Hour','Remark']];recs.forEach(r=>data.push([r.date,r.name,r.dept,r.comeLate,r.companyId,r.checkIn,r.checkOut,r.gatekeeper,r.hour,r.remarks]));ws=XLSX.utils.aoa_to_sheet(data);name='Come_Late'}
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,name);XLSX.writeFile(wb,`VRT_${name}_${new Date().toISOString().slice(0,10)}.xlsx`);toast(T('exported'));
+}
+function exportAllExcel(){
+  const wb=XLSX.utils.book_new();
+  const cd=[['Date','Driver','Car Plate','Morning','Evening','Total','Remarks']];CAR.forEach(r=>cd.push([r.date,r.driver,r.plate,r.morning||0,r.evening||0,(r.morning||0)+(r.evening||0),r.remarks]));XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(cd),'Car_Transport');
+  const bd=[['Date','Building A','Building B','Total','Remark']];BIKE.forEach(r=>bd.push([r.date,r.buildingA||0,r.buildingB||0,(r.buildingA||0)+(r.buildingB||0),r.remarks]));XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(bd),'Motor_Bike');
+  const ld=[['Date','Name','Dept','Come Late','Company ID','Check In','Check Out','Gatekeeper','Hour','Remark']];LATE.forEach(r=>ld.push([r.date,r.name,r.dept,r.comeLate,r.companyId,r.checkIn,r.checkOut,r.gatekeeper,r.hour,r.remarks]));XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(ld),'Come_Late');
+  XLSX.writeFile(wb,`VRT_All_Records_${new Date().toISOString().slice(0,10)}.xlsx`);toast(T('exported'));
+}
+
+// ═══════════════════════════════════════════════════════════
+//  BACKUP/RESTORE
+// ═══════════════════════════════════════════════════════════
+function backupJSON(){const d=JSON.stringify({car:CAR,bike:BIKE,late:LATE},null,2);const b=new Blob([d],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`VRT_Commute_Backup_${new Date().toISOString().slice(0,10)}.json`;a.click();toast(T('exported'))}
+function restoreJSON(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.car)CAR=d.car;if(d.bike)BIKE=d.bike;if(d.late)LATE=d.late;save();updateHeader();updateDBCard();toast(`${T('imported')} ${CAR.length+BIKE.length+LATE.length} ${T('records')}`);const at=document.querySelector('.tab.on');if(at)goTab(at.dataset.t,at)}catch(err){toast('Invalid JSON','err')}};r.readAsText(f);e.target.value=''}
+function clearAll(){if(!confirm(T('confirmClear')))return;CAR=[];BIKE=[];LATE=[];save();updateHeader();updateDBCard();const at=document.querySelector('.tab.on');if(at)goTab(at.dataset.t,at);toast(T('deleted'))}
+
+// ═══════════════════════════════════════════════════════════
+//  RENDER ALL
+// ═══════════════════════════════════════════════════════════
+function renderAll(){updateHeader();const at=document.querySelector('.tab.on');if(at){const t=at.dataset.t;if(t==='car')renderCar();else if(t==='bike')renderBike();else if(t==='late')renderLate();else if(t==='rank')renderRank();else if(t==='trend')renderTrend();else updateDBCard()}}
+
+function init(){load();setupDrop();setLang(lang);renderAll()}
+init();
+</script>
+</body>
+</html>

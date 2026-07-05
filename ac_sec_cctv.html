@@ -1,0 +1,3080 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>VRT Security Dashboard</title>
+<script>/* AC-GAS-SEC preset: CCTV & Patrol */
+(function(){try{if(!localStorage.getItem('vrt_gas_url'))localStorage.setItem('vrt_gas_url','https://script.google.com/macros/s/AKfycbyxBN_t2AfxTPQ3AYdt7Jxl3pNiJV17H1T0pub4SR8GBgDH47WnDn9JF556KSxUiIU-/exec');if(!localStorage.getItem('vrt_secret'))localStorage.setItem('vrt_secret','vrt2026security');if(!localStorage.getItem('vrt_chat_id'))localStorage.setItem('vrt_chat_id','-5009220114');}catch(e){}})();
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f0f4f8;--bg2:#fff;--bg3:#e8eef5;--bg4:#f8fafc;
+  --border:#d0dce8;--border2:#b0c4d8;
+  --text:#1a2a3a;--text2:#4a6a7a;--text3:#8aaabb;
+  --green:#16a34a;--green-bg:#dcfce7;--green-bd:#86efac;
+  --blue:#2563eb;--blue-bg:#dbeafe;--blue-bd:#93c5fd;
+  --amber:#d97706;--amber-bg:#fef3c7;--amber-bd:#fcd34d;
+  --red:#dc2626;--red-bg:#fee2e2;--red-bd:#fca5a5;
+  --purple:#7c3aed;--purple-bg:#ede9fe;--purple-bd:#c4b5fd;
+  --sh:0 1px 3px rgba(0,0,0,.1);
+  --sh2:0 4px 12px rgba(0,0,0,.08);
+}
+body{min-height:100vh;background:var(--bg);font-family:'Noto Sans TC',sans-serif;color:var(--text);font-size:14px}
+/* TOPBAR */
+#topbar{background:#fff;border-bottom:2px solid var(--border);padding:0 16px;
+  display:flex;align-items:stretch;position:sticky;top:0;z-index:90;box-shadow:var(--sh);flex-wrap:wrap}
+.brand{padding:10px 16px 10px 0;display:flex;align-items:center;gap:9px;
+  border-right:1px solid var(--border);margin-right:8px;min-width:0}
+.brand-icon{width:30px;height:30px;background:linear-gradient(135deg,#1e3a5f,#2563eb);
+  border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.brand-name{font-size:12px;font-weight:700;color:var(--text);white-space:nowrap}
+.brand-sub{font-size:9px;color:var(--text3);letter-spacing:.4px}
+.mtab{padding:12px 14px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;
+  border-bottom:3px solid transparent;margin-bottom:-2px;
+  display:flex;align-items:center;gap:5px;transition:.15s;white-space:nowrap}
+.mtab.on{color:var(--blue);border-bottom-color:var(--blue)}
+.mtab:hover:not(.on){background:var(--bg4)}
+.tbr{margin-left:auto;display:flex;align-items:center;gap:6px;padding:0 0 0 8px;flex-wrap:wrap}
+.lang-sw{display:flex;background:var(--bg3);border-radius:5px;border:1px solid var(--border)}
+.lang-sw button{padding:4px 8px;border:none;cursor:pointer;font-size:11px;font-weight:600;
+  background:transparent;color:var(--text2);font-family:inherit;transition:.15s}
+.lang-sw button.on{background:#fff;color:var(--blue);box-shadow:var(--sh);border-radius:5px}
+.date-badge{background:var(--blue-bg);border:1px solid var(--blue-bd);
+  border-radius:5px;padding:4px 9px;font-size:11px;color:var(--blue);font-family:'IBM Plex Mono',monospace}
+.share-btn{background:linear-gradient(135deg,#0088cc,#229ED9);color:#fff;border:none;
+  border-radius:6px;padding:5px 11px;font-size:11px;font-weight:600;cursor:pointer;
+  display:flex;align-items:center;gap:4px;font-family:inherit;transition:.15s}
+.share-btn:hover{opacity:.85}
+/* PAGES */
+.page{display:none;max-width:1140px;margin:0 auto;padding:14px}
+.page.on{display:block}
+/* CARD */
+.card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:var(--sh)}
+.card-t{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text3);margin-bottom:10px}
+/* STATS */
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:12px}
+.stat-box{background:#fff;border:1px solid var(--border);border-radius:9px;padding:10px 13px;box-shadow:var(--sh)}
+.stat-v{font-size:22px;font-weight:700;font-family:'IBM Plex Mono',monospace;line-height:1}
+.stat-l{font-size:10px;color:var(--text2);margin-top:3px}
+.stat-box.g .stat-v{color:var(--green)}.stat-box.b .stat-v{color:var(--blue)}
+.stat-box.r .stat-v{color:var(--red)}.stat-box.a .stat-v{color:var(--amber)}
+.stat-box.p .stat-v{color:var(--purple)}
+/* SUBTABS */
+.period-btns{display:flex;gap:4px}
+.pbtn{padding:5px 12px;border-radius:6px;border:1.5px solid var(--border);
+  background:#fff;font-size:11px;font-weight:600;color:var(--text2);cursor:pointer;transition:.15s}
+.pbtn.on{background:var(--blue-bg);border-color:var(--blue-bd);color:var(--blue)}
+/* BUTTONS */
+.btn{padding:6px 13px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;
+  font-family:inherit;transition:.15s;display:inline-flex;align-items:center;gap:5px;border:none}
+.btn-p{background:var(--blue);color:#fff}.btn-p:hover{background:#1d4ed8}
+.btn-g{background:var(--green);color:#fff}
+.btn-r{background:var(--red);color:#fff}
+.btn-ghost{background:#fff;border:1.5px solid var(--border);color:var(--text2)}
+.btn-ghost:hover{border-color:var(--border2);color:var(--text)}
+.btn-sm{padding:4px 10px;font-size:11px}
+.btn-amber{background:var(--amber);color:#fff}
+/* CCTV TABLE */
+.cctv-table{width:100%;border-collapse:collapse;font-size:12px}
+.cctv-table th{background:var(--bg3);padding:7px 9px;text-align:left;
+  font-size:10px;letter-spacing:.5px;font-weight:700;color:var(--text3);border-bottom:1px solid var(--border)}
+.cctv-table td{padding:6px 9px;border-bottom:1px solid var(--border);vertical-align:middle}
+.cctv-table tr:hover td{background:var(--bg4)}
+.cam-code{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:var(--blue)}
+.sec-row td{padding:0}.sec-lbl{background:var(--bg3);border:1px solid var(--border);
+  border-radius:7px;padding:5px 11px;font-size:10px;font-weight:700;letter-spacing:.7px;
+  text-transform:uppercase;color:var(--text2);margin:8px 0 5px}
+.s-btn{width:28px;height:28px;border-radius:6px;border:1.5px solid var(--border);
+  background:#fff;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;transition:.15s}
+.s-btn:hover.ok-btn{border-color:var(--green);background:var(--green-bg)}
+.s-btn.ok-btn.on{background:var(--green-bg);border-color:var(--green);color:var(--green)}
+.s-btn:hover.fail-btn{border-color:var(--red);background:var(--red-bg)}
+.s-btn.fail-btn.on{background:var(--red-bg);border-color:var(--red);color:var(--red)}
+.tag-ok{display:inline-flex;align-items:center;gap:2px;background:var(--green-bg);
+  border:1px solid var(--green-bd);border-radius:5px;padding:2px 7px;font-size:10px;font-weight:600;color:var(--green)}
+.tag-fail{display:inline-flex;align-items:center;gap:2px;background:var(--red-bg);
+  border:1px solid var(--red-bd);border-radius:5px;padding:2px 7px;font-size:10px;font-weight:600;color:var(--red)}
+.tag-warn{display:inline-flex;align-items:center;gap:2px;background:var(--amber-bg);
+  border:1px solid var(--amber-bd);border-radius:5px;padding:2px 7px;font-size:10px;font-weight:600;color:var(--amber)}
+.tag-pend{font-size:10px;color:var(--text3);font-style:italic}
+.reason-inp{border:1.5px solid var(--red-bd);border-radius:5px;padding:4px 7px;
+  font-size:11px;font-family:inherit;color:var(--text);background:var(--red-bg);width:200px;outline:none}
+/* CALENDAR */
+.cal-nav{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.cal-nav button{background:#fff;border:1.5px solid var(--border);border-radius:5px;
+  padding:4px 9px;cursor:pointer;color:var(--text2);transition:.15s}
+.cal-nav button:hover{border-color:var(--blue);color:var(--blue)}
+.cal-lbl{font-size:13px;font-weight:700;color:var(--text);min-width:130px;text-align:center}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.cal-dow{text-align:center;font-size:9px;font-weight:700;color:var(--text3);padding:3px 0}
+.cal-day{aspect-ratio:1;border-radius:7px;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;cursor:pointer;border:1.5px solid var(--border);
+  background:#fff;font-size:11px;font-weight:600;transition:.15s;position:relative}
+.cal-day:hover{border-color:var(--blue)}
+.cal-day.sel{border-color:var(--blue);background:var(--blue-bg);color:var(--blue)}
+.cal-day.today::after{content:'';position:absolute;bottom:3px;width:4px;height:4px;
+  background:var(--blue);border-radius:50%}
+.cal-day.all-ok{background:var(--green-bg);border-color:var(--green-bd)}
+.cal-day.has-fail{background:var(--red-bg);border-color:var(--red-bd)}
+.cal-day.empty{opacity:0;pointer-events:none}
+/* ANOMALY */
+.anom-item{display:flex;align-items:flex-start;gap:9px;padding:8px 11px;
+  border-left:3px solid var(--red);background:var(--red-bg);border-radius:0 7px 7px 0;margin-bottom:5px}
+.anom-item.warn{border-color:var(--amber);background:var(--amber-bg)}
+.anom-item.warn .anom-date{color:var(--amber)}
+.anom-item.info{border-color:var(--blue);background:var(--blue-bg)}
+.anom-item.info .anom-date{color:var(--blue)}
+.anom-date{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;
+  color:var(--red);min-width:62px;padding-top:1px}
+.anom-txt{font-size:11px;color:var(--text);line-height:1.5}
+/* UPLOAD */
+.drop-zone{border:2px dashed var(--border2);border-radius:11px;padding:28px;
+  text-align:center;cursor:pointer;background:#fff;transition:.2s}
+.drop-zone:hover,.drop-zone.drag{border-color:var(--blue);background:var(--blue-bg)}
+.drop-zone .dz-i{font-size:32px;margin-bottom:8px}
+.drop-zone .dz-t{font-size:13px;font-weight:600;color:var(--text2);margin-bottom:3px}
+.drop-zone .dz-s{font-size:10px;color:var(--text3)}
+/* CHART */
+.chart-wrap{position:relative;height:200px}
+.chart-wrap.tall{height:240px}
+/* PATROL TABLE */
+.pt{width:100%;border-collapse:collapse;font-size:11px}
+.pt th{background:var(--bg3);padding:6px 9px;text-align:left;
+  font-size:9px;letter-spacing:.5px;font-weight:700;color:var(--text3);border-bottom:1px solid var(--border)}
+.pt td{padding:6px 9px;border-bottom:1px solid var(--border);vertical-align:middle}
+.pt tr:hover td{background:var(--bg4)}
+.pchip{display:inline-flex;align-items:center;gap:3px;background:var(--blue-bg);
+  border:1px solid var(--blue-bd);border-radius:9px;padding:1px 7px;font-size:10px;color:var(--blue);font-weight:600;margin:1px}
+.shift-chip{display:inline-flex;align-items:center;gap:3px;border-radius:5px;
+  padding:2px 6px;font-size:10px;font-weight:600;margin:1px}
+.shift-night{background:#e0e7ff;border:1px solid #a5b4fc;color:#4f46e5}
+.shift-day{background:#e0f2fe;border:1px solid #7dd3fc;color:#0284c7}
+/* PROG BAR */
+.prog{height:5px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.prog-f{height:100%;border-radius:3px}
+.prog-f.b{background:var(--blue)}.prog-f.g{background:var(--green)}.prog-f.r{background:var(--red)}
+/* DATE NAV */
+.dn input[type=date]{background:#fff;border:1.5px solid var(--border);border-radius:6px;
+  padding:5px 9px;font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--text);outline:none}
+.dn input[type=date]:focus{border-color:var(--blue)}
+/* SETTINGS TABLE */
+.set-table{width:100%;border-collapse:collapse;font-size:12px}
+.set-table th{background:var(--bg3);padding:7px 10px;font-size:10px;letter-spacing:.5px;
+  font-weight:700;color:var(--text3);border-bottom:1px solid var(--border);text-align:left}
+.set-table td{padding:5px 8px;border-bottom:1px solid var(--border);vertical-align:middle}
+.set-table tr:hover td{background:var(--bg4)}
+.set-inp{border:1.5px solid var(--border);border-radius:5px;padding:4px 7px;font-family:inherit;
+  font-size:11px;color:var(--text);outline:none;width:100%}
+.set-inp:focus{border-color:var(--blue)}
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;
+  display:none;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.on{display:flex}
+.modal-box{background:#fff;border-radius:14px;padding:22px;max-width:420px;width:100%;
+  box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal-title{font-size:14px;font-weight:700;margin-bottom:14px;display:flex;gap:7px;align-items:center}
+/* INFO BAR */
+.info-bar{background:var(--blue-bg);border:1px solid var(--blue-bd);border-radius:7px;
+  padding:7px 12px;font-size:11px;color:var(--blue);margin-bottom:10px;display:flex;align-items:center;gap:7px}
+/* TGRAM MODAL */
+.tg-share-url{background:var(--bg4);border:1px solid var(--border);border-radius:7px;
+  padding:8px 12px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text);
+  word-break:break-all;margin:10px 0}
+/* HOURLY GRID */
+.hr-grid{display:grid;grid-template-columns:repeat(24,1fr);gap:2px;margin:8px 0}
+.hr-cell{display:flex;flex-direction:column;align-items:center;gap:2px}
+.hr-bar-wrap{height:50px;display:flex;align-items:flex-end;width:100%}
+.hr-bar{width:100%;border-radius:2px 2px 0 0;min-height:1px;transition:.3s}
+.hr-lbl{font-size:8px;color:var(--text3)}
+.hr-val{font-size:8px;font-weight:700;color:var(--text2)}
+/* SCROLL */
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+/* GRID 2 */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:640px){.g2{grid-template-columns:1fr!important}.mtab span.lbl-long{display:none}}
+/* SHIFT DETAIL CARD */
+.shift-detail{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.shift-box{border-radius:8px;padding:10px 12px}
+.shift-box.night{background:#ede9fe;border:1px solid #c4b5fd}
+.shift-box.day{background:#e0f2fe;border:1px solid #7dd3fc}
+.shift-title{font-size:10px;font-weight:700;margin-bottom:4px}
+.shift-box.night .shift-title{color:#4f46e5}.shift-box.day .shift-title{color:#0284c7}
+.shift-val{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700}
+.shift-meta{font-size:10px;color:var(--text2);margin-top:2px}
+/* TOAST */
+#toast{position:fixed;bottom:20px;right:20px;background:#1a2a3a;color:#fff;
+  padding:9px 16px;border-radius:8px;font-size:12px;z-index:999;
+  box-shadow:0 4px 16px rgba(0,0,0,.3);opacity:0;transition:opacity .3s;pointer-events:none}
+/* DRAG OVER */
+.drag-over{border-color:var(--blue)!important;background:var(--blue-bg)!important}
+#patrol-drop-hint:hover{border-color:var(--blue);background:var(--blue-bg);color:var(--blue)}
+</style>
+</head>
+<body>
+
+<div id="toast"></div>
+
+<!-- TOPBAR -->
+<div id="topbar">
+  <div class="brand">
+    <div class="brand-icon">🛡️</div>
+    <div>
+      <div class="brand-name">VRT Security</div>
+      <div class="brand-sub">Security Dashboard</div>
+    </div>
+  </div>
+  <div class="mtab on" onclick="switchMain('cctv')" id="tab-cctv">🎥 <span data-zh="CCTV 監控" data-en="CCTV Monitor">CCTV 監控</span></div>
+  <div class="mtab" onclick="switchMain('patrol')" id="tab-patrol">👮 <span data-zh="巡邏記錄" data-en="Patrol Records">巡邏記錄</span></div>
+  <div class="mtab" onclick="switchMain('settings')" id="tab-settings">⚙️ <span data-zh="攝像機設定" data-en="Camera Settings">攝像機設定</span></div>
+  <div class="tbr">
+    <div class="lang-sw">
+      <button class="on" onclick="setLang('zh')">中文</button>
+      <button onclick="setLang('en')">EN</button>
+    </div>
+    <button class="share-btn" onclick="openShareModal()">✈️ Telegram</button>
+    <div class="date-badge" id="today-badge"></div>
+  </div>
+</div>
+
+<!-- ══════════════════ CCTV PAGE ══════════════════ -->
+<div class="page on" id="page-cctv">
+  <!-- Controls -->
+  <div class="card" style="margin-top:12px">
+    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px">
+      <div class="period-btns">
+        <div class="pbtn on" onclick="setCctvPeriod('day')" id="cp-day"><span data-zh="日" data-en="Day">日</span></div>
+        <div class="pbtn" onclick="setCctvPeriod('week')" id="cp-week"><span data-zh="週" data-en="Week">週</span></div>
+        <div class="pbtn" onclick="setCctvPeriod('month')" id="cp-month"><span data-zh="月" data-en="Month">月</span></div>
+      </div>
+      <div class="dn" style="display:flex;align-items:center;gap:5px">
+        <button class="btn btn-ghost btn-sm" onclick="cctvNav(-1)">◀</button>
+        <input type="date" id="cctv-date-inp" onchange="renderCctv()"/>
+        <button class="btn btn-ghost btn-sm" onclick="cctvNav(1)">▶</button>
+        <button class="btn btn-ghost btn-sm" onclick="goCctvToday()">
+          <span data-zh="今天" data-en="Today">今天</span>
+        </button>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:5px;flex-wrap:wrap">
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer">
+          📥 <span data-zh="匯入Excel" data-en="Import Excel">匯入Excel</span>
+          <input type="file" accept=".xlsx,.xls" id="cctv-import-file" style="display:none" onchange="importCctvExcel(this)"/>
+        </label>
+        <button class="btn btn-ghost btn-sm" onclick="markAllOk()">✓ <span data-zh="全正常" data-en="All OK">全正常</span></button>
+        <button class="btn btn-p btn-sm" onclick="saveCctvDay()">💾 <span data-zh="儲存" data-en="Save">儲存</span></button>
+        <button class="btn btn-ghost btn-sm" onclick="copyCctvReport()">📋 <span data-zh="複製報告" data-en="Copy Report">複製報告</span></button>
+        <button class="btn btn-ghost btn-sm" onclick="syncFromCloud(cctvDate)">⟳ <span data-zh="同步" data-en="Sync">同步</span></button>
+        <button class="btn btn-ghost btn-sm" onclick="clearCctvLocalData()" style="color:var(--red)" title="清除本地 CCTV 資料並從雲端還原">🗑 <span data-zh="清除還原" data-en="Clear+Restore">清除還原</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sync status bar -->
+  <div style="display:flex;align-items:center;justify-content:space-between;
+    padding:5px 14px;background:#fff;border:1px solid var(--border);border-radius:8px;
+    margin-bottom:10px;font-size:11px">
+    <span style="color:var(--text3)" data-zh="雲端同步狀態：" data-en="Cloud sync:">雲端同步狀態：</span>
+    <span id="sync-status" style="color:var(--text3)">— 載入中</span>
+    <span style="color:var(--text3);font-size:10px" data-zh="每 90 秒自動同步" data-en="Auto-sync every 90s">每 90 秒自動同步</span>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row" id="cctv-stats-row"></div>
+
+  <!-- Day view -->
+  <div id="cctv-day-view">
+    <div class="card">
+      <div class="tbl-wrap">
+        <table class="cctv-table">
+          <thead><tr>
+            <th>#</th>
+            <th data-zh="編號" data-en="Code">編號</th>
+            <th data-zh="位置" data-en="Location">位置</th>
+            <th data-zh="棟" data-en="Bldg">棟</th>
+            <th data-zh="狀態" data-en="Status">狀態</th>
+            <th data-zh="異常原因" data-en="Reason">異常原因</th>
+          </tr></thead>
+          <tbody id="cctv-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- No-Video Anomaly section -->
+    <div class="card" id="novideo-section" style="display:none">
+      <div class="card-t" style="color:var(--amber)">⚠ <span data-zh="無影像攝像機（需確認）" data-en="No-Video Cameras (Requires Check)">無影像攝像機（需確認）</span></div>
+      <div id="novideo-list"></div>
+    </div>
+  </div>
+
+  <!-- Period view -->
+  <div id="cctv-period-view" style="display:none">
+    <div class="g2">
+      <div class="card">
+        <div class="card-t" data-zh="月曆覽" data-en="Calendar">月曆覽</div>
+        <div class="cal-nav">
+          <button onclick="calNav(-1)">◀</button>
+          <div class="cal-lbl" id="cal-lbl"></div>
+          <button onclick="calNav(1)">▶</button>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+      </div>
+      <div class="card">
+        <div class="card-t" style="color:var(--red)" data-zh="異常 / 無影像記錄" data-en="Anomaly / No-Video Log">異常 / 無影像記錄</div>
+        <div id="cctv-anom-list"><div class="tag-pend" data-zh="（本期無異常）" data-en="(No anomalies)">（本期無異常）</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-t" data-zh="各機狀態統計" data-en="Camera Status Summary">各機狀態統計</div>
+      <div class="chart-wrap"><canvas id="cctv-bar-chart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ PATROL PAGE ══════════════════ -->
+<div class="page" id="page-patrol">
+
+  <!-- ── 控制列（永遠顯示）──────────────────────────────── -->
+  <div class="card" style="margin-top:12px"
+    ondragover="event.preventDefault();this.classList.add('drag-over')"
+    ondragleave="this.classList.remove('drag-over')"
+    ondrop="event.preventDefault();this.classList.remove('drag-over');patrolDropHandler(event)">
+    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;justify-content:space-between">
+      <!-- 左：週期 + 日期導航 -->
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <div class="period-btns">
+          <div class="pbtn on" onclick="setPatrolPeriod('day')" id="pp-day"><span data-zh="日" data-en="Day">日</span></div>
+          <div class="pbtn" onclick="setPatrolPeriod('week')" id="pp-week"><span data-zh="週" data-en="Week">週</span></div>
+          <div class="pbtn" onclick="setPatrolPeriod('month')" id="pp-month"><span data-zh="月" data-en="Month">月</span></div>
+          <div class="pbtn" onclick="setPatrolPeriod('year')" id="pp-year"><span data-zh="年" data-en="Year">年</span></div>
+        </div>
+        <!-- 日/週：日期選擇器；月：月份前後鍵；年：年份下拉 -->
+        <div class="dn" id="patrol-date-nav" style="display:flex;align-items:center;gap:5px">
+          <button class="btn btn-ghost btn-sm" onclick="patrolNav(-1)">◀</button>
+          <input type="date" id="patrol-date-inp" onchange="renderPatrol()"/>
+          <button class="btn btn-ghost btn-sm" onclick="patrolNav(1)">▶</button>
+        </div>
+        <div id="patrol-month-nav" style="display:none;align-items:center;gap:5px">
+          <button class="btn btn-ghost btn-sm" onclick="patrolMonthNav(-1)">◀</button>
+          <select id="patrol-month-select" onchange="patrolMonthSelect(this.value)"
+            style="border:1.5px solid var(--border);border-radius:6px;padding:4px 7px;font-size:11px;
+            font-family:inherit;background:#fff;color:var(--text);outline:none;cursor:pointer"></select>
+          <button class="btn btn-ghost btn-sm" onclick="patrolMonthNav(1)">▶</button>
+        </div>
+        <div id="patrol-year-nav" style="display:none;align-items:center;gap:5px">
+          <button class="btn btn-ghost btn-sm" onclick="patrolYearNav(-1)">◀</button>
+          <select id="patrol-year-select" onchange="patrolYearSelect(this.value)"
+            style="border:1.5px solid var(--border);border-radius:6px;padding:4px 7px;font-size:11px;
+            font-family:inherit;background:#fff;color:var(--text);outline:none;cursor:pointer"></select>
+          <button class="btn btn-ghost btn-sm" onclick="patrolYearNav(1)">▶</button>
+        </div>
+        <label style="font-size:11px;color:var(--text2);display:flex;align-items:center;gap:4px">
+          <span data-zh="間隔" data-en="Interval">間隔</span>
+          <input type="number" id="round-threshold" value="90" min="10" max="300"
+            style="width:52px;border:1.5px solid var(--border);border-radius:5px;
+            padding:3px 5px;font-size:11px;font-family:'IBM Plex Mono',monospace;
+            color:var(--blue);outline:none" onchange="reparsePatrol()"/>
+          <span style="font-size:10px;color:var(--text3)">min</span>
+        </label>
+      </div>
+      <!-- 右：匯入 + 新增 + 刪除 + 雲端 + 匯出 -->
+      <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+        <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center" id="patrol-cloud-months"></div>
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer" title="匯入 Excel 巡邏記錄（或直接拖曳至此區域）">
+          📥 <span data-zh="匯入" data-en="Import">匯入</span>
+          <input type="file" id="patrol-file-inp" accept=".xls,.xlsx" style="display:none"
+            multiple onchange="addPatrolFiles(this.files)"/>
+        </label>
+        <button class="btn btn-g btn-sm" onclick="openAddPatrolModal()">➕ <span data-zh="新增" data-en="Add">新增</span></button>
+        <button class="btn btn-r btn-sm" id="patrol-del-btn" onclick="deleteSelectedPatrol()" style="display:none">🗑 <span data-zh="刪除" data-en="Delete">刪除</span></button>
+        <button class="btn btn-ghost btn-sm" onclick="exportPatrolExcel()">📊 <span data-zh="匯出" data-en="Export">匯出</span></button>
+        <button class="btn btn-ghost btn-sm" onclick="clearPatrolData()" title="清除所有巡邏資料並重新匯入" style="color:var(--red)">🗑清除</button>
+        <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨</button>
+        <div style="display:flex;gap:3px;border-left:1px solid var(--border);padding-left:6px;margin-left:2px">
+          <button class="btn btn-ghost btn-sm" onclick="fetchPatrolCloudList()" title="☁ 查詢雲端月份">☁⬇</button>
+          <button class="btn btn-ghost btn-sm" onclick="savePatrolToCloud()" title="☁ 上傳至雲端">☁⬆</button>
+          <button class="btn btn-ghost btn-sm" onclick="copyPatrolSummaryForTg()" title="複製 Telegram 摘要">📋TG</button>
+          <button class="share-btn btn-sm" onclick="openShareModal();setShareTab('patrol')"
+            style="font-size:11px;padding:4px 9px" title="發送巡邏報告到 Telegram 群組">✈️</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 拖曳 / 待匯入區（仿 sewing_v5 pendingFiles 模式）-->
+    <div id="patrol-drop-hint" style="margin-top:8px;border:2px dashed var(--border2);border-radius:8px;
+      padding:8px 14px;color:var(--text3);font-size:11px;cursor:pointer;transition:.2s"
+      onclick="document.getElementById('patrol-file-inp').click()">
+      📂 <span data-zh="拖曳多份 .xls/.xlsx 至此，或點此選擇（可多選）" data-en="Drag .xls/.xlsx here or click to select (multiple OK)">
+        拖曳多份 .xls/.xlsx 至此，或點此選擇（可多選）</span>
+    </div>
+    <!-- 待匯入檔案清單 -->
+    <div id="patrol-file-list" style="display:none;margin-top:6px"></div>
+    <!-- 確認匯入按鈕列 -->
+    <div id="patrol-confirm-row" style="display:none;margin-top:6px;display:none;gap:6px;align-items:center">
+      <button class="btn btn-g" onclick="confirmPatrolImport()" id="btn-patrol-confirm">✅ 確認匯入</button>
+      <button class="btn btn-ghost btn-sm" onclick="cancelPatrolImport()">✕ 取消</button>
+      <span id="patrol-pending-count" style="font-size:11px;color:var(--text3)"></span>
+    </div>
+
+    <!-- 匯入進度 log -->
+    <div id="patrol-import-log" style="display:none;margin-top:6px;padding:7px 11px;border-radius:6px;
+      background:var(--blue-bg);border:1px solid var(--blue-bd);font-size:11px;
+      font-family:'IBM Plex Mono',monospace;color:var(--blue);line-height:1.7"></div>
+
+    <!-- 讀取確認欄（顯示解析到的月份/筆數/人員） -->
+    <div id="patrol-parse-confirm" style="display:none;margin-top:6px;padding:7px 11px;border-radius:6px;
+      background:var(--green-bg);border:1px solid var(--green-bd);font-size:11px;color:var(--green)"></div>
+
+    <div class="info-bar" style="margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:11px">
+      📁 <span id="patrol-file-label" data-zh="尚未載入資料 — 請拖曳或點擊「匯入」上傳巡邏 Excel" data-en="No data loaded — drag or click Import">
+        尚未載入資料 — 請拖曳或點擊「匯入」上傳巡邏 Excel</span>
+    </div>
+  </div>
+
+  <!-- ── 資料顯示區（永遠顯示，無資料時顯示提示）──── -->
+  <div id="patrol-data-view">
+
+    <!-- 無資料提示（有資料時由 renderPatrol 隱藏） -->
+    <div id="patrol-empty-state" class="card" style="margin-top:12px;text-align:center;padding:40px 20px;color:var(--text3)">
+      <div style="font-size:36px;margin-bottom:12px">📋</div>
+      <div style="font-size:15px;font-weight:600;margin-bottom:8px" data-zh="尚未載入巡邏資料" data-en="No patrol data loaded">尚未載入巡邏資料</div>
+      <div style="font-size:12px" data-zh="點擊右上角「匯入」選擇 Excel，或點「☁ 月份」從雲端載入" data-en="Click Import to upload Excel, or click ☁ Months to load from cloud">點擊右上角「匯入」選擇 Excel，或點「☁ 月份」從雲端載入</div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row" id="patrol-stats-row"></div>
+
+    <!-- Chart row -->
+    <div class="g2">
+      <div class="card">
+        <div class="card-t" data-zh="巡邏次數趨勢（日班/夜班）" data-en="Patrol Rounds Trend (Day/Night)">巡邏次數趨勢（日班/夜班）</div>
+        <div class="chart-wrap"><canvas id="patrol-trend-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-t" data-zh="24小時掃點分佈" data-en="24h Hourly Scan Distribution">24小時掃點分佈</div>
+        <div id="hourly-grid-wrap"></div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-top:4px">
+          <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:00</span>
+        </div>
+        <div id="hourly-peak-info" style="margin-top:8px;font-size:11px;color:var(--text2)"></div>
+      </div>
+    </div>
+
+    <!-- Person + Anomaly row -->
+    <div class="g2">
+      <div class="card">
+        <div class="card-t" data-zh="人員巡邏統計" data-en="Personnel Summary">人員巡邏統計</div>
+        <div id="patrol-person-table"></div>
+      </div>
+      <div class="card">
+        <div class="card-t" style="color:var(--red)" data-zh="異常警示" data-en="Anomaly Alerts">異常警示</div>
+        <div id="patrol-anom-list"></div>
+      </div>
+    </div>
+
+    <!-- Comparison analysis -->
+    <div class="card" id="patrol-compare-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+        <div class="card-t" style="margin:0" data-zh="人員/次數 比對分析" data-en="Personnel/Rounds Comparison">人員/次數 比對分析</div>
+        <div style="display:flex;gap:5px">
+          <div class="pbtn on" id="cmp-rounds" onclick="setCompareMode('rounds')" style="font-size:11px" data-zh="巡邏次數" data-en="Rounds">巡邏次數</div>
+          <div class="pbtn" id="cmp-persons" onclick="setCompareMode('persons')" style="font-size:11px" data-zh="人員數" data-en="Personnel">人員數</div>
+          <div class="pbtn" id="cmp-shift" onclick="setCompareMode('shift')" style="font-size:11px" data-zh="班別分佈" data-en="Shift Split">班別分佈</div>
+        </div>
+      </div>
+      <div class="chart-wrap tall"><canvas id="patrol-compare-chart"></canvas></div>
+      <div id="patrol-compare-summary" style="margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px"></div>
+    </div>
+
+    <!-- Daily detail table -->
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+        <div class="card-t" style="margin:0" data-zh="每日明細（含班別時段）" data-en="Daily Detail with Shift Time Range">每日明細（含班別時段）</div>
+        <div style="display:flex;gap:5px;align-items:center">
+          <input type="text" id="patrol-search" placeholder="🔍 搜尋…"
+            style="border:1.5px solid var(--border);border-radius:5px;padding:4px 8px;font-size:11px;
+            font-family:inherit;outline:none;width:110px" oninput="renderPatrolDetailTable()"/>
+          <button class="btn btn-ghost btn-sm" onclick="patrolCheckAll()">☐ <span data-zh="全選" data-en="All">全選</span></button>
+          <button class="btn btn-ghost btn-sm" onclick="exportPatrolExcel()">📊 <span data-zh="匯出Excel" data-en="Export Excel">匯出Excel</span></button>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table class="pt">
+          <thead><tr>
+            <th style="width:28px"><input type="checkbox" id="patrol-chk-all" onchange="patrolToggleAll(this)"/></th>
+            <th data-zh="日期" data-en="Date">日期</th>
+            <th data-zh="夜班（時段 / 次數）" data-en="Night (Period / Rounds)">🌙 夜班</th>
+            <th data-zh="日班（時段 / 次數）" data-en="☀ Day (Period / Rounds)">☀ 日班</th>
+            <th data-zh="人員" data-en="Personnel">人員</th>
+            <th data-zh="總次" data-en="Total">總次</th>
+            <th data-zh="掃點" data-en="Scans">掃點</th>
+            <th data-zh="最多時段" data-en="Peak Hour">最多時段</th>
+            <th data-zh="最少時段" data-en="Min Hour">最少時段</th>
+            <th data-zh="異常" data-en="Alert">異常</th>
+          </tr></thead>
+          <tbody id="patrol-detail-tbody"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:7px;font-size:10px;color:var(--text3)" id="patrol-detail-count"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 新增巡邏記錄 Modal ══ -->
+<div class="modal-overlay" id="modal-add-patrol">
+  <div class="modal-box" style="max-width:440px">
+    <div class="modal-title">➕ <span data-zh="新增巡邏記錄" data-en="Add Patrol Record">新增巡邏記錄</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:3px" data-zh="日期時間" data-en="Date/Time">日期時間</div>
+        <input type="datetime-local" id="ap-time" class="set-inp"/>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:3px" data-zh="班別" data-en="Shift">班別</div>
+        <select id="ap-event" class="set-inp">
+          <option value="Night Shift">🌙 Night Shift</option>
+          <option value="Day Shift">☀ Day Shift</option>
+          <option value="">— 不明 —</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:3px" data-zh="人員姓名" data-en="Person">人員姓名</div>
+        <input type="text" id="ap-person" class="set-inp" placeholder="e.g. Hea Manghorng"/>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:3px">Chip ID</div>
+        <input type="text" id="ap-chip" class="set-inp" placeholder="e.g. 0F004EBEFC"/>
+      </div>
+    </div>
+    <div style="margin-bottom:12px">
+      <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:3px" data-zh="巡檢點" data-en="Checkpoint">巡檢點</div>
+      <input type="text" id="ap-checkpoint" class="set-inp" placeholder="未设置"/>
+    </div>
+    <div style="display:flex;gap:7px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeModal('modal-add-patrol')"><span data-zh="取消" data-en="Cancel">取消</span></button>
+      <button class="btn btn-g" onclick="submitAddPatrol()">➕ <span data-zh="新增" data-en="Add">新增</span></button>
+    </div>
+  </div>
+</div>
+<div class="page" id="page-settings">
+  <div class="card" style="margin-top:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div class="card-t" style="margin:0" data-zh="攝像機清單管理" data-en="Camera List Management">攝像機清單管理</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-p btn-sm" onclick="openAddCamera()">+ <span data-zh="新增攝像機" data-en="Add Camera">新增攝像機</span></button>
+        <button class="btn btn-ghost btn-sm" id="sync-cam-btn" onclick="syncCamerasFromCloud()">⟳ <span data-zh="從雲端同步" data-en="Sync from Cloud">從雲端同步</span></button>
+        <button class="btn btn-ghost btn-sm" onclick="saveCamerasToCloud()" style="color:var(--teal)">↑ <span data-zh="上傳到雲端" data-en="Push to Cloud">上傳到雲端</span></button>
+        <button class="btn btn-ghost btn-sm" id="reset-cam-btn" onclick="resetCameras()">↺ <span data-zh="恢復預設" data-en="Reset Default">恢復預設</span></button>
+        <button class="btn btn-ghost btn-sm" onclick="exportCameras()">📤 <span data-zh="匯出清單" data-en="Export">匯出清單</span></button>
+      </div>
+    </div>
+    <div class="info-bar" style="justify-content:space-between">
+      <span>ℹ️ <span data-zh="可新增/修改/刪除攝像機。標記「無影像」的攝像機會出現在每日異常清單中。" data-en="Add/edit/delete cameras. Cameras marked 'No Video' appear in daily anomaly list.">
+        可新增/修改/刪除攝像機。標記「無影像」的攝像機會出現在每日異常清單中。
+      </span></span>
+      <span id="cam-sync-status" style="font-size:11px;color:var(--text3)">—</span>
+    </div>
+    <div class="tbl-wrap">
+      <table class="set-table">
+        <thead><tr>
+          <th>#</th>
+          <th data-zh="棟別" data-en="Building">棟別</th>
+          <th data-zh="編號" data-en="Code">編號</th>
+          <th data-zh="位置描述" data-en="Location">位置描述</th>
+          <th data-zh="無影像" data-en="No Video">無影像</th>
+          <th data-zh="操作" data-en="Actions">操作</th>
+        </tr></thead>
+        <tbody id="settings-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- GAS Bot Config -->
+  <div class="card" style="margin-top:12px">
+    <div class="card-t" style="margin-bottom:12px">✈️ Telegram Bot 設定</div>
+    <div class="info-bar">
+      ℹ️ 設定後，Dashboard 的「✈️ Telegram」按鈕可直接推送報告到群組。群組成員輸入 <strong>/cctv</strong> 或 <strong>/patrol</strong> 也可呼叫 Bot 發送摘要。
+    </div>
+    <div style="display:grid;gap:10px;margin-top:10px">
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">
+          🔗 GAS Web App URL <span style="color:var(--text3);font-weight:400">（部署後取得）</span>
+        </div>
+        <input type="text" id="cfg-gas-url" class="set-inp"
+          placeholder="https://script.google.com/macros/s/XXXX/exec"/>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">
+          💬 群組 Chat ID <span style="color:var(--text3);font-weight:400">（負數，e.g. -1001234567890）</span>
+        </div>
+        <input type="text" id="cfg-chat-id" class="set-inp" placeholder="-1001234567890" style="max-width:240px"/>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">
+          🔑 Secret Key <span style="color:var(--text3);font-weight:400">（GAS setupProperties 裡設的 SECRET_KEY，防止外人偽造請求）</span>
+        </div>
+        <input type="password" id="cfg-secret" class="set-inp" placeholder="e.g. vrt2026security" style="max-width:260px"/>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">
+          ⚠ 此值只存在你自己的瀏覽器，其他人看不到。請與 GAS 的 SECRET_KEY 保持一致。
+        </div>
+      </div>
+      <div style="display:flex;gap:7px;flex-wrap:wrap">
+        <button class="btn btn-p btn-sm" onclick="saveBotConfig()">💾 儲存設定</button>
+        <button class="btn btn-ghost btn-sm" onclick="testBotConfig()">🔌 測試連線</button>
+      </div>
+      <div id="bot-config-result" style="display:none;font-size:11px;padding:6px 10px;border-radius:6px"></div>
+    </div>
+    <div style="margin-top:14px;background:var(--bg4);border:1px solid var(--border);border-radius:8px;
+      padding:12px;font-size:11px;color:var(--text2);line-height:1.9">
+      <div style="font-weight:700;margin-bottom:5px">📋 GAS 部署步驟：</div>
+      1. 開啟 <a href="https://script.google.com" target="_blank" style="color:var(--blue)">Google Apps Script</a> → 新增專案<br>
+      2. 貼上 <strong>VRT_Security_Bot.gs</strong> 程式碼<br>
+      3. 執行 <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">setupProperties()</code>，填入 Bot Token 和 Chat ID<br>
+      4. 部署 → Web App → Anyone → 取得 URL 填入上方<br>
+      5. 建立時間觸發器：<code style="background:var(--bg3);padding:1px 5px;border-radius:3px">onPoll</code> → 每 1 分鐘<br>
+      6. 群組輸入 <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">/help</code> 測試是否正常
+    </div>
+  </div>
+</div>
+<!-- Anomaly reason modal -->
+<div class="modal-overlay" id="modal-anom">
+  <div class="modal-box">
+    <div class="modal-title">❗ <span data-zh="填寫異常原因" data-en="Enter Anomaly Reason">填寫異常原因</span></div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:8px" id="modal-cam-lbl"></div>
+    <textarea id="modal-reason-inp" rows="3" style="width:100%;border:1.5px solid var(--border);
+      border-radius:7px;padding:7px;font-family:inherit;font-size:12px;outline:none;resize:vertical"
+      placeholder="Please describe the issue..."></textarea>
+    <div style="display:flex;gap:7px;margin-top:10px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeModal('modal-anom')">
+        <span data-zh="取消" data-en="Cancel">取消</span>
+      </button>
+      <button class="btn btn-r" onclick="confirmFail()">
+        ✕ <span data-zh="確認異常" data-en="Confirm Abnormal">確認異常</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Camera modal -->
+<div class="modal-overlay" id="modal-camera">
+  <div class="modal-box" style="max-width:480px">
+    <div class="modal-title">📷 <span id="modal-cam-title">新增攝像機</span></div>
+    <input type="hidden" id="edit-cam-id" value=""/>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">棟別 Building</div>
+        <select id="cam-bldg-inp" class="set-inp">
+          <option value="A">A棟 Building A</option>
+          <option value="B">B棟 Building B</option>
+        </select>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">編號 Code</div>
+        <input type="text" id="cam-code-inp" class="set-inp" placeholder="e.g. CCTV A-01"/>
+      </div>
+    </div>
+    <div style="margin-bottom:10px">
+      <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">位置描述 Location</div>
+      <input type="text" id="cam-loc-inp" class="set-inp" placeholder="e.g. Front entrance of Factory"/>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+      <input type="checkbox" id="cam-novideo-inp" style="width:16px;height:16px;cursor:pointer"/>
+      <label for="cam-novideo-inp" style="font-size:12px;color:var(--text2);cursor:pointer">
+        <span data-zh="標記為「無影像」（將出現在異常清單）" data-en="Mark as 'No Video' (will appear in anomaly list)">標記為「無影像」（將出現在異常清單）</span>
+      </label>
+    </div>
+    <div style="display:flex;gap:7px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeModal('modal-camera')">取消</button>
+      <button class="btn btn-p" onclick="saveCamera()">💾 儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Telegram Share modal -->
+<div class="modal-overlay" id="modal-share">
+  <div class="modal-box" style="max-width:520px;max-height:90vh;overflow-y:auto">
+    <div class="modal-title">✈️ 發送到 Telegram 群組 / Send to Group</div>
+
+    <!-- GAS URL check -->
+    <div id="share-no-gas" style="display:none;background:var(--amber-bg);border:1px solid var(--amber-bd);
+      border-radius:8px;padding:10px 12px;font-size:11px;color:var(--amber);margin-bottom:12px">
+      ⚠️ 尚未設定 GAS Webhook URL。請至「⚙️ 攝像機設定」頁面下方設定後再試。<br>
+      <span style="color:var(--text3)">GAS Webhook URL not configured. Go to Camera Settings to set it up.</span>
+    </div>
+
+    <!-- Preview box -->
+    <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:5px">
+      📋 預覽 / Preview:
+    </div>
+    <div id="tg-summary" style="background:var(--bg4);border:1px solid var(--border);border-radius:7px;
+      padding:9px;font-size:11px;font-family:'IBM Plex Mono',monospace;white-space:pre-wrap;
+      max-height:200px;overflow-y:auto;line-height:1.6;margin-bottom:10px"></div>
+
+    <!-- Type toggle -->
+    <div style="display:flex;gap:5px;margin-bottom:12px">
+      <div class="pbtn on" id="share-tab-cctv" onclick="setShareTab('cctv')" style="font-size:11px">📹 CCTV</div>
+      <div class="pbtn" id="share-tab-patrol" onclick="setShareTab('patrol')" style="font-size:11px">👮 Patrol</div>
+    </div>
+
+    <!-- Submitter name -->
+    <div style="margin-bottom:10px">
+      <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">
+        👤 提交人 Submitted by:
+      </div>
+      <input type="text" id="share-submitter" class="set-inp"
+        placeholder="e.g. Paul / Security Team"
+        style="max-width:260px"/>
+    </div>
+
+    <!-- Action buttons -->
+    <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:space-between;align-items:center">
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="copyTgSummary()">📋 複製摘要</button>
+        <button class="share-btn" id="send-to-group-btn" onclick="sendToGroup()"
+          style="font-size:12px;padding:6px 14px">
+          ✈️ 發送到群組 Send to Group
+        </button>
+      </div>
+      <button class="btn btn-ghost" onclick="closeModal('modal-share')">關閉</button>
+    </div>
+
+    <!-- Result feedback -->
+    <div id="share-result" style="display:none;margin-top:10px;padding:8px 12px;border-radius:7px;font-size:12px"></div>
+
+    <!-- Deploy hint (collapsed) -->
+    <details style="margin-top:14px">
+      <summary style="font-size:11px;color:var(--text3);cursor:pointer">
+        🚀 GitHub Pages 部署說明 / Deployment Guide
+      </summary>
+      <div style="background:var(--bg4);border:1px solid var(--border);border-radius:7px;
+        padding:10px;font-size:11px;color:var(--text2);margin-top:6px;line-height:1.8">
+        1. 上傳 HTML 到 <code style="background:var(--bg3);padding:1px 4px;border-radius:3px">saintdou-weng.github.io</code>，命名 <code style="background:var(--bg3);padding:1px 4px;border-radius:3px">security.html</code><br>
+        2. 在群組輸入 <code style="background:var(--bg3);padding:1px 4px;border-radius:3px">/cctv</code> 即可呼叫 Bot 報告<br>
+        3. 在 HTML 設定 GAS URL → 填寫後點「發送到群組」即推送到 Telegram
+      </div>
+    </details>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// DEFAULT CAMERAS
+// ═══════════════════════════════════════════════════════
+const DEFAULT_CAMERAS = [
+  {id:1,code:'CCTV A-01',loc:'Front entrance of Factory Motorcycle Parking, Building A',bldg:'A',noVideo:false},
+  {id:2,code:'CCTV A-02',loc:'Finished Goods Area, Building A',bldg:'A',noVideo:false},
+  {id:3,code:'CCTV A-03',loc:'Container Loading Area, Building A',bldg:'A',noVideo:false},
+  {id:4,code:'CCTV A-04',loc:'Behind the Office',bldg:'A',noVideo:false},
+  {id:5,code:'CCTV A-05',loc:'Area behind the Bathrooms',bldg:'A',noVideo:false},
+  {id:6,code:'CCTV A-06',loc:'Packing Room Area',bldg:'A',noVideo:false},
+  {id:7,code:'CCTV A-07',loc:'In front of the Office Staircase',bldg:'A',noVideo:false},
+  {id:8,code:'CCTV A-08',loc:'In front of the Machine Room',bldg:'A',noVideo:false},
+  {id:9,code:'CCTV A-09',loc:'Canteen Area, Bldg A (near Finger Scan)',bldg:'A',noVideo:false},
+  {id:10,code:'CCTV A-10',loc:'Canteen Area, Bldg A (near WC – 15 Rooms)',bldg:'A',noVideo:false},
+  {id:11,code:'CCTV A-11',loc:'Middle Area (in front of Sewing Line 1)',bldg:'A',noVideo:false},
+  {id:12,code:'CCTV A-12',loc:'No Video Available',bldg:'A',noVideo:true},
+  {id:13,code:'CCTV A-13',loc:'Middle of Building, Facing Behind Bathroom',bldg:'A',noVideo:false},
+  {id:14,code:'CCTV A-14',loc:'Motorcycle Parking Area, Building A',bldg:'A',noVideo:false},
+  {id:15,code:'CCTV A-15',loc:'Front Gate',bldg:'A',noVideo:false},
+  {id:16,code:'CCTV A-16',loc:'Building A, near WC',bldg:'A',noVideo:false},
+  {id:17,code:'CCTV A-17',loc:'Facing the Generator',bldg:'A',noVideo:false},
+  {id:18,code:'CCTV A-18',loc:'Near the Container House (Outside)',bldg:'A',noVideo:false},
+  {id:19,code:'CCTV A-19',loc:'In front of the Motorcycle Roof, Building A',bldg:'A',noVideo:false},
+  {id:20,code:'CCTV A-20',loc:'No Video Available',bldg:'A',noVideo:true},
+  {id:21,code:'CCTV A-21',loc:'No Video Available',bldg:'A',noVideo:true},
+  {id:22,code:'CCTV A-22',loc:'No Video Available',bldg:'A',noVideo:true},
+  {id:23,code:'CCTV A-23',loc:'No Video Available',bldg:'A',noVideo:true},
+  {id:24,code:'CCTV A-24',loc:'No Video Available',bldg:'A',noVideo:true},
+  {id:25,code:'CCTV A-25',loc:'No Video Available',bldg:'A',noVideo:true},
+  {id:26,code:'CCTV B-01',loc:'Warehouse Trim, Building B',bldg:'B',noVideo:false},
+  {id:27,code:'CCTV B-02',loc:'Canteen Area, Building B',bldg:'B',noVideo:false},
+  {id:28,code:'CCTV B-03',loc:'Cutting Area, Building B',bldg:'B',noVideo:false},
+  {id:29,code:'CCTV B-04',loc:'Behind the Loading (Chemical Room)',bldg:'B',noVideo:false},
+  {id:30,code:'CCTV B-05',loc:'Finger Scan Machine, Building B',bldg:'B',noVideo:false},
+  {id:31,code:'CCTV B-06',loc:'Behind the Trim (Stair near WC 15 Rooms)',bldg:'B',noVideo:false},
+  {id:32,code:'CCTV B-07',loc:'Container Loading Area, Building B',bldg:'B',noVideo:false},
+  {id:33,code:'CCTV B-08',loc:'Front entrance Motorcycle Parking, Building B',bldg:'B',noVideo:false},
+  {id:34,code:'CCTV B-09',loc:'Front Table Cutting Inspection, Building B',bldg:'B',noVideo:false},
+  {id:35,code:'CCTV B-10',loc:'WH Trim Behind, Building B',bldg:'B',noVideo:false},
+  {id:36,code:'CCTV B-11',loc:'Middle of Building (Cutting & Service Line), Bldg B',bldg:'B',noVideo:false},
+  {id:37,code:'CCTV B-12',loc:'Canteen Area (near WH ME), Building B',bldg:'B',noVideo:false},
+  {id:38,code:'CCTV B-13',loc:'Front WH Loading, Building B',bldg:'B',noVideo:false},
+  {id:39,code:'CCTV B-14',loc:'Inside WH Loading, Building B',bldg:'B',noVideo:false},
+  {id:40,code:'CCTV B-15',loc:'Front Fabric Scanner Machine in WH Loading, Bldg B',bldg:'B',noVideo:false},
+  {id:41,code:'CCTV B-16',loc:'In Cutting Behind, Building B',bldg:'B',noVideo:false},
+];
+
+// ═══════════════════════════════════════════════════════
+// CAMERA STORAGE
+// ═══════════════════════════════════════════════════════
+function getCameras(){
+  try{ const s=localStorage.getItem('vrt_cameras'); return s?JSON.parse(s):[...DEFAULT_CAMERAS]; }
+  catch{return[...DEFAULT_CAMERAS];}
+}
+function saveCameras(arr){ localStorage.setItem('vrt_cameras',JSON.stringify(arr)); }
+function resetCameras(){
+  const btn=document.getElementById('reset-cam-btn');
+  if(!btn._confirm){
+    btn._confirm=true;
+    btn.textContent='⚠ 確認恢復預設？再按一次';
+    btn.style.background='var(--amber)';
+    btn.style.color='#fff';
+    btn.style.border='none';
+    setTimeout(()=>{
+      btn._confirm=false;
+      btn.textContent='↺ 恢復預設';
+      btn.style.background='';
+      btn.style.color='';
+      btn.style.border='';
+    }, 3000);
+    return;
+  }
+  btn._confirm=false;
+  btn.textContent='↺ 恢復預設';
+  btn.style.background='';
+  btn.style.color='';
+  btn.style.border='';
+  saveCameras([...DEFAULT_CAMERAS]);
+  renderSettingsTable(); renderCctv();
+  toast('✓ 已恢復預設攝像機清單');
+  if(getGasUrl()) saveCamerasToCloud(); // also push to cloud
+}
+
+// ═══════════════════════════════════════════════════════
+// LANG
+// ═══════════════════════════════════════════════════════
+let LANG='zh';
+function setLang(l){
+  LANG=l;
+  document.querySelectorAll('.lang-sw button').forEach((b,i)=>{
+    b.classList.toggle('on',(i===0&&l==='zh')||(i===1&&l==='en'));
+  });
+  // Apply static labels first
+  document.querySelectorAll('[data-zh],[data-en]').forEach(el=>{
+    const v=el.getAttribute('data-'+l);
+    if(v!==null) el.textContent=v;
+  });
+  // Re-render dynamic sections (cctvToday preserved via _lastLoadedDate guard)
+  renderCctvStats();
+  if(cctvPeriod==='day'){ renderCctvTable(); renderNoVideoSection(); }
+  else renderCctvPeriod();
+  if(patrolData) renderPatrol();
+  renderSettingsTable();
+  // Re-apply labels again to catch newly rendered dynamic elements
+  document.querySelectorAll('[data-zh],[data-en]').forEach(el=>{
+    const v=el.getAttribute('data-'+l);
+    if(v!==null) el.textContent=v;
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// MAIN TABS
+// ═══════════════════════════════════════════════════════
+function switchMain(t){
+  ['cctv','patrol','settings'].forEach(x=>{
+    document.getElementById('page-'+x).classList.toggle('on',x===t);
+    document.getElementById('tab-'+x).classList.toggle('on',x===t);
+  });
+  if(t==='settings'){ renderSettingsTable(); } // 不自動從雲端同步，避免覆蓋本地設定
+}
+
+// ═══════════════════════════════════════════════════════
+// DATE HELPERS（本地時區，避免 UTC+7 偏移）
+// ═══════════════════════════════════════════════════════
+const fmtDate=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const todayStr=()=>fmtDate(new Date());
+const parseDate=s=>{const[y,m,d]=s.split('-');return new Date(+y,+m-1,+d);};
+const addDays=(s,n)=>{const d=parseDate(s);d.setDate(d.getDate()+n);return fmtDate(d);};
+const getWeekDays=s=>{const d=parseDate(s),day=d.getDay()||7,mon=new Date(d);
+  mon.setDate(d.getDate()-(day-1));return Array.from({length:7},(_,i)=>{const x=new Date(mon);x.setDate(mon.getDate()+i);return fmtDate(x);});};
+const getMonthDays=ym=>{const[y,m]=ym.split('-');const days=new Date(+y,+m,0).getDate();
+  return Array.from({length:days},(_,i)=>`${y}-${m}-${String(i+1).padStart(2,'0')}`);};
+const fmtTime=d=>`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+
+// ═══════════════════════════════════════════════════════
+// CCTV DATA
+// ═══════════════════════════════════════════════════════
+let cctvDate=todayStr(), cctvPeriod='day', cctvToday={}, calYM=todayStr().slice(0,7);
+let cctvCharts={}, modalCamId=null, _lastLoadedDate=null;
+let _syncTimer=null, _cloudSyncInfo={};
+// Track cameras clicked THIS session (since page load) — these won't be overwritten by sync
+const _sessionTouched=new Set();
+
+const loadCctvDay=d=>{try{const s=localStorage.getItem('cctv_'+d);return s?normalizeToCodeKeys(JSON.parse(s)):{}}catch{return{}}};
+const saveCctvDayData=(d,data)=>localStorage.setItem('cctv_'+d,JSON.stringify(data));
+
+// Convert legacy id-keyed data to code-keyed data
+function normalizeToCodeKeys(rawData){
+  if(!rawData||!Object.keys(rawData).length) return {};
+  const cameras=getCameras();
+  const result={};
+  Object.entries(rawData).forEach(([k,v])=>{
+    // If key is already a code string like "CCTV A-01", keep it
+    if(isNaN(+k)){
+      result[k]=v;
+    } else {
+      // Legacy: numeric id — find the matching camera code
+      const cam=cameras.find(c=>c.id===+k);
+      if(cam) result[cam.code]=v;
+    }
+  });
+  return result;
+}
+// Convert code-keyed data back to code-keyed (already right) — used when saving
+function toCctvState(cameras, rawData){
+  const state={};
+  cameras.forEach(cam=>{
+    const v=rawData[cam.code]||rawData[String(cam.id)];
+    if(v) state[cam.code]=v;
+  });
+  return state;
+}
+
+// ── CLOUD SYNC ──────────────────────────────────────────────────
+function setSyncStatus(msg, type){
+  const el=document.getElementById('sync-status');
+  if(!el) return;
+  const colors={ok:'var(--green)',warn:'var(--amber)',err:'var(--red)',info:'var(--blue)',idle:'var(--text3)'};
+  el.textContent=msg; el.style.color=colors[type]||colors.idle;
+}
+
+async function syncFromCloud(date){
+  const url=getGasUrl(); if(!url){ setSyncStatus(LANG==='zh'?'— 未設定 GAS URL':'— GAS URL not set','warn'); return; }
+  // 防重複：同一日期 30 秒內不重複觸發
+  const nowTs=Date.now();
+  if(!syncFromCloud._lastTs) syncFromCloud._lastTs={};
+  if(syncFromCloud._lastTs[date] && nowTs-syncFromCloud._lastTs[date]<30000) return;
+  syncFromCloud._lastTs[date]=nowTs;
+  setSyncStatus(LANG==='zh'?'⟳ 同步中…':'⟳ Syncing…','info');
+  try{
+    // Use POST instead of GET to avoid CORS redirect issues
+    const res=await fetch(url,{
+      method:'POST',
+      headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({type:'getCctv', date:date, secret:getSecret()})
+    });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const json=await res.json();
+    if(json.ok && json.data && json.data.camData){
+      const cloud=json.data.camData;
+      // Cloud is single source of truth — save to localStorage completely
+      saveCctvDayData(date, cloud);
+      _cloudSyncInfo[date]={updatedAt:json.data.updatedAt||'',updatedBy:json.data.updatedBy||''};
+      if(date===cctvDate){
+        // FULLY replace cctvToday with cloud data,
+        // then restore only cameras clicked this session (not yet saved)
+        const newState={};
+        // Normalize cloud data to code keys
+        const normalizedCloud=normalizeToCodeKeys(cloud);
+        Object.entries(normalizedCloud).forEach(([code,v])=>{ newState[code]=v; });
+        _sessionTouched.forEach(code=>{
+          if(cctvToday[code]) newState[code]=cctvToday[code]; // preserve unsaved clicks
+        });
+        cctvToday=newState;
+        _lastLoadedDate=date;
+        renderCctvStats(); renderCctvTable(); renderNoVideoSection();
+      }
+      const info=_cloudSyncInfo[date]||{};
+      const byTxt=info.updatedBy?' · '+info.updatedBy:'';
+      const atTxt=info.updatedAt?' '+info.updatedAt:'';
+      setSyncStatus('✓ '+(LANG==='zh'?'已同步 '+date+' · ':'Synced '+date+' · ')+info.updatedBy+( atTxt?' ('+info.updatedAt+')':''),'ok');
+    } else if(json.ok && !json.data){
+      setSyncStatus((LANG==='zh'?'— '+date+' 雲端無記錄':'— No cloud record for '+date),'idle');
+    } else {
+      setSyncStatus('⚠ '+(json.error||'sync error'),'warn');
+    }
+  } catch(e){
+    setSyncStatus(LANG==='zh'?'⚠ 同步失敗 ('+e.message+')':'⚠ Sync failed ('+e.message+')','warn');
+    console.warn('syncFromCloud error:',e);
+  }
+}
+
+async function saveToCloud(date, data, updatedBy){
+  const url=getGasUrl(); if(!url) return;
+  try{
+    await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({type:'saveCctv',date,cctvData:data,
+        updatedBy,secret:getSecret()})});
+  } catch(e){ console.warn('cloud save failed:',e); }
+}
+
+async function saveCamerasToCloud(){
+  const url=getGasUrl(); if(!url) return;
+  try{
+    const cameras=getCameras();
+    const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({type:'saveCameras',cameras,secret:getSecret()})});
+    const json=await res.json();
+    if(json.ok){
+      console.log('cameras saved to cloud: '+cameras.length+' cameras');
+      const el=document.getElementById('cam-sync-status');
+      if(el){ el.textContent='✓ 已上傳 '+cameras.length+' 台到雲端'; el.style.color='var(--green)'; }
+      pushCameraListToFactoryMap();
+    } else {
+      console.warn('saveCamerasToCloud GAS error:', json.error);
+      const el=document.getElementById('cam-sync-status');
+      if(el){ el.textContent='⚠ 上傳失敗: '+(json.error||'unknown'); el.style.color='var(--red)'; }
+    }
+  } catch(e){
+    console.warn('saveCamerasToCloud network error:',e);
+    const el=document.getElementById('cam-sync-status');
+    if(el){ el.textContent='⚠ 網路錯誤: '+e.message; el.style.color='var(--red)'; }
+  }
+}
+
+async function syncCamerasFromCloud(silent=false){
+  const url=getGasUrl();
+  const statusEl=document.getElementById('cam-sync-status');
+  if(!url){
+    if(statusEl) statusEl.textContent=LANG==='zh'?'— 未設定 GAS URL':'— GAS URL not set';
+    return;
+  }
+  if(statusEl) statusEl.textContent=LANG==='zh'?'⟳ 同步中…':'⟳ Syncing…';
+  try{
+    const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({type:'getCameras',secret:getSecret()})});
+    const json=await res.json();
+    if(json.ok && json.cameras && json.cameras.length){
+      // 驗證：至少要有 code 欄位，否則是壞資料，不覆蓋 localStorage
+      const valid = json.cameras.filter(c => c.code && c.code !== 'undefined' && c.code !== '');
+      if(valid.length === 0){
+        const msg = LANG==='zh'?'⚠ 雲端資料異常，保留本地設定':'⚠ Cloud data invalid, keeping local';
+        if(statusEl){statusEl.textContent=msg;statusEl.style.color='var(--amber)';}
+        return;
+      }
+      // 補齊缺少的欄位（用 DEFAULT_CAMERAS 對照）
+      const defMap = {};
+      DEFAULT_CAMERAS.forEach(d=>{ defMap[d.code]=d; });
+      const merged = valid.map((c,i)=>({
+        id:      (c.id && c.id!=='undefined') ? parseInt(c.id) : (defMap[c.code]?.id || i+1),
+        code:    c.code,
+        loc:     (c.loc && c.loc!=='undefined') ? c.loc : (defMap[c.code]?.loc || ''),
+        bldg:    (c.bldg && c.bldg!=='undefined') ? c.bldg : (defMap[c.code]?.bldg || 'A'),
+        noVideo: !!c.noVideo,
+        active:  c.active !== false && c.active !== 'false',
+      }));
+      saveCameras(merged);
+      renderCctv();
+      renderSettingsTable();
+      const msg=LANG==='zh'?`✓ 已同步 ${merged.length} 台攝像機`:`✓ Synced ${merged.length} cameras`;
+      if(statusEl) statusEl.textContent=msg;
+      if(statusEl) statusEl.style.color='var(--green)';
+      if(!silent) toast(msg);
+    } else {
+      const msg=LANG==='zh'?'— 雲端無攝像機資料':'— No cloud camera data';
+      if(statusEl) statusEl.textContent=msg;
+      if(statusEl) statusEl.style.color='var(--text3)';
+    }
+  } catch(e){
+    const msg=LANG==='zh'?'⚠ 同步失敗':'⚠ Sync failed';
+    if(statusEl) statusEl.textContent=msg;
+    if(statusEl) statusEl.style.color='var(--red)';
+    console.warn('syncCamerasFromCloud failed:',e);
+  }
+}
+
+function startAutoSync(){
+  if(_syncTimer) clearInterval(_syncTimer);
+  _syncTimer=setInterval(()=>{
+    if(cctvPeriod==='day'){
+      // Always sync the currently viewed date (may have changed since timer started)
+      const inp=document.getElementById('cctv-date-inp');
+      const d=inp?inp.value:cctvDate;
+      if(d) syncFromCloud(d);
+    }
+  }, 120000); // Every 2 minutes
+}
+// ──────────────────────────────────────────────────────────────
+
+function setCctvPeriod(p){
+  cctvPeriod=p;
+  ['day','week','month'].forEach(x=>document.getElementById('cp-'+x).classList.toggle('on',x===p));
+  document.getElementById('cctv-day-view').style.display=p==='day'?'':'none';
+  document.getElementById('cctv-period-view').style.display=p!=='day'?'':'none';
+  renderCctv();
+}
+function goCctvToday(){cctvDate=todayStr();_lastLoadedDate=null;document.getElementById('cctv-date-inp').value=cctvDate;renderCctv();}
+
+// 清除本地所有 CCTV 資料並從雲端重新拉取（用於匯入錯誤後還原）
+function clearCctvLocalData(){
+  if(!confirm('確定清除本地所有 CCTV 巡查資料？\n將從雲端重新拉取今日記錄。\n（此操作不影響雲端資料）')) return;
+  // 清除所有 cctv_ 開頭的 localStorage
+  const toRemove=[];
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k&&k.startsWith('cctv_')) toRemove.push(k);
+  }
+  toRemove.forEach(k=>localStorage.removeItem(k));
+  cctvToday={}; _lastLoadedDate=null;
+  toast(`✓ 已清除 ${toRemove.length} 天本地記錄，從雲端同步中…`);
+  // 強制重新從雲端拉
+  syncFromCloud._lastTs={};
+  syncFromCloud(cctvDate);
+  renderCctv();
+}
+function cctvNav(n){
+  if(cctvPeriod==='day') cctvDate=addDays(cctvDate,n);
+  else if(cctvPeriod==='week') cctvDate=addDays(cctvDate,n*7);
+  else{const d=parseDate(cctvDate.slice(0,7)+'-01');d.setMonth(d.getMonth()+n);cctvDate=fmtDate(d);}
+  _lastLoadedDate=null;
+  document.getElementById('cctv-date-inp').value=cctvDate;renderCctv();
+}
+function renderCctv(){
+  const inp=document.getElementById('cctv-date-inp');
+  const newDate=inp.value||cctvDate;
+  const dateChanged=(newDate!==cctvDate);
+  if(dateChanged){ _lastLoadedDate=null; cctvDate=newDate; }
+  // Only reload from localStorage when the date actually changes
+  if(_lastLoadedDate!==cctvDate){ cctvToday=loadCctvDay(cctvDate); _lastLoadedDate=cctvDate; }
+  renderCctvStats();
+  if(cctvPeriod==='day'){ renderCctvTable(); renderNoVideoSection(); }
+  else renderCctvPeriod();
+  // Trigger cloud sync whenever date changes or first load
+  if(dateChanged||!_syncTimer) syncFromCloud(cctvDate);
+}
+
+function renderCctvStats(){
+  const cameras=getCameras();
+  let days=[];
+  if(cctvPeriod==='day') days=[cctvDate];
+  else if(cctvPeriod==='week') days=getWeekDays(cctvDate);
+  else days=getMonthDays(cctvDate.slice(0,7));
+  let total=0,ok=0,fail=0,noVid=0;
+  days.forEach(d=>{
+    // For current date use in-memory state (includes unsaved clicks); for others read localStorage
+    const dd=(d===cctvDate)?cctvToday:loadCctvDay(d);
+    cameras.forEach(cam=>{
+      if(cam.noVideo){if(d===cctvDate||days.length===1)noVid++;return;}
+      total++;
+      const s=(dd[cam.code]||dd[cam.id])?.status;
+      if(s==='ok') ok++;
+      else if(s==='fail') fail++;
+    });
+  });
+  // noVid count for multi-day: count once per camera, not per day
+  if(days.length>1){ noVid=0; cameras.forEach(c=>{ if(c.noVideo) noVid++; }); }
+  const pend=total-ok-fail;
+  const pct=total>0?Math.round(ok/total*100):0;
+  document.getElementById('cctv-stats-row').innerHTML=`
+    <div class="stat-box b"><div class="stat-v">${days.length}</div><div class="stat-l">${LANG==='zh'?'天數':'Days'}</div></div>
+    <div class="stat-box"><div class="stat-v">${total}</div><div class="stat-l">${LANG==='zh'?'確認項':'Checks'}</div></div>
+    <div class="stat-box g"><div class="stat-v">${ok}</div><div class="stat-l">${LANG==='zh'?'正常':'Normal'}</div></div>
+    <div class="stat-box r"><div class="stat-v">${fail}</div><div class="stat-l">${LANG==='zh'?'異常':'Abnormal'}</div></div>
+    <div class="stat-box a"><div class="stat-v">${pend}</div><div class="stat-l">${LANG==='zh'?'待確認':'Pending'}</div></div>
+    <div class="stat-box a"><div class="stat-v">${noVid}</div><div class="stat-l">${LANG==='zh'?'無影像':'No Video'}</div></div>
+    <div class="stat-box ${pct>=100?'g':pct>=80?'b':'r'}"><div class="stat-v">${pct}%</div><div class="stat-l">${LANG==='zh'?'正常率':'OK Rate'}</div></div>
+  `;
+}
+
+function renderCctvTable(){
+  const cameras=getCameras();
+  const tbody=document.getElementById('cctv-tbody');
+  let html='', lastBldg='';
+  cameras.forEach(cam=>{
+    if(cam.bldg!==lastBldg){
+      lastBldg=cam.bldg;
+      const lbl=cam.bldg==='A'?(LANG==='zh'?'A棟 Building A':'Building A'):(LANG==='zh'?'B棟 Building B':'Building B');
+      html+=`<tr class="sec-row"><td colspan="6"><div class="sec-lbl">🏭 ${lbl}</div></td></tr>`;
+    }
+    if(cam.noVideo){
+      html+=`<tr id="crow-${cam.id}">
+        <td style="color:var(--text3);font-size:10px">${cam.id}</td>
+        <td><span class="cam-code">${cam.code}</span></td>
+        <td><span style="color:var(--amber);font-size:11px">⚠ ${cam.loc}</span></td>
+        <td><span style="font-size:10px;font-weight:700;color:var(--text3)">${cam.bldg==='A'?'Bldg A':'Bldg B'}</span></td>
+        <td colspan="2"><span class="tag-warn">⚠ ${LANG==='zh'?'無影像 — 請至設定修改':'No Video — Edit in Settings'}</span></td>
+      </tr>`;
+      return;
+    }
+    const d=cctvToday[cam.code]||cctvToday[cam.id]||{};
+    const isOk=d.status==='ok',isFail=d.status==='fail';
+    html+=`<tr id="crow-${cam.id}">
+      <td style="color:var(--text3);font-size:10px">${cam.id}</td>
+      <td><span class="cam-code">${cam.code}</span></td>
+      <td style="font-size:11px;color:var(--text2)">${cam.loc}</td>
+      <td><span style="font-size:10px;font-weight:700;color:var(--text3)">${cam.bldg==='A'?'Bldg A':'Bldg B'}</span></td>
+      <td>
+        <div style="display:flex;gap:4px">
+          <button class="s-btn ok-btn ${isOk?'on':''}" onclick="setCamOk(${cam.id})">✓</button>
+          <button class="s-btn fail-btn ${isFail?'on':''}" onclick="setCamFail(${cam.id})">✕</button>
+        </div>
+      </td>
+      <td>
+        ${isFail?`<input class="reason-inp" id="reason-${cam.id}" value="${(d.reason||'').replace(/"/g,'&quot;')}"
+            oninput="cctvToday['${cam.code}']={status:'fail',reason:this.value}"
+            placeholder="${LANG==='zh'?'請填寫異常原因…':'Describe issue…'}"/>`
+          :isOk?`<span class="tag-ok">✓ ${LANG==='zh'?'正常':'Normal'}</span>`
+          :`<span class="tag-pend">${LANG==='zh'?'— 待確認':'— Pending'}</span>`}
+      </td>
+    </tr>`;
+  });
+  tbody.innerHTML=html;
+}
+
+function renderNoVideoSection(){
+  const cameras=getCameras();
+  const noVids=cameras.filter(c=>c.noVideo);
+  const sec=document.getElementById('novideo-section');
+  if(!noVids.length){sec.style.display='none';return;}
+  sec.style.display='';
+  document.getElementById('novideo-list').innerHTML=noVids.map(cam=>`
+    <div class="anom-item warn" style="margin-bottom:4px">
+      <div class="anom-date">${cam.code}</div>
+      <div class="anom-txt">
+        ${LANG==='zh'?'無影像訊號 — 需確認是否已修復或紀錄原因':'No video signal — confirm if repaired or log reason'}
+        <button class="btn btn-ghost btn-sm" style="margin-left:8px;font-size:10px"
+          onclick="openEditCamera(${cam.id})">⚙ ${LANG==='zh'?'編輯':'Edit'}</button>
+      </div>
+    </div>`).join('');
+}
+
+function setCamOk(id){
+  const cam=getCameras().find(c=>c.id===id);
+  const k=cam?cam.code:String(id);
+  _sessionTouched.add(k);
+  cctvToday[k]={status:'ok',reason:''};
+  renderCctvTable(); renderCctvStats();
+}
+function setCamFail(id){
+  const _cam=getCameras().find(c=>c.id===id);
+  const _k=_cam?_cam.code:String(id);
+  _sessionTouched.add(_k);
+  modalCamId=id;
+  const cam=getCameras().find(c=>c.id===id);
+  document.getElementById('modal-cam-lbl').textContent=`${cam.code} — ${cam.loc}`;
+  document.getElementById('modal-reason-inp').value=cctvToday[id]?.reason||'';
+  document.getElementById('modal-anom').classList.add('on');
+}
+function confirmFail(){
+  const reason=document.getElementById('modal-reason-inp').value.trim();
+  if(!reason){alert(LANG==='zh'?'請填寫異常原因':'Please enter the anomaly reason');return;}
+  const _fcam=getCameras().find(c=>c.id===modalCamId);
+  const _fk=_fcam?_fcam.code:String(modalCamId);
+  cctvToday[_fk]={status:'fail',reason};
+  closeModal('modal-anom'); renderCctvTable(); renderCctvStats();
+}
+function markAllOk(){
+  getCameras().forEach(cam=>{
+    if(!cam.noVideo){
+      _sessionTouched.add(cam.code); // mark as touched so sync won't overwrite
+      cctvToday[cam.code]={status:'ok',reason:''};
+    }
+  });
+  renderCctvTable(); renderCctvStats();
+}
+function saveCctvDay(){
+  getCameras().forEach(cam=>{
+    const inp=document.getElementById('reason-'+cam.id);
+    if(inp&&cctvToday[cam.code]?.status==='fail') cctvToday[cam.code].reason=inp.value;
+  });
+  saveCctvDayData(cctvDate,cctvToday);
+  renderCctvStats();
+  // Also save to cloud for two-person sync
+  const by=(document.getElementById('share-submitter')?.value||'').trim();
+  saveToCloud(cctvDate, cctvToday, by).then(()=>{
+    setSyncStatus('✓ '+(LANG==='zh'?'已儲存並同步':'Saved & synced')+( by?' · '+by:''),'ok');
+    _sessionTouched.clear(); // after save, cloud has latest — allow future syncs to overwrite
+  });
+  toast(`✓ ${cctvDate} ${LANG==='zh'?'已儲存':'saved'}`);
+}
+function copyCctvReport(){
+  const cameras=getCameras(), data=cctvToday;
+  const d=cctvDate;
+  let ok=0,fail=0,pend=0,noVid=0,failList=[],noVidList=[];
+  cameras.forEach(cam=>{
+    if(cam.noVideo){noVid++;noVidList.push(cam.code);return;}
+    const dc=data[cam.code]||data[cam.id]||{};
+    if(dc.status==='ok') ok++;
+    else if(dc.status==='fail'){fail++;failList.push({code:cam.code,reason:dc.reason||'—'});}
+    else pend++;
+  });
+  let txt=`📹 VRT CCTV Daily Check — ${d}\n`;
+  txt+=`✅ Normal: ${ok}  ❌ Abnormal: ${fail}  ⏳ Pending: ${pend}  ⚠ No Video: ${noVid}\n`;
+  if(failList.length){txt+=`\n❌ Abnormal Cameras:\n`;failList.forEach(f=>txt+=`  ${f.code}: ${f.reason}\n`);}
+  if(noVidList.length){txt+=`\n⚠ No Video: ${noVidList.join(', ')}\n`;}
+  txt+=`\nChecked at: ${new Date().toLocaleString()}`;
+  navigator.clipboard.writeText(txt).then(()=>toast('✓ '+( LANG==='zh'?'報告已複製':'Report copied'))).catch(()=>{
+    const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast('✓ Copied');
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// CCTV PERIOD VIEW
+// ═══════════════════════════════════════════════════════
+function renderCctvPeriod(){ renderCalendar(); renderCctvAnomList(); renderCctvBarChart(); }
+function calNav(n){
+  const[y,m]=calYM.split('-');const d=new Date(+y,+m-1+n,1);
+  calYM=fmtDate(d).slice(0,7);renderCalendar();
+}
+function renderCalendar(){
+  const[y,m]=calYM.split('-');
+  const mz=['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+  const me=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  document.getElementById('cal-lbl').textContent=LANG==='zh'?`${y}年 ${mz[+m-1]}`:`${me[+m-1]} ${y}`;
+  const days=getMonthDays(calYM);
+  const firstDow=(new Date(+y,+m-1,1).getDay()||7)-1;
+  const dows_zh=['一','二','三','四','五','六','日'],dows_en=['M','T','W','T','F','S','S'];
+  let html=(LANG==='zh'?dows_zh:dows_en).map(d=>`<div class="cal-dow">${d}</div>`).join('');
+  for(let i=0;i<firstDow;i++) html+=`<div class="cal-day empty"></div>`;
+  const today=todayStr();
+  days.forEach(ds=>{
+    const dd=ds.slice(8),dd2=loadCctvDay(ds);
+    let ok=0,fail=0;
+    Object.values(dd2).forEach(v=>{if(v.status==='ok')ok++;if(v.status==='fail')fail++;});
+    const cls=fail>0?'has-fail':ok>0?'all-ok':'';
+    const isT=ds===today?'today':'', isSel=ds===cctvDate?'sel':'';
+    html+=`<div class="cal-day ${cls} ${isT} ${isSel}" onclick="calSelectDay('${ds}')">
+      <span>${dd}</span>
+      ${fail>0?`<span style="font-size:8px;color:var(--red)">×${fail}</span>`:ok>0?`<span style="font-size:8px;color:var(--green)">✓</span>`:''}
+    </div>`;
+  });
+  document.getElementById('cal-grid').innerHTML=html;
+}
+function calSelectDay(ds){cctvDate=ds;document.getElementById('cctv-date-inp').value=ds;setCctvPeriod('day');}
+function renderCctvAnomList(){
+  const cameras=getCameras();
+  const days=cctvPeriod==='week'?getWeekDays(cctvDate):getMonthDays(calYM);
+  const items=[];
+  // no-video cameras always show
+  cameras.filter(c=>c.noVideo).forEach(cam=>{
+    items.push({date:'⚠',code:cam.code,reason:LANG==='zh'?'無影像訊號（長期異常）':'No video signal (persistent)',type:'warn'});
+  });
+  days.forEach(d=>{
+    const dd=loadCctvDay(d);
+    cameras.forEach(cam=>{
+      if(cam.noVideo) return;
+      const danom=dd[cam.code]||dd[cam.id]||{};
+      if(danom.status==='fail'){
+        items.push({date:d.slice(5),code:cam.code,reason:danom.reason||'—',type:'fail'});
+      }
+    });
+  });
+  if(!items.length){
+    document.getElementById('cctv-anom-list').innerHTML=`<div class="tag-pend">${LANG==='zh'?'（本期無異常）':'(No anomalies)'}</div>`;
+    return;
+  }
+  document.getElementById('cctv-anom-list').innerHTML=items.map(it=>
+    `<div class="anom-item ${it.type}"><div class="anom-date">${it.date}</div>
+    <div class="anom-txt"><strong>${it.code}</strong> — ${it.reason}</div></div>`
+  ).join('');
+}
+function renderCctvBarChart(){
+  const cameras=getCameras();
+  const days=cctvPeriod==='week'?getWeekDays(cctvDate):getMonthDays(calYM);
+  const labels=days.map(d=>d.slice(5));
+  const okD=[],failD=[];
+  days.forEach(d=>{
+    const dd=loadCctvDay(d);
+    let ok=0,fail=0;
+    cameras.forEach(c=>{if(c.noVideo)return;const s=dd[c.id]?.status;if(s==='ok')ok++;if(s==='fail')fail++;});
+    okD.push(ok);failD.push(fail);
+  });
+  if(cctvCharts.bar) cctvCharts.bar.destroy();
+  cctvCharts.bar=new Chart(document.getElementById('cctv-bar-chart').getContext('2d'),{
+    type:'bar',
+    data:{labels,datasets:[
+      {label:LANG==='zh'?'正常':'Normal',data:okD,backgroundColor:'#86efac',borderRadius:3},
+      {label:LANG==='zh'?'異常':'Abnormal',data:failD,backgroundColor:'#fca5a5',borderRadius:3},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{font:{size:10}}}},
+      scales:{x:{stacked:true,ticks:{font:{size:9}}},y:{stacked:true,ticks:{font:{size:9},stepSize:1}}}}
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// CCTV EXCEL IMPORT
+// ═══════════════════════════════════════════════════════
+function importCctvExcel(input){
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const cameras=getCameras();
+      const wb=XLSX.read(e.target.result,{type:'array',cellDates:false,raw:true});
+      const ws=wb.Sheets['CCTV Camera Check']||wb.Sheets[wb.SheetNames[0]];
+      const data=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+
+      // ── Step 1: 找月份（Flexible：多種格式都能認）
+      // 支援：'Date: APRIL 2021' / '2021-04' / 'April 2021' / 儲存格日期序號
+      const MONTHS={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+      let monthStr='';
+      for(let i=0;i<Math.min(data.length,8)&&!monthStr;i++){
+        const row=data[i]; if(!row) continue;
+        row.forEach(v=>{
+          if(!v||monthStr) return;
+          const s=String(v);
+          // 'Date: APRIL 2021' or 'April 2021'
+          const m1=s.match(/([A-Za-z]+)[\s:,]+([12]\d{3})/);
+          if(m1){const mo=MONTHS[m1[1].toLowerCase().slice(0,3)];if(mo){monthStr=m1[2]+'-'+String(mo).padStart(2,'0');return;}}
+          // '2021-04' directly
+          const m2=s.match(/([12]\d{3})-(0?[1-9]|1[0-2])/);
+          if(m2){monthStr=m2[1]+'-'+m2[2].padStart(2,'0');return;}
+          // Excel serial date in cell
+          if(typeof v==='number'&&v>40000&&v<55000){
+            const d=new Date(Math.round((v-25569)*86400*1000));
+            monthStr=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+          }
+        });
+      }
+      if(!monthStr){
+        // 最後 fallback：從檔名抓 (e.g. "CctvCheck2104.xlsx" → 2021-04)
+        const fn=file.name;
+        const mfn=fn.match(/([12]\d{3})[\-_]?(0?[1-9]|1[0-2])/);
+        if(mfn) monthStr=mfn[1]+'-'+mfn[2].padStart(2,'0');
+        else { toast('⚠ 無法識別月份，請確認 Excel 檔案'); return; }
+      }
+
+      // ── Step 2: 找 No./Location 表頭行（日期欄在這裡）
+      let dayRow=null, startRow=0;
+      for(let i=0;i<data.length;i++){
+        const r=data[i]; if(!r) continue;
+        const first=String(r[0]||'').toLowerCase().trim();
+        if(first==='no'||first==='no.'||first==='#'){
+          dayRow=r; startRow=i+1; break;
+        }
+      }
+      if(!dayRow){toast('⚠ 找不到表頭行 (No./Location)');return;}
+
+      // ── Step 3: 建立欄→日期對應（只取有效日期欄）
+      const today=todayStr();
+      const dayIndices={};
+      for(let c=2;c<dayRow.length;c++){
+        const v=dayRow[c]; if(v===null||v===undefined) continue;
+        const n=typeof v==='number'?Math.round(v):parseInt(String(v).trim());
+        if(isNaN(n)||n<1||n>31) continue;
+        const dayStr=String(n).padStart(2,'0');
+        const dateStr=monthStr+'-'+dayStr;
+        // 不匯入未來日期
+        if(dateStr>today) continue;
+        dayIndices[c]=dayStr;
+      }
+
+      // ── Step 4: 逐行讀攝像機狀態，去重合併
+      let bldg='A', imported=0, skipped=0;
+      for(let i=startRow;i<data.length;i++){
+        const r=data[i]; if(!r) continue;
+        // 棟別分隔行
+        if((r[0]===null||r[0]===undefined)&&r[1]&&String(r[1]).toLowerCase().includes('building')){
+          bldg=String(r[1]).toLowerCase().includes('b')?'B':'A'; continue;
+        }
+        // 有效資料行：第一欄是數字
+        const rawNo=r[0];
+        const num=typeof rawNo==='number'?Math.round(rawNo):parseInt(String(rawNo||''));
+        if(isNaN(num)||num<1) continue;
+
+        // 找對應攝像機（多種比對策略）
+        const rawName=String(r[1]||'').trim();
+        const rawLoc=String(r[2]||'').trim();
+        let cam=cameras.find(c=>c.bldg===bldg&&c.id===num);
+        if(!cam) cam=cameras.find(c=>c.loc&&c.loc.toLowerCase()===rawLoc.toLowerCase());
+        if(!cam) cam=cameras.find(c=>c.bldg===bldg&&c.loc&&rawLoc&&c.loc.toLowerCase().includes(rawLoc.toLowerCase().slice(0,6)));
+        if(!cam){skipped++;continue;}
+
+        Object.entries(dayIndices).forEach(([col,dayStr])=>{
+          const dateStr=monthStr+'-'+dayStr;
+          const val=r[+col];
+          if(val===null||val===undefined||val==='') return;
+          const vs=String(val);
+          const status=vs.includes('√')||vs.toLowerCase()==='ok'?'ok'
+            :vs.includes('×')||vs.toLowerCase()==='fail'||vs.toLowerCase()==='x'?'fail':null;
+          if(!status) return;
+          const dd=loadCctvDay(dateStr);
+          // 去重：已有 fail 不被 ok 覆蓋
+          if(dd[cam.code]&&dd[cam.code].status==='fail'&&status==='ok') return;
+          dd[cam.code]={status,reason:rawLoc||''};
+          saveCctvDayData(dateStr,dd);
+          imported++;
+        });
+      }
+
+      // 切換到匯入的月份顯示
+      const firstDay=Object.keys(dayIndices).length?
+        monthStr+'-'+Object.values(dayIndices).sort()[0]:monthStr+'-01';
+      cctvDate=firstDay;
+      const di=document.getElementById('cctv-date-inp');
+      if(di) di.value=firstDay;
+      _lastLoadedDate=null;
+      setCctvPeriod('month');
+      toast(`✓ 已匯入 ${imported} 筆（${monthStr}），跳過未對應 ${skipped} 台`);
+    }catch(err){toast('⚠ 匯入失敗: '+err.message); console.error(err);}
+  };
+  reader.readAsArrayBuffer(file); input.value='';
+}
+
+// ═══════════════════════════════════════════════════════
+// SETTINGS - CAMERA CRUD
+// ═══════════════════════════════════════════════════════
+function renderSettingsTable(){
+  const cameras=getCameras();
+  document.getElementById('settings-tbody').innerHTML=cameras.map(cam=>`
+    <tr>
+      <td style="color:var(--text3);font-size:10px">${cam.id}</td>
+      <td><span style="font-size:11px;font-weight:700;color:var(--text2)">${cam.bldg==='A'?'A棟':'B棟'}</span></td>
+      <td><span class="cam-code">${cam.code}</span></td>
+      <td style="font-size:11px;color:var(--text2);max-width:300px">${cam.loc}</td>
+      <td style="text-align:center">
+        ${cam.noVideo
+          ?`<span class="tag-warn">⚠ ${LANG==='zh'?'無影像':'No Video'}</span>`
+          :`<span class="tag-ok">✓ ${LANG==='zh'?'有影像':'Active'}</span>`}
+      </td>
+      <td>
+        <div style="display:flex;gap:4px">
+          <button class="btn btn-ghost btn-sm" onclick="openEditCamera(${cam.id})">✏</button>
+          <button class="btn btn-sm" style="background:var(--red-bg);color:var(--red);border:1px solid var(--red-bd)"
+            onclick="deleteCamera(${cam.id})">✕</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+function openAddCamera(){
+  document.getElementById('edit-cam-id').value='';
+  document.getElementById('modal-cam-title').textContent=LANG==='zh'?'新增攝像機':'Add Camera';
+  document.getElementById('cam-bldg-inp').value='A';
+  document.getElementById('cam-code-inp').value='';
+  document.getElementById('cam-loc-inp').value='';
+  document.getElementById('cam-novideo-inp').checked=false;
+  document.getElementById('modal-camera').classList.add('on');
+}
+function openEditCamera(id){
+  const cam=getCameras().find(c=>c.id===id);if(!cam)return;
+  document.getElementById('edit-cam-id').value=id;
+  document.getElementById('modal-cam-title').textContent=LANG==='zh'?'編輯攝像機':'Edit Camera';
+  document.getElementById('cam-bldg-inp').value=cam.bldg;
+  document.getElementById('cam-code-inp').value=cam.code;
+  document.getElementById('cam-loc-inp').value=cam.loc;
+  document.getElementById('cam-novideo-inp').checked=!!cam.noVideo;
+  document.getElementById('modal-camera').classList.add('on');
+  // switch to settings tab if not there
+  if(!document.getElementById('page-settings').classList.contains('on')) switchMain('settings');
+}
+function saveCamera(){
+  const editId=document.getElementById('edit-cam-id').value;
+  const bldg=document.getElementById('cam-bldg-inp').value;
+  const code=document.getElementById('cam-code-inp').value.trim();
+  const loc=document.getElementById('cam-loc-inp').value.trim();
+  const noVideo=document.getElementById('cam-novideo-inp').checked;
+  if(!code||!loc){alert('請填寫編號與位置'); return;}
+  const cameras=getCameras();
+  if(editId){
+    const idx=cameras.findIndex(c=>c.id===+editId);
+    if(idx>=0) cameras[idx]={...cameras[idx],bldg,code,loc,noVideo};
+  } else {
+    const newId=Math.max(0,...cameras.map(c=>c.id))+1;
+    cameras.push({id:newId,bldg,code,loc,noVideo});
+  }
+  saveCameras(cameras); closeModal('modal-camera'); renderSettingsTable(); renderCctv();
+  saveCamerasToCloud();
+  toast(LANG==='zh'?'✓ 已儲存':'✓ Saved');
+}
+function deleteCamera(id){
+  if(!confirm(LANG==='zh'?'確定刪除此攝像機？':'Delete this camera?')) return;
+  const cameras=getCameras().filter(c=>c.id!==id);
+  saveCameras(cameras); renderSettingsTable(); renderCctv();
+  saveCamerasToCloud();
+  toast(LANG==='zh'?'✓ 已刪除':'✓ Deleted');
+}
+function exportCameras(){
+  const json=JSON.stringify(getCameras(),null,2);
+  const a=document.createElement('a');
+  a.href='data:application/json,'+encodeURIComponent(json);
+  a.download='vrt_cameras.json'; a.click();
+}
+
+// ═══════════════════════════════════════════════════════
+// PATROL
+// ═══════════════════════════════════════════════════════
+let patrolData=null, patrolPeriod='day', patrolCharts={};
+
+// ── Patrol localStorage 快取（仿 sewing_v5 的本地快取策略）──
+// 存：把 dayStats 存入 localStorage（days/raw 太大不存）
+function savePatrolCache(){
+  if(!patrolData||!patrolData.dayStats) return;
+  try{
+    const slim={};
+    Object.entries(patrolData.dayStats).forEach(([k,s])=>{
+      slim[k]={totalRounds:s.totalRounds,totalScans:s.totalScans,persons:s.persons,
+        personRounds:s.personRounds,shifts:s.shifts,hourly:s.hourly,maxHr:s.maxHr,minHr:s.minHr,chips:s.chips};
+    });
+    localStorage.setItem('vrt_patrol_cache', JSON.stringify({
+      fileName: patrolData.fileName||'',
+      yearMonth: patrolData.yearMonth||'',
+      months: patrolData.months||[],
+      dayStats: slim,
+      savedAt: new Date().toISOString(),
+    }));
+  }catch(e){ console.warn('savePatrolCache:',e); }
+}
+// 讀：頁面開啟時立即從 localStorage 還原，不等網路
+function loadPatrolCache(){
+  try{
+    const raw=localStorage.getItem('vrt_patrol_cache');
+    if(!raw) return false;
+    const d=JSON.parse(raw);
+    if(!d.dayStats||!Object.keys(d.dayStats).length) return false;
+    // 補齊缺失欄位 + 轉換舊 "DD" key 格式 → "YYYY-MM-DD"
+    const ym=String(d.yearMonth||'').slice(0,7); // e.g. "2026-03"
+    const convertedStats={};
+    Object.entries(d.dayStats).forEach(([dayKey,s])=>{
+      if(!s.recs) s.recs=[];
+      if(!s.shifts) s.shifts={night:null,day:null};
+      if(!s.personRounds) s.personRounds={};
+      if(!s.persons) s.persons=Object.keys(s.personRounds||{});
+      // Convert old "DD" key to full date if needed
+      const fullKey = /^\d{4}-\d{2}-\d{2}$/.test(dayKey) ? dayKey :
+        (ym ? ym+'-'+dayKey.padStart(2,'0') : dayKey);
+      convertedStats[fullKey]=s;
+    });
+    patrolData={fileName:d.fileName||'（本地快取）',yearMonth:ym,days:{},dayStats:convertedStats};
+    // Build months from converted keys
+    const ms=new Set(Object.keys(convertedStats).map(k=>k.slice(0,7)).filter(m=>m.length===7));
+    patrolData.months=[...ms].sort();
+    if(!patrolData.yearMonth||!patrolData.months.includes(patrolData.yearMonth)){
+      patrolData.yearMonth=patrolData.months[patrolData.months.length-1]||'';
+    }
+    const days=Object.keys(convertedStats).sort();
+    if(!days.length) return false;
+    document.getElementById('patrol-file-label').textContent=
+      '📂 '+d.fileName+'  ('+patrolData.months.join(', ')+')  — 本地快取'+(d.savedAt?' ('+d.savedAt.slice(0,10)+')':'');
+    document.getElementById('patrol-date-inp').value=days[days.length-1];
+    // ★ 一定要隱藏空白狀態
+    const es=document.getElementById('patrol-empty-state');
+    if(es) es.style.display='none';
+    // 顯示快取確認資訊
+    const pc=document.getElementById('patrol-parse-confirm');
+    if(pc){
+      const persons=new Set(Object.values(convertedStats).flatMap(s=>s.persons||[]));
+      pc.style.display='';
+      pc.innerHTML=`📂 快取：<strong>${patrolData.months.join(' / ')}</strong> ／ <strong>${days.length}</strong> 天 ／ <strong>${persons.size}</strong> 人員`
+        +`<span style="float:right;font-size:10px;cursor:pointer;color:var(--green)" onclick="this.parentElement.style.display='none'">✕</span>`;
+    }
+    setPatrolPeriod('month');
+    updatePatrolPeriodSelects();
+    renderPatrol();
+    return true;
+  }catch(e){ console.warn('loadPatrolCache:',e); return false; }
+}
+
+// ══════════════════════════════════════════════════
+// PATROL DATA — sewing_v5 架構：pendingFiles → parse → confirm → DB
+// ══════════════════════════════════════════════════
+let _patrolPending=[]; // 待匯入檔案佇列
+
+function patrolDropHandler(e){
+  const files=e.dataTransfer?.files;
+  if(files&&files.length) addPatrolFiles(files);
+}
+function addPatrolFiles(files){
+  Array.from(files).forEach(f=>{
+    if(!/\.(xls|xlsx)$/i.test(f.name)){toast('⚠ 只接受 .xls/.xlsx');return;}
+    if(!_patrolPending.find(x=>x.name===f.name&&x.size===f.size)) _patrolPending.push(f);
+  });
+  renderPatrolFileList();
+  document.getElementById('patrol-file-inp').value='';
+}
+function removePatrolFile(i){ _patrolPending.splice(i,1); renderPatrolFileList(); }
+function renderPatrolFileList(){
+  const listEl=document.getElementById('patrol-file-list');
+  const rowEl=document.getElementById('patrol-confirm-row');
+  if(!_patrolPending.length){
+    listEl.style.display='none'; rowEl.style.display='none'; return;
+  }
+  listEl.style.display='';
+  rowEl.style.display='flex';
+  listEl.innerHTML=_patrolPending.map((f,i)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;
+      padding:5px 9px;border-bottom:1px solid var(--border);font-size:11px">
+      <span style="color:var(--blue)">📊 ${f.name}</span>
+      <button onclick="removePatrolFile(${i})" style="border:none;background:none;
+        color:var(--red);cursor:pointer;font-size:15px;line-height:1">×</button>
+    </div>`).join('');
+  const cnt=document.getElementById('patrol-pending-count');
+  if(cnt) cnt.textContent=`${_patrolPending.length} 個檔案待匯入`;
+}
+function cancelPatrolImport(){ _patrolPending=[]; renderPatrolFileList(); }
+function loadPatrolFile(input){ if(input.files) addPatrolFiles(input.files); }
+
+// [Old parsePatrolFile removed — replaced by importPatrolXL]
+
+function clearPatrolData(){
+  if(!confirm('確定清除所有巡邏資料？（本地快取一併刪除，可重新匯入）')) return;
+  patrolData=null;
+  localStorage.removeItem('vrt_patrol_cache');
+  const inp=document.getElementById('patrol-file-inp');
+  if(inp) inp.value='';
+  const lbl=document.getElementById('patrol-file-label');
+  if(lbl) lbl.textContent='尚未載入資料 — 已清除，請重新匯入';
+  const es=document.getElementById('patrol-empty-state');
+  if(es) es.style.display='';
+  const sr=document.getElementById('patrol-stats-row');
+  if(sr) sr.innerHTML='';
+  const pc=document.getElementById('patrol-parse-confirm');
+  if(pc) pc.style.display='none';
+  const log=document.getElementById('patrol-import-log');
+  if(log) log.style.display='none';
+  Object.values(patrolCharts).forEach(c=>{try{c.destroy();}catch(e){}});
+  patrolCharts={};
+  toast('🗑 已清除巡邏資料，可重新匯入');
+}
+
+// ── 新版匯入（仿 index.html：去重、任何格式、自動上雲）──
+// ★ 日期修正核心：直接建立本地時間，不受 UTC 偏移影響
+function parsePatrolDateLocal(v){
+  if(v==null||v==='') return null;
+  // 字串格式 "2026/05/01 00:25:29" 或 "2026-05-01 00:25:29"
+  if(typeof v==='string'){
+    const m=v.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})[\sT](\d{1,2}):(\d{2}):?(\d{0,2})/);
+    if(m) return new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+(m[6]||0));
+    const m2=v.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+    if(m2) return new Date(+m2[1],+m2[2]-1,+m2[3]);
+    return null;
+  }
+  // Excel 序號 → 本地時間（補 timezoneOffset 校正 UTC 偏移）
+  if(typeof v==='number'&&v>40000){
+    const ms=Math.round((v-25569)*86400*1000);
+    const d=new Date(ms);
+    return new Date(ms+d.getTimezoneOffset()*60000);
+  }
+  return null;
+}
+
+// ── 年份導航 ──────────────────────────────────────────
+function getAvailPatrolYears(){
+  if(!patrolData) return [];
+  const yms=patrolData.yearMonth?[patrolData.yearMonth]:[];
+  // 從 dayStats 取所有年份
+  if(patrolData.dayStats){
+    Object.keys(patrolData.dayStats).forEach(d=>{if(d.length>=7)yms.push(d.slice(0,7));});
+  }
+  return [...new Set(yms.map(ym=>ym.slice(0,4)))].sort();
+}
+function getAvailPatrolMonths(){
+  if(!patrolData) return [];
+  const yms=patrolData.yearMonth?[patrolData.yearMonth]:[];
+  if(patrolData.dayStats){
+    Object.keys(patrolData.dayStats).forEach(d=>{if(d.length>=7)yms.push(d.slice(0,7));});
+  }
+  return [...new Set(yms)].sort();
+}
+let patrolCurYear='';
+function patrolYearNav(dir){
+  const years=getAvailPatrolYears();
+  if(!years.length) return;
+  const idx=Math.max(0,Math.min(years.length-1,years.indexOf(patrolCurYear)+dir));
+  patrolCurYear=years[idx];
+  const sel=document.getElementById('patrol-year-select');
+  if(sel) sel.value=patrolCurYear;
+  renderPatrol();
+}
+function patrolYearSelect(y){ patrolCurYear=y; renderPatrol(); }
+function patrolMonthSelect(ym){
+  patrolData.yearMonth=ym;
+  const lbl=document.getElementById('patrol-month-label');
+  if(lbl) lbl.textContent=ym;
+  const di=document.getElementById('patrol-date-inp');
+  const days=Object.keys(patrolData.dayStats||{}).sort();
+  if(di&&days.length) di.value=ym+'-'+days[0];
+  renderPatrol();
+}
+function updatePatrolPeriodSelects(){
+  if(!patrolData) return;
+  // Derive months directly from dayStats YYYY-MM-DD keys
+  const ms=new Set(Object.keys(patrolData.dayStats||{}).map(d=>d.slice(0,7)).filter(m=>m.length===7));
+  if(!patrolData.months||!patrolData.months.length) patrolData.months=[...ms].sort();
+  else patrolData.months=[...new Set([...patrolData.months,...ms])].sort();
+  const months=patrolData.months;
+  const years=[...new Set(months.map(m=>m.slice(0,4)))].sort();
+  const mSel=document.getElementById('patrol-month-select');
+  const ySel=document.getElementById('patrol-year-select');
+  if(mSel) mSel.innerHTML=months.map(m=>`<option value="${m}"${m===(patrolData.yearMonth||'')?' selected':''}>${m}</option>`).join('');
+  if(ySel){
+    if(!patrolCurYear||!years.includes(patrolCurYear)) patrolCurYear=years[years.length-1]||'';
+    ySel.innerHTML=years.map(y=>`<option value="${y}"${y===patrolCurYear?' selected':''}>${y}</option>`).join('');
+  }
+}
+
+// ── 新增巡邏記錄 ─────────────────────────────────────
+function openAddPatrolModal(){
+  const now=new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  const lo=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  document.getElementById('ap-time').value=lo;
+  document.getElementById('ap-person').value='';
+  document.getElementById('ap-chip').value='';
+  document.getElementById('ap-checkpoint').value='';
+  document.getElementById('modal-add-patrol').classList.add('on');
+}
+function submitAddPatrol(){
+  const dt=document.getElementById('ap-time').value;
+  if(!dt){toast('⚠ 請填寫日期時間');return;}
+  const t=new Date(dt);
+  const person=document.getElementById('ap-person').value.trim()||'—';
+  const event=document.getElementById('ap-event').value;
+  const chip=document.getElementById('ap-chip').value.trim();
+  const chkpt=document.getElementById('ap-checkpoint').value.trim()||'未设置';
+  const day=String(t.getDate()).padStart(2,'0');
+  if(!patrolData){
+    const ym=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}`;
+    patrolData={fileName:'手動輸入',yearMonth:ym,days:{},raw:{}};
+  }
+  if(!patrolData.days[day]) patrolData.days[day]=[];
+  patrolData.days[day].push({time:t,person,event,chip,checkpoint:chkpt});
+  buildPatrolSummary(); savePatrolCache(); updatePatrolPeriodSelects();
+  document.getElementById('patrol-empty-state').style.display='none';
+  const lbl=document.getElementById('patrol-file-label');
+  if(lbl) lbl.textContent='手動輸入 ('+patrolData.yearMonth+')';
+  closeModal('modal-add-patrol');
+  setPatrolPeriod('month'); renderPatrol();
+  toast(`✅ 已新增：${person} @ ${dt.replace('T',' ')}`);
+}
+
+// ── 刪除已勾選的巡邏列 ───────────────────────────────
+let patrolSelDays=new Set();
+function patrolCheckAll(){
+  const all=document.getElementById('patrol-chk-all');
+  if(all) all.click();
+}
+function patrolToggleAll(cb){
+  patrolSelDays.clear();
+  document.querySelectorAll('#patrol-detail-tbody input[type=checkbox]').forEach(c=>{
+    c.checked=cb.checked;
+    c.closest('tr').style.background=cb.checked?'var(--blue-bg)':'';
+    if(cb.checked) patrolSelDays.add(c.value);
+  });
+  document.getElementById('patrol-del-btn').style.display=patrolSelDays.size?'':'none';
+}
+function patrolRowToggle(cb,key){
+  if(cb.checked) patrolSelDays.add(key);
+  else patrolSelDays.delete(key);
+  cb.closest('tr').style.background=cb.checked?'var(--blue-bg)':'';
+  document.getElementById('patrol-del-btn').style.display=patrolSelDays.size?'':'none';
+}
+function deleteSelectedPatrol(){
+  if(!patrolSelDays.size) return;
+  if(!confirm(`確定刪除 ${patrolSelDays.size} 天的巡邏記錄？`)) return;
+  patrolSelDays.forEach(day=>{
+    delete patrolData.days[day];
+  });
+  buildPatrolSummary(); savePatrolCache(); updatePatrolPeriodSelects();
+  patrolSelDays.clear();
+  document.getElementById('patrol-del-btn').style.display='none';
+  renderPatrol();
+  toast(`🗑 已刪除 ${patrolSelDays.size} 天記錄`);
+}
+
+// ── Telegram 摘要快速複製 ────────────────────────────
+function copyPatrolSummaryForTg(){
+  const txt=buildPatrolSummaryText();
+  navigator.clipboard.writeText(txt).then(()=>toast('✓ 巡邏摘要已複製到剪貼簿')).catch(()=>{
+    const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast('✓ Copied');
+  });
+}
+
+async function confirmPatrolImport(){
+  if(!_patrolPending.length){toast('⚠ 請先選擇檔案');return;}
+  const log=document.getElementById('patrol-import-log');
+  const btn=document.getElementById('btn-patrol-confirm');
+  log.style.display=''; log.textContent='⏳ 解析中…'; btn.disabled=true;
+  // 確保 patrolData 存在
+  if(!patrolData) patrolData={fileName:'',yearMonth:'',days:{},dayStats:{}};
+  if(!patrolData.days) patrolData.days={};
+  if(!patrolData.dayStats) patrolData.dayStats={};
+  let totalAdded=0, totalSkipped=0, totalSheets=0, processedFiles=[];
+  // 建立去重 key set（含現有 dayStats 的所有 key）
+  const existKeys=new Set();
+  Object.entries(patrolData.dayStats||{}).forEach(([fullDate,s])=>{
+    (s.recs||[]).forEach(r=>{
+      const hhmm=r.time?`${String(r.time.getHours()).padStart(2,'0')}:${String(r.time.getMinutes()).padStart(2,'0')}`:'00:00';
+      existKeys.add(fullDate+'|'+r.person+'|'+(r.chip||'')+'|'+hhmm);
+    });
+  });
+  Object.entries(patrolData.days||{}).forEach(([fullDate,recs])=>{
+    recs.forEach(r=>{
+      const hhmm=r.time?`${String(r.time.getHours()).padStart(2,'0')}:${String(r.time.getMinutes()).padStart(2,'0')}`:'00:00';
+      existKeys.add(fullDate+'|'+r.person+'|'+(r.chip||'')+'|'+hhmm);
+    });
+  });
+  for(const file of _patrolPending){
+    log.textContent=`⏳ ${file.name} 讀取中…`;
+    try{
+      const buf=await file.arrayBuffer();
+      const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:false,raw:true});
+      let added=0,skipped=0,sheets=0;
+      for(const name of wb.SheetNames){
+        const ws=wb.Sheets[name];
+        const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+        if(!raw.length) continue;
+        let dataStart=0;
+        for(let i=0;i<Math.min(raw.length,8);i++){
+          const rowStr=(raw[i]||[]).map(v=>String(v||'').toLowerCase()).join(' ');
+          if(rowStr.includes('patrol time')||rowStr.includes('巡检时间')||rowStr.includes('readernum')){
+            dataStart=i+1;
+            if(dataStart<raw.length){
+              const ns=(raw[dataStart]||[]).map(v=>String(v||'').toLowerCase()).join(' ');
+              if(ns.includes('patrol time')||ns.includes('chip id')) dataStart++;
+            }
+            break;
+          }
+        }
+        sheets++;
+        for(let i=dataStart;i<raw.length;i++){
+          const r=raw[i]; if(!r) continue;
+          const tRaw=r[0]; if(tRaw==null||tRaw==='') continue;
+          const t=parsePatrolDateLocal(tRaw);
+          if(!t||isNaN(t.getTime())) continue;
+          const person=String(r[2]||'').trim()||'—';
+          const event=String(r[4]||'').trim();
+          const chip=String(r[5]||'').trim();
+          const chkpt=String(r[3]||'').trim();
+          const reader=String(r[1]||'').trim();
+          const fullDate=fmtDate(t);
+          const hhmm=`${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+          const key=fullDate+'|'+person+'|'+chip+'|'+hhmm;
+          if(existKeys.has(key)){skipped++;continue;}
+          existKeys.add(key);
+          if(!patrolData.days[fullDate]) patrolData.days[fullDate]=[];
+          patrolData.days[fullDate].push({time:t,person,event,chip,checkpoint:chkpt,reader});
+          added++;
+        }
+      }
+      totalAdded+=added; totalSkipped+=skipped; totalSheets+=sheets;
+      processedFiles.push(`${file.name}（+${added}筆）`);
+    }catch(ex){ log.textContent=`❌ ${file.name}: ${ex.message}`; console.error(ex); }
+  }
+  // ★ 核心：從 patrolData.days 合併到 dayStats（永不清除已有 dayStats）
+  buildPatrolSummaryFromDays();
+  savePatrolCache(); updatePatrolPeriodSelects();
+  // UI 更新
+  const es=document.getElementById('patrol-empty-state'); if(es) es.style.display='none';
+  const allDays=Object.keys(patrolData.dayStats).length;
+  const persons=new Set(Object.values(patrolData.dayStats).flatMap(s=>s.persons||[]));
+  const pc=document.getElementById('patrol-parse-confirm');
+  if(pc){
+    pc.style.display='';
+    pc.innerHTML=`✅ 合計：<strong>${patrolData.months?.join(' / ')}</strong> ／ <strong>${allDays}</strong> 天 ／ <strong>${persons.size}</strong> 人員 ／ <strong>${totalAdded}</strong> 筆新增，${totalSkipped} 跳過`
+      +`<span style="float:right;font-size:10px;cursor:pointer;color:var(--green)" onclick="this.parentElement.style.display='none'">✕</span>`;
+  }
+  log.textContent=`✅ ${processedFiles.join('、')} — 新增 ${totalAdded} 筆，跳過 ${totalSkipped} 筆 — ☁ 上傳中…`;
+  document.getElementById('patrol-file-label').textContent=
+    `📂 ${patrolData.months?.join(' / ')||''}  — 共 ${allDays} 天 ${totalAdded} 筆新增`;
+  setPatrolPeriod('month'); renderPatrol();
+  // 自動上雲
+  savePatrolToCloud().then(()=>{
+    log.textContent=log.textContent.replace('上傳中…','✅ 已同步雲端');
+    setTimeout(()=>{ log.style.display='none'; },5000);
+  }).catch(()=>{ log.textContent=log.textContent.replace('上傳中…','⚠ 雲端同步失敗（資料存本地）'); });
+  _patrolPending=[]; renderPatrolFileList();
+  btn.disabled=false;
+}
+
+// 重新命名保留舊的單檔介面（給 cloud drop-hint 呼叫，實際走 addPatrolFiles）
+function importPatrolXL(input){ if(input&&input.files) addPatrolFiles(input.files); }
+
+function getThreshold(){ return +(document.getElementById('round-threshold').value)||90; }
+
+function detectRounds(records){
+  const byPerson={};
+  records.forEach(r=>{(byPerson[r.person]=byPerson[r.person]||[]).push(r);});
+  const THR=getThreshold();
+  let totalRounds=0;const personRounds={};
+  Object.entries(byPerson).forEach(([person,recs])=>{
+    recs.sort((a,b)=>a.time-b.time);
+    let rounds=1;
+    for(let i=1;i<recs.length;i++){
+      if((recs[i].time-recs[i-1].time)/60000>THR) rounds++;
+    }
+    personRounds[person]=rounds;totalRounds+=rounds;
+  });
+  return{totalRounds,personRounds};
+}
+
+function getShiftStats(recs){
+  // Split by event keyword
+  const night=recs.filter(r=>r.event.toLowerCase().includes('night'));
+  const day=recs.filter(r=>r.event.toLowerCase().includes('day'));
+  function shiftStat(arr){
+    if(!arr.length) return null;
+    arr.sort((a,b)=>a.time-b.time);
+    const {totalRounds}=detectRounds(arr);
+    return{from:fmtTime(arr[0].time),to:fmtTime(arr[arr.length-1].time),
+      rounds:totalRounds,scans:arr.length};
+  }
+  return{night:shiftStat(night),day:shiftStat(day)};
+}
+
+function getHourlyDist(recs){
+  const hr=Array(24).fill(0);
+  recs.forEach(r=>hr[r.time.getHours()]++);
+  return hr;
+}
+
+// ★ 從 patrolData.days（raw records）合併計算 dayStats
+// 永遠是 MERGE，不清除雲端載入的既有 dayStats
+function buildPatrolSummaryFromDays(){
+  if(!patrolData) return;
+  if(!patrolData.dayStats) patrolData.dayStats={};
+  Object.entries(patrolData.days||{}).forEach(([fullDate,recs])=>{
+    if(!recs||!recs.length) return;
+    const{totalRounds,personRounds}=detectRounds(recs);
+    const shifts=getShiftStats(recs);
+    const hourly=getHourlyDist(recs);
+    const maxHr=hourly.indexOf(Math.max(...hourly));
+    const nonZero=hourly.map((v,i)=>({v,i})).filter(x=>x.v>0);
+    const minHr=nonZero.length?nonZero.reduce((a,b)=>a.v<=b.v?a:b).i:null;
+    const chips=new Set(recs.map(r=>r.chip)).size;
+    patrolData.dayStats[fullDate]={recs,totalRounds,personRounds,
+      persons:Object.keys(personRounds),shifts,hourly,maxHr,minHr,chips,totalScans:recs.length};
+  });
+  // 更新 months / yearMonth
+  const ms=new Set(Object.keys(patrolData.dayStats).map(k=>k.slice(0,7)).filter(m=>m.length===7));
+  patrolData.months=[...ms].sort();
+  if(!patrolData.yearMonth||!patrolData.months.includes(patrolData.yearMonth)){
+    patrolData.yearMonth=patrolData.months[patrolData.months.length-1]||'';
+  }
+}
+// 保留舊名讓 reparsePatrol 等呼叫不壞
+function buildPatrolSummary(){ buildPatrolSummaryFromDays(); }
+function reparsePatrol(){ buildPatrolSummaryFromDays(); renderPatrol(); }
+
+// ◀ ▶ 巡邏日期/週導航
+function patrolNav(dir){
+  if(!patrolData) return;
+  const inp=document.getElementById('patrol-date-inp');
+  const allDates=Object.keys(patrolData.dayStats).sort(); // YYYY-MM-DD
+  if(!allDates.length) return;
+  if(patrolPeriod==='day'){
+    const cur=inp.value||allDates[0];
+    const idx=allDates.indexOf(cur);
+    const next=allDates[Math.max(0,Math.min(allDates.length-1,idx+dir))];
+    inp.value=next; renderPatrol();
+  } else if(patrolPeriod==='week'){
+    const cur=inp.value||allDates[0];
+    const d=parseDate(cur); d.setDate(d.getDate()+dir*7);
+    const first=parseDate(allDates[0]), last=parseDate(allDates[allDates.length-1]);
+    if(d<first) d.setTime(first.getTime());
+    if(d>last)  d.setTime(last.getTime());
+    inp.value=fmtDate(d); renderPatrol();
+  }
+}
+
+function setPatrolPeriod(p){
+  patrolPeriod=p;
+  ['day','week','month','year'].forEach(x=>document.getElementById('pp-'+x)?.classList.toggle('on',x===p));
+  var dnav=document.getElementById('patrol-date-nav');
+  var mnav=document.getElementById('patrol-month-nav');
+  var ynav=document.getElementById('patrol-year-nav');
+  if(dnav) dnav.style.display=(p==='day'||p==='week')?'flex':'none';
+  if(mnav) mnav.style.display=p==='month'?'flex':'none';
+  if(ynav) ynav.style.display=p==='year'?'flex':'none';
+  // 更新月份標籤
+  if(p==='month'&&patrolData){
+    const sel=document.getElementById('patrol-month-select');
+    if(sel) sel.value=patrolData.yearMonth||'';
+  }
+  if(p==='year'&&patrolData){
+    if(!patrolCurYear) patrolCurYear=patrolData.yearMonth?.slice(0,4)||new Date().getFullYear().toString();
+    const sel=document.getElementById('patrol-year-select');
+    if(sel) sel.value=patrolCurYear;
+  }
+  renderPatrol();
+}
+
+// 月份前後導航（查詢雲端可用月份）
+var _cloudMonths=[];
+function patrolMonthNav(dir){
+  if(!patrolData) return;
+  const months=getAvailPatrolMonths();
+  if(months.length>0){
+    const idx=months.indexOf(patrolData.yearMonth);
+    const next=months[Math.max(0,Math.min(months.length-1,idx+dir))];
+    if(next&&next!==patrolData.yearMonth){
+      patrolData.yearMonth=next;
+      const sel=document.getElementById('patrol-month-select');
+      if(sel) sel.value=next;
+      renderPatrol(); return;
+    }
+  }
+  // 若無本地月份，嘗試雲端
+  if(_cloudMonths.length>0){
+    const idx=_cloudMonths.indexOf(patrolData.yearMonth);
+    const next=_cloudMonths[Math.max(0,Math.min(_cloudMonths.length-1,idx-dir))];
+    if(next&&next!==patrolData.yearMonth) loadPatrolFromCloud(next);
+    return;
+  }
+  fetchPatrolCloudList().then(()=>{
+    if(_cloudMonths.length) patrolMonthNav(dir);
+  });
+}
+
+function getPatrolDays(){
+  if(!patrolData) return[];
+  const allDates=Object.keys(patrolData.dayStats).sort(); // all are YYYY-MM-DD
+  if(!allDates.length) return[];
+  if(patrolPeriod==='day'){
+    const inp=document.getElementById('patrol-date-inp').value||'';
+    return allDates.filter(d=>d===inp);
+  }
+  if(patrolPeriod==='week'){
+    const inp=document.getElementById('patrol-date-inp').value||(allDates[allDates.length-1]);
+    const mon=getWeekDays(inp)[0]; // Monday of that week
+    const sun=getWeekDays(inp)[6]; // Sunday
+    return allDates.filter(d=>d>=mon&&d<=sun);
+  }
+  if(patrolPeriod==='year'){
+    const yr=patrolCurYear||patrolData.yearMonth?.slice(0,4)||'';
+    return allDates.filter(d=>d.startsWith(yr));
+  }
+  // month: filter by current yearMonth
+  return allDates.filter(d=>d.startsWith(patrolData.yearMonth||''));
+}
+
+function renderPatrol(){
+  if(!patrolData) return;
+  renderPatrolStats(); renderPatrolTrendChart(); renderHourlyGrid();
+  renderPatrolPersonTable(); renderPatrolAnomalies(); renderPatrolDetailTable();
+  renderPatrolCompare();
+}
+
+function renderPatrolStats(){
+  const days=getPatrolDays();
+  let rounds=0,scans=0,persons=new Set();
+  days.forEach(d=>{
+    const s=patrolData.dayStats[d];
+    rounds+=s.totalRounds;scans+=s.totalScans;
+    s.persons.forEach(p=>persons.add(p));
+  });
+  const avg=days.length?Math.round(rounds/days.length*10)/10:0;
+  document.getElementById('patrol-stats-row').innerHTML=`
+    <div class="stat-box b"><div class="stat-v">${days.length}</div><div class="stat-l">${LANG==='zh'?'天數':'Days'}</div></div>
+    <div class="stat-box p"><div class="stat-v">${persons.size}</div><div class="stat-l">${LANG==='zh'?'人員':'Personnel'}</div></div>
+    <div class="stat-box g"><div class="stat-v">${rounds}</div><div class="stat-l">${LANG==='zh'?'總巡邏次':'Total Rounds'}</div></div>
+    <div class="stat-box b"><div class="stat-v">${avg}</div><div class="stat-l">${LANG==='zh'?'平均次/天':'Avg/Day'}</div></div>
+    <div class="stat-box a"><div class="stat-v">${scans}</div><div class="stat-l">${LANG==='zh'?'總掃點數':'Total Scans'}</div></div>
+    <div class="stat-box"><div class="stat-v">${getThreshold()}m</div><div class="stat-l">${LANG==='zh'?'間隔定義':'Round Gap'}</div></div>
+  `;
+}
+
+function renderPatrolTrendChart(){
+  // Month: all days in current month; Year: group by month; Day/Week: visible days
+  let days;
+  if(patrolPeriod==='year'){
+    days=getPatrolDays(); // already filtered by year
+  } else if(patrolPeriod==='month'){
+    const allDates=Object.keys(patrolData.dayStats).sort();
+    days=allDates.filter(d=>d.startsWith(patrolData.yearMonth||''));
+  } else {
+    days=getPatrolDays();
+  }
+  // For year view: aggregate by month
+  let labels, nightD, dayD;
+  if(patrolPeriod==='year'&&days.length>0){
+    const byMonth={};
+    days.forEach(d=>{
+      const ym=d.slice(0,7);
+      if(!byMonth[ym]){byMonth[ym]={night:0,day:0};}
+      byMonth[ym].night+=(patrolData.dayStats[d]?.shifts?.night?.rounds||0);
+      byMonth[ym].day+=(patrolData.dayStats[d]?.shifts?.day?.rounds||0);
+    });
+    labels=Object.keys(byMonth).sort();
+    nightD=labels.map(m=>byMonth[m].night);
+    dayD=labels.map(m=>byMonth[m].day);
+  } else {
+    labels=days.map(d=>d.slice(5)); // MM-DD
+    nightD=days.map(d=>patrolData.dayStats[d]?.shifts?.night?.rounds||0);
+    dayD=days.map(d=>patrolData.dayStats[d]?.shifts?.day?.rounds||0);
+  }
+  if(patrolCharts.trend) patrolCharts.trend.destroy();
+  patrolCharts.trend=new Chart(document.getElementById('patrol-trend-chart').getContext('2d'),{
+    type:'bar',
+    data:{labels,datasets:[
+      {label:'🌙 '+(LANG==='zh'?'夜班':'Night'),data:nightD,backgroundColor:'#818cf8',borderRadius:3},
+      {label:'☀ '+(LANG==='zh'?'日班':'Day'),data:dayD,backgroundColor:'#38bdf8',borderRadius:3},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{font:{size:10}}}},
+      scales:{x:{stacked:true,ticks:{font:{size:9},maxRotation:45}},
+        y:{stacked:true,ticks:{font:{size:9},stepSize:1}}}}
+  });
+}
+
+function renderHourlyGrid(){
+  const days=getPatrolDays();
+  const combined=Array(24).fill(0);
+  days.forEach(d=>{patrolData.dayStats[d]?.hourly.forEach((v,i)=>combined[i]+=v);});
+  const maxVal=Math.max(...combined)||1;
+  const peakHr=combined.indexOf(Math.max(...combined));
+  const nonZero=combined.map((v,i)=>({v,i})).filter(x=>x.v>0);
+  const minHr=nonZero.length?nonZero.reduce((a,b)=>a.v<=b.v?a:b).i:null;
+  const colors=['#818cf8','#818cf8','#818cf8','#818cf8','#818cf8','#818cf8',
+    '#38bdf8','#38bdf8','#38bdf8','#38bdf8','#38bdf8','#38bdf8',
+    '#34d399','#34d399','#34d399','#34d399','#34d399','#34d399',
+    '#fb923c','#fb923c','#fb923c','#818cf8','#818cf8','#818cf8'];
+  let html='<div class="hr-grid">';
+  combined.forEach((v,i)=>{
+    const pct=Math.round(v/maxVal*100);
+    const isPeak=i===peakHr,isMin=nonZero.length&&i===minHr;
+    html+=`<div class="hr-cell">
+      <div class="hr-val">${v>0?v:''}</div>
+      <div class="hr-bar-wrap">
+        <div class="hr-bar" style="height:${Math.max(pct,1)}%;background:${isPeak?'#ef4444':isMin?'#f59e0b':colors[i]};
+          opacity:${v>0?'1':'0.15'}"></div>
+      </div>
+      <div class="hr-lbl">${String(i).padStart(2,'0')}</div>
+    </div>`;
+  });
+  html+='</div>';
+  document.getElementById('hourly-grid-wrap').innerHTML=html;
+  const fmt24=h=>`${String(h).padStart(2,'0')}:00`;
+  let info='';
+  if(maxVal>0){
+    info+=`🔴 ${LANG==='zh'?'最多':'Peak'}: ${fmt24(peakHr)} (${combined[peakHr]}${LANG==='zh'?'次':'x'})`;
+    if(minHr!==null) info+=`  ·  🟡 ${LANG==='zh'?'最少':'Least'}: ${fmt24(minHr)} (${combined[minHr]}${LANG==='zh'?'次':'x'})`;
+  }
+  document.getElementById('hourly-peak-info').textContent=info;
+}
+
+function renderPatrolPersonTable(){
+  const days=getPatrolDays();
+  const totals={};
+  days.forEach(d=>{
+    const s=patrolData.dayStats[d];
+    Object.entries(s.personRounds).forEach(([p,r])=>{
+      if(!totals[p]) totals[p]={rounds:0,days:0,scans:0};
+      totals[p].rounds+=r;totals[p].days++;totals[p].scans+=s.recs.filter(r2=>r2.person===p).length;
+    });
+  });
+  const sorted=Object.entries(totals).sort((a,b)=>b[1].rounds-a[1].rounds);
+  const maxR=sorted[0]?.[1]?.rounds||1;
+  document.getElementById('patrol-person-table').innerHTML=`
+    <table class="pt"><thead><tr>
+      <th>${LANG==='zh'?'人員':'Person'}</th>
+      <th>${LANG==='zh'?'天':'Days'}</th>
+      <th>${LANG==='zh'?'次':'Rounds'}</th>
+      <th>${LANG==='zh'?'掃點':'Scans'}</th>
+      <th style="width:80px">${LANG==='zh'?'比例':'Share'}</th>
+    </tr></thead><tbody>
+    ${sorted.map(([p,v])=>`<tr>
+      <td><span class="pchip">👤 ${p}</span></td>
+      <td>${v.days}</td>
+      <td><strong style="color:var(--blue)">${v.rounds}</strong></td>
+      <td>${v.scans}</td>
+      <td><div class="prog"><div class="prog-f b" style="width:${Math.round(v.rounds/maxR*100)}%"></div></div></td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+function renderPatrolAnomalies(){
+  const allDays=Object.keys(patrolData.dayStats).sort();
+  const allRounds=allDays.map(d=>patrolData.dayStats[d].totalRounds);
+  const avg=allRounds.reduce((a,b)=>a+b,0)/allRounds.length;
+  const thr=avg*0.6;
+  const items=[];
+  allDays.forEach(d=>{
+    const s=patrolData.dayStats[d];
+    if(s.totalRounds<thr)
+      items.push({day:d,txt:`${LANG==='zh'?'巡邏次數':'Rounds'} ${s.totalRounds} ${LANG==='zh'?'低於均值':'below avg'} ${Math.round(avg)}`,type:'warn'});
+    if(!s.shifts?.night&&s.shifts?.day)
+      items.push({day:d,txt:LANG==='zh'?'缺少夜班巡邏記錄':'Night shift patrol missing',type:'fail'});
+    if(!s.shifts?.day&&s.shifts?.night)
+      items.push({day:d,txt:LANG==='zh'?'缺少日班巡邏記錄':'Day shift patrol missing',type:'warn'});
+  });
+  document.getElementById('patrol-anom-list').innerHTML=!items.length
+    ?`<div class="tag-pend">${LANG==='zh'?'（無異常）':'(None)'}</div>`
+    :items.map(it=>`<div class="anom-item ${it.type}">
+      <div class="anom-date">${it.day.slice(5)}</div>
+      <div class="anom-txt">${it.txt}</div></div>`).join('');
+}
+
+function renderPatrolDetailTable(){
+  const allDates=Object.keys(patrolData.dayStats).sort();
+  // month/year: show all within that period; day/week: visible days only
+  const days=(patrolPeriod==='month'||patrolPeriod==='year')
+    ? allDates.filter(d=>patrolPeriod==='month'?d.startsWith(patrolData.yearMonth||''):d.startsWith(patrolCurYear||''))
+    : getPatrolDays();
+  const tbody=document.getElementById('patrol-detail-tbody');
+  const q=(document.getElementById('patrol-search')?.value||'').toLowerCase();
+  patrolSelDays.clear();
+  const chkAll=document.getElementById('patrol-chk-all');
+  if(chkAll) chkAll.checked=false;
+  document.getElementById('patrol-del-btn').style.display='none';
+  const filtered=q?days.filter(d=>{
+    const s=patrolData.dayStats[d];
+    return d.toLowerCase().includes(q)||s.persons.some(p=>p.toLowerCase().includes(q));
+  }):days;
+  tbody.innerHTML=filtered.map(d=>{
+    const s=patrolData.dayStats[d];
+    const n=s.shifts?.night, dy=s.shifts?.day;
+    const personStr=s.persons.slice(0,3).map(p=>`<span class="pchip" style="margin:1px">👤 ${p.split(' ')[0]}</span>`).join('')
+      +(s.persons.length>3?`<span style="font-size:9px;color:var(--text3)"> +${s.persons.length-3}</span>`:'');
+    const fmt24=h=>h!==null&&h!==undefined?`${String(h).padStart(2,'0')}:00`:'—';
+    const hasAnom=(!n||!dy);
+    return `<tr>
+      <td style="text-align:center"><input type="checkbox" value="${d}" onchange="patrolRowToggle(this,'${d}')"/></td>
+      <td><strong>${d}</strong></td>
+      <td>${n?`<div class="shift-chip shift-night">🌙 ${n.from}–${n.to}</div>
+        <div style="font-size:9px;color:#4f46e5;margin-top:2px">×${n.rounds} ${LANG==='zh'?'次':'rds'}, ${n.scans} ${LANG==='zh'?'掃':'scans'}</div>`
+        :`<span class="tag-pend">—</span>`}</td>
+      <td>${dy?`<div class="shift-chip shift-day">☀ ${dy.from}–${dy.to}</div>
+        <div style="font-size:9px;color:#0284c7;margin-top:2px">×${dy.rounds} ${LANG==='zh'?'次':'rds'}, ${dy.scans} ${LANG==='zh'?'掃':'scans'}</div>`
+        :`<span class="tag-pend">—</span>`}</td>
+      <td>${personStr}</td>
+      <td><strong style="color:var(--blue);font-size:13px">${s.totalRounds}</strong></td>
+      <td>${s.totalScans}</td>
+      <td><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--red)">${fmt24(s.maxHr)}</span>
+        ${s.hourly&&s.hourly[s.maxHr]?`<span style="font-size:9px;color:var(--text3)">(${s.hourly[s.maxHr]})</span>`:''}</td>
+      <td><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--amber)">${s.minHr!==null&&s.minHr!==undefined?fmt24(s.minHr):'—'}</span>
+        ${s.minHr!==null&&s.minHr!==undefined&&s.hourly&&s.hourly[s.minHr]?`<span style="font-size:9px;color:var(--text3)">(${s.hourly[s.minHr]})</span>`:''}</td>
+      <td>${hasAnom?`<span class="tag-warn">⚠</span>`:`<span class="tag-ok">✓</span>`}</td>
+    </tr>`;
+  }).join('');
+  const cnt=document.getElementById('patrol-detail-count');
+  if(cnt) cnt.textContent=`${filtered.length} ${LANG==='zh'?'天':'days'}${q?' (已篩選)':''}`;
+}
+
+// ═══════════════════════════════════════════════════════
+// PATROL CLOUD SYNC
+// ═══════════════════════════════════════════════════════
+async function savePatrolToCloud(){
+  if(!patrolData||!Object.keys(patrolData.dayStats||{}).length){
+    toast('⚠ 請先匯入巡邏資料'); return;
+  }
+  const url=getGasUrl();
+  if(!url) return; // 無 GAS URL 時靜默（不阻擋匯入流程）
+  // Slim dayStats（去掉大型 recs[]）
+  const slim={};
+  Object.entries(patrolData.dayStats).forEach(([d,s])=>{
+    slim[d]={totalRounds:s.totalRounds,totalScans:s.totalScans,persons:s.persons,
+      personRounds:s.personRounds,shifts:s.shifts,hourly:s.hourly,
+      maxHr:s.maxHr,minHr:s.minHr,chips:s.chips};
+  });
+  const months=patrolData.months||[];
+  // ★ 一份資料全部上傳：每個月份都存一次（GAS 接收 savePatrol action）
+  // 同時也存一個 "all" 彙總鍵
+  const basePayload={dayStats:slim,fileName:patrolData.fileName||'',months,secret:getSecret()};
+  try{
+    // 存 "all" 鍵（一份總覽）
+    await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({...basePayload,type:'savePatrol',yearMonth:'all'})});
+    // 同時也按月份分存（向後相容）
+    for(const ym of months){
+      const ymSlim={};
+      Object.entries(slim).forEach(([d,s])=>{ if(d.startsWith(ym)) ymSlim[d]=s; });
+      if(Object.keys(ymSlim).length){
+        await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
+          body:JSON.stringify({...basePayload,type:'savePatrol',yearMonth:ym,dayStats:ymSlim})});
+      }
+    }
+    toast(`☁ 巡邏記錄已同步（${months.join('/')}）`);
+  }catch(e){ throw e; }
+}
+
+async function fetchPatrolCloudList(){
+  const url=getGasUrl();
+  if(!url){toast('⚠ 請先設定 GAS URL');return;}
+  const btn=document.getElementById('patrol-cloud-months');
+  btn.innerHTML='<span style="font-size:11px;color:var(--text3)">查詢中…</span>';
+  try{
+    const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({type:'listPatrol',secret:getSecret()})});
+    const json=await res.json();
+    if(json.ok && json.months && json.months.length){
+      // ★ 標準化月份格式（GAS 可能回傳 "2026-04-01 00:00:00"）
+      _cloudMonths=json.months.map(m=>String(m).slice(0,7));
+      const uniqueMonths=[...new Set(_cloudMonths)].sort();
+      btn.innerHTML=`
+        <button class="btn btn-p btn-sm" onclick="downloadAllFromCloud()" title="一次下載所有月份合併">
+          ☁⬇ ${LANG==='zh'?'全部下載':'Download All'} (${uniqueMonths.length})
+        </button>`+
+        uniqueMonths.map(m=>`
+          <button class="btn btn-ghost btn-sm" onclick="loadPatrolFromCloud('${m}')"
+            style="font-size:10px">☁ ${m}</button>`).join('');
+    } else {
+      btn.innerHTML='<span style="font-size:11px;color:var(--text3)">雲端無記錄</span>';
+    }
+  }catch(e){btn.innerHTML='<span style="font-size:11px;color:var(--red)">查詢失敗</span>';}
+}
+
+// ★ 一鍵下載雲端所有月份，合併成一份資料
+async function downloadAllFromCloud(){
+  const url=getGasUrl();
+  if(!url){toast('⚠ 請先設定 GAS URL');return;}
+  const lbl=document.getElementById('patrol-file-label');
+  const log=document.getElementById('patrol-import-log');
+  log.style.display=''; log.textContent='☁ 嘗試下載合併資料…';
+  if(!patrolData) patrolData={fileName:'',yearMonth:'',days:{},dayStats:{}};
+  if(!patrolData.dayStats) patrolData.dayStats={};
+  try{
+    // Step 1: 先嘗試 "all" 彙總鍵
+    const r0=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({type:'getPatrol',yearMonth:'all',secret:getSecret()})});
+    const j0=await r0.json();
+    if(j0.ok&&j0.data&&j0.data.dayStats&&Object.keys(j0.data.dayStats).length){
+      Object.entries(j0.data.dayStats).forEach(([k,s])=>{
+        s.recs=s.recs||[]; s.shifts=s.shifts||{night:null,day:null};
+        s.personRounds=s.personRounds||{}; s.persons=s.persons||[];
+        const fk=/^\d{4}-\d{2}-\d{2}$/.test(k)?k:(j0.data.yearMonth||'').slice(0,7)+'-'+k.padStart(2,'0');
+        patrolData.dayStats[fk]=s;
+      });
+      log.textContent='☁ 從 all 鍵載入成功，更新中…';
+    } else {
+      // Step 2: fallback → 逐月下載
+      const r1=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
+        body:JSON.stringify({type:'listPatrol',secret:getSecret()})});
+      const j1=await r1.json();
+      if(!j1.ok||!j1.months||!j1.months.length){toast('⚠ 雲端無巡邏資料');log.style.display='none';return;}
+      const months=[...new Set(j1.months.map(m=>String(m).slice(0,7)))].sort();
+      let downloaded=0;
+      for(const ym of months){
+        log.textContent=`☁ 下載中… ${ym} (${++downloaded}/${months.length})`;
+        try{
+          const r2=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
+            body:JSON.stringify({type:'getPatrol',yearMonth:ym,secret:getSecret()})});
+          const j2=await r2.json();
+          if(j2.ok&&j2.data&&j2.data.dayStats){
+            Object.entries(j2.data.dayStats).forEach(([k,s])=>{
+              s.recs=s.recs||[]; s.shifts=s.shifts||{night:null,day:null};
+              s.personRounds=s.personRounds||{}; s.persons=s.persons||[];
+              const fk=/^\d{4}-\d{2}-\d{2}$/.test(k)?k:ym+'-'+k.padStart(2,'0');
+              patrolData.dayStats[fk]=s;
+            });
+          }
+        }catch(e){console.warn('Failed month',ym,e);}
+      }
+    }
+    if(!Object.keys(patrolData.dayStats).length){toast('⚠ 無法下載資料');log.style.display='none';return;}
+    // 更新 months/yearMonth
+    const ms=new Set(Object.keys(patrolData.dayStats).map(k=>k.slice(0,7)).filter(m=>m.length===7));
+    patrolData.months=[...ms].sort();
+    patrolData.yearMonth=patrolData.months[patrolData.months.length-1]||'';
+    patrolData.fileName=`☁ 雲端 (${patrolData.months.join(', ')})`;
+    savePatrolCache(); updatePatrolPeriodSelects();
+    document.getElementById('patrol-empty-state').style.display='none';
+    const allDays=Object.keys(patrolData.dayStats).length;
+    if(lbl) lbl.textContent=`☁ 雲端合併：${patrolData.months.join(' / ')} — ${allDays} 天`;
+    const pc=document.getElementById('patrol-parse-confirm');
+    if(pc){
+      const persons=new Set(Object.values(patrolData.dayStats).flatMap(s=>s.persons||[]));
+      pc.style.display='';
+      pc.innerHTML=`☁ 雲端：<strong>${patrolData.months.join(' / ')}</strong> ／ <strong>${allDays}</strong> 天 ／ <strong>${persons.size}</strong> 人員`
+        +`<span style="float:right;font-size:10px;cursor:pointer;color:var(--green)" onclick="this.parentElement.style.display='none'">✕</span>`;
+    }
+    log.textContent=`☁ 下載完成：${patrolData.months.join(' / ')} — ${allDays} 天`;
+    setTimeout(()=>{log.style.display='none';},4000);
+    setPatrolPeriod('month'); renderPatrol();
+    toast(`☁ 已合併 ${patrolData.months.length} 個月份 (${allDays} 天)`);
+  }catch(e){log.textContent='⚠ 下載失敗: '+e.message; toast('⚠ 下載失敗: '+e.message);}
+}
+
+async function loadPatrolFromCloud(ym){
+  const url=getGasUrl();
+  if(!url){toast('⚠ 請先設定 GAS URL');return;}
+  // ★ 標準化 ym 格式
+  const ymClean=String(ym).slice(0,7);
+  toast(LANG==='zh'?'☁ 載入中…':'☁ Loading…');
+  try{
+    const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({type:'getPatrol',yearMonth:ymClean,secret:getSecret()})});
+    const json=await res.json();
+    if(json.ok && json.data){
+      const d=json.data;
+      // 合併到現有資料（不覆蓋）
+      if(!patrolData) patrolData={fileName:'',yearMonth:'',days:{},dayStats:{}};
+      // 轉換 "DD" key → "YYYY-MM-DD"
+      Object.entries(d.dayStats||{}).forEach(([dayKey,s])=>{
+        if(!s.recs) s.recs=[];
+        if(!s.shifts) s.shifts={night:null,day:null};
+        if(!s.personRounds) s.personRounds={};
+        if(!s.persons) s.persons=Object.keys(s.personRounds||{});
+        const fullKey=/^\d{4}-\d{2}-\d{2}$/.test(dayKey)?dayKey:ymClean+'-'+dayKey.padStart(2,'0');
+        patrolData.dayStats[fullKey]=s;
+      });
+      const ms=new Set(Object.keys(patrolData.dayStats).map(k=>k.slice(0,7)).filter(m=>m.length===7));
+      patrolData.months=[...ms].sort();
+      patrolData.yearMonth=ymClean; // 切換到剛下載的月份
+      patrolData.fileName=d.fileName||'（雲端載入）';
+      const days=Object.keys(patrolData.dayStats).sort();
+      document.getElementById('patrol-date-inp').value=days.filter(d=>d.startsWith(ymClean)).pop()||days[days.length-1]||'';
+      document.getElementById('patrol-file-label').textContent=
+        `☁ ${patrolData.fileName}  (${patrolData.months.join(' / ')})  — ${LANG==='zh'?'雲端載入':'from cloud'}`;
+      document.getElementById('patrol-empty-state').style.display='none';
+      savePatrolCache();
+      updatePatrolPeriodSelects();
+      setPatrolPeriod('month'); renderPatrol();
+      toast(`✓ ${ymClean} ${LANG==='zh'?'已載入':'loaded'}`);
+    } else {
+      toast('⚠ '+(json.error||'無資料'));
+    }
+  }catch(e){toast('⚠ 載入失敗: '+e.message);}
+}
+
+// ═══════════════════════════════════════════════════════
+// CCTV EXCEL EXPORT
+// ═══════════════════════════════════════════════════════
+function exportCctvExcel(){
+  const cameras=getCameras();
+  // Collect all dates that have data in localStorage
+  const allDates=[];
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k&&k.startsWith('cctv_')){
+      const d=k.slice(5);
+      if(d.match(/^\d{4}-\d{2}-\d{2}$/)) allDates.push(d);
+    }
+  }
+  allDates.sort();
+  if(!allDates.length){toast(LANG==='zh'?'⚠ 無 CCTV 記錄可匯出':'⚠ No CCTV records to export');return;}
+
+  const wb=XLSX.utils.book_new();
+
+  // Summary sheet
+  const summaryData=[
+    ['日期 Date','正常 Normal','異常 Abnormal','待確認 Pending','無影像 No Video','正常率 OK Rate%']
+  ];
+  allDates.forEach(d=>{
+    const dd=loadCctvDay(d);
+    let ok=0,fail=0,pend=0,nov=0;
+    cameras.forEach(cam=>{
+      if(cam.noVideo){nov++;return;}
+      const s=(dd[cam.code]||dd[cam.id])?.status;
+      if(s==='ok') ok++;
+      else if(s==='fail') fail++;
+      else pend++;
+    });
+    const total=ok+fail+pend;
+    summaryData.push([d,ok,fail,pend,nov,total>0?Math.round(ok/total*100):0]);
+  });
+  const summaryWs=XLSX.utils.aoa_to_sheet(summaryData);
+  XLSX.utils.book_append_sheet(wb,summaryWs,'Monthly Summary');
+
+  // One sheet per month
+  const byMonth={};
+  allDates.forEach(d=>{
+    const ym=d.slice(0,7);
+    if(!byMonth[ym]) byMonth[ym]=[];
+    byMonth[ym].push(d);
+  });
+  Object.entries(byMonth).forEach(([ym,dates])=>{
+    const header=['#','編號 Code','位置 Location','棟 Bldg',...dates];
+    const rows=[header];
+    cameras.forEach(cam=>{
+      if(cam.noVideo) return;
+      const row=[cam.id,cam.code,cam.loc,cam.bldg==='A'?'A棟':'B棟'];
+      dates.forEach(d=>{
+        const dd2=loadCctvDay(d); const s=(dd2[cam.code]||dd2[cam.id])?.status;
+        row.push(s==='ok'?'✓':s==='fail'?'✕':'—');
+      });
+      rows.push(row);
+    });
+    // Abnormal detail rows
+    const failRows=[];
+    dates.forEach(d=>{
+      const dd=loadCctvDay(d);
+      cameras.forEach(cam=>{
+        if(cam.noVideo) return;
+        const dfail=dd[cam.code]||dd[cam.id]||{};
+        if(dfail.status==='fail'){
+          failRows.push([d,cam.code,cam.loc,dfail.reason||'—']);
+        }
+      });
+    });
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb,ws,ym.replace('-',''));
+    if(failRows.length){
+      const failWs=XLSX.utils.aoa_to_sheet([['日期','編號','位置','異常原因'],...failRows]);
+      XLSX.utils.book_append_sheet(wb,failWs,ym.replace('-','')+'_異常');
+    }
+  });
+
+  XLSX.writeFile(wb,`VRT_CCTV_Records_${new Date().toISOString().slice(0,10)}.xlsx`);
+  toast(LANG==='zh'?`✓ 已匯出 ${allDates.length} 天 CCTV 記錄`:`✓ Exported ${allDates.length} days`);
+}
+
+// ═══════════════════════════════════════════════════════
+// PATROL EXCEL EXPORT
+// ═══════════════════════════════════════════════════════
+function exportPatrolExcel(){
+  if(!patrolData){toast('⚠ 無資料');return;}
+  const wb=XLSX.utils.book_new();
+  const days=Object.keys(patrolData.dayStats).sort();
+  const ym=patrolData.yearMonth;
+
+  // Summary sheet
+  const sumRows=[['日期','夜班開始','夜班結束','夜班次數','日班開始','日班結束','日班次數','總次數','總掃點','人員數','最多時段','最少時段']];
+  days.forEach(d=>{
+    const s=patrolData.dayStats[d];
+    const n=s.shifts?.night,dy=s.shifts?.day;
+    const fmt=h=>h!==null&&h!==undefined?String(h).padStart(2,'0')+':00':'—';
+    sumRows.push([
+      ym+'/'+d,
+      n?n.from:'—', n?n.to:'—', n?n.rounds:0,
+      dy?dy.from:'—', dy?dy.to:'—', dy?dy.rounds:0,
+      s.totalRounds, s.totalScans, s.persons.length,
+      fmt(s.maxHr), fmt(s.minHr)
+    ]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sumRows), '每日摘要');
+
+  // Personnel sheet
+  const personTotals={};
+  days.forEach(d=>{
+    const s=patrolData.dayStats[d];
+    Object.entries(s.personRounds).forEach(([p,r])=>{
+      if(!personTotals[p]) personTotals[p]={rounds:0,days:0};
+      personTotals[p].rounds+=r; personTotals[p].days++;
+    });
+  });
+  const personRows=[['人員','出勤天數','總巡邏次','平均次/天']];
+  Object.entries(personTotals).sort((a,b)=>b[1].rounds-a[1].rounds).forEach(([p,v])=>{
+    personRows.push([p,v.days,v.rounds,Math.round(v.rounds/v.days*10)/10]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(personRows), '人員統計');
+
+  // Hourly distribution
+  const hourlyRows=[['時段 Hour',...days.map(d=>ym+'/'+d)]];
+  for(let h=0;h<24;h++){
+    hourlyRows.push([String(h).padStart(2,'0')+':00',...days.map(d=>patrolData.dayStats[d]?.hourly[h]||0)]);
+  }
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hourlyRows), '24小時分佈');
+
+  XLSX.writeFile(wb,`VRT_Patrol_${ym}_${new Date().toISOString().slice(0,10)}.xlsx`);
+  toast(LANG==='zh'?`✓ 已匯出 ${days.length} 天巡邏記錄`:`✓ Exported ${days.length} days`);
+}
+
+// ═══════════════════════════════════════════════════════
+// PATROL COMPARISON CHART
+// ═══════════════════════════════════════════════════════
+let compareMode='rounds';
+function setCompareMode(mode){
+  compareMode=mode;
+  ['rounds','persons','shift'].forEach(m=>{
+    document.getElementById('cmp-'+m)?.classList.toggle('on',m===mode);
+  });
+  renderPatrolCompare();
+}
+function renderPatrolCompare(){
+  if(!patrolData) return;
+  const allDays=Object.keys(patrolData.dayStats).sort();
+  if(!allDays.length) return;
+  const ym=patrolData.yearMonth;
+  const labels=allDays.map(d=>ym.slice(5)+'/'+d);
+
+  let datasets=[], summary='';
+  const stats=allDays.map(d=>patrolData.dayStats[d]);
+
+  if(compareMode==='rounds'){
+    const vals=stats.map(s=>s.totalRounds);
+    const avg=vals.reduce((a,b)=>a+b,0)/vals.length;
+    const max=Math.max(...vals),min=Math.min(...vals);
+    const maxDay=allDays[vals.indexOf(max)],minDay=allDays[vals.indexOf(min)];
+    datasets=[{
+      label:LANG==='zh'?'巡邏次數':'Rounds',
+      data:vals,
+      backgroundColor:vals.map(v=>v>=avg?'#38bdf8':'#fca5a5'),
+      borderRadius:4
+    },{
+      label:LANG==='zh'?'平均線':'Avg',
+      data:Array(vals.length).fill(Math.round(avg*10)/10),
+      type:'line',borderColor:'#f59e0b',borderWidth:2,
+      borderDash:[4,4],pointRadius:0,fill:false
+    }];
+    document.getElementById('patrol-compare-summary').innerHTML=`
+      <div class="stat-box b"><div class="stat-v">${Math.round(avg*10)/10}</div><div class="stat-l">${LANG==='zh'?'平均次/天':'Avg/day'}</div></div>
+      <div class="stat-box g"><div class="stat-v">${max}</div><div class="stat-l">${LANG==='zh'?'最多 ('+ym.slice(5)+'/'+maxDay+')':'Peak ('+ym.slice(5)+'/'+maxDay+')'}</div></div>
+      <div class="stat-box r"><div class="stat-v">${min}</div><div class="stat-l">${LANG==='zh'?'最少 ('+ym.slice(5)+'/'+minDay+')':'Min ('+ym.slice(5)+'/'+minDay+')'}</div></div>
+      <div class="stat-box a"><div class="stat-v">${vals.filter(v=>v<avg*0.7).length}</div><div class="stat-l">${LANG==='zh'?'低於均值70%天數':'Days below 70% avg'}</div></div>`;
+  } else if(compareMode==='persons'){
+    const vals=stats.map(s=>s.persons.length);
+    const allPersons=[...new Set(stats.flatMap(s=>s.persons))].sort();
+    datasets=allPersons.map((p,i)=>{
+      const colors=['#818cf8','#38bdf8','#34d399','#fb923c','#f472b6','#a78bfa','#60a5fa'];
+      return{
+        label:p.split(' ')[0],
+        data:allDays.map(d=>(patrolData.dayStats[d].personRounds[p]||0)),
+        backgroundColor:colors[i%colors.length],borderRadius:3
+      };
+    });
+    const maxP=Math.max(...vals), minP=Math.min(...vals);
+    document.getElementById('patrol-compare-summary').innerHTML=`
+      <div class="stat-box p"><div class="stat-v">${allPersons.length}</div><div class="stat-l">${LANG==='zh'?'總人員數':'Total staff'}</div></div>
+      <div class="stat-box g"><div class="stat-v">${maxP}</div><div class="stat-l">${LANG==='zh'?'最多出勤人員/天':'Max staff/day'}</div></div>
+      <div class="stat-box r"><div class="stat-v">${minP}</div><div class="stat-l">${LANG==='zh'?'最少出勤人員/天':'Min staff/day'}</div></div>
+      ${allPersons.map(p=>{
+        const total=allDays.reduce((a,d)=>a+(patrolData.dayStats[d].personRounds[p]||0),0);
+        const days=allDays.filter(d=>patrolData.dayStats[d].personRounds[p]).length;
+        return`<div class="stat-box"><div class="stat-v">${total}</div><div class="stat-l">${p.split(' ')[0]} (${days}天)</div></div>`;
+      }).join('')}`;
+  } else { // shift
+    const nightVals=stats.map(s=>s.shifts?.night?.rounds||0);
+    const dayVals=stats.map(s=>s.shifts?.day?.rounds||0);
+    datasets=[
+      {label:'🌙 '+(LANG==='zh'?'夜班':'Night'),data:nightVals,backgroundColor:'#818cf8',borderRadius:4},
+      {label:'☀ '+(LANG==='zh'?'日班':'Day'),data:dayVals,backgroundColor:'#38bdf8',borderRadius:4},
+    ];
+    const totalN=nightVals.reduce((a,b)=>a+b,0),totalD=dayVals.reduce((a,b)=>a+b,0);
+    const missingN=allDays.filter((_,i)=>nightVals[i]===0).length;
+    const missingD=allDays.filter((_,i)=>dayVals[i]===0).length;
+    document.getElementById('patrol-compare-summary').innerHTML=`
+      <div class="stat-box p"><div class="stat-v">${totalN}</div><div class="stat-l">${LANG==='zh'?'夜班總次':'Night total'}</div></div>
+      <div class="stat-box b"><div class="stat-v">${totalD}</div><div class="stat-l">${LANG==='zh'?'日班總次':'Day total'}</div></div>
+      <div class="stat-box ${missingN>0?'r':'g'}"><div class="stat-v">${missingN}</div><div class="stat-l">${LANG==='zh'?'夜班缺失天':'Night missing days'}</div></div>
+      <div class="stat-box ${missingD>0?'r':'g'}"><div class="stat-v">${missingD}</div><div class="stat-l">${LANG==='zh'?'日班缺失天':'Day missing days'}</div></div>`;
+  }
+
+  if(patrolCharts.compare) patrolCharts.compare.destroy();
+  const ctx=document.getElementById('patrol-compare-chart')?.getContext('2d');
+  if(!ctx) return;
+  patrolCharts.compare=new Chart(ctx,{
+    type:'bar',data:{labels,datasets},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{font:{size:10}}}},
+      scales:{
+        x:{stacked:compareMode!=='rounds',ticks:{font:{size:9},maxRotation:45}},
+        y:{stacked:compareMode!=='rounds',ticks:{font:{size:9},stepSize:1},
+          title:{display:true,text:compareMode==='rounds'?( LANG==='zh'?'次數':'Rounds'):
+            compareMode==='persons'?(LANG==='zh'?'次數':'Rounds'):(LANG==='zh'?'次數':'Rounds'),
+            font:{size:10}}}}}
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// TELEGRAM SHARE
+// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// BOT CONFIG (localStorage)
+// ═══════════════════════════════════════════════════════
+function getGasUrl(){ return localStorage.getItem('vrt_gas_url')||'https://script.google.com/macros/s/AKfycbxxVMFewxyOcN156IgLKfqQ5KhbP4WLoSAeb_Q10HIqqA968QGPIwGx4yKI8JSo5H0V/exec'; }
+function getChatId(){ return localStorage.getItem('vrt_chat_id')||''; }
+function getSecret(){ return localStorage.getItem('vrt_secret')||'vrt2026security'; }
+
+function saveBotConfig(){
+  const url=(document.getElementById('cfg-gas-url').value||'').trim();
+  const cid=(document.getElementById('cfg-chat-id').value||'').trim();
+  const sec=(document.getElementById('cfg-secret').value||'').trim();
+  localStorage.setItem('vrt_gas_url', url);
+  localStorage.setItem('vrt_chat_id', cid);
+  localStorage.setItem('vrt_secret', sec);
+  showBotResult('✓ 已儲存 Saved', 'ok'); toast('✓ Bot 設定已儲存');
+}
+function testBotConfig(){
+  const url=getGasUrl();
+  if(!url){showBotResult('⚠ 請先填入 GAS URL','warn');return;}
+  showBotResult('⏳ 測試中…','info');
+  fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
+    body:JSON.stringify({type:'test',chatId:getChatId(),date:todayStr(),secret:getSecret()})})
+  .then(r=>r.json()).then(r=>{
+    if(r.ok) showBotResult('✅ 連線成功！Bot 正在運作。','ok');
+    else showBotResult('❌ GAS 回應錯誤: '+(r.error||JSON.stringify(r)),'err');
+  }).catch(e=>showBotResult('❌ 連線失敗: '+e.message,'err'));
+}
+function showBotResult(msg, type){
+  const el=document.getElementById('bot-config-result');
+  el.style.display='';
+  const colors={ok:'var(--green-bg)',warn:'var(--amber-bg)',err:'var(--red-bg)',info:'var(--blue-bg)'};
+  const borders={ok:'var(--green-bd)',warn:'var(--amber-bd)',err:'var(--red-bd)',info:'var(--blue-bd)'};
+  const textc={ok:'var(--green)',warn:'var(--amber)',err:'var(--red)',info:'var(--blue)'};
+  el.style.background=colors[type]||colors.info;
+  el.style.border='1px solid '+(borders[type]||borders.info);
+  el.style.color=textc[type]||textc.info;
+  el.textContent=msg;
+}
+
+// ═══════════════════════════════════════════════════════
+// TELEGRAM SEND
+// ═══════════════════════════════════════════════════════
+let shareTab='cctv';
+function setShareTab(t){
+  shareTab=t;
+  ['cctv','patrol'].forEach(x=>document.getElementById('share-tab-'+x).classList.toggle('on',x===t));
+  refreshSharePreview();
+}
+
+function openShareModal(){
+  // Load saved config into settings if not already there
+  const gasUrl=getGasUrl(), chatId=getChatId();
+  const noGas=document.getElementById('share-no-gas');
+  noGas.style.display=gasUrl?'none':'';
+  // Default to CCTV tab
+  shareTab='cctv';
+  ['cctv','patrol'].forEach(x=>document.getElementById('share-tab-'+x).classList.toggle('on',x==='cctv'));
+  refreshSharePreview();
+  document.getElementById('share-result').style.display='none';
+  document.getElementById('modal-share').classList.add('on');
+}
+
+function refreshSharePreview(){
+  const txt = shareTab==='cctv' ? buildCctvSummaryText() : buildPatrolSummaryText();
+  document.getElementById('tg-summary').textContent=txt;
+}
+
+function buildCctvSummaryText(){
+  const cameras=getCameras(), data=cctvToday;
+  let ok=0,fail=0,pend=0,noVid=0,failList=[],noVidList=[];
+  cameras.forEach(cam=>{
+    if(cam.noVideo){noVid++;noVidList.push(cam.code);return;}
+    const d2=data[cam.code]||data[cam.id]||{}; // support both code and id keys
+    if(d2.status==='ok') ok++;
+    else if(d2.status==='fail'){fail++;failList.push({code:cam.code,reason:d2.reason||'—'});}
+    else pend++;
+  });
+  const total=ok+fail+pend;
+  const pct=total>0?Math.round(ok/total*100):0;
+  const by=(document.getElementById('share-submitter')?.value||'').trim();
+  const now=new Date(); const hm=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  let txt=`📹 VRT CCTV Daily Check\n📅 ${cctvDate}  ⏰ ${hm}${by?' 👤 '+by:''}\n`;
+  txt+=`${'─'.repeat(26)}\n`;
+  const bar=buildBar(ok,fail,pend,total);
+  txt+=`${bar}\n`;
+  txt+=`✅ 正常: ${ok}  ❌ 異常: ${fail}  ⏳ 待確認: ${pend}  ⚠ 無影像: ${noVid}\n`;
+  txt+=`📊 正常率: ${pct}%\n`;
+  if(failList.length){txt+=`${'─'.repeat(26)}\n❌ 異常攝像機:\n`;failList.forEach(f=>txt+=`  • ${f.code}: ${f.reason}\n`);}
+  if(noVidList.length){txt+=`⚠ 無影像: ${noVidList.join(', ')}\n`;}
+  txt+=`${'─'.repeat(26)}\n🔗 ${location.href}`;
+  return txt;
+}
+
+function buildPatrolSummaryText(){
+  if(!patrolData){return '（尚未載入巡邏資料）\n請先在「巡邏 Patrol」頁面上傳 Excel 檔案。';}
+  const days=getPatrolDays();
+  if(!days.length) return '（無可用資料）';
+  const day0=days[0];
+  const s=patrolData.dayStats[day0];
+  if(!s) return '（無可用資料）';
+  // 整月彙總
+  const allDays2=Object.keys(patrolData.dayStats).sort();
+  let mRounds=0,mScans=0,mNight={rounds:0,scans:0},mDay={rounds:0,scans:0};
+  const mPersons={};
+  allDays2.forEach(d=>{
+    const sd=patrolData.dayStats[d]; if(!sd) return;
+    mRounds+=sd.totalRounds||0; mScans+=sd.totalScans||0;
+    Object.entries(sd.personRounds||{}).forEach(([nm,r])=>mPersons[nm]=(mPersons[nm]||0)+r);
+    if(sd.shifts?.night){mNight.rounds+=sd.shifts.night.rounds||0;mNight.scans+=sd.shifts.night.scans||0;}
+    if(sd.shifts?.day){mDay.rounds+=sd.shifts.day.rounds||0;mDay.scans+=sd.shifts.day.scans||0;}
+  });
+  const mPersonCount=Object.keys(mPersons).length;
+  const by=(document.getElementById('share-submitter')?.value||'').trim();
+  const now=new Date(); const hm=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  let txt=`👮 VRT Patrol Report\n📅 ${patrolData.yearMonth}  ⏰ ${hm}${by?' 👤 '+by:''}\n`;
+  txt+=`${'─'.repeat(26)}\n`;
+  txt+=`📋 天數: ${allDays2.length}天\n`;
+  txt+=`🔄 總巡邏次: ${mRounds}   👥 人員: ${mPersonCount}人\n`;
+  txt+=`📍 總掃點: ${mScans}\n`;
+  if(mNight.rounds){txt+=`${'─'.repeat(26)}\n🌙 夜班: ×${mNight.rounds} rounds / ${mNight.scans} scans\n`;}
+  if(mDay.rounds){txt+=`☀ 日班: ×${mDay.rounds} rounds / ${mDay.scans} scans\n`;}
+  const topPersons=Object.entries(mPersons).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  if(topPersons.length){
+    txt+=`${'─'.repeat(26)}\n👤 人員巡邏次數:\n`;
+    topPersons.forEach(([nm,r])=>txt+=`  • ${nm}: ${r}次\n`);
+  }
+  txt+=`${'─'.repeat(26)}\n🔗 ${location.href}`;
+  return txt;
+}
+
+function buildBar(ok,fail,pend,total){
+  if(!total) return '░░░░░░░░░░ 0%';
+  const len=10;
+  const ob=Math.round(ok/total*len),fb=Math.round(fail/total*len),pb=Math.max(0,len-ob-fb);
+  return '█'.repeat(ob)+'▓'.repeat(fb)+'░'.repeat(pb)+` ${Math.round(ok/total*100)}%`;
+}
+
+function getCctvPayload(){
+  const cameras=getCameras(), data=cctvToday;
+  let ok=0,fail=0,pend=0,noVid=0,failList=[],noVidList=[];
+  cameras.forEach(cam=>{
+    if(cam.noVideo){noVid++;noVidList.push(cam.code);return;}
+    const d3=data[cam.code]||data[cam.id]||{}; // support both code and id keys
+    if(d3.status==='ok') ok++;
+    else if(d3.status==='fail'){fail++;failList.push({code:cam.code,reason:d3.reason||'—'});}
+    else pend++;
+  });
+  const now=new Date();
+  return{type:'cctv',date:cctvDate,ok,fail,pending:pend,noVideo:noVid,
+    total:ok+fail+pend,failList,noVideoList:noVidList,
+    submittedBy:(document.getElementById('share-submitter')?.value||'').trim(),
+    submitTime:`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,
+    chatId:getChatId(),secret:getSecret()};
+}
+
+function getPatrolPayload(){
+  if(!patrolData) return null;
+  // 整月摘要：彙總所有天數資料
+  const allDays=Object.keys(patrolData.dayStats).sort();
+  if(!allDays.length) return null;
+  const now=new Date();
+  // 合計整月
+  let totalRounds=0,totalScans=0;
+  const personMap={};
+  const nightTotal={rounds:0,scans:0},dayTotal={rounds:0,scans:0};
+  allDays.forEach(d=>{
+    const s=patrolData.dayStats[d]; if(!s) return;
+    totalRounds+=s.totalRounds||0;
+    totalScans+=s.totalScans||0;
+    Object.entries(s.personRounds||{}).forEach(([name,r])=>{personMap[name]=(personMap[name]||0)+r;});
+    if(s.shifts?.night){nightTotal.rounds+=s.shifts.night.rounds||0;nightTotal.scans+=s.shifts.night.scans||0;}
+    if(s.shifts?.day){dayTotal.rounds+=s.shifts.day.rounds||0;dayTotal.scans+=s.shifts.day.scans||0;}
+  });
+  const personList=Object.entries(personMap).map(([name,rounds])=>({name,rounds}))
+    .sort((a,b)=>b.rounds-a.rounds);
+  const uniquePersons=Object.keys(personMap).length;
+  return{type:'patrol',
+    date:patrolData.yearMonth,
+    yearMonth:patrolData.yearMonth,
+    days:allDays.length,
+    totalRounds,persons:uniquePersons,totalScans,
+    night:nightTotal.rounds?nightTotal:null,
+    day:dayTotal.rounds?dayTotal:null,
+    personList,anomalies:[],
+    submittedBy:(document.getElementById('share-submitter')?.value||'').trim(),
+    submitTime:`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,
+    chatId:getChatId(),secret:getSecret()};
+}
+
+async function sendToGroup(){
+  const gasUrl=getGasUrl();
+  if(!gasUrl){
+    showShareResult('⚠ 請先至「攝像機設定」頁面填入 GAS URL','warn');return;
+  }
+  const payload=shareTab==='cctv'?getCctvPayload():getPatrolPayload();
+  if(!payload){showShareResult('⚠ 無可用資料','warn');return;}
+  const btn=document.getElementById('send-to-group-btn');
+  btn.disabled=true; btn.textContent='⏳ 發送中…';
+  showShareResult('⏳ 正在發送…','info');
+  try{
+    const res=await fetch(gasUrl,{method:'POST',headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify(payload)});
+    const json=await res.json();
+    if(json.ok){
+      showShareResult('✅ 已成功發送到群組！','ok');
+      toast('✅ 報告已發送到 Telegram 群組');
+    } else {
+      showShareResult('❌ 發送失敗: '+(json.error||'Unknown error'),'err');
+    }
+  }catch(e){
+    showShareResult('❌ 網路錯誤: '+e.message,'err');
+  }
+  btn.disabled=false; btn.textContent='✈️ 發送到群組 Send to Group';
+}
+
+function showShareResult(msg,type){
+  const el=document.getElementById('share-result');
+  el.style.display='';
+  const colors={ok:['var(--green-bg)','var(--green-bd)','var(--green)'],
+    warn:['var(--amber-bg)','var(--amber-bd)','var(--amber)'],
+    err:['var(--red-bg)','var(--red-bd)','var(--red)'],
+    info:['var(--blue-bg)','var(--blue-bd)','var(--blue)']};
+  const c=colors[type]||colors.info;
+  el.style.cssText=`display:block;font-size:11px;padding:7px 11px;border-radius:7px;
+    background:${c[0]};border:1px solid ${c[1]};color:${c[2]}`;
+  el.textContent=msg;
+}
+
+function copyTgSummary(){
+  const txt=document.getElementById('tg-summary').textContent;
+  navigator.clipboard.writeText(txt).then(()=>toast('✓ '+(LANG==='zh'?'摘要已複製':'Summary copied'))).catch(()=>{
+    const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast('✓ Copied');
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// MODAL HELPERS
+// ═══════════════════════════════════════════════════════
+function closeModal(id){ document.getElementById(id).classList.remove('on'); }
+document.addEventListener('click',e=>{
+  if(e.target.classList.contains('modal-overlay')) e.target.classList.remove('on');
+});
+
+// ═══════════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════════
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.style.opacity='1';
+  clearTimeout(t._t);t._t=setTimeout(()=>t.style.opacity='0',2500);
+}
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded',()=>{
+  const today=todayStr();
+  document.getElementById('today-badge').textContent=today;
+  document.getElementById('cctv-date-inp').value=today;
+  cctvDate=today; calYM=today.slice(0,7);
+  // Load bot config into settings fields
+  const gasUrl=localStorage.getItem('vrt_gas_url')||'';
+  const chatId=localStorage.getItem('vrt_chat_id')||'';
+  const secret=localStorage.getItem('vrt_secret')||'';
+  const gasInp=document.getElementById('cfg-gas-url');
+  const cidInp=document.getElementById('cfg-chat-id');
+  const secInp=document.getElementById('cfg-secret');
+  if(gasInp) gasInp.value=gasUrl;
+  if(cidInp) cidInp.value=chatId;
+  if(secInp) secInp.value=secret;
+  renderCctv();
+  startAutoSync();
+  // 啟動時只有在本地沒有攝像機資料時才從雲端同步，避免覆蓋本地設定
+  const localCams = localStorage.getItem('vrt_cameras');
+  if(!localCams || localCams === '[]') {
+    setTimeout(()=>syncCamerasFromCloud(), 2000);
+  }
+  // ── 巡邏資料啟動策略（仿 sewing_v5）──
+  // Step 1: 立即從 localStorage 快取還原（不等網路）
+  const cacheLoaded = loadPatrolCache();
+  if(cacheLoaded) updatePatrolPeriodSelects();
+  // Step 2: 背景從雲端拉最新資料更新快取
+  if(getGasUrl()){
+    setTimeout(async function(){
+      try{
+        const url=getGasUrl();
+        const r1=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
+          body:JSON.stringify({type:'listPatrol',secret:getSecret()})});
+        const j1=await r1.json();
+        if(!j1.ok||!j1.months||!j1.months.length) return;
+        const latestYm=j1.months[0];
+        // 若快取已是最新月份則不重複拉取
+        if(cacheLoaded && patrolData && patrolData.yearMonth===latestYm) return;
+        const r2=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
+          body:JSON.stringify({type:'getPatrol',yearMonth:latestYm,secret:getSecret()})});
+        const j2=await r2.json();
+        if(!j2.ok||!j2.data) return;
+        const d=j2.data;
+        const dayStats=d.dayStats||{};
+        const days=Object.keys(dayStats).sort();
+        if(!days.length) return;
+        Object.values(dayStats).forEach(s=>{
+          if(!s.recs) s.recs=[];
+          if(!s.shifts) s.shifts={night:null,day:null};
+          if(!s.personRounds) s.personRounds={};
+          if(!s.persons) s.persons=Object.keys(s.personRounds||{});
+        });
+        patrolData={fileName:d.fileName||'（雲端載入）',yearMonth:String(d.yearMonth||latestYm).slice(0,7),days:{},dayStats};
+        savePatrolCache(); // 更新本地快取
+        document.getElementById('patrol-file-label').textContent=
+          '☁ '+(d.fileName||latestYm)+'  ('+latestYm+')  — 雲端更新';
+        document.getElementById('patrol-date-inp').value=latestYm+'-'+days[0];
+        setPatrolPeriod('month');
+        renderPatrol();
+      }catch(e){ console.warn('auto patrol cloud sync:',e); }
+    }, 3000);
+  }
+  setLang('zh');
+});
+
+// AUTO-SYNC cameras to GAS Devices sheet so factory-map picks it up
+// Called after saveCamerasToCloud succeeds
+// 中: 攝像頭增減後自動同步至 Google Sheets → factory-map 60s 內自動更新
+// EN: After adding/removing cameras, factory-map auto-updates within 60s
+async function pushCameraListToFactoryMap(){
+  const url=getGasUrl(); if(!url) return;
+  const cameras=getCameras();
+  try{
+    await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({type:'syncCameraList',cameras,secret:getSecret()})});
+  }catch(e){ console.warn('pushCameraListToFactoryMap:',e); }
+}
+</script>
+</body>
+</html>

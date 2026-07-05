@@ -1,0 +1,2115 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VRT Security v3</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+Khmer:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script>/* AC-GAS-SEC preset: Security Attendance & Expense — Telegram preset */
+(function(){try{if(!localStorage.getItem('v3_tg'))localStorage.setItem('v3_tg',JSON.stringify({token:'8619620911:AAHAaXvCVs6N1g0WNxzl84k6MshNd_lKTeM',chat:'-5009220114'}));}catch(e){}})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#F5F7FA;--sf:#FFFFFF;--sf2:#EEF2F8;--sf3:#E4EAF4;
+  --pri:#1B3A6B;--pri2:#2D5299;--pri3:#EBF1FF;
+  --acc:#E8A020;--acc2:#FFF3DC;
+  --grn:#0F9D6A;--grn2:#E8F9F3;
+  --red:#DC3545;--red2:#FDECEA;
+  --amb:#F59E0B;--amb2:#FFF8E6;
+  --pur:#6D28D9;--pur2:#EDE9FE;
+  --blu:#2563EB;--blu2:#DBEAFE;
+  --tx:#1A2540;--tx2:#4B5A7A;--tx3:#8B97B3;
+  --bd:#E0E7F0;--bd2:#C8D4E8;
+  --sh:0 2px 12px rgba(27,58,107,.07);
+  --shlg:0 8px 32px rgba(27,58,107,.13);
+  --r:10px;--r2:16px;
+  --f:'Outfit','Noto Sans Khmer',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%;font-family:var(--f);background:var(--bg);color:var(--tx);font-size:14px}
+
+/* HDR */
+.hdr{background:var(--pri);height:54px;padding:0 18px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.hdr-logo{width:32px;height:32px;background:var(--acc);border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--pri);font-size:13px}
+.hdr-title{color:#fff;font-weight:700;font-size:14px;line-height:1.2;margin-left:9px}
+.hdr-sub{color:rgba(255,255,255,.5);font-size:10px}
+.hdr-r{display:flex;align-items:center;gap:7px}
+.mn-btn{width:26px;height:26px;border-radius:6px;border:1px solid rgba(255,255,255,.22);background:transparent;color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.mn-btn:hover{background:rgba(255,255,255,.14)}
+.mn-lbl{color:#fff;font-size:12px;font-weight:600;min-width:80px;text-align:center}
+.lb{padding:3px 9px;border:1px solid rgba(255,255,255,.25);border-radius:5px;background:transparent;color:rgba(255,255,255,.65);font-size:11px;font-family:var(--f);cursor:pointer;transition:.15s}
+.lb.on,.lb:hover{background:var(--acc);border-color:var(--acc);color:var(--pri);font-weight:700}
+
+/* TABS */
+.tabs{background:var(--sf);border-bottom:1px solid var(--bd);display:flex;overflow-x:auto;padding:0 12px;scrollbar-width:none;position:sticky;top:54px;z-index:150}
+.tabs::-webkit-scrollbar{display:none}
+.tab{padding:11px 14px;border:none;background:transparent;color:var(--tx2);font-family:var(--f);font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;border-bottom:3px solid transparent;transition:.15s;display:flex;align-items:center;gap:5px}
+.tab:hover{color:var(--pri);background:var(--sf2)}
+.tab.on{color:var(--pri);border-bottom-color:var(--acc);font-weight:700}
+
+/* LAYOUT */
+.main{padding:16px;max-width:1540px;margin:0 auto}
+.panel{display:none}.panel.on{display:block}
+.card{background:var(--sf);border-radius:var(--r2);box-shadow:var(--sh);padding:16px;border:1px solid var(--bd)}
+.card-hd{font-size:14px;font-weight:700;display:flex;align-items:center;gap:7px;margin-bottom:12px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.g5{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.fl{display:flex;align-items:center;gap:8px}
+.flb{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.mb10{margin-bottom:10px}.mb14{margin-bottom:14px}.mb18{margin-bottom:18px}
+
+/* STAT CARDS */
+.sc{background:var(--sf);border-radius:var(--r2);box-shadow:var(--sh);padding:14px 16px;border:1px solid var(--bd)}
+.sc-lbl{font-size:10px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.sc-val{font-size:28px;font-weight:800;color:var(--tx);line-height:1}
+.sc-sub{font-size:10px;color:var(--tx3);margin-top:3px}
+
+/* SIDEBAR */
+.split{display:flex;gap:12px;align-items:flex-start}
+.smain{flex:1;min-width:0}
+.sbar{width:248px;flex-shrink:0;display:flex;flex-direction:column;gap:9px}
+.scard{background:var(--sf);border-radius:var(--r);box-shadow:var(--sh);padding:12px;border:1px solid var(--bd)}
+.stitle{font-size:10px;font-weight:700;color:var(--tx2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.sr{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;font-size:11px}
+.sr-l{color:var(--tx2)}
+.sr-v{font-weight:700;color:var(--tx)}
+.pbar{height:5px;background:var(--sf3);border-radius:3px;overflow:hidden;margin-top:3px}
+.pfill{height:100%;border-radius:3px;transition:width .3s}
+.pg{background:var(--grn)}.pa{background:var(--amb)}.pr{background:var(--red)}
+.wg{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;margin-top:6px}
+.wc{background:var(--sf2);border-radius:4px;padding:4px 2px;text-align:center;font-size:10px}
+.wc-n{font-weight:700;font-size:11px}.wc-l{color:var(--tx3)}
+.wg-ok{border-top:2px solid var(--grn)}.wg-mid{border-top:2px solid var(--amb)}.wg-bad{border-top:2px solid var(--red)}
+@media(max-width:900px){.split{flex-direction:column}.sbar{width:100%}}
+
+/* TABLE */
+.tw{overflow-x:auto;border-radius:var(--r);border:1px solid var(--bd)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{background:var(--pri);color:#fff;padding:8px 9px;text-align:left;font-weight:600;white-space:nowrap;font-size:11px}
+tbody tr{border-bottom:1px solid var(--bd);transition:background .1s}
+tbody tr:hover{background:var(--sf2)}
+tbody tr:last-child{border-bottom:none}
+tbody td{padding:7px 9px;vertical-align:middle}
+.badge{display:inline-flex;align-items:center;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600;white-space:nowrap}
+.bd-day{background:var(--blu2);color:var(--blu)}
+.bd-night{background:var(--pur2);color:var(--pur)}
+.bd-vrt{background:var(--acc2);color:#B05E00}
+.bd-icsc{background:var(--grn2);color:var(--grn)}
+.bd-act{background:var(--grn2);color:var(--grn)}
+.bd-res{background:var(--red2);color:var(--red)}
+.bd-lv{background:var(--amb2);color:#B45309}
+tr.resigned td{opacity:.42}
+tr.resigned .pnm{text-decoration:line-through}
+
+/* ROSTER GRID */
+.rtbl{border-collapse:collapse;font-size:11px;width:max-content}
+.rtbl th,.rtbl td{border:1px solid var(--bd);padding:3px 2px;text-align:center;min-width:20px}
+.rtbl th{background:var(--pri);color:#fff;font-size:10px;font-weight:600}
+.rtbl .th-sun{background:#B71C1C !important}
+.rtbl td.nm{text-align:left;padding:4px 9px;min-width:145px;white-space:nowrap;font-weight:500;position:sticky;left:0;background:var(--sf);z-index:2}
+.rtbl td.cid{font-size:10px;color:var(--tx2);min-width:46px}
+.rtbl td.co{min-width:42px}
+.rtbl td.td-sun{background:#FFF3E0}
+.rcell{cursor:pointer;user-select:none;border-radius:2px}
+.rcell:hover{filter:brightness(.85)}
+.rD{background:#BBDEFB;color:#1565C0;font-weight:700}
+.rN{background:#D1C4E9;color:#4527A0;font-weight:700}
+.rX{background:transparent;color:var(--bd2)}
+.rtbl tr.ires td.nm{opacity:.4}
+.rtbl tr.ires .pnm{text-decoration:line-through;color:var(--tx3)}
+
+/* ATT GRID */
+.acell{cursor:pointer;user-select:none;border-radius:2px;font-size:12px}
+.acell:hover{filter:brightness(.85)}
+.aP{background:var(--grn2);color:var(--grn)}
+.aA{background:var(--red2);color:var(--red)}
+.aL{background:var(--amb2);color:#B45309}
+.aX{background:var(--sf2);color:var(--tx3);cursor:default}
+.a_null{background:#FFF9F0;color:var(--amb);border:1px dashed var(--amb) !important}
+
+/* COMPARE TABLE */
+.cmp-cell{text-align:center;font-size:11px;padding:3px 2px;border-radius:2px;min-width:30px}
+.cmp-ok{background:#C8E6C9;color:#1B5E20}
+.cmp-ab{background:#FFCDD2;color:#B71C1C}
+.cmp-lt{background:#FFE082;color:#5D4037}
+.cmp-off{background:var(--sf2);color:var(--tx3)}
+.cmp-mismatch{background:#FF8A65;color:#fff}
+.cmp-un{background:#F3E5F5;color:var(--pur)}
+/* Editable compare cells */
+.cmp-edit{cursor:pointer;user-select:none;outline:none;position:relative}
+.cmp-edit:hover{filter:brightness(.82);outline:1px solid rgba(0,0,0,.18)}
+.cmp-edit:active{transform:scale(.93)}
+/* Unscheduled (roster=null) but has attendance record — dashed border */
+.cmp-extra-p{background:#C8E6C9;color:#1B5E20;border:1px dashed #388E3C}
+.cmp-extra-l{background:#FFE082;color:#5D4037;border:1px dashed #F9A825}
+.cmp-extra-a{background:#FFCDD2;color:#B71C1C;border:1px dashed #C62828}
+/* Unscheduled + no record: dim gray, still clickable */
+.cmp-off-click{background:var(--sf2);color:var(--tx3);border:1px dashed var(--bd2)}
+
+/* DASHBOARD TABS */
+.dash-tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.dtab{padding:6px 14px;border-radius:20px;border:1px solid var(--bd2);background:var(--sf);color:var(--tx2);font-size:12px;font-weight:500;cursor:pointer;transition:.15s}
+.dtab.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+.dtab:hover:not(.on){background:var(--sf2)}
+
+/* YEAR CHART */
+.yr-bar{display:flex;align-items:flex-end;gap:4px;height:100px;padding:4px 0}
+.yr-col{display:flex;flex-direction:column;align-items:center;flex:1;gap:3px}
+.yr-rect{width:100%;border-radius:3px 3px 0 0;min-height:3px;transition:.3s}
+.yr-lbl{font-size:9px;color:var(--tx3)}
+.yr-pct{font-size:10px;font-weight:700}
+
+/* ANOMALY */
+.ai{display:flex;align-items:flex-start;gap:9px;padding:9px 11px;border-radius:var(--r);margin-bottom:5px;font-size:12px;line-height:1.5}
+.ai-crit{background:var(--red2);border-left:3px solid var(--red)}
+.ai-warn{background:var(--amb2);border-left:3px solid var(--amb)}
+.ai-ico{font-size:14px;flex-shrink:0;margin-top:1px}
+.ai-b b{display:block;font-weight:600;color:var(--tx)}
+.ai-b span{color:var(--tx2)}
+
+/* PAYROLL */
+.phd{background:linear-gradient(135deg,var(--pri),var(--pri2));color:#fff;padding:10px 14px;border-radius:var(--r) var(--r) 0 0;font-weight:700}
+.pcmp{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.pbox{flex:1;min-width:140px;background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);padding:12px;text-align:center}
+.pbox.hi{background:var(--pri);color:#fff;border-color:var(--pri)}
+.pbox.ok{background:var(--grn2);border-color:var(--grn)}
+.pbox.bad{background:var(--red2);border-color:var(--red)}
+.pbox-l{font-size:10px;color:var(--tx3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px}
+.pbox.hi .pbox-l{color:rgba(255,255,255,.6)}
+.pbox-v{font-size:20px;font-weight:800;color:var(--tx);line-height:1}
+.pbox.hi .pbox-v{color:#fff}
+.pbox.ok .pbox-v{color:var(--grn)}
+.pbox.bad .pbox-v{color:var(--red)}
+.pbox-s{font-size:10px;color:var(--tx3);margin-top:2px}
+/* Service fee print */
+.pay-print-area{display:none}
+@media print{
+  .pay-print-area{display:block!important}
+  .no-print{display:none!important}
+  .hdr,.tabs,.btn,.btn-group,.sbar,.ai,.overlay,.toast{display:none!important}
+  .panel.on{display:block}
+  .split{display:block}
+  .smain{width:100%}
+  .card{box-shadow:none;border:1px solid #ccc;page-break-inside:avoid;border-radius:0;margin-bottom:8px}
+  body{font-size:10px}
+  .rD{background:#BBDEFB!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+  .rN{background:#D1C4E9!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+  .aP{background:#E8F9F3!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+  .aA{background:#FDECEA!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+  .aL{background:#FFF8E6!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+  @page{size:A4 landscape;margin:1cm}
+}
+
+/* BTN */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 13px;border-radius:7px;border:none;font-family:var(--f);font-size:12px;font-weight:600;cursor:pointer;transition:.15s;white-space:nowrap}
+.bp{background:var(--pri);color:#fff}.bp:hover{background:var(--pri2)}
+.ba{background:var(--acc);color:var(--pri)}.ba:hover{filter:brightness(.92)}
+.bg{background:var(--grn);color:#fff}.bg:hover{filter:brightness(.9)}
+.br{background:var(--red);color:#fff}.br:hover{filter:brightness(.9)}
+.bh{background:transparent;color:var(--tx2);border:1px solid var(--bd2)}.bh:hover{background:var(--sf2)}
+.btg{background:#229ED9;color:#fff}.btg:hover{background:#1a8bc2}
+.bs{padding:4px 9px;font-size:11px;border-radius:5px}
+
+/* FORM */
+.fg{margin-bottom:12px}
+.fl-label{display:block;font-size:11px;font-weight:600;color:var(--tx2);margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px}
+.fi,.fs{width:100%;padding:7px 10px;border:1px solid var(--bd2);border-radius:var(--r);font-family:var(--f);font-size:13px;color:var(--tx);background:var(--sf);transition:.15s}
+.fi:focus,.fs:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 3px rgba(27,58,107,.08)}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* MODAL */
+.ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center}
+.ov.on{display:flex}
+.modal{background:var(--sf);border-radius:var(--r2);box-shadow:var(--shlg);padding:20px;width:92%;max-width:480px;max-height:90vh;overflow-y:auto;animation:mIn .18s ease}
+@keyframes mIn{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:translateY(0)}}
+.mt{font-size:15px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:7px}
+
+/* TOAST */
+.toast{position:fixed;bottom:22px;right:22px;z-index:2000;display:flex;align-items:center;gap:8px;padding:9px 16px;border-radius:9px;box-shadow:var(--shlg);font-size:12px;font-weight:600;color:#fff;transform:translateY(70px);opacity:0;transition:.28s;pointer-events:none}
+.toast.show{transform:translateY(0);opacity:1}
+.tok{background:var(--grn)}.terr{background:var(--red)}.tinf{background:var(--blu)}
+
+/* MISC */
+.div{height:1px;background:var(--bd);margin:12px 0}
+.muted{color:var(--tx3);font-size:11px}
+.lgrow{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;align-items:center;margin-top:7px}
+.ldot{width:9px;height:9px;border-radius:2px;flex-shrink:0;display:inline-block}
+.section-lbl{font-size:11px;font-weight:700;color:var(--tx2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px}
+.tg{display:flex;align-items:center;gap:8px;padding:3px 0}
+input[type=checkbox]{width:13px;height:13px;accent-color:var(--pri);cursor:pointer}
+
+/* FEE INPUT */
+.fee-inp-wrap{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.fee-inp{font-size:24px;font-weight:800;color:var(--pri);border:2px solid var(--bd2);border-radius:var(--r);padding:8px 14px;width:180px;text-align:center;font-family:var(--f)}
+.fee-inp:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 3px rgba(27,58,107,.1)}
+.fee-confirm{background:var(--pri);color:#fff;border:none;border-radius:var(--r);padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--f)}
+.fee-confirm:hover{background:var(--pri2)}
+.fee-presets{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.fee-preset{padding:4px 12px;border-radius:20px;border:1px solid var(--bd2);background:var(--sf2);font-size:12px;font-weight:600;cursor:pointer;color:var(--tx2);transition:.15s}
+.fee-preset:hover{background:var(--pri3);border-color:var(--pri);color:var(--pri)}
+
+/* SNAP badge */
+.snap-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:600;background:var(--pri3);color:var(--pri);margin-left:8px}
+
+/* Inline month navigator (roster / att headers) */
+.mn-inline{display:inline-flex;align-items:center;gap:3px;background:var(--sf2);border:1px solid var(--bd);border-radius:7px;padding:2px 5px}
+.mn-inline .mi-btn{width:22px;height:22px;border-radius:5px;border:none;background:transparent;color:var(--pri);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.12s}
+.mn-inline .mi-btn:hover{background:var(--pri3)}
+.mn-inline .mi-lbl{font-size:11px;font-weight:700;color:var(--pri);min-width:70px;text-align:center}
+
+/* Roster shift-status badge */
+.rtag{display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:12px;font-size:10px;font-weight:700;white-space:nowrap;cursor:pointer;user-select:none;transition:.15s}
+.rtag:hover{filter:brightness(.88)}
+.rtag-all-d{background:var(--blu2);color:var(--blu)}
+.rtag-all-n{background:var(--pur2);color:var(--pur)}
+.rtag-mix{background:var(--amb2);color:#B45309}
+.rtag-off{background:var(--sf3);color:var(--tx3)}
+/* Attendance perfect / imperfect badge */
+.atag{display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:12px;font-size:10px;font-weight:700;white-space:nowrap;cursor:pointer;user-select:none;transition:.15s}
+.atag:hover{filter:brightness(.88)}
+.atag-full{background:var(--grn2);color:var(--grn)}
+.atag-ok{background:#D1FAE5;color:#065F46}
+.atag-warn{background:var(--amb2);color:#B45309}
+.atag-bad{background:var(--red2);color:var(--red)}
+.atag-none{background:var(--sf3);color:var(--tx3)}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="fl">
+    <div class="hdr-logo">VR</div>
+    <div style="margin-left:9px">
+      <div class="hdr-title" id="h-brand">保全人員管理系統</div>
+      <div class="hdr-sub">Vantage River Textiles Co., Ltd.</div>
+    </div>
+  </div>
+  <div class="hdr-r no-print">
+    <div class="fl" style="gap:4px">
+      <button class="mn-btn" onclick="changeMonth(-1)">‹</button>
+      <div class="mn-lbl" id="mn-lbl"></div>
+      <button class="mn-btn" onclick="changeMonth(1)">›</button>
+    </div>
+    <button class="lb on" id="lb-zh" onclick="setLang('zh')">中文</button>
+    <button class="lb" id="lb-en" onclick="setLang('en')">EN</button>
+    <button class="lb" id="lb-km" onclick="setLang('km')">ខ្មែរ</button>
+  </div>
+</div>
+
+<div class="tabs no-print">
+  <button class="tab on" data-tab="dash" onclick="showTab('dash')">📊 <span data-i="t_dash">儀表板</span></button>
+  <button class="tab" data-tab="pers" onclick="showTab('pers')">👤 <span data-i="t_pers">人員管理</span></button>
+  <button class="tab" data-tab="roster" onclick="showTab('roster')">📅 <span data-i="t_roster">排班表</span></button>
+  <button class="tab" data-tab="att" onclick="showTab('att')">✅ <span data-i="t_att">出勤紀錄</span></button>
+  <button class="tab" data-tab="compare" onclick="showTab('compare')">🔍 <span data-i="t_compare">排班對比</span></button>
+  <button class="tab" data-tab="pay" onclick="showTab('pay')">💰 <span data-i="t_pay">薪資核對</span></button>
+  <button class="tab" data-tab="anom" onclick="showTab('anom')">⚠️ <span data-i="t_anom">異常報告</span></button>
+  <button class="tab" data-tab="cfg" onclick="showTab('cfg')">⚙️ <span data-i="t_cfg">設定</span></button>
+</div>
+
+<div class="main">
+
+<!-- ══ DASHBOARD ══ -->
+<div class="panel on" id="panel-dash">
+  <div class="dash-tabs no-print">
+    <button class="dtab on" id="dv-day" onclick="setDashView('day')"><span data-i="dv_day">日</span></button>
+    <button class="dtab" id="dv-week" onclick="setDashView('week')"><span data-i="dv_week">週</span></button>
+    <button class="dtab" id="dv-month" onclick="setDashView('month')"><span data-i="dv_month">月</span></button>
+    <button class="dtab" id="dv-year" onclick="setDashView('year')"><span data-i="dv_year">年</span></button>
+  </div>
+  <div id="dash-view"></div>
+</div>
+
+<!-- ══ PERSONNEL ══ -->
+<div class="panel" id="panel-pers">
+  <div class="card mb14">
+    <div class="flb mb14">
+      <div class="card-hd" style="margin:0">👤 <span data-i="t_pers">人員管理</span>
+        <span class="snap-badge" id="snap-badge"></span>
+      </div>
+      <div class="fl">
+        <label class="tg"><input type="checkbox" id="show-res" onchange="renderPers()"><span data-i="show_resigned">顯示離職</span></label>
+        <input class="fi" style="width:170px;margin:0;padding:5px 9px" id="srch-p" placeholder="🔍" oninput="renderPers()">
+        <button class="btn bp bs" onclick="openPModal()">＋ <span data-i="add">新增</span></button>
+        <button class="btn bh bs" onclick="useMonthSnap()" title="為本月建立人員快照（不影響其他月份）">📸 <span data-i="snap_month">本月快照</span></button>
+      </div>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr>
+          <th>NO.</th><th>照片</th><th>姓名</th><th>工號/LD</th>
+          <th>公司</th><th>班別</th><th>崗位</th>
+          <th>性別</th><th>電話</th><th>狀態</th><th>犯罪</th><th>操作</th>
+        </tr></thead>
+        <tbody id="pers-tbody"></tbody>
+      </table>
+    </div>
+    <div class="muted" style="margin-top:8px" id="snap-note"></div>
+  </div>
+</div>
+
+<!-- ══ ROSTER ══ -->
+<div class="panel" id="panel-roster">
+  <div class="split">
+    <div class="smain">
+      <div class="card">
+        <div class="flb mb10">
+          <div class="card-hd" style="margin:0;flex-wrap:wrap;gap:7px">
+            📅 <span id="roster-hd"></span>
+            <div class="mn-inline no-print">
+              <button class="mi-btn" onclick="changeMonth(-1)">‹</button>
+              <div class="mi-lbl" id="mn-roster-lbl"></div>
+              <button class="mi-btn" onclick="changeMonth(1)">›</button>
+            </div>
+          </div>
+          <div class="fl no-print">
+            <label class="tg"><input type="checkbox" id="hr-roster" onchange="renderRoster()"><span data-i="hide_res">隱藏離職</span></label>
+            <button class="btn bh bs" onclick="window.print()">🖨️ <span data-i="print">列印</span></button>
+            <button class="btn ba bs" onclick="expRosterXlsx()">📊 Excel</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto" id="roster-wrap"></div>
+        <div class="lgrow">
+          <span><span class="ldot rD"></span> <span data-i="day_s">日班(D)</span></span>
+          <span><span class="ldot rN"></span> <span data-i="night_s">夜班(N)</span></span>
+          <span><span class="ldot" style="background:var(--sf3)"></span> <span data-i="off">休假</span></span>
+          <span class="muted" data-i="click_tip">點擊格子循環切換: 空白→D→N→空白</span>
+        </div>
+      </div>
+    </div>
+    <div class="sbar no-print">
+      <div class="scard"><div class="stitle" data-i="stats_month">本月排班統計</div><div id="rs-stats"></div></div>
+      <div class="scard"><div class="stitle" data-i="post_dist">崗位分佈</div><div id="rs-post"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ATTENDANCE ══ -->
+<div class="panel" id="panel-att">
+  <div class="split">
+    <div class="smain">
+      <div class="card">
+        <div class="flb mb10">
+          <div class="card-hd" style="margin:0;flex-wrap:wrap;gap:7px">✅ <span id="att-hd"></span>
+            <div class="mn-inline no-print">
+              <button class="mi-btn" onclick="changeMonth(-1)">‹</button>
+              <div class="mi-lbl" id="mn-att-lbl"></div>
+              <button class="mi-btn" onclick="changeMonth(1)">›</button>
+            </div>
+          </div>
+          <div class="fl no-print">
+            <select class="fs" style="width:120px;margin:0;padding:4px 7px;font-size:11px" id="att-f" onchange="renderAtt()">
+              <option value="all" data-i="all">全部</option>
+              <option value="Day" data-i="day_s">日班</option>
+              <option value="Night" data-i="night_s">夜班</option>
+            </select>
+            <label class="tg"><input type="checkbox" id="hr-att" onchange="renderAtt()"><span data-i="hide_res">隱藏離職</span></label>
+            <button class="btn bh bs" onclick="window.print()">🖨️</button>
+            <button class="btn ba bs" onclick="expAttXlsx()">📊 Excel</button>
+          </div>
+        </div>
+        <div id="att-wrap" style="overflow-x:auto"></div>
+        <div class="lgrow">
+          <span><span style="display:inline-block;background:var(--grn2);color:var(--grn);padding:1px 6px;border-radius:3px;font-size:11px">✓</span> <span data-i="present">準時</span></span>
+          <span><span style="display:inline-block;background:var(--red2);color:var(--red);padding:1px 6px;border-radius:3px;font-size:11px">✗</span> <span data-i="absent">缺勤</span></span>
+          <span><span style="display:inline-block;background:var(--amb2);color:var(--amb);padding:1px 6px;border-radius:3px;font-size:11px">⚠</span> <span data-i="late">遲到</span></span>
+          <span><span style="display:inline-block;background:var(--sf2);padding:1px 6px;border-radius:3px;font-size:11px">—</span> <span data-i="off">休假</span></span>
+          <span class="muted" data-i="click_tip2">點擊切換: ?→✓→✗→⚠→?</span>
+        </div>
+      </div>
+    </div>
+    <div class="sbar no-print">
+      <div class="scard"><div class="stitle" data-i="att_sum">出勤摘要</div><div id="as-stats"></div></div>
+      <div class="scard"><div class="stitle" data-i="wk_view">週別視圖</div><div class="wg" id="as-weeks"></div></div>
+      <div class="scard"><div class="stitle" data-i="by_person">人員出勤率</div><div id="as-person" style="font-size:11px"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ COMPARE ══ -->
+<div class="panel" id="panel-compare">
+  <div class="card">
+    <div class="flb mb14">
+      <div class="card-hd" style="margin:0">🔍 <span id="cmp-hd"></span></div>
+      <div class="fl no-print">
+        <select class="fs" style="width:120px;margin:0;padding:4px 7px;font-size:11px" id="cmp-f" onchange="renderCompare()">
+          <option value="all" data-i="all">全部</option>
+          <option value="Day" data-i="day_s">日班</option>
+          <option value="Night" data-i="night_s">夜班</option>
+          <option value="mismatch" data-i="mismatch_only">僅顯示異常</option>
+        </select>
+        <button class="btn bh bs" onclick="window.print()">🖨️ <span data-i="print">列印</span></button>
+        <button class="btn ba bs" onclick="expCmpXlsx()">📊 Excel</button>
+      </div>
+    </div>
+    <!-- Summary pills -->
+    <div id="cmp-summary" class="mb14"></div>
+    <!-- Grid -->
+    <div id="cmp-wrap" style="overflow-x:auto"></div>
+    <div class="lgrow">
+      <span><span class="ldot" style="background:#C8E6C9"></span> <span data-i="match_ok">排班+出勤吻合</span></span>
+      <span><span class="ldot" style="background:#FFCDD2"></span> <span data-i="match_ab">排班卻缺勤</span></span>
+      <span><span class="ldot" style="background:#FFE082"></span> <span data-i="match_lt">排班+遲到</span></span>
+      <span><span class="ldot" style="background:#FF8A65"></span> <span data-i="match_mm">嚴重不符</span></span>
+      <span><span class="ldot" style="background:#C8E6C9;border:1px dashed #388E3C"></span> +P/+⚠ 未排班但有出勤</span>
+      <span><span class="ldot" style="background:var(--sf2);border:1px dashed var(--bd2)"></span> — 休假（可點擊補登）</span>
+      <span style="color:var(--pri);font-weight:600;font-size:11px">👆 所有格子均可點擊切換: —→✓→✗→⚠→—</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PAYROLL ══ -->
+<div class="panel" id="panel-pay">
+  <div id="pay-content"></div>
+</div>
+
+<!-- ══ ANOMALY ══ -->
+<div class="panel" id="panel-anom">
+  <div class="card">
+    <div class="flb mb14">
+      <div class="card-hd" style="margin:0">⚠️ <span id="anom-hd"></span></div>
+      <div class="fl no-print">
+        <select class="fs" style="width:130px;margin:0;padding:4px 7px;font-size:11px" id="anom-f" onchange="renderAnom()">
+          <option value="all" data-i="all">全部</option>
+          <option value="critical" data-i="anom_crit">🚨 嚴重</option>
+          <option value="warning" data-i="anom_warn">⚠️ 警告</option>
+        </select>
+        <button class="btn btg bs" onclick="sendAnomTg()">📨 Telegram</button>
+        <button class="btn bh bs" onclick="window.print()">🖨️</button>
+      </div>
+    </div>
+    <div id="anom-sum" class="mb12"></div>
+    <div id="anom-list"></div>
+  </div>
+</div>
+
+<!-- ══ SETTINGS ══ -->
+<div class="panel" id="panel-cfg">
+  <div class="g2">
+    <div class="card">
+      <div class="card-hd">🤖 Telegram Bot</div>
+      <div id="tg-bar" class="mb10"></div>
+      <div class="fg"><label class="fl-label">Bot Token</label><input class="fi" type="password" id="tg-tok" oninput="saveTg()"></div>
+      <div class="fg"><label class="fl-label">Chat ID</label><input class="fi" id="tg-cht" oninput="saveTg()"></div>
+      <div class="fl"><button class="btn btg bs" onclick="testTg()">📨 <span data-i="test_tg">測試</span></button><div id="tg-res" style="font-size:11px"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-hd">💰 <span data-i="pay_cfg">薪資參數</span></div>
+      <div class="fg"><label class="fl-label" data-i="rate_lbl">每人月薪(USD)</label><input class="fi" type="number" id="cf-rate" oninput="saveCfg()"></div>
+      <div class="fr">
+        <div class="fg"><label class="fl-label" data-i="dh_lbl">日班工時</label><input class="fi" type="number" id="cf-dh" oninput="saveCfg()"></div>
+        <div class="fg"><label class="fl-label" data-i="nh_lbl">夜班工時</label><input class="fi" type="number" id="cf-nh" oninput="saveCfg()"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hd">🗄️ <span data-i="data_mgmt">資料管理</span></div>
+      <div class="fl" style="flex-direction:column;align-items:flex-start;gap:8px">
+        <button class="btn bh" onclick="expJSON()">💾 <span data-i="exp_json">匯出 JSON 備份</span></button>
+        <button class="btn bh" onclick="document.getElementById('rst-f').click()">📂 <span data-i="imp_json">從 JSON 還原</span></button>
+        <input type="file" id="rst-f" style="display:none" accept=".json" onchange="impJSON(event)">
+        <button class="btn br" onclick="if(confirm(t('confirm_clr')))clearAll()">🗑️ <span data-i="clear_all">清除所有資料</span></button>
+      </div>
+      <div class="div"></div>
+      <div class="muted">VRT Security v3.0 · 2026 · Admin Center</div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<!-- PERSON MODAL -->
+<div class="ov" id="pm-ov">
+  <div class="modal" style="max-width:600px">
+    <div class="mt" style="justify-content:space-between">
+      <span>👤 <span id="pm-title"></span></span>
+      <button class="btn bh bs" onclick="closeOv('pm-ov')">✕</button>
+    </div>
+    <input type="hidden" id="pm-id">
+
+    <!-- Photo + Basic -->
+    <div style="display:flex;gap:14px;margin-bottom:12px">
+      <!-- Photo upload -->
+      <div style="flex-shrink:0;text-align:center">
+        <div id="pm-photo-preview" onclick="document.getElementById('pm-photo-file').click()" style="width:90px;height:110px;border:2px dashed var(--bd2);border-radius:8px;background:var(--sf2);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;font-size:11px;color:var(--tx3);flex-direction:column;gap:4px">
+          <span style="font-size:22px">📷</span><span>點擊上傳</span>
+        </div>
+        <input type="file" id="pm-photo-file" accept="image/*" style="display:none" onchange="onPhotoSelect(event)">
+        <input type="hidden" id="pm-photo-data">
+        <button class="btn bh bs" style="margin-top:4px;font-size:10px" onclick="clearPhoto()">清除</button>
+      </div>
+      <!-- Name + IDs -->
+      <div style="flex:1">
+        <div class="fg"><label class="fl-label">姓名 (英文)</label><input class="fi" id="pm-name" placeholder="e.g. Chhan Vichika"></div>
+        <div class="fg"><label class="fl-label">姓名 (柬文)</label><input class="fi" id="pm-km" placeholder="ឈ្មោះ"></div>
+        <div class="fr">
+          <div class="fg"><label class="fl-label">工號 Company ID</label><input class="fi" id="pm-cid" placeholder="A011"></div>
+          <div class="fg"><label class="fl-label">身份證 LD Number</label><input class="fi" id="pm-ld" placeholder="110694163"></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:1px;background:var(--bd);margin:10px 0"></div>
+
+    <!-- Personal Info -->
+    <div class="section-lbl">個人資料</div>
+    <div class="fr">
+      <div class="fg"><label class="fl-label">出生日期 DOB</label><input class="fi" id="pm-dob" placeholder="2000-Jan-01"></div>
+      <div class="fg"><label class="fl-label">語言 Language</label><input class="fi" id="pm-lang" placeholder="Khmer" value="Khmer"></div>
+    </div>
+    <div class="fr">
+      <div class="fg"><label class="fl-label">性別 Gender</label>
+        <select class="fs" id="pm-sex"><option value="M">M (Male)</option><option value="F">F (Female)</option></select></div>
+      <div class="fg"><label class="fl-label">婚姻 Status</label>
+        <select class="fs" id="pm-marital">
+          <option value="Single">Single 單身</option>
+          <option value="Married">Married 已婚</option>
+          <option value="Divorced">Divorced 離婚</option>
+        </select></div>
+    </div>
+    <div class="fg"><label class="fl-label">教育程度 Education</label>
+      <select class="fs" id="pm-edu">
+        <option value="Primary School">Primary School 小學</option>
+        <option value="Secondary school">Secondary School 中學</option>
+        <option value="High School">High School 高中</option>
+        <option value="University">University 大學</option>
+        <option value="Other">Other 其他</option>
+      </select></div>
+
+    <div style="height:1px;background:var(--bd);margin:10px 0"></div>
+
+    <!-- Work Info -->
+    <div class="section-lbl">工作資料</div>
+    <div class="fr">
+      <div class="fg"><label class="fl-label">公司 Company</label>
+        <select class="fs" id="pm-co"><option value="VRT">VRT</option><option value="ICSC">ICSC</option></select></div>
+      <div class="fg"><label class="fl-label">班別 Shift</label>
+        <select class="fs" id="pm-shift"><option value="Day">Day 日班</option><option value="Night">Night 夜班</option></select></div>
+    </div>
+    <div class="fr">
+      <div class="fg"><label class="fl-label">崗位 Post</label>
+        <select class="fs" id="pm-post">
+          <option>Front Gate</option><option>Building A</option>
+          <option>Building B</option><option>Staff House</option>
+        </select></div>
+      <div class="fg"><label class="fl-label">狀態 Status</label>
+        <select class="fs" id="pm-stat">
+          <option value="active">Active 在職</option>
+          <option value="resign">Resigned 離職</option>
+          <option value="leave">On Leave 留職</option>
+        </select></div>
+    </div>
+    <div class="fr">
+      <div class="fg"><label class="fl-label">合約開始 Contract Start</label><input class="fi" id="pm-cs" placeholder="Start: 01-06-2023"></div>
+      <div class="fg"><label class="fl-label">合約結束 Contract End</label><input class="fi" id="pm-ce" placeholder="End:"></div>
+    </div>
+    <div class="fg"><label class="fl-label">犯罪紀錄 Crime Record</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select class="fs" id="pm-crime" style="width:120px">
+          <option value="no">No 無</option>
+          <option value="yes">Yes 有</option>
+        </select>
+        <input class="fi" id="pm-crime-date" placeholder="查驗日期 e.g. 2025-April-01" style="flex:1">
+      </div>
+    </div>
+
+    <div style="height:1px;background:var(--bd);margin:10px 0"></div>
+
+    <!-- Contact -->
+    <div class="section-lbl">聯絡資料</div>
+    <div class="fg"><label class="fl-label">家人 Family</label><input class="fi" id="pm-family" placeholder="Parents: -Nu Ny -Sy Sreynang"></div>
+    <div class="fg"><label class="fl-label">地址 Address</label><input class="fi" id="pm-addr" placeholder="Sangkat 1, Sihanoukville"></div>
+    <div class="fg"><label class="fl-label">電話 Contact Number</label><input class="fi" id="pm-tel" placeholder="096 3896396"></div>
+
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn bp" style="flex:1" onclick="savePerson()">💾 儲存 Save</button>
+      <button class="btn bh" onclick="closeOv('pm-ov')">✕ 取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- SERVICE FEE PRINT AREA (hidden, shown on print) -->
+<div class="pay-print-area" id="pay-print-area"></div>
+
+<script>
+// ══════════════════════════════════════════════
+// I18N
+// ══════════════════════════════════════════════
+const I18N={
+zh:{
+  t_dash:'儀表板',t_pers:'人員管理',t_roster:'排班表',t_att:'出勤紀錄',
+  t_compare:'排班對比',t_pay:'薪資核對',t_anom:'異常報告',t_cfg:'設定',
+  dv_day:'日',dv_week:'週',dv_month:'月',dv_year:'年',
+  show_resigned:'顯示離職',hide_res:'隱藏離職',add:'新增',
+  snap_month:'本月快照',
+  col_no:'NO.',col_name:'姓名',col_id:'工號',col_co:'公司',
+  col_shift:'班別',col_post:'崗位',col_sex:'性別',col_status:'狀態',col_action:'操作',
+  all:'全部',day_s:'日班',night_s:'夜班',off:'休假',
+  print:'列印',click_tip:'點擊格子循環切換: 空白→D→N→空白',
+  click_tip2:'點擊切換: ?→✓→✗→⚠→?',
+  present:'準時',absent:'缺勤',late:'遲到/早退',
+  att_sum:'出勤摘要',wk_view:'週別視圖',by_person:'人員出勤率',
+  stats_month:'本月排班統計',post_dist:'崗位分佈',
+  anom_crit:'🚨 嚴重',anom_warn:'⚠️ 警告',
+  mismatch_only:'僅顯示異常',
+  match_ok:'排班+出勤吻合',match_ab:'排班卻缺勤',
+  match_lt:'排班+遲到',match_mm:'嚴重不符',match_off:'休假',
+  test_tg:'測試',pay_cfg:'薪資參數',rate_lbl:'每人月薪(USD)',
+  dh_lbl:'日班工時(h)',nh_lbl:'夜班工時(h)',
+  data_mgmt:'資料管理',exp_json:'匯出 JSON 備份',imp_json:'從 JSON 還原',clear_all:'清除所有資料',
+  name_en:'姓名(英文)',name_km:'姓名(柬文)',
+  s_act:'在職',s_res:'離職',s_lv:'留職停薪',
+  save:'儲存',cancel:'取消',confirm_clr:'確定清除所有資料？',
+  anom_absent:'排定{sh}班，無出勤紀錄',anom_late:'遲到或早退',
+  total_staff:'在職人員',att_rate:'出勤率',total_anom:'異常',monthly_pay:'本月薪資',
+  wk:'第{n}週',rate:'出勤率',
+  brand:'保全人員管理系統',
+  snap_note_none:'目前使用全域人員資料（與其他月份共用）',
+  snap_note_has:'本月使用獨立快照（不影響其他月份）',
+  snap_ok:'本月人員快照已建立',
+  save_ok:'已儲存',send_ok:'已傳送',send_fail:'傳送失敗',
+  exp_ok:'匯出成功',imp_ok:'資料還原成功',
+  no_anom:'本月無異常 ✅',
+  pay_title:'薪資核對與審批',
+  sys_calc:'系統計算',claimed_lbl:'ICSC 請款金額',diff_lbl:'差額',
+  match:'金額吻合',over:'超額',under:'低於計算',
+  submit_appr:'📋 Submit for Approval',appr_sent:'審批報表已傳送',
+  day_sl:'日班人員',night_sl:'夜班人員',per_p:'每人月薪',
+  days_m:'月份天數',total_g:'ICSC保全',
+  preset_lbl:'快速輸入',confirm_fee:'確認金額',
+  cmp_title:'排班 vs 出勤 對比表',
+  cmp_total:'共',cmp_ok:'吻合',cmp_ab:'缺勤',cmp_lt:'遲到',cmp_mm:'不符',
+  today:'今日',today_sub:'出勤概況',
+  cur_week:'本週',cur_week_sub:'週出勤統計',
+  day_view_title:'今日出勤狀態',
+  week_view_title:'本週出勤概況',
+  yr_title:'全年出勤趨勢',
+  yr_no_data:'（暫無資料）'
+},
+en:{
+  t_dash:'Dashboard',t_pers:'Personnel',t_roster:'Roster',t_att:'Attendance',
+  t_compare:'Compare',t_pay:'Payroll',t_anom:'Anomaly',t_cfg:'Settings',
+  dv_day:'Day',dv_week:'Week',dv_month:'Month',dv_year:'Year',
+  show_resigned:'Show resigned',hide_res:'Hide resigned',add:'Add',
+  snap_month:'Month Snapshot',
+  col_no:'No.',col_name:'Name',col_id:'ID',col_co:'Company',
+  col_shift:'Shift',col_post:'Post',col_sex:'Sex',col_status:'Status',col_action:'Action',
+  all:'All',day_s:'Day',night_s:'Night',off:'Day Off',
+  print:'Print',click_tip:'Click to cycle: blank→D→N→blank',
+  click_tip2:'Click to cycle: ?→✓→✗→⚠→?',
+  present:'Present',absent:'Absent',late:'Late',
+  att_sum:'Attendance Summary',wk_view:'Weekly View',by_person:'Per-Person Rate',
+  stats_month:'Monthly Roster',post_dist:'Post Distribution',
+  anom_crit:'🚨 Critical',anom_warn:'⚠️ Warning',
+  mismatch_only:'Anomalies Only',
+  match_ok:'Roster+Attendance Match',match_ab:'Scheduled but Absent',
+  match_lt:'Scheduled+Late',match_mm:'Serious Mismatch',match_off:'Day Off',
+  test_tg:'Test',pay_cfg:'Payroll Config',rate_lbl:'Rate per Guard (USD)',
+  dh_lbl:'Day Hours/shift',nh_lbl:'Night Hours/shift',
+  data_mgmt:'Data Management',exp_json:'Export JSON Backup',imp_json:'Restore from JSON',clear_all:'Clear All Data',
+  name_en:'Name (English)',name_km:'Name (Khmer)',
+  s_act:'Active',s_res:'Resigned',s_lv:'On Leave',
+  save:'Save',cancel:'Cancel',confirm_clr:'Clear all data?',
+  anom_absent:'Scheduled {sh} but no attendance',anom_late:'Late or early departure',
+  total_staff:'Active Staff',att_rate:'Attendance Rate',total_anom:'Anomalies',monthly_pay:'Monthly Payroll',
+  wk:'Wk{n}',rate:'Rate',
+  brand:'Security Management System',
+  snap_note_none:'Using global personnel (shared across months)',
+  snap_note_has:'Using month-specific snapshot (isolated)',
+  snap_ok:'Month snapshot created',
+  save_ok:'Saved',send_ok:'Sent',send_fail:'Send failed',
+  exp_ok:'Export OK',imp_ok:'Data restored',
+  no_anom:'No anomalies this month ✅',
+  pay_title:'Payroll Verification & Approval',
+  sys_calc:'System Calc.',claimed_lbl:'ICSC Claimed Amount',diff_lbl:'Difference',
+  match:'Amounts Match',over:'Overcharged',under:'Undercharged',
+  submit_appr:'📋 Submit for Approval',appr_sent:'Approval report sent',
+  day_sl:'Day Shift Guards',night_sl:'Night Shift Guards',per_p:'Per Guard/Month',
+  days_m:'Days in Month',total_g:'ICSC Guards',
+  preset_lbl:'Quick Input',confirm_fee:'Confirm',
+  cmp_title:'Roster vs Attendance Comparison',
+  cmp_total:'Total',cmp_ok:'Match',cmp_ab:'Absent',cmp_lt:'Late',cmp_mm:'Mismatch',
+  today:'Today',today_sub:'Attendance Status',
+  cur_week:'This Week',cur_week_sub:'Weekly Stats',
+  day_view_title:'Today\'s Attendance',
+  week_view_title:'Weekly Attendance',
+  yr_title:'Annual Attendance Trend',
+  yr_no_data:'(No data yet)'
+},
+km:{
+  t_dash:'ផ្ទាំង',t_pers:'បុគ្គលិក',t_roster:'កាលវិភាគ',t_att:'វត្តមាន',
+  t_compare:'ប្រៀបធៀប',t_pay:'ប្រាក់ខែ',t_anom:'ភាពមិនធម្មតា',t_cfg:'ការកំណត់',
+  dv_day:'ថ្ងៃ',dv_week:'ស.',dv_month:'ខែ',dv_year:'ឆ្នាំ',
+  show_resigned:'បង្ហាញអ្នកផ្អាក',hide_res:'លាក់អ្នកផ្អាក',add:'បន្ថែម',
+  snap_month:'ថតប្រចាំខែ',
+  col_no:'លរ.',col_name:'ឈ្មោះ',col_id:'លេខ',col_co:'ក្រុមហ៊ុន',
+  col_shift:'វេន',col_post:'ទីតាំង',col_sex:'ភេទ',col_status:'ស្ថានភាព',col_action:'សកម្ម',
+  all:'ទាំងអស់',day_s:'វេនថ្ងៃ',night_s:'វេនយប់',off:'ថ្ងៃឈប់',
+  print:'បោះពុម្ព',click_tip:'ចុចដើម្បីផ្លាស់',click_tip2:'ចុចដើម្បីផ្លាស់',
+  present:'មកធ្វើ',absent:'អវត្ត',late:'យឺត',
+  att_sum:'សង្ខេបវត្តមាន',wk_view:'ប្រចាំសប្ដ',by_person:'អត្រា',
+  stats_month:'ស្ថិតិ',post_dist:'ទីតាំង',
+  anom_crit:'🚨 ធ្ងន់',anom_warn:'⚠️ ព្រមាន',
+  mismatch_only:'តែភាពខុស',
+  match_ok:'ត្រូវគ្នា',match_ab:'អវត្ត',match_lt:'យឺត',match_mm:'ខុស',match_off:'ឈប់',
+  test_tg:'សាក',pay_cfg:'ការកំណត់ប្រាក់',rate_lbl:'ប្រាក់ខែ/នាក់',
+  dh_lbl:'ម៉ោងថ្ងៃ',nh_lbl:'ម៉ោងយប់',
+  data_mgmt:'ទិន្នន័យ',exp_json:'នាំចេញ JSON',imp_json:'ស្ដារ JSON',clear_all:'លុបទិន្នន័យ',
+  name_en:'ឈ្មោះ(អង)',name_km:'ឈ្មោះ(ខ្មែរ)',
+  s_act:'សកម្ម',s_res:'លាឈប់',s_lv:'ព្យួរ',
+  save:'រក្សា',cancel:'បោះ',confirm_clr:'លុបទិន្នន័យ?',
+  anom_absent:'កំណត់{sh}ប៉ុន្ដែគ្មានវត្តមាន',anom_late:'មកយឺត',
+  total_staff:'បុគ្គលិក',att_rate:'អត្រាវត្តមាន',total_anom:'ភាពខុស',monthly_pay:'ប្រាក់ខែ',
+  wk:'ស.{n}',rate:'អត្រា',
+  brand:'ប្រព័ន្ធសន្ដិសុខ',
+  snap_note_none:'ប្រើទិន្នន័យសកល',snap_note_has:'ប្រើទិន្នន័យប្រចាំខែ',
+  snap_ok:'ថតរួចហើយ',
+  save_ok:'រក្សារួច',send_ok:'ផ្ញើរួច',send_fail:'ផ្ញើបរាជ័យ',
+  exp_ok:'នាំចេញបាន',imp_ok:'ស្ដាររួច',no_anom:'គ្មានភាពខុស ✅',
+  pay_title:'ផ្ទៀងផ្ទាត់',sys_calc:'ការគណនា',claimed_lbl:'ICSC ទារ',diff_lbl:'ភាពខុស',
+  match:'ត្រូវ',over:'លើស',under:'ក្រោម',
+  submit_appr:'📋 Submit for Approval',appr_sent:'ផ្ញើរួច',
+  day_sl:'វេនថ្ងៃ',night_sl:'វេនយប់',per_p:'ប្រាក់/នាក់',days_m:'ថ្ងៃ',total_g:'ICSC',
+  preset_lbl:'ជ្រើស',confirm_fee:'បញ្ជាក់',
+  cmp_title:'ប្រៀបធៀប',cmp_total:'សរុប',cmp_ok:'ត្រូវ',cmp_ab:'អវត្ត',cmp_lt:'យឺត',cmp_mm:'ខុស',
+  today:'ថ្ងៃនេះ',today_sub:'វត្តមាន',cur_week:'សប្ដាហ៍',cur_week_sub:'ស្ថិតិ',
+  day_view_title:'វត្តមានថ្ងៃនេះ',week_view_title:'សប្ដាហ៍',
+  yr_title:' និន្នាការប្រចាំឆ្នាំ',yr_no_data:'(គ្មានទិន្នន័យ)'
+}};
+function t(k){ return (I18N[S.lang]||I18N.en)[k]||k }
+function tpl(k,v={}){ let s=t(k); for(const[a,b] of Object.entries(v)) s=s.replace(`{${a}}`,b); return s }
+
+// ══════════════════════════════════════════════
+// SEED DATA
+// ══════════════════════════════════════════════
+const SEED_P=[
+  {id:'P1',name:'Chanuva Mony',km:'ចាន់ ម៉ូនី',cid:'A4085',co:'VRT',shift:'Day',post:'Building A',sex:'F',status:'active'},
+  {id:'P2',name:'Chhort SreyTouch',km:'ឈរ ស្រីទូច',cid:'A5795',co:'VRT',shift:'Day',post:'Building A',sex:'F',status:'active'},
+  {id:'P3',name:'Seam SreyLeak',km:'សៀម ស្រីលក្ខ',cid:'A5768',co:'VRT',shift:'Day',post:'Building B',sex:'F',status:'resign'},
+  {id:'P4',name:'Khun Vin',km:'ខុន វិន',cid:'A003',co:'ICSC',shift:'Day',post:'Front Gate',sex:'M',status:'active'},
+  {id:'P5',name:'Nhem Somphors',km:'ញ៉ឹម សំផស',cid:'A001',co:'ICSC',shift:'Day',post:'Building B',sex:'M',status:'active'},
+  {id:'P6',name:'Chao Bros',km:'ចៅ ប្រស',cid:'A004',co:'ICSC',shift:'Day',post:'Building A',sex:'M',status:'active'},
+  {id:'P7',name:'Deng Dy',km:'ដឹង ឌី',cid:'A002',co:'ICSC',shift:'Night',post:'Front Gate',sex:'M',status:'active'},
+  {id:'P8',name:'Chheng Lychhai',km:'ឈិង លីជ័យ',cid:'A006',co:'ICSC',shift:'Night',post:'Front Gate',sex:'M',status:'active'},
+  {id:'P9',name:'Chhort Chheng',km:'ឈរ ឈឹង',cid:'A008',co:'ICSC',shift:'Night',post:'Building A',sex:'M',status:'active'},
+  {id:'P10',name:'Chhan Vichika',km:'ចន្ទ វិច្ឆិកា',cid:'A11',co:'ICSC',shift:'Day',post:'Staff House',sex:'M',status:'active'},
+  {id:'P11',name:'Nhanh Pov',km:'ញ៉ាន ប៉ូ',cid:'A10',co:'ICSC',shift:'Night',post:'Staff House',sex:'M',status:'active'},
+  {id:'P12',name:'Hea Menghorng',km:'ហ៊ា មែងហ័រ',cid:'A007',co:'ICSC',shift:'Night',post:'Building B',sex:'M',status:'active'},
+  {id:'P13',name:'Cheun Det',km:'ជឿន ដែត',cid:'A005',co:'ICSC',shift:'Day',post:'Building B',sex:'M',status:'active'},
+  {id:'P14',name:'Vorn BunThean',km:'វ៉ន បុណ្យធៀន',cid:'A009',co:'ICSC',shift:'Day',post:'Front Gate',sex:'M',status:'active'}
+];
+const SR3={
+  P1:[null,'D','D',null,'D','D','D',null,'D','D','D','D','D','D',null,'D','D','D','D','D','D',null,'D','D','D','D','D','D',null,'D','D'],
+  P2:[null,'D','D','D','D','D','D',null,null,'D',null,null,null,'D',null,'D','D','D','D','D','D',null,'D','D','D','D','D','D',null,'D','D'],
+  P3:[null,null,'D','D','D','D','D',null,'D','D',null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],
+  P4:['D','D','D','D','D',null,'D','D','D','D','D','D',null,'D','D','D','D','D','D',null,'D','D','D','D','D','D',null,'D','D','D','D'],
+  P5:[null,'D','D','D','D','D','D',null,'D','D','D','D','D','D',null,'D','D','D','D','D','D',null,'D','D','D','D','D','D',null,'D','D'],
+  P6:['D','D',null,'D','D','D',null,'D','D','D','D','D','D',null,'D','D','D','D','D','D',null,'D','D','D',null,'D','D',null,'D','D','D'],
+  P7:['N','N',null,'N','N','N',null,'N','N','N','N','N','N',null,'N','N','N','N','N','N',null,'N','N','N','N','N','N',null,'N','N','N'],
+  P8:[null,'N','N','N','N','N','N',null,'N','N','N','N','N','N',null,'N','N','N','N','N','N',null,'N','N','N','N','N','N',null,'N','N'],
+  P9:['N',null,'N','N','N','N','N',null,'N','N','N','N','N','N',null,'N','N','N','N','N','N',null,'N','N','N',null,'N','N','N','N','N'],
+  P10:['D','D','D','D','D',null,'D','D','D','D','D','D',null,'D','D','D','D','D','D',null,'D','D','D','D','D','D',null,'D','D','D','D'],
+  P11:['N','N','N','N','N',null,'N','N','N','N','N','N',null,'N','N','N','N','N','N',null,'N','N','N','N','N','N',null,'N','N','N','N'],
+  P12:['N','N','N','N','N',null,'N','N','N','N','N','N',null,'N','N','N','N','N','N',null,'N','N','N','N','N','N',null,'N','N','N','N'],
+  P13:['D','D','D','D','D',null,'D','D','D','D','D','D',null,'D','D','D','D','D','D',null,'D','D','D','D','D','D',null,'D','D','D','D'],
+  P14:['D',null,'D','D','D','D',null,'D','D','D','D','D','D',null,'D','D','D','D','D','D',null,'D','D','D','D','D','D',null,'D','D','D']
+};
+const SA3={
+  P1:[null,'L','P',null,'P','P','P',null,'P','P','P','P','P','P',null,'P','P','P','P','P','P',null,'L','P','P','P','P','P',null,'P','P'],
+  P2:[null,'L','P','P','P','P','P',null,'A','P','A','A','A','P',null,'P','P','P','P','P','P',null,'P','P','P','P','P','P',null,'P','P'],
+  P3:[null,null,'P','P','P','P','P',null,'P','P',null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],
+  P4:[null,'L','P','P','P',null,'P','P','P','P','P','P',null,'P','P','P','P','P','P',null,'P','P','P','P','P','P',null,'P','P','P','P'],
+  P5:[null,'L','P','P','P','P',null,'P','P','P','P','P','P','P','P','P','P','P','P','P','P',null,'P','P','P','P','P','P','P','P',null],
+  P6:[null,'L',null,'P','P','P',null,'P','P',null,'P','P','P','P','P','P',null,'P','P','P','P','P','P',null,'P','P','P',null,'P','P','P'],
+  P7:[null,'L',null,'P','P','P',null,'P','P','P',null,'P','P','P','P','P','P','P',null,'P','P','L','P','P','P','P','P','P','P',null,'P'],
+  P8:[null,'L','P','P','P','P','P',null,'P','P','P','P','P','P',null,'P','P','P','P','P','P','L','P','P','P','P','P','P',null,'P','P'],
+  P9:[null,null,'P','P','P','P','P',null,'P','P','P','P','P','P',null,'P','P',null,'P','P','P','L','P','P','P',null,'P','P','P','P','P'],
+  P10:[null,'L','P','P',null,'P','P','P','P','P','P',null,'P','P','P','P','P','P',null,'P','P','P','P','P','P',null,'P','P','P','P','P'],
+  P11:[null,'L','P','P','P','P',null,'P','P','P','P','P','P',null,'P','P','P','P','P',null,'P','L','P','P','P','P',null,'P','P','P','P'],
+  P12:[null,'L','P',null,'P','P','P','P','P','P','P','P',null,'P','P','P','P','P','P','P',null,'L','P','P','P','P','P',null,'P','P','P'],
+  P13:[null,'L','P',null,'P','P','P','P','P','P',null,'P','P','P','P','P','P',null,'P','P','P','P','P','P',null,'P','P','P','P','P','P'],
+  P14:[null,null,'P','P','P','P',null,'P','P','P','P','P','P',null,'P',null,'P','P','P','P','P','P',null,'P','P','P','P','P','P','P','P']
+};
+
+// ══════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════
+let S={
+  lang:'zh',tab:'dash',dashView:'month',
+  year:2026,month:3,
+  personnel:[],
+  monthSnap:{},  // rk -> array of person objects (snapshot for that month)
+  roster:{},att:{},
+  config:{rate:300,dayH:12,nightH:12},
+  tg:{token:'',chat:''},
+  claimed:{}
+};
+const MEN=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MSH=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function rk(){ return `${S.year}_${S.month}` }
+function days(y,m){ return new Date(y,m,0).getDate() }
+function dow(y,m,d){ return new Date(y,m-1,d).getDay() }
+function cRos(){ return S.roster[rk()]||{} }
+function cAtt(){ return S.att[rk()]||{} }
+// Get personnel for current month (snapshot if exists, else global active)
+function monthPeople(){
+  return S.monthSnap[rk()] ? S.monthSnap[rk()] : S.personnel;
+}
+function ls(k,v){ if(v===undefined) return localStorage.getItem(k); localStorage.setItem(k,v) }
+
+function load(){
+  try{
+    const p=ls('v3_p'); S.personnel=p?JSON.parse(p):JSON.parse(JSON.stringify(SEED_P));
+    const r=ls('v3_r'); S.roster=r?JSON.parse(r):{'2026_3':JSON.parse(JSON.stringify(SR3))};
+    const a=ls('v3_a'); S.att=a?JSON.parse(a):{'2026_3':JSON.parse(JSON.stringify(SA3))};
+    const c=ls('v3_c'); S.config=c?JSON.parse(c):{rate:300,dayH:12,nightH:12};
+    const tg=ls('v3_tg'); if(tg) S.tg=JSON.parse(tg);
+    const cl=ls('v3_cl'); if(cl) S.claimed=JSON.parse(cl);
+    const sn=ls('v3_sn'); if(sn) S.monthSnap=JSON.parse(sn);
+  }catch(e){
+    S.personnel=JSON.parse(JSON.stringify(SEED_P));
+    S.roster={'2026_3':JSON.parse(JSON.stringify(SR3))};
+    S.att={'2026_3':JSON.parse(JSON.stringify(SA3))};
+    S.config={rate:300,dayH:12,nightH:12};
+  }
+}
+function save(){
+  ls('v3_p',JSON.stringify(S.personnel));
+  ls('v3_r',JSON.stringify(S.roster));
+  ls('v3_a',JSON.stringify(S.att));
+  ls('v3_c',JSON.stringify(S.config));
+  ls('v3_tg',JSON.stringify(S.tg));
+  ls('v3_cl',JSON.stringify(S.claimed));
+  ls('v3_sn',JSON.stringify(S.monthSnap));
+}
+
+// ══════════════════════════════════════════════
+// STATS ENGINE
+// ══════════════════════════════════════════════
+function pStats(pid){
+  const d=days(S.year,S.month);
+  const ros=cRos()[pid]||[];
+  const att=cAtt()[pid]||[];
+  let sched=0,P=0,A=0,L=0,off=0;
+  for(let i=0;i<d;i++){
+    const s=ros[i],a=att[i];
+    if(!s){off++;continue}
+    sched++;
+    if(a==='P')P++;else if(a==='A')A++;else if(a==='L')L++;
+  }
+  const rate=sched>0?Math.round((P+L)/sched*100):0;
+  return {sched,P,A,L,off,worked:P+L,rate};
+}
+
+function allStats(){
+  const people=monthPeople().filter(p=>p.status==='active');
+  let sched=0,P=0,A=0,L=0;
+  people.forEach(p=>{const s=pStats(p.id);sched+=s.sched;P+=s.P;A+=s.A;L+=s.L;});
+  return {sched,P,A,L,rate:sched>0?Math.round((P+L)/sched*100):0,n:people.length};
+}
+
+function weekStats(){
+  const d=days(S.year,S.month);
+  const people=monthPeople().filter(p=>p.status==='active');
+  let weeks=[];let wn=0;
+  for(let day=1;day<=d;day++){
+    if(day===1||dow(S.year,S.month,day)===1) wn++;
+    const w=weeks[wn-1]||(weeks[wn-1]={n:wn,start:day,end:day,sched:0,pres:0});
+    w.end=day;
+    people.forEach(p=>{
+      const s=(cRos()[p.id]||[])[day-1];
+      const a=(cAtt()[p.id]||[])[day-1];
+      if(s){w.sched++;if(a==='P'||a==='L')w.pres++;}
+    });
+  }
+  return weeks.map(w=>({...w,rate:w.sched>0?Math.round(w.pres/w.sched*100):0}));
+}
+
+function anomalies(){
+  const res=[];
+  const d=days(S.year,S.month);
+  monthPeople().filter(p=>p.status==='active').forEach(p=>{
+    const ros=cRos()[p.id]||[];
+    const att=cAtt()[p.id]||[];
+    for(let i=0;i<d;i++){
+      const s=ros[i],a=att[i];
+      if(!s) continue;
+      const sh=s==='D'?t('day_s'):t('night_s');
+      if(a===null||a===undefined||a==='A'){
+        res.push({sev:'critical',icon:'🚨',pid:p.id,day:i+1,
+          title:`${p.name} — ${MSH[S.month-1]} ${i+1}`,
+          desc:tpl('anom_absent',{sh})});
+      } else if(a==='L'){
+        res.push({sev:'warning',icon:'⚠️',pid:p.id,day:i+1,
+          title:`${p.name} — ${MSH[S.month-1]} ${i+1}`,
+          desc:t('anom_late')});
+      }
+    }
+  });
+  return res.sort((a,b)=>a.sev==='critical'?-1:1);
+}
+
+// ══════════════════════════════════════════════
+// UI
+// ══════════════════════════════════════════════
+function showTab(n){
+  S.tab=n;
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===n));
+  document.getElementById(`panel-${n}`).classList.add('on');
+  refresh();
+}
+function setLang(l){
+  S.lang=l;
+  ['zh','en','km'].forEach(x=>document.getElementById(`lb-${x}`).classList.toggle('on',x===l));
+  applyI18n();refresh();
+}
+function changeMonth(d){
+  S.month+=d;if(S.month>12){S.month=1;S.year++}if(S.month<1){S.month=12;S.year--}
+  if(!S.roster[rk()]) S.roster[rk()]={};
+  if(!S.att[rk()]) S.att[rk()]={};
+  const ml=`${MSH[S.month-1]} ${S.year}`;
+  document.getElementById('mn-lbl').textContent=ml;
+  const mnr=document.getElementById('mn-roster-lbl');if(mnr)mnr.textContent=ml;
+  const mna=document.getElementById('mn-att-lbl');if(mna)mna.textContent=ml;
+  refresh();
+}
+function applyI18n(){
+  document.querySelectorAll('[data-i]').forEach(el=>{const k=el.getAttribute('data-i');el.textContent=t(k)});
+  document.getElementById('h-brand').textContent=t('brand');
+  const ml=`${MSH[S.month-1]} ${S.year}`;
+  document.getElementById('mn-lbl').textContent=ml;
+  const mnr=document.getElementById('mn-roster-lbl');if(mnr)mnr.textContent=ml;
+  const mna=document.getElementById('mn-att-lbl');if(mna)mna.textContent=ml;
+}
+function refresh(){
+  const tab=S.tab;
+  if(tab==='dash') renderDash();
+  else if(tab==='pers') renderPers();
+  else if(tab==='roster'){renderRoster();updRosterStats();}
+  else if(tab==='att'){renderAtt();updAttStats();}
+  else if(tab==='compare') renderCompare();
+  else if(tab==='pay') renderPay();
+  else if(tab==='anom') renderAnom();
+  else if(tab==='cfg') renderCfg();
+}
+function toast(msg,type='ok'){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.className=`toast t${type} show`;
+  setTimeout(()=>el.classList.remove('show'),2800);
+}
+function closeOv(id){document.getElementById(id).classList.remove('on')}
+
+// ══════════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════════
+let _ca=null,_cs=null;
+function setDashView(v){
+  S.dashView=v;
+  ['day','week','month','year'].forEach(x=>document.getElementById(`dv-${x}`).classList.toggle('on',x===v));
+  renderDash();
+}
+
+function renderDash(){
+  const view=S.dashView||'month';
+  const el=document.getElementById('dash-view');
+  if(view==='day') el.innerHTML=buildDayView();
+  else if(view==='week') el.innerHTML=buildWeekView();
+  else if(view==='month') buildMonthView(el);
+  else if(view==='year') el.innerHTML=buildYearView();
+}
+
+function buildDayView(){
+  const today=new Date();
+  const todayDay=today.getDate();
+  const isCurrentMonth=(today.getFullYear()===S.year&&today.getMonth()+1===S.month);
+  const d=isCurrentMonth?todayDay:days(S.year,S.month);
+  const people=monthPeople().filter(p=>p.status==='active');
+  const idx=d-1;
+  let present=0,absent=0,late=0,off2=0;
+  const rows=people.map(p=>{
+    const s=(cRos()[p.id]||[])[idx];
+    const a=(cAtt()[p.id]||[])[idx];
+    let status='—',cls='color:var(--tx3)';
+    if(!s){off2++;status=t('off');}
+    else if(a==='P'){present++;status='✓ '+t('present');cls='color:var(--grn);font-weight:600';}
+    else if(a==='A'){absent++;status='✗ '+t('absent');cls='color:var(--red);font-weight:600';}
+    else if(a==='L'){late++;status='⚠ '+t('late');cls='color:var(--amb);font-weight:600';}
+    else{status='? —';}
+    return `<tr><td><b>${p.name}</b></td><td><span class="badge ${p.shift==='Day'?'bd-day':'bd-night'}">${p.shift}</span></td><td>${p.post}</td><td style="${cls}">${status}</td></tr>`;
+  }).join('');
+  return `
+    <div class="g4 mb14">
+      ${scHtml(t('present'),present,'var(--grn)','')}
+      ${scHtml(t('absent'),absent,'var(--red)','')}
+      ${scHtml(t('late'),late,'var(--amb)','')}
+      ${scHtml(t('off'),off2,'var(--tx3)','')}
+    </div>
+    <div class="card">
+      <div class="card-hd">📋 ${t('day_view_title')} — ${MSH[S.month-1]} ${d}</div>
+      <div class="tw"><table>
+        <thead><tr><th>${t('col_name')}</th><th>${t('col_shift')}</th><th>${t('col_post')}</th><th>${t('col_status')}</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+    </div>`;
+}
+
+function buildWeekView(){
+  const weeks=weekStats();
+  const wCards=weeks.map((w,i)=>{
+    const c=w.rate>=90?'var(--grn)':w.rate>=75?'var(--amb)':'var(--red)';
+    return `<div class="sc"><div class="sc-lbl">${tpl('wk',{n:i+1})} (${MSH[S.month-1]} ${w.start}-${w.end})</div>
+      <div class="sc-val" style="color:${c}">${w.rate}%</div>
+      <div class="sc-sub">✓${w.pres} / ${w.sched} ${t('work_days')||'scheduled'}</div></div>`;
+  }).join('');
+  const anom=anomalies();
+  return `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:14px">${wCards}</div>
+    <div class="card">
+      <div class="card-hd">⚠️ ${t('t_anom')} (${anom.length})</div>
+      ${anom.slice(0,8).map(a=>`<div class="ai ai-${a.sev}"><span class="ai-ico">${a.icon}</span><div class="ai-b"><b>${a.title}</b><span>${a.desc}</span></div></div>`).join('')||`<div style="color:var(--grn);text-align:center;padding:12px;font-weight:600">${t('no_anom')}</div>`}
+    </div>`;
+}
+
+function buildMonthView(el){
+  const st=allStats();
+  const people=monthPeople().filter(p=>p.status==='active');
+  const icsc=people.filter(p=>p.co==='ICSC');
+  const pay=icsc.length*(parseInt(S.config.rate)||300);
+  const anom=anomalies();
+  const weeks=weekStats();
+
+  el.innerHTML=`
+    <div class="g5 mb14">
+      ${scHtml(t('total_staff'),people.length,'var(--pri)',`ICSC:${icsc.length}`)}
+      ${scHtml(t('att_rate'),st.rate+'%',st.rate>=90?'var(--grn)':st.rate>=75?'var(--amb)':'var(--red)',`✓${st.P} ✗${st.A}`)}
+      ${scHtml('✓ '+t('present'),st.P,'var(--grn)','')}
+      ${scHtml('✗ '+t('absent'),st.A,'var(--red)','')}
+      ${scHtml(t('monthly_pay'),'$'+pay,'var(--pri)',`${icsc.length}×$${S.config.rate}`)}
+    </div>
+    <div class="g2 mb14">
+      <div class="card">
+        <div class="card-hd">📈 ${t('wk_view')}</div>
+        <div style="display:grid;grid-template-columns:repeat(${weeks.length},1fr);gap:6px;height:110px;align-items:flex-end">
+          ${weeks.map((w,i)=>{
+            const c=w.rate>=90?'var(--grn)':w.rate>=75?'var(--amb)':'var(--red)';
+            const h=Math.max(10,w.rate);
+            return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:3px">
+              <div style="font-size:11px;font-weight:700;color:${c}">${w.rate}%</div>
+              <div style="height:${h*0.7}px;width:100%;background:${c};border-radius:4px 4px 0 0;opacity:.85"></div>
+              <div style="font-size:10px;color:var(--tx3)">${tpl('wk',{n:i+1})}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd">⚠️ ${t('t_anom')} (${anom.length})</div>
+        ${anom.slice(0,5).map(a=>`<div class="ai ai-${a.sev}"><span class="ai-ico">${a.icon}</span><div class="ai-b"><b>${a.title}</b><span>${a.desc}</span></div></div>`).join('')||`<div style="color:var(--grn);text-align:center;padding:16px;font-weight:600">${t('no_anom')}</div>`}
+        ${anom.length>5?`<div style="text-align:center;font-size:11px;color:var(--tx3);padding:6px">...${anom.length} ${t('total_anom')}</div>`:''}
+      </div>
+    </div>`;
+}
+
+function buildYearView(){
+  const all12=Array.from({length:12},(_,i)=>{
+    const k=`${S.year}_${i+1}`;
+    const d2=days(S.year,i+1);
+    const people=S.monthSnap[k]||S.personnel;
+    const active=people.filter(p=>p.status==='active');
+    let sched=0,pres=0;
+    active.forEach(p=>{
+      const ros=(S.roster[k]||{})[p.id]||[];
+      const att=(S.att[k]||{})[p.id]||[];
+      for(let j=0;j<d2;j++){
+        if(ros[j]){sched++;if(att[j]==='P'||att[j]==='L')pres++;}
+      }
+    });
+    const rate=sched>0?Math.round(pres/sched*100):null;
+    const hasData=sched>0;
+    return {m:i+1,label:MSH[i],rate,hasData,sched,pres};
+  });
+  const maxRate=100;
+  const bars=all12.map(m=>{
+    const isCurrentM=m.m===S.month;
+    const c=m.hasData?(m.rate>=90?'var(--grn)':m.rate>=75?'var(--amb)':'var(--red)'):'var(--sf3)';
+    const h=m.hasData?Math.max(4,m.rate*0.9):10;
+    const borderStyle=isCurrentM?'border:2px solid var(--pri);border-radius:4px 4px 0 0;':'';
+    return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:3px">
+      <div style="font-size:10px;font-weight:700;color:${c}">${m.hasData?m.rate+'%':''}</div>
+      <div style="height:${h}px;width:100%;background:${c};${borderStyle};border-radius:4px 4px 0 0;opacity:${isCurrentM?1:.8}"></div>
+      <div style="font-size:9px;color:${isCurrentM?'var(--pri)':'var(--tx3)'};font-weight:${isCurrentM?700:400}">${m.label}</div>
+    </div>`;
+  }).join('');
+
+  const anoms12=all12.map(m=>{
+    const k=`${S.year}_${m.m}`;
+    const oldM=S.month,oldY=S.year;
+    S.month=m.m;// temp
+    const a=anomalies();
+    S.month=oldM;
+    return {m:m.m,label:m.label,count:a.length};
+  });
+
+  return `
+    <div class="card mb14">
+      <div class="card-hd">📊 ${t('yr_title')} ${S.year}</div>
+      <div style="height:140px;padding:10px 0">
+        <div style="display:grid;grid-template-columns:repeat(12,1fr);gap:5px;height:100%;align-items:flex-end">${bars}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(12,1fr);gap:5px;margin-top:6px">
+        ${all12.map(m=>`<div style="text-align:center;font-size:10px;color:var(--tx3)">✓${m.pres}<br>/${m.sched}</div>`).join('')}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hd">⚠️ ${t('t_anom')} / ${t('dv_month')}</div>
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:4px">
+        ${anoms12.map(m=>{
+          const c=m.count===0?'var(--grn)':m.count<3?'var(--amb)':'var(--red)';
+          const bg=m.count===0?'var(--grn2)':m.count<3?'var(--amb2)':'var(--red2)';
+          const isC=m.m===S.month;
+          return `<div style="background:${bg};border-radius:var(--r);padding:8px;text-align:center;border:${isC?'2px solid var(--pri)':'1px solid transparent'}">
+            <div style="font-size:10px;color:var(--tx2)">${m.label}</div>
+            <div style="font-size:18px;font-weight:800;color:${c}">${m.count}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+
+function scHtml(label,val,color,sub){
+  return `<div class="sc"><div class="sc-lbl">${label}</div><div class="sc-val" style="color:${color}">${val}</div>${sub?`<div class="sc-sub">${sub}</div>`:''}</div>`;
+}
+
+// ══════════════════════════════════════════════
+// PERSONNEL + MONTHLY SNAPSHOT
+// ══════════════════════════════════════════════
+function renderPers(){
+  const q=(document.getElementById('srch-p')?.value||'').toLowerCase();
+  const showRes=document.getElementById('show-res')?.checked;
+  const hasSn=!!S.monthSnap[rk()];
+  const people=hasSn?S.monthSnap[rk()]:S.personnel;
+
+  // Snap badge
+  const snapBadge=document.getElementById('snap-badge');
+  if(snapBadge) snapBadge.textContent=hasSn?`📸 ${MSH[S.month-1]} Snapshot`:'Global';
+  const snapNote=document.getElementById('snap-note');
+  if(snapNote) snapNote.textContent=hasSn?t('snap_note_has'):t('snap_note_none');
+
+  const filtered=people.filter(p=>{
+    if(!showRes&&p.status==='resign') return false;
+    return p.name.toLowerCase().includes(q)||p.cid.toLowerCase().includes(q)||(p.post||'').toLowerCase().includes(q);
+  });
+  document.getElementById('pers-tbody').innerHTML=filtered.map((p,i)=>{
+    const photoCell=p.photo?`<img src="${p.photo}" style="width:34px;height:42px;object-fit:cover;border-radius:4px;border:1px solid var(--bd)">`:`<div style="width:34px;height:42px;background:var(--sf2);border-radius:4px;border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:14px">👤</div>`;
+    return `<tr class="${p.status==='resign'?'resigned':''}">
+      <td style="text-align:center">${i+1}</td>
+      <td style="padding:5px 9px">${photoCell}</td>
+      <td><b class="pnm">${p.name}</b><div style="font-size:10px;color:var(--tx3)">${p.km||''}</div></td>
+      <td><code style="background:var(--sf2);padding:1px 5px;border-radius:4px;font-size:10px">${p.cid}</code><div style="font-size:9px;color:var(--tx3)">${p.ld||''}</div></td>
+      <td><span class="badge ${p.co==='VRT'?'bd-vrt':'bd-icsc'}">${p.co}</span></td>
+      <td><span class="badge ${p.shift==='Day'?'bd-day':'bd-night'}">${p.shift==='Day'?t('day_s'):t('night_s')}</span></td>
+      <td>${p.post}</td>
+      <td>${p.sex}</td>
+      <td><div style="font-size:11px">${p.tel||'—'}</div></td>
+      <td><span class="badge ${p.status==='active'?'bd-act':p.status==='resign'?'bd-res':'bd-lv'}">${p.status==='active'?t('s_act'):p.status==='resign'?t('s_res'):t('s_lv')}</span></td>
+      <td><span style="font-size:10px;color:${p.crime==='yes'?'var(--red)':'var(--grn)'}">${p.crime==='yes'?'⚠ Yes':'✓ No'}</span></td>
+      <td>
+        <button class="btn bh bs" onclick="openPModal('${p.id}')">✏️</button>
+        <button class="btn br bs" onclick="delPerson('${p.id}')">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function useMonthSnap(){
+  // Create a deep copy of current personnel as snapshot for this month
+  S.monthSnap[rk()]=JSON.parse(JSON.stringify(S.personnel));
+  save();renderPers();toast(t('snap_ok'));
+}
+
+function openPModal(id){
+  const people=S.monthSnap[rk()]||S.personnel;
+  const p=id?people.find(x=>x.id===id):null;
+  document.getElementById('pm-title').textContent=p?p.name:'新增人員 Add Person';
+  document.getElementById('pm-id').value=p?p.id:'';
+  document.getElementById('pm-name').value=p?p.name:'';
+  document.getElementById('pm-km').value=p?p.km||'':'';
+  document.getElementById('pm-cid').value=p?p.cid:'';
+  document.getElementById('pm-ld').value=p?p.ld||'':'';
+  document.getElementById('pm-co').value=p?p.co:'ICSC';
+  document.getElementById('pm-shift').value=p?p.shift:'Day';
+  document.getElementById('pm-sex').value=p?p.sex:'M';
+  document.getElementById('pm-post').value=p?p.post:'Front Gate';
+  document.getElementById('pm-stat').value=p?p.status:'active';
+  document.getElementById('pm-dob').value=p?p.dob||'':'';
+  document.getElementById('pm-lang').value=p?p.lang||'Khmer':'Khmer';
+  document.getElementById('pm-edu').value=p?p.edu||'Secondary school':'Secondary school';
+  document.getElementById('pm-marital').value=p?p.marital||'Single':'Single';
+  document.getElementById('pm-cs').value=p?p.contractStart||'':'';
+  document.getElementById('pm-ce').value=p?p.contractEnd||'':'';
+  document.getElementById('pm-family').value=p?p.family||'':'';
+  document.getElementById('pm-addr').value=p?p.address||'':'';
+  document.getElementById('pm-tel').value=p?p.tel||'':'';
+  document.getElementById('pm-crime').value=p?p.crime||'no':'no';
+  document.getElementById('pm-crime-date').value=p?p.crimeDate||'':'';
+  // Photo
+  const photoData=p?p.photo||'':'';
+  document.getElementById('pm-photo-data').value=photoData;
+  const prev=document.getElementById('pm-photo-preview');
+  if(photoData){
+    prev.innerHTML='<img src="'+photoData+'" style="width:100%;height:100%;object-fit:cover">';
+  } else {
+    prev.innerHTML='<span style="font-size:22px">📷</span><span style="font-size:11px;color:var(--tx3)">點擊上傳</span>';
+  }
+  document.getElementById('pm-ov').classList.add('on');
+}
+function onPhotoSelect(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const data=ev.target.result;
+    document.getElementById('pm-photo-data').value=data;
+    document.getElementById('pm-photo-preview').innerHTML='<img src="'+data+'" style="width:100%;height:100%;object-fit:cover">';
+  };
+  reader.readAsDataURL(file);
+  e.target.value='';
+}
+function clearPhoto(){
+  document.getElementById('pm-photo-data').value='';
+  document.getElementById('pm-photo-preview').innerHTML='<span style="font-size:22px">📷</span><span style="font-size:11px;color:var(--tx3)">點擊上傳</span>';
+}
+
+function savePerson(){
+  const id=document.getElementById('pm-id').value;
+  const name=document.getElementById('pm-name').value.trim();
+  const cid=document.getElementById('pm-cid').value.trim();
+  if(!name||!cid){toast('Name & ID required','err');return}
+  const data={
+    id:id||'P'+Date.now(), name,
+    km:document.getElementById('pm-km').value.trim(),
+    cid, co:document.getElementById('pm-co').value,
+    shift:document.getElementById('pm-shift').value,
+    sex:document.getElementById('pm-sex').value,
+    post:document.getElementById('pm-post').value,
+    status:document.getElementById('pm-stat').value,
+    ld:document.getElementById('pm-ld')?document.getElementById('pm-ld').value.trim():'',
+    dob:document.getElementById('pm-dob')?document.getElementById('pm-dob').value.trim():'',
+    lang:document.getElementById('pm-lang')?document.getElementById('pm-lang').value.trim():'Khmer',
+    edu:document.getElementById('pm-edu')?document.getElementById('pm-edu').value:'',
+    marital:document.getElementById('pm-marital')?document.getElementById('pm-marital').value:'',
+    contractStart:document.getElementById('pm-cs')?document.getElementById('pm-cs').value.trim():'',
+    contractEnd:document.getElementById('pm-ce')?document.getElementById('pm-ce').value.trim():'',
+    family:document.getElementById('pm-family')?document.getElementById('pm-family').value.trim():'',
+    address:document.getElementById('pm-addr')?document.getElementById('pm-addr').value.trim():'',
+    tel:document.getElementById('pm-tel')?document.getElementById('pm-tel').value.trim():'',
+    crime:document.getElementById('pm-crime')?document.getElementById('pm-crime').value:'no',
+    crimeDate:document.getElementById('pm-crime-date')?document.getElementById('pm-crime-date').value.trim():'',
+    photo:document.getElementById('pm-photo-data')?document.getElementById('pm-photo-data').value:''
+  };
+  const hasSn=!!S.monthSnap[rk()];
+  // FIX: target is reference to S.personnel when no snapshot — don't double-push
+  const target=hasSn?S.monthSnap[rk()]:S.personnel;
+  if(id){
+    const idx=target.findIndex(p=>p.id===id);
+    if(idx>=0) target[idx]=data; else target.push(data);
+    if(hasSn){const gi=S.personnel.findIndex(p=>p.id===id);if(gi>=0)S.personnel[gi]=data;}
+  } else {
+    target.push(data);
+    if(hasSn) S.personnel.push(data);
+  }
+  save();closeOv('pm-ov');renderPers();toast(t('save_ok'));
+}
+
+function delPerson(id){
+  if(!confirm(t('confirm_clr'))) return;
+  const hasSn=!!S.monthSnap[rk()];
+  if(hasSn) S.monthSnap[rk()]=S.monthSnap[rk()].filter(p=>p.id!==id);
+  else S.personnel=S.personnel.filter(p=>p.id!==id);
+  save();renderPers();
+}
+
+// ══════════════════════════════════════════════
+// SHIFT TAG HELPERS
+// ══════════════════════════════════════════════
+function getRosterTag(pr,d,pid){
+  const worked=pr.filter(x=>x);
+  const allD=worked.length>0&&worked.every(x=>x==='D');
+  const allN=worked.length>0&&worked.every(x=>x==='N');
+  const dc=worked.filter(x=>x==='D').length;
+  const nc=worked.filter(x=>x==='N').length;
+  const attr='data-pid="'+pid+'" onclick="promptFillRosterByEl(this)"';
+  if(!worked.length)
+    return '<span class="rtag rtag-off" '+attr+' title="整月未排班，點擊批量填入">＋ 未排</span>';
+  if(allD)
+    return '<span class="rtag rtag-all-d" '+attr+' title="整月全日班，點擊可切換或覆蓋">🌅 全日班</span>';
+  if(allN)
+    return '<span class="rtag rtag-all-n" '+attr+' title="整月全夜班，點擊可切換或覆蓋">🌙 全夜班</span>';
+  return '<span class="rtag rtag-mix" '+attr+' title="混合班: 日'+dc+' 夜'+nc+'，點擊可覆蓋整月">⚡ D'+dc+'/N'+nc+'</span>';
+}
+function getAttTag(pa,pr,d,pid){
+  const scheduled=pr.filter(x=>x).length;
+  if(!scheduled) return '<span class="atag atag-none">— 未排</span>';
+  let p=0,a=0,l=0;
+  for(let i=0;i<d;i++){if(!pr[i])continue;const v=pa[i];if(v==='P')p++;else if(v==='A')a++;else if(v==='L')l++;}
+  // Use data-pid attribute to avoid quote issues in onclick
+  const attr='data-pid="'+pid+'" onclick="fillAttPresentByEl(this)"';
+  if(a===0&&l===0&&p===scheduled)
+    return '<span class="atag atag-full" '+attr+' title="整月全勤，點擊可重置">✅ 全勤</span>';
+  if(a===0&&l>0)
+    return '<span class="atag atag-ok" '+attr+' title="'+l+'次遲到，點擊全部設為出勤">⚠ 遲'+l+'</span>';
+  if(a>0&&a<=2)
+    return '<span class="atag atag-warn" '+attr+' title="'+a+'次缺勤，點擊設為全勤">✗ 缺'+a+'</span>';
+  if(a>2)
+    return '<span class="atag atag-bad" '+attr+' title="'+a+'次缺勤，點擊設為全勤">🚨 缺'+a+'</span>';
+  return '<span class="atag atag-ok" '+attr+' title="點擊設為全勤">'+p+'/'+scheduled+'</span>';
+}
+
+// Wrapper that reads pid from data attribute (avoids quote issues)
+function promptFillRosterByEl(el){promptFillRoster(el.dataset.pid);}
+function fillAttPresentByEl(el){fillAttPresent(el.dataset.pid);}
+
+// 排班：彈出選單讓使用者選 D / N / 清空，然後覆蓋整月
+function promptFillRoster(pid){
+  const choice=window.prompt(
+    '批量填入整月排班：\n  輸入 D = 全日班\n  輸入 N = 全夜班\n  輸入 0 = 清空整月',
+    'D'
+  );
+  if(choice===null) return; // 取消
+  const v=choice.trim().toUpperCase();
+  if(v!=='D'&&v!=='N'&&v!=='0'){toast('請輸入 D、N 或 0','err');return;}
+  const d=days(S.year,S.month);
+  if(!S.roster[rk()])S.roster[rk()]={};
+  S.roster[rk()][pid]=Array(d).fill(v==='0'?null:v);
+  save();renderRoster();
+  const label=v==='D'?'全日班(D)':v==='N'?'全夜班(N)':'清空';
+  toast(`已設定整月 ${label}`);
+}
+
+// 出勤：把所有排班日設為 P（出勤），讓使用者再手動調整例外
+function fillAttPresent(pid){
+  if(!confirm('將整月所有排班日設為「出勤✓」？\n（已是全勤則重置為未填）')) return;
+  const d=days(S.year,S.month);
+  const rkey=rk();
+  if(!S.att[rkey])S.att[rkey]={};
+  const pr=cRos()[pid]||Array(d).fill(null);
+  const cur=S.att[rkey][pid]||Array(d).fill(null);
+  // 若已全勤則重置（方便修改），否則填P
+  const allPresent=pr.every((s,i)=>!s||cur[i]==='P');
+  S.att[rkey][pid]=pr.map((s,i)=>s?(allPresent?null:'P'):cur[i]);
+  save();renderAtt();toast(allPresent?'已重置出勤紀錄':'已設定整月全勤');
+}
+
+// ══════════════════════════════════════════════
+// ROSTER (INTERACTIVE)
+// ══════════════════════════════════════════════
+function renderRoster(){
+  document.getElementById('roster-hd').textContent=`${MEN[S.month-1]} ${S.year} ${t('t_roster')}`;
+  const mnl=document.getElementById('mn-roster-lbl');if(mnl)mnl.textContent=`${MSH[S.month-1]} ${S.year}`;
+  const d=days(S.year,S.month);
+  const ros=cRos();
+  const hideRes=document.getElementById('hr-roster')?.checked;
+  const people=monthPeople().filter(p=>!(hideRes&&p.status==='resign'));
+  people.forEach(p=>{if(!S.roster[rk()])S.roster[rk()]={};if(!S.roster[rk()][p.id])S.roster[rk()][p.id]=Array(d).fill(null);});
+
+  let h=`<table class="rtbl"><thead><tr>
+    <th>NO</th><th style="min-width:145px;position:sticky;left:0;background:var(--pri)">${t('col_name')}</th>
+    <th>ID</th><th>${t('col_co')}</th><th title="整月班別標示" style="min-width:54px">班況</th>`;
+  for(let i=1;i<=d;i++){const sw=dow(S.year,S.month,i)===0;h+=`<th class="${sw?'th-sun':''}">${i}</th>`;}
+  h+=`<th>Σ</th></tr></thead><tbody>`;
+  people.forEach((p,i)=>{
+    const pr=ros[p.id]||Array(d).fill(null);
+    const wr=pr.filter(x=>x).length;
+    const ires=p.status==='resign';
+    const rtag=ires?'':getRosterTag(pr,d,p.id);
+    h+=`<tr class="${ires?'ires':''}"><td style="text-align:center">${i+1}</td>
+      <td class="nm"><span class="pnm">${p.name}</span><div style="font-size:9px;color:var(--tx3)">${p.cid}</div></td>
+      <td class="cid">${p.cid}</td>
+      <td class="co"><span class="badge ${p.co==='VRT'?'bd-vrt':'bd-icsc'}" style="font-size:9px">${p.co}</span></td>
+      <td style="text-align:center">${ires?'':rtag}</td>`;
+    for(let di=0;di<d;di++){
+      const v=pr[di];const sw=dow(S.year,S.month,di+1)===0;
+      const sc=sw?' td-sun':'';
+      if(ires){h+=`<td class="${sc}">${v||'—'}</td>`;continue;}
+      const cc=v==='D'?'rcell rD':v==='N'?'rcell rN':'rcell rX';
+      h+=`<td class="${cc}${sc}" onclick="cycleRos('${p.id}',${di})">${v||'—'}</td>`;
+    }
+    h+=`<td style="text-align:center;font-weight:700;color:var(--pri)">${wr}</td></tr>`;
+  });
+  h+='</tbody></table>';
+  document.getElementById('roster-wrap').innerHTML=h;
+  updRosterStats();
+}
+
+function cycleRos(pid,di){
+  if(!S.roster[rk()]) S.roster[rk()]={};
+  const d=days(S.year,S.month);
+  if(!S.roster[rk()][pid]) S.roster[rk()][pid]=Array(d).fill(null);
+  const cy=[null,'D','N'];
+  const cur=S.roster[rk()][pid][di];
+  S.roster[rk()][pid][di]=cy[(cy.indexOf(cur)+1)%cy.length];
+  save();renderRoster();
+}
+
+function updRosterStats(){
+  const d=days(S.year,S.month);
+  const ros=cRos();
+  const people=monthPeople().filter(p=>p.status==='active');
+  let tD=0,tN=0,tOff=0;const pc={};
+  people.forEach(p=>{
+    const pr=ros[p.id]||Array(d).fill(null);
+    pr.forEach(v=>{
+      if(v==='D'){tD++;const c=pc[p.post]=(pc[p.post]||{D:0,N:0});c.D++;}
+      else if(v==='N'){tN++;const c=pc[p.post]=(pc[p.post]||{D:0,N:0});c.N++;}
+      else tOff++;
+    });
+  });
+  const el=document.getElementById('rs-stats');
+  if(el) el.innerHTML=`
+    <div class="sr"><div class="sr-l">🌅 ${t('day_s')}</div><div class="sr-v" style="color:var(--blu)">${tD}</div></div>
+    <div class="sr"><div class="sr-l">🌙 ${t('night_s')}</div><div class="sr-v" style="color:var(--pur)">${tN}</div></div>
+    <div class="sr"><div class="sr-l">☀️ ${t('off')}</div><div class="sr-v" style="color:var(--tx3)">${tOff}</div></div>
+    <div class="div" style="margin:7px 0"></div>
+    <div class="sr"><div class="sr-l">Σ</div><div class="sr-v">${tD+tN}</div></div>`;
+  const pe=document.getElementById('rs-post');
+  if(pe) pe.innerHTML=Object.entries(pc).map(([post,c])=>`
+    <div class="sr" style="font-size:11px"><div class="sr-l">${post}</div>
+    <div><span style="color:var(--blu);font-weight:600">D:${c.D}</span> <span style="color:var(--pur);font-weight:600">N:${c.N}</span></div></div>`).join('');
+}
+
+// ══════════════════════════════════════════════
+// ATTENDANCE (INTERACTIVE)
+// ══════════════════════════════════════════════
+function renderAtt(){
+  document.getElementById('att-hd').textContent=`${MEN[S.month-1]} ${S.year} ${t('t_att')}`;
+  const mnl=document.getElementById('mn-att-lbl');if(mnl)mnl.textContent=`${MSH[S.month-1]} ${S.year}`;
+  const f=document.getElementById('att-f')?.value||'all';
+  const hideRes=document.getElementById('hr-att')?.checked;
+  const d=days(S.year,S.month);
+  let people=monthPeople().filter(p=>!(hideRes&&p.status==='resign'));
+  if(f!=='all') people=people.filter(p=>p.shift===f);
+  people.forEach(p=>{if(!S.att[rk()])S.att[rk()]={};if(!S.att[rk()][p.id])S.att[rk()][p.id]=Array(d).fill(null);});
+
+  let h=`<table class="rtbl"><thead><tr>
+    <th>NO</th><th style="min-width:145px;position:sticky;left:0;background:var(--pri)">${t('col_name')}</th>
+    <th>${t('col_shift')}</th><th title="整月出勤標示" style="min-width:58px">出勤況</th>`;
+  for(let i=1;i<=d;i++){const sw=dow(S.year,S.month,i)===0;h+=`<th class="${sw?'th-sun':''}">${i}</th>`;}
+  h+=`<th>✓</th><th>✗</th><th>⚠</th><th>%</th></tr></thead><tbody>`;
+  people.forEach((p,i)=>{
+    const pr=cRos()[p.id]||Array(d).fill(null);
+    const pa=(cAtt()[p.id])||Array(d).fill(null);
+    const st=pStats(p.id);
+    const ires=p.status==='resign';
+    const atag=ires?'':getAttTag(pa,pr,d,p.id);
+    h+=`<tr><td style="text-align:center">${i+1}</td>
+      <td class="nm" style="${ires?'opacity:.4':''}"><span class="pnm" style="${ires?'text-decoration:line-through':''}">
+        ${p.name}</span><div style="font-size:9px;color:var(--tx3)">${p.cid}</div></td>
+      <td><span class="badge ${p.shift==='Day'?'bd-day':'bd-night'}" style="font-size:9px">${p.shift}</span></td>
+      <td style="text-align:center">${ires?'':atag}</td>`;
+    for(let di=0;di<d;di++){
+      const s=pr[di];const a=pa[di];const sw=dow(S.year,S.month,di+1)===0;const sc=sw?' td-sun':'';
+      if(ires){h+=`<td class="acell aX${sc}">—</td>`;continue;}
+      if(!s){
+        // Unscheduled — but still clickable (guards rotate incl. Sundays/holidays)
+        let cc,lb;
+        if(a==='P'){cc='acell aP';lb='✓';}
+        else if(a==='A'){cc='acell aA';lb='✗';}
+        else if(a==='L'){cc='acell aL';lb='⚠';}
+        else{cc='acell aX';lb='—';}
+        h+=`<td class="${cc}${sc}" style="${!a?'border:1px dashed var(--bd2);cursor:pointer':'border:1px dashed;cursor:pointer'}" onclick="cycleAtt('${p.id}',${di})" title="未排班，點擊可補登出勤">${lb}</td>`;
+        continue;
+      }
+      let cc,lb;
+      if(a==='P'){cc='acell aP';lb='✓';}
+      else if(a==='A'){cc='acell aA';lb='✗';}
+      else if(a==='L'){cc='acell aL';lb='⚠';}
+      else{cc='acell a_null';lb='?';}
+      h+=`<td class="${cc}${sc}" onclick="cycleAtt('${p.id}',${di})" title="${p.name} Day ${di+1}">${lb}</td>`;
+    }
+    h+=`<td style="font-weight:700;color:var(--grn);text-align:center">${st.P}</td>
+        <td style="font-weight:700;color:var(--red);text-align:center">${st.A}</td>
+        <td style="font-weight:700;color:var(--amb);text-align:center">${st.L}</td>
+        <td style="font-weight:700;text-align:center">${st.rate}%</td></tr>`;
+  });
+  h+='</tbody></table>';
+  document.getElementById('att-wrap').innerHTML=h;
+  updAttStats();
+}
+
+function cycleAtt(pid,di){
+  const rkey=rk();
+  if(!S.att[rkey]) S.att[rkey]={};
+  const d=days(S.year,S.month);
+  if(!S.att[rkey][pid]) S.att[rkey][pid]=Array(d).fill(null);
+  const cy=[null,'P','A','L'];
+  const cur=S.att[rkey][pid][di];
+  S.att[rkey][pid][di]=cy[(cy.indexOf(cur)+1)%cy.length];
+  save();renderAtt();
+}
+
+function updAttStats(){
+  const st=allStats();
+  const el=document.getElementById('as-stats');
+  if(!el) return;
+  const rc=st.rate>=90?'var(--grn)':st.rate>=75?'var(--amb)':'var(--red)';
+  const rc2=st.rate>=90?'pg':st.rate>=75?'pa':'pr';
+  el.innerHTML=`
+    <div class="sr"><div class="sr-l">✓ ${t('present')}</div><div class="sr-v" style="color:var(--grn)">${st.P}</div></div>
+    <div class="sr"><div class="sr-l">✗ ${t('absent')}</div><div class="sr-v" style="color:var(--red)">${st.A}</div></div>
+    <div class="sr"><div class="sr-l">⚠ ${t('late')}</div><div class="sr-v" style="color:var(--amb)">${st.L}</div></div>
+    <div style="margin-top:6px">
+      <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+        <span>${t('att_rate')}</span><span style="color:${rc};font-weight:700">${st.rate}%</span></div>
+      <div class="pbar"><div class="pfill ${rc2}" style="width:${st.rate}%"></div></div>
+    </div>`;
+  const wks=weekStats();
+  const we=document.getElementById('as-weeks');
+  if(we) we.innerHTML=wks.map((w,i)=>{
+    const c=w.rate>=90?'wg-ok':w.rate>=75?'wg-mid':'wg-bad';
+    return `<div class="wc ${c}"><div class="wc-n">${w.rate}%</div><div class="wc-l">${tpl('wk',{n:i+1})}</div></div>`;
+  }).join('');
+  const pp=document.getElementById('as-person');
+  if(pp){
+    const active=monthPeople().filter(p=>p.status==='active');
+    pp.innerHTML=active.map(p=>{
+      const st2=pStats(p.id);
+      const c=st2.rate>=90?'var(--grn)':st2.rate>=75?'var(--amb)':'var(--red)';
+      return `<div style="margin-bottom:5px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:2px">
+          <span style="font-size:10px;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px">${p.name}</span>
+          <span style="font-weight:700;color:${c};font-size:11px">${st2.rate}%</span>
+        </div>
+        <div class="pbar" style="height:3px"><div class="pfill" style="width:${st2.rate}%;background:${c}"></div></div>
+      </div>`;
+    }).join('');
+  }
+}
+
+// ══════════════════════════════════════════════
+// COMPARE — Roster vs Attendance
+// ══════════════════════════════════════════════
+function renderCompare(){
+  document.getElementById('cmp-hd').textContent=`${MEN[S.month-1]} ${S.year} ${t('cmp_title')}`;
+  const f=document.getElementById('cmp-f')?.value||'all';
+  const d=days(S.year,S.month);
+  let people=monthPeople().filter(p=>p.status!=='resign');
+  if(f==='Day') people=people.filter(p=>p.shift==='Day');
+  else if(f==='Night') people=people.filter(p=>p.shift==='Night');
+
+  // Count summary
+  let totOk=0,totAb=0,totLt=0,totMm=0,totOff=0;
+  people.forEach(p=>{
+    const pr=cRos()[p.id]||[];
+    const pa=cAtt()[p.id]||[];
+    for(let i=0;i<d;i++){
+      const s=pr[i],a=pa[i];
+      if(!s){totOff++;continue;}
+      if(a==='P'){totOk++;}
+      else if(a==='L'){totLt++;}
+      else if(a==='A'||a===null){totAb++;}
+      else{totMm++;}
+    }
+  });
+
+  document.getElementById('cmp-summary').innerHTML=`
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <span style="background:var(--grn2);color:var(--grn);padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">✓ ${t('cmp_ok')}: ${totOk}</span>
+      <span style="background:var(--red2);color:var(--red);padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">✗ ${t('cmp_ab')}: ${totAb}</span>
+      <span style="background:var(--amb2);color:var(--amb);padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">⚠ ${t('cmp_lt')}: ${totLt}</span>
+      <span style="background:var(--sf2);color:var(--tx2);padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">— ${t('cmp_off')}: ${totOff}</span>
+      <span style="background:var(--pri3);color:var(--pri);padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">${t('cmp_total')}: ${d*people.length}</span>
+    </div>`;
+
+  // Filter mismatch-only
+  if(f==='mismatch'){
+    // Show only people who have at least one mismatch
+    people=people.filter(p=>{
+      const pr=cRos()[p.id]||[];
+      const pa=cAtt()[p.id]||[];
+      for(let i=0;i<d;i++){
+        const s=pr[i],a=pa[i];
+        if(s&&(a===null||a==='A'||a==='L')) return true;
+      }
+      return false;
+    });
+  }
+
+  // Build header
+  let h=`<table class="rtbl"><thead><tr>
+    <th>NO</th>
+    <th style="min-width:145px;position:sticky;left:0;background:var(--pri)">${t('col_name')}</th>
+    <th>${t('col_shift')}</th>
+    <th>${t('col_co')}</th>`;
+  for(let i=1;i<=d;i++){
+    const sw=dow(S.year,S.month,i)===0;
+    h+=`<th class="${sw?'th-sun':''}" title="${MEN[S.month-1]} ${i}">${i}</th>`;
+  }
+  h+=`<th>Sched</th><th>Pres</th><th>Abs</th><th>%</th></tr></thead><tbody>`;
+
+  people.forEach((p,i)=>{
+    const pr=cRos()[p.id]||Array(d).fill(null);
+    const pa=cAtt()[p.id]||Array(d).fill(null);
+    const st=pStats(p.id);
+    h+=`<tr><td style="text-align:center">${i+1}</td>
+      <td class="nm"><span class="pnm">${p.name}</span><div style="font-size:9px;color:var(--tx3)">${p.cid}</div></td>
+      <td><span class="badge ${p.shift==='Day'?'bd-day':'bd-night'}" style="font-size:9px">${p.shift}</span></td>
+      <td><span class="badge ${p.co==='VRT'?'bd-vrt':'bd-icsc'}" style="font-size:9px">${p.co}</span></td>`;
+    for(let di=0;di<d;di++){
+      const s=pr[di];const a=pa[di];
+      const sw=dow(S.year,S.month,di+1)===0;const sc=sw?' td-sun':'';
+      if(!s){
+        // Unscheduled (day off in roster) — still clickable for rotation shifts
+        if(a==='P'){
+          h+=`<td class="cmp-cell cmp-extra-p cmp-edit${sc}" onclick="cycleCompAtt('${p.id}',${di})" title="✓ 加班出勤（未排班）· 點擊切換">+P</td>`;
+        } else if(a==='L'){
+          h+=`<td class="cmp-cell cmp-extra-l cmp-edit${sc}" onclick="cycleCompAtt('${p.id}',${di})" title="⚠ 加班遲到（未排班）· 點擊切換">+⚠</td>`;
+        } else if(a==='A'){
+          h+=`<td class="cmp-cell cmp-extra-a cmp-edit${sc}" onclick="cycleCompAtt('${p.id}',${di})" title="✗ 加班缺席（未排班）· 點擊切換">+✗</td>`;
+        } else {
+          h+=`<td class="cmp-cell cmp-off-click cmp-edit${sc}" onclick="cycleCompAtt('${p.id}',${di})" title="休假 / 點擊可補登出勤">—</td>`;
+        }
+      } else if(a==='P'){
+        h+=`<td class="cmp-cell cmp-ok cmp-edit${sc}" onclick="cycleCompAtt('${p.id}',${di})" title="✓ ${t('present')} · ${s} · 點擊切換">${s}</td>`;
+      } else if(a==='L'){
+        h+=`<td class="cmp-cell cmp-lt cmp-edit${sc}" onclick="cycleCompAtt('${p.id}',${di})" title="⚠ ${t('late')} · ${s} · 點擊切換">⚠</td>`;
+      } else if(a==='A'){
+        h+=`<td class="cmp-cell cmp-ab cmp-edit${sc}" onclick="cycleCompAtt('${p.id}',${di})" title="✗ ${t('absent')} · ${s} · 點擊切換">✗</td>`;
+      } else {
+        // Scheduled but no attendance record
+        h+=`<td class="cmp-cell cmp-mismatch cmp-edit${sc}" onclick="cycleCompAtt('${p.id}',${di})" title="? 已排班但無紀錄 · Roster:${s} · 點擊補登">?</td>`;
+      }
+    }
+    h+=`<td style="text-align:center;font-size:11px;font-weight:600">${st.sched}</td>
+        <td style="text-align:center;font-size:11px;font-weight:600;color:var(--grn)">${st.P}</td>
+        <td style="text-align:center;font-size:11px;font-weight:600;color:var(--red)">${st.A}</td>
+        <td style="text-align:center;font-size:11px;font-weight:700">${st.rate}%</td></tr>`;
+  });
+  h+='</tbody></table>';
+  document.getElementById('cmp-wrap').innerHTML=h;
+}
+
+// ══════════════════════════════════════════════
+// COMPARE — cycle attendance directly in compare table
+// ══════════════════════════════════════════════
+function cycleCompAtt(pid, di){
+  const rkey=rk();
+  if(!S.att[rkey]) S.att[rkey]={};
+  const d=days(S.year,S.month);
+  if(!S.att[rkey][pid]) S.att[rkey][pid]=Array(d).fill(null);
+  const cy=[null,'P','A','L'];
+  const cur=S.att[rkey][pid][di];
+  S.att[rkey][pid][di]=cy[(cy.indexOf(cur)+1)%cy.length];
+  save();
+  renderCompare();
+}
+
+// ══════════════════════════════════════════════
+// PAYROLL
+// ══════════════════════════════════════════════
+function renderPay(){
+  const d=days(S.year,S.month);
+  const rate=parseInt(S.config.rate)||300;
+  const dh=parseInt(S.config.dayH)||12;
+  const people=monthPeople().filter(p=>p.status==='active');
+  const icscDay=people.filter(p=>p.co==='ICSC'&&p.shift==='Day');
+  const icscNight=people.filter(p=>p.co==='ICSC'&&p.shift==='Night');
+  const sysCalc=(icscDay.length+icscNight.length)*rate;
+  const claimedRaw=S.claimed[rk()]||'';
+  const claimed=parseFloat(claimedRaw)||0;
+  const diff=claimed-sysCalc;
+  const diffOk=Math.abs(diff)<0.01;
+  const diffTxt=diffOk?t('match'):(diff>0?`⚠ ${t('over')} +$${Math.abs(diff).toFixed(0)}`:`✅ ${t('under')} -$${Math.abs(diff).toFixed(0)}`);
+  const diffCls=diffOk?'ok':diff>0?'bad':'ok';
+  const anom=anomalies();
+  const hrRate=(rate/(d*dh)).toFixed(4);
+
+  function ptable(people2, label){
+    const rows=people2.map(p=>{
+      const st=pStats(p.id);
+      return `<tr>
+        <td>${p.cid}</td><td><b>${p.name}</b></td><td>${p.post}</td>
+        <td style="text-align:right">$${rate}</td>
+        <td style="text-align:center">${st.sched}</td>
+        <td style="text-align:center;color:var(--grn);font-weight:600">${st.P}</td>
+        <td style="text-align:center;color:${st.A>0?'var(--red)':'var(--tx3)'}">${st.A}</td>
+        <td style="text-align:center;color:${st.L>0?'var(--amb)':'var(--tx3)'}">${st.L}</td>
+        <td style="text-align:right;font-weight:700;color:var(--pri)">$${rate}</td>
+      </tr>`;}).join('');
+    return {rows,total:people2.length*rate};
+  }
+  const dr=ptable(icscDay,t('day_sl'));
+  const nr=ptable(icscNight,t('night_sl'));
+
+  // Quick preset buttons based on sysCalc
+  const presets=[sysCalc, sysCalc+100, sysCalc-100, sysCalc+200];
+
+  document.getElementById('pay-content').innerHTML=`
+    <div class="flb mb14 no-print">
+      <h2 style="font-size:15px;font-weight:800;color:var(--pri)">💰 ${MEN[S.month-1]} ${S.year} — ${t('pay_title')}</h2>
+      <div style="display:flex;gap:7px">
+        <button class="btn bh bs" onclick="printPayroll()">🖨️ ${t('print')}</button>
+        <button class="btn ba bs" onclick="expPayXlsx()">📊 Excel</button>
+      </div>
+    </div>
+
+    <!-- COMPARISON PANEL -->
+    <div class="card mb14">
+      <div class="card-hd">🔍 ${t('sys_calc')} vs ICSC ${t('claimed_lbl')}</div>
+      <div class="pcmp">
+        <div class="pbox">
+          <div class="pbox-l">${t('sys_calc')}</div>
+          <div class="pbox-v">$${sysCalc}</div>
+          <div class="pbox-s">${icscDay.length+icscNight.length} × $${rate}</div>
+        </div>
+        <div class="pbox" style="flex:1.5;border:2px solid var(--pri3)">
+          <div class="pbox-l">${t('claimed_lbl')}</div>
+          <div class="fee-inp-wrap">
+            <input class="fee-inp" type="number" id="fee-inp" value="${claimedRaw}" placeholder="0"
+              onkeydown="if(event.key==='Enter')confirmFee()"
+              style="width:140px">
+            <button class="fee-confirm" onclick="confirmFee()" title="${t('confirm_fee')}">✓</button>
+          </div>
+          <div class="pbox-s" style="margin-top:0">${t('preset_lbl')}:</div>
+          <div class="fee-presets">
+            ${presets.filter((v,i,a)=>a.indexOf(v)===i).map(v=>`<span class="fee-preset" onclick="setFee(${v})">$${v}</span>`).join('')}
+          </div>
+        </div>
+        <div class="pbox ${claimed?diffCls:''}">
+          <div class="pbox-l">${t('diff_lbl')}</div>
+          <div class="pbox-v">${claimed?diffTxt:'—'}</div>
+          <div class="pbox-s">${claimed?'ICSC vs System':t('claimed_lbl')}</div>
+        </div>
+        <div class="pbox hi">
+          <div class="pbox-l">${t('monthly_pay')}</div>
+          <div class="pbox-v">$${sysCalc}</div>
+          <div class="pbox-s">${t('total_g')}: ${icscDay.length+icscNight.length}</div>
+        </div>
+      </div>
+      ${anom.filter(a=>a.sev==='critical').length>0?`
+      <div style="background:var(--red2);border:1px solid var(--red);border-radius:var(--r);padding:9px 12px;font-size:12px;margin-top:10px">
+        🚨 <b>${anom.filter(a=>a.sev==='critical').length} ${t('anom_crit')}</b>
+        <button class="btn bh bs" style="margin-left:8px" onclick="showTab('anom')">→ ${t('t_anom')}</button>
+      </div>`:''}
+      <div style="background:linear-gradient(135deg,#E8F5E9,#F1F8E9);border:1px solid #A5D6A7;border-radius:var(--r);padding:14px;margin-top:12px">
+        <div style="font-size:13px;font-weight:700;color:var(--grn);margin-bottom:6px">📋 ${t('submit_appr')}</div>
+        <div style="font-size:11px;color:var(--tx2);margin-bottom:10px">${MEN[S.month-1]} ${S.year} · ${t('sys_calc')}: $${sysCalc} · ICSC: ${claimed?'$'+claimed:'—'} · ${t('total_anom')}: ${anom.length}</div>
+        <button class="btn btg" onclick="submitAppr()">📨 ${t('submit_appr')}</button>
+      </div>
+    </div>
+
+    <!-- DAY SHIFT TABLE -->
+    <div class="card mb14">
+      <div class="phd">🌅 ${t('day_sl')} (${MSH[S.month-1]} ${S.year})</div>
+      <div class="tw" style="border-radius:0 0 var(--r) var(--r);border-top:none">
+        <table>
+          <thead><tr><th>ID</th><th>${t('col_name')}</th><th>${t('col_post')}</th>
+            <th>${t('per_p')}</th><th>Sched</th><th>✓</th><th>✗</th><th>⚠</th><th>${t('sys_calc')}</th></tr></thead>
+          <tbody>${dr.rows}
+            <tr style="background:var(--pri);color:#fff">
+              <td colspan="8"><b>Subtotal</b></td><td style="text-align:right"><b>$${dr.total}</b></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- NIGHT SHIFT TABLE -->
+    <div class="card mb14">
+      <div class="phd" style="background:linear-gradient(135deg,#4527A0,#6A1B9A)">🌙 ${t('night_sl')} (${MSH[S.month-1]} ${S.year})</div>
+      <div class="tw" style="border-radius:0 0 var(--r) var(--r);border-top:none">
+        <table>
+          <thead><tr><th>ID</th><th>${t('col_name')}</th><th>${t('col_post')}</th>
+            <th>${t('per_p')}</th><th>Sched</th><th>✓</th><th>✗</th><th>⚠</th><th>${t('sys_calc')}</th></tr></thead>
+          <tbody>${nr.rows}
+            <tr style="background:#4527A0;color:#fff">
+              <td colspan="8"><b>Subtotal</b></td><td style="text-align:right"><b>$${nr.total}</b></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card" style="background:var(--sf2);font-size:11px;color:var(--tx2)">
+      ✅ ${MEN[S.month-1]} ${S.year} · ICSC: ${icscDay.length+icscNight.length} · $${rate}/person · ${d} days · $${hrRate}/hr · <b style="color:var(--pri)">Total: $${sysCalc}</b>
+    </div>`;
+}
+
+function setFee(v){
+  const inp=document.getElementById('fee-inp');
+  if(inp){inp.value=v;inp.focus();}
+}
+function confirmFee(){
+  const inp=document.getElementById('fee-inp');
+  if(!inp) return;
+  S.claimed[rk()]=inp.value;
+  save();renderPay();toast(t('save_ok'));
+}
+
+function printPayroll(){
+  const d=days(S.year,S.month);
+  const rate=parseInt(S.config.rate)||300;
+  const people=monthPeople().filter(p=>p.status==='active');
+  const icsc=people.filter(p=>p.co==='ICSC');
+  const icscDay=icsc.filter(p=>p.shift==='Day');
+  const icscNight=icsc.filter(p=>p.shift==='Night');
+  const total=icsc.length*rate;
+  const claimed=parseFloat(S.claimed[rk()])||0;
+  const diff=claimed-total;
+
+  function buildPrintRows(ppl){
+    return ppl.map((p,i)=>{
+      const st=pStats(p.id);
+      return `<tr><td>${i+1}</td><td>${p.name}</td><td>${p.cid}</td><td>${p.post}</td>
+        <td>${p.shift}</td><td align="right">$${rate}</td><td align="center">${st.sched}</td>
+        <td align="center">${st.P}</td><td align="center">${st.A}</td>
+        <td align="right"><b>$${rate}</b></td></tr>`;
+    }).join('');
+  }
+
+  const printHTML=`
+    <div style="font-family:Arial,sans-serif;font-size:11px;padding:20px">
+      <h2 style="text-align:center;font-size:16px;margin-bottom:4px">Vantage River Textiles Co., Ltd.</h2>
+      <h3 style="text-align:center;font-size:13px;margin-bottom:16px;color:#333">Security Service Fee — ${MEN[S.month-1]} ${S.year}</h3>
+      <table style="margin:0 auto 10px;border-collapse:collapse;font-size:11px">
+        <tr><td style="padding:3px 12px;border:1px solid #ccc;font-weight:bold">Company</td><td style="padding:3px 12px;border:1px solid #ccc">ICSC</td>
+            <td style="padding:3px 12px;border:1px solid #ccc;font-weight:bold">Month</td><td style="padding:3px 12px;border:1px solid #ccc">${MEN[S.month-1]} ${S.year}</td>
+            <td style="padding:3px 12px;border:1px solid #ccc;font-weight:bold">Total Guards</td><td style="padding:3px 12px;border:1px solid #ccc">${icsc.length}</td></tr>
+        <tr><td style="padding:3px 12px;border:1px solid #ccc;font-weight:bold">Rate/Guard</td><td style="padding:3px 12px;border:1px solid #ccc">$${rate}/month</td>
+            <td style="padding:3px 12px;border:1px solid #ccc;font-weight:bold">Days in Month</td><td style="padding:3px 12px;border:1px solid #ccc">${d}</td>
+            <td style="padding:3px 12px;border:1px solid #ccc;font-weight:bold;background:#1B3A6B;color:#fff">TOTAL DUE</td><td style="padding:3px 12px;border:1px solid #ccc;font-weight:bold;color:#1B3A6B">$${total}</td></tr>
+      </table>
+      ${claimed?`<p style="text-align:center;font-size:11px;color:#555">ICSC Claimed: $${claimed} | Difference: ${Math.abs(diff)<0.01?'✅ Match':(diff>0?'⚠️ ICSC Over by $'+Math.abs(diff).toFixed(0):'System Over by $'+Math.abs(diff).toFixed(0))}</p>`:''}
+
+      <h4 style="margin:14px 0 6px;font-size:12px">🌅 Day Shift (${icscDay.length} guards)</h4>
+      <table style="width:100%;border-collapse:collapse;font-size:10px">
+        <thead><tr style="background:#1B3A6B;color:#fff">
+          <th style="padding:5px;border:1px solid #ccc">No</th><th>Name</th><th>ID</th><th>Post</th>
+          <th>Shift</th><th>Per Month</th><th>Scheduled</th><th>Present</th><th>Absent</th><th>Pay</th></tr></thead>
+        <tbody>${buildPrintRows(icscDay)}
+          <tr style="background:#E3F2FD;font-weight:bold"><td colspan="9">Day Shift Subtotal</td><td align="right">$${icscDay.length*rate}</td></tr>
+        </tbody>
+      </table>
+
+      <h4 style="margin:14px 0 6px;font-size:12px">🌙 Night Shift (${icscNight.length} guards)</h4>
+      <table style="width:100%;border-collapse:collapse;font-size:10px">
+        <thead><tr style="background:#4527A0;color:#fff">
+          <th style="padding:5px;border:1px solid #ccc">No</th><th>Name</th><th>ID</th><th>Post</th>
+          <th>Shift</th><th>Per Month</th><th>Scheduled</th><th>Present</th><th>Absent</th><th>Pay</th></tr></thead>
+        <tbody>${buildPrintRows(icscNight)}
+          <tr style="background:#EDE9FE;font-weight:bold"><td colspan="9">Night Shift Subtotal</td><td align="right">$${icscNight.length*rate}</td></tr>
+        </tbody>
+      </table>
+
+      <div style="margin-top:16px;border:2px solid #1B3A6B;border-radius:6px;padding:12px;display:flex;justify-content:space-between;align-items:center">
+        <div><b>Grand Total (ICSC Service Fee)</b><br><span style="font-size:10px;color:#555">${icscDay.length} Day + ${icscNight.length} Night × $${rate}</span></div>
+        <div style="font-size:22px;font-weight:800;color:#1B3A6B">$${total}</div>
+      </div>
+
+      <div style="margin-top:20px;display:grid;grid-template-columns:1fr 1fr;gap:30px">
+        <div><p style="margin-bottom:30px">Prepared by: _______________________</p><p>Date: ___________________</p></div>
+        <div><p style="margin-bottom:30px">Approved by: _______________________</p><p>Date: ___________________</p></div>
+      </div>
+      <p style="text-align:center;font-size:9px;color:#888;margin-top:14px">Generated by VRT Security Management System · ${new Date().toLocaleString()}</p>
+    </div>`;
+
+  const win=window.open('','_blank','width=900,height=700');
+  win.document.write(`<!DOCTYPE html><html><head><title>Service Fee ${MEN[S.month-1]} ${S.year}</title>
+    <style>*{box-sizing:border-box}table td,table th{padding:4px 8px;border:1px solid #ccc}@page{size:A4;margin:1cm}@media print{body{margin:0}}</style>
+    </head><body>${printHTML}<script>window.onload=()=>{window.print();}<\/script></body></html>`);
+  win.document.close();
+}
+
+// ══════════════════════════════════════════════
+// ANOMALY
+// ══════════════════════════════════════════════
+function renderAnom(){
+  document.getElementById('anom-hd').textContent=`${MEN[S.month-1]} ${S.year} ${t('t_anom')}`;
+  const f=document.getElementById('anom-f')?.value||'all';
+  let anoms=anomalies();
+  if(f==='critical') anoms=anoms.filter(a=>a.sev==='critical');
+  else if(f==='warning') anoms=anoms.filter(a=>a.sev==='warning');
+  const crit=anoms.filter(a=>a.sev==='critical').length;
+  const warn=anoms.filter(a=>a.sev==='warning').length;
+  document.getElementById('anom-sum').innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap">
+    <span style="background:var(--red2);color:var(--red);padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">🚨 ${t('anom_crit')}: ${crit}</span>
+    <span style="background:var(--amb2);color:var(--amb);padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">⚠️ ${t('anom_warn')}: ${warn}</span>
+    <span style="background:var(--sf2);color:var(--tx2);padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">Total: ${anoms.length}</span>
+  </div>`;
+  if(!anoms.length){
+    document.getElementById('anom-list').innerHTML=`<div style="text-align:center;padding:26px;color:var(--grn);font-size:14px;font-weight:700">${t('no_anom')}</div>`;
+    return;
+  }
+  document.getElementById('anom-list').innerHTML=anoms.map(a=>`
+    <div class="ai ai-${a.sev}">
+      <span class="ai-ico">${a.icon}</span>
+      <div class="ai-b"><b>${a.title}</b><span>${a.desc}</span></div>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════
+// SETTINGS
+// ══════════════════════════════════════════════
+function renderCfg(){
+  const te=id=>document.getElementById(id);
+  if(te('tg-tok')) te('tg-tok').value=S.tg.token||'';
+  if(te('tg-cht')) te('tg-cht').value=S.tg.chat||'';
+  const has=S.tg.token&&S.tg.chat;
+  te('tg-bar').innerHTML=`<div style="display:flex;align-items:center;gap:7px;padding:7px 10px;border-radius:7px;background:${has?'var(--grn2)':'var(--sf2)'};font-size:11px">
+    <div style="width:7px;height:7px;border-radius:50%;background:${has?'var(--grn)':'var(--tx3)'}"></div>
+    <span>${has?'✅ Telegram OK':'⚠️ Not configured'}</span></div>`;
+  if(te('cf-rate')) te('cf-rate').value=S.config.rate||300;
+  if(te('cf-dh')) te('cf-dh').value=S.config.dayH||12;
+  if(te('cf-nh')) te('cf-nh').value=S.config.nightH||12;
+}
+function saveTg(){S.tg.token=(document.getElementById('tg-tok')?.value||'').trim();S.tg.chat=(document.getElementById('tg-cht')?.value||'').trim();save();}
+function saveCfg(){S.config={rate:parseInt(document.getElementById('cf-rate')?.value)||300,dayH:parseInt(document.getElementById('cf-dh')?.value)||12,nightH:parseInt(document.getElementById('cf-nh')?.value)||12};save();}
+
+// ══════════════════════════════════════════════
+// TELEGRAM
+// ══════════════════════════════════════════════
+async function sendTg(msg){
+  const {token,chat}=S.tg;
+  if(!token||!chat) return {ok:false};
+  try{
+    const r=await fetch(`https://api.telegram.org/bot${token}/sendMessage`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({chat_id:chat,text:msg,parse_mode:'HTML'})
+    });return await r.json();
+  }catch(e){return {ok:false,error:e.message}}
+}
+async function testTg(){
+  if(!S.tg.token||!S.tg.chat){document.getElementById('tg-res').innerHTML=`<span style="color:var(--red)">❌ No token/chat</span>`;return}
+  document.getElementById('tg-res').textContent='...';
+  const r=await sendTg(`✅ VRT Security v3 — Test OK\n${MEN[S.month-1]} ${S.year}`);
+  document.getElementById('tg-res').innerHTML=r.ok?`<span style="color:var(--grn)">✅ ${t('send_ok')}</span>`:`<span style="color:var(--red)">❌ ${r.description||'Error'}</span>`;
+}
+async function submitAppr(){
+  if(!S.tg.token||!S.tg.chat){alert('Please configure Telegram in Settings first');return}
+  const d=days(S.year,S.month);
+  const rate=parseInt(S.config.rate)||300;
+  const people=monthPeople().filter(p=>p.status==='active');
+  const icsc=people.filter(p=>p.co==='ICSC');
+  const sysCalc=icsc.length*rate;
+  const claimed=parseFloat(S.claimed[rk()])||0;
+  const diff=claimed-sysCalc;
+  const st=allStats();
+  const anom=anomalies();
+  const wks=weekStats();
+  const anomText=anom.slice(0,12).map(a=>`${a.icon} <b>${a.title}</b>: ${a.desc}`).join('\n');
+
+  const msg=`🛡 <b>VRT Security — Approval Request</b>
+📅 ${MEN[S.month-1]} ${S.year}
+
+👥 <b>Personnel</b>: ${people.length} active | Day:${people.filter(p=>p.shift==='Day').length} Night:${people.filter(p=>p.shift==='Night').length}
+
+📊 <b>Attendance Summary</b>
+✓ Present: ${st.P} | ✗ Absent: ${st.A} | ⚠ Late: ${st.L}
+📈 Overall Rate: <b>${st.rate}%</b>
+${wks.map((w,i)=>`Wk${i+1}: ${w.rate}% (${w.pres}/${w.sched})`).join(' | ')}
+
+💰 <b>Service Fee</b>
+${t('sys_calc')}: <b>$${sysCalc}</b> (${icsc.length} × $${rate})
+ICSC Claimed: ${claimed?'<b>$'+claimed.toFixed(0)+'</b>':'(not entered)'}
+${claimed?`Difference: ${Math.abs(diff)<0.01?'✅ Match':(diff>0?`⚠️ ICSC Over by $${Math.abs(diff).toFixed(0)}`:`✅ Under by $${Math.abs(diff).toFixed(0)}`)}`:'' }
+
+⚠️ <b>Anomalies: ${anom.length}</b> (🚨${anom.filter(a=>a.sev==='critical').length} ⚠️${anom.filter(a=>a.sev==='warning').length})
+${anomText||t('no_anom')}${anom.length>12?`\n...+${anom.length-12} more`:''}
+
+—
+Vantage River Textiles Co., Ltd. · Admin Center
+Please reply APPROVED / REJECTED`;
+
+  const r=await sendTg(msg);
+  if(r.ok) toast(t('appr_sent'),'ok');
+  else toast(t('send_fail'),'err');
+}
+async function sendAnomTg(){
+  const anom=anomalies();
+  const msg=`⚠️ <b>VRT Security Anomaly Report</b>\n📅 ${MEN[S.month-1]} ${S.year}\n\n🚨 Critical: ${anom.filter(a=>a.sev==='critical').length}\n⚠️ Warning: ${anom.filter(a=>a.sev==='warning').length}\n\n${anom.slice(0,15).map(a=>`${a.icon} ${a.title}: ${a.desc}`).join('\n')}${anom.length>15?`\n...+${anom.length-15} more`:''}`;
+  const r=await sendTg(msg);
+  toast(r.ok?t('send_ok'):t('send_fail'),r.ok?'ok':'err');
+}
+
+// ══════════════════════════════════════════════
+// EXPORT / IMPORT
+// ══════════════════════════════════════════════
+function expRosterXlsx(){
+  const d=days(S.year,S.month);const ros=cRos();
+  const hdr=['NO','Name','ID','Co','Shift','Post',...Array.from({length:d},(_,i)=>i+1),'Total'];
+  const rows=[hdr,...monthPeople().map((p,i)=>{const pr=ros[p.id]||Array(d).fill(null);return[i+1,p.name,p.cid,p.co,p.shift,p.post,...pr,pr.filter(x=>x).length];})];
+  const ws=XLSX.utils.aoa_to_sheet(rows);const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,`Roster_${MSH[S.month-1]}_${S.year}`);
+  XLSX.writeFile(wb,`VRT_Roster_${S.year}_${S.month}.xlsx`);toast(t('exp_ok'));
+}
+function expAttXlsx(){
+  const d=days(S.year,S.month);
+  const hdr=['NO','Name','ID','Shift','Co',...Array.from({length:d},(_,i)=>i+1),'P','A','L','%'];
+  const rows=[hdr,...monthPeople().filter(p=>p.status==='active').map((p,i)=>{
+    const pa=(cAtt()[p.id])||Array(d).fill(null);const st=pStats(p.id);
+    return[i+1,p.name,p.cid,p.shift,p.co,...pa,st.P,st.A,st.L,st.rate+'%'];})];
+  const ws=XLSX.utils.aoa_to_sheet(rows);const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Attendance');
+  XLSX.writeFile(wb,`VRT_Att_${S.year}_${S.month}.xlsx`);toast(t('exp_ok'));
+}
+function expCmpXlsx(){
+  const d=days(S.year,S.month);
+  const hdr=['NO','Name','ID','Shift','Co',...Array.from({length:d},(_,i)=>`D${i+1}_Roster`),...Array.from({length:d},(_,i)=>`D${i+1}_Att`),'Sched','Present','Absent','Rate'];
+  const rows=[hdr,...monthPeople().filter(p=>p.status==='active').map((p,i)=>{
+    const pr=cRos()[p.id]||Array(d).fill(null);
+    const pa=(cAtt()[p.id])||Array(d).fill(null);
+    const st=pStats(p.id);
+    return[i+1,p.name,p.cid,p.shift,p.co,...pr,...pa,st.sched,st.P,st.A,st.rate+'%'];})];
+  const ws=XLSX.utils.aoa_to_sheet(rows);const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Compare');
+  XLSX.writeFile(wb,`VRT_Compare_${S.year}_${S.month}.xlsx`);toast(t('exp_ok'));
+}
+function expPayXlsx(){
+  const d=days(S.year,S.month);const rate=parseInt(S.config.rate)||300;
+  const people=monthPeople().filter(p=>p.co==='ICSC'&&p.status==='active');
+  const rows=[
+    [`VRT Security Service Fee — ${MEN[S.month-1]} ${S.year}`],[],
+    ['ID','Name','Post','Shift','Rate/Month','Scheduled','Present','Absent','Late','Pay'],
+    ...people.map(p=>{const st=pStats(p.id);return[p.cid,p.name,p.post,p.shift,rate,st.sched,st.P,st.A,st.L,rate];}),
+    [],['','','','','Grand Total','','','','',people.length*rate]
+  ];
+  const ws=XLSX.utils.aoa_to_sheet(rows);const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'ServiceFee');
+  XLSX.writeFile(wb,`VRT_ServiceFee_${S.year}_${S.month}.xlsx`);toast(t('exp_ok'));
+}
+function expJSON(){
+  const blob=new Blob([JSON.stringify({personnel:S.personnel,monthSnap:S.monthSnap,roster:S.roster,att:S.att,config:S.config,claimed:S.claimed,v:3,ts:new Date().toISOString()},null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`VRT_Security_${new Date().toISOString().slice(0,10)}.json`;a.click();toast(t('exp_ok'));
+}
+function impJSON(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    try{
+      const d=JSON.parse(ev.target.result);
+      if(d.personnel)S.personnel=d.personnel;
+      if(d.monthSnap)S.monthSnap=d.monthSnap;
+      if(d.roster)S.roster=d.roster;
+      if(d.att)S.att=d.att;
+      if(d.config)S.config=d.config;
+      if(d.claimed)S.claimed=d.claimed;
+      save();refresh();toast(t('imp_ok'));
+    }catch(err){toast(err.message,'err')}
+  };
+  r.readAsText(f);e.target.value='';
+}
+function clearAll(){['v3_p','v3_r','v3_a','v3_c','v3_tg','v3_cl','v3_sn'].forEach(k=>localStorage.removeItem(k));location.reload();}
+
+// ══════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded',()=>{
+  load();applyI18n();renderDash();
+  document.querySelectorAll('.ov').forEach(o=>{o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('on')});});
+});
+</script>
+</body>
+</html>
