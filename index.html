@@ -2,76 +2,260 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AC Security Platform | 安全平台入口</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>AC Security Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'DM Sans','Noto Sans TC','Noto Sans Khmer',sans-serif;background:#f2f5f8;min-height:100vh}
-.hd{background:linear-gradient(135deg,#0f2b46 0%,#1e6f8e 100%);color:#fff;padding:26px 20px 22px;text-align:center}
-.hd h1{font-size:24px;font-weight:800;letter-spacing:.5px}
-.hd p{margin-top:6px;font-size:13px;opacity:.85}
-.wrap{max-width:960px;margin:0 auto;padding:26px 16px 50px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
-a.card{display:flex;gap:14px;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px 16px;text-decoration:none;color:#15293d;box-shadow:0 1px 3px rgba(15,43,70,.06);transition:.15s}
-a.card:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(15,43,70,.14);border-color:#1e6f8e}
-.ic{font-size:32px;width:54px;height:54px;display:flex;align-items:center;justify-content:center;background:#eef4f8;border-radius:12px;flex-shrink:0}
-.tt{font-size:15.5px;font-weight:700;line-height:1.3}
-.st{font-size:12px;color:#5b7186;margin-top:3px;line-height:1.4}
-.sec{margin:26px 0 10px;font-size:13px;font-weight:700;color:#33506b;letter-spacing:1px}
-.ft{text-align:center;margin-top:36px;font-size:12px;color:#7b8ea0;line-height:1.9}
-.ft b{color:#33506b}
-.badge{display:inline-block;background:#eef4f8;border:1px solid #d6e2ec;border-radius:20px;padding:3px 12px;margin:2px}
+:root{
+  --n1:#0f2b46;--n2:#1e6f8e;--n3:#2a8fb0;
+  --btn:#1a5f7d;--btn2:#134a63;--btnH:#0f2b46;
+  --gold:#f5c842;--white:#fff;--muted:rgba(255,255,255,.65);
+  --shadow:0 3px 12px rgba(0,0,0,.25);--r:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;font-family:'DM Sans','Noto Sans TC','Noto Sans Khmer',system-ui,sans-serif;overflow-x:hidden}
+body{
+  background:linear-gradient(160deg,#0f2b46 0%,#1e6f8e 48%,#134a63 100%);
+  min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:12px;
+}
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;opacity:.07;
+  background-image:
+    radial-gradient(circle at 15% 25%, #fff 2px, transparent 2px),
+    radial-gradient(circle at 85% 70%, #fff 2px, transparent 2px),
+    radial-gradient(circle at 45% 80%, #fff 1.5px, transparent 1.5px),
+    radial-gradient(circle at 75% 15%, #fff 1.5px, transparent 1.5px),
+    radial-gradient(circle at 30% 60%, #fff 1px, transparent 1px),
+    radial-gradient(circle at 60% 40%, #fff 1px, transparent 1px);
+  background-size:160px 160px;
+}
+.wrap{width:100%;max-width:360px;display:flex;flex-direction:column;gap:8px;position:relative;z-index:1}
+
+/* Header */
+.portal-hdr{
+  background:rgba(0,0,0,.18);border-radius:var(--r);padding:14px 16px;
+  display:flex;align-items:center;gap:10px;border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(6px);
+}
+.ph-icon{font-size:28px}
+.ph-text .t1{font-size:16px;font-weight:800;color:var(--white);letter-spacing:.3px}
+.ph-text .t2{font-size:10px;color:var(--muted);margin-top:1px;letter-spacing:.08em;text-transform:uppercase}
+.ph-right{margin-left:auto;display:flex;gap:4px}
+
+.lang-sw{display:flex;background:rgba(0,0,0,.2);border-radius:7px;overflow:hidden;border:1px solid rgba(255,255,255,.1)}
+.lb{padding:4px 8px;border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:10px;font-weight:700;font-family:inherit;transition:.15s}
+.lb.on{background:var(--gold);color:#0f2b46}
+
+/* Cloud bar */
+.cloud-bar{
+  background:rgba(0,0,0,.15);border-radius:10px;padding:9px 14px;
+  display:flex;align-items:center;gap:8px;border:1px solid rgba(255,255,255,.1);
+  font-size:11px;color:var(--muted);cursor:pointer;
+}
+.cloud-bar:hover{background:rgba(0,0,0,.26)}
+.c-dot{width:7px;height:7px;border-radius:50%;background:#9ca3af;flex-shrink:0;transition:.3s}
+.c-dot.ok{background:#4ade80;box-shadow:0 0 6px #4ade80}
+.c-dot.err{background:#f87171}
+.c-dot.syncing{background:#fbbf24;animation:pulse .8s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.c-lbl{font-weight:700;color:rgba(255,255,255,.85);font-size:11px}
+.c-ts{font-size:10px;margin-left:auto;font-family:'DM Mono',monospace}
+
+/* Module grid */
+.mod-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.mod-btn{
+  background:linear-gradient(160deg,var(--btn),var(--btn2));
+  border:1px solid rgba(255,255,255,.13);border-radius:var(--r);
+  padding:13px 10px 11px;text-decoration:none;color:var(--white);
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  box-shadow:var(--shadow);transition:.16s;position:relative;overflow:hidden;
+}
+.mod-btn::after{
+  content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.11),transparent 55%);pointer-events:none;
+}
+.mod-btn:hover{transform:translateY(-2px);background:linear-gradient(160deg,#2a8fb0,var(--btn))}
+.mod-btn:active{transform:scale(.97)}
+.mod-btn.full{grid-column:1/-1;flex-direction:row;justify-content:center;gap:9px;padding:12px;
+  background:linear-gradient(120deg,#8a6d1f,#c8a02e);border-color:rgba(245,200,66,.4)}
+.mod-btn.full:hover{background:linear-gradient(120deg,#a8842a,#e0b73a)}
+.mb-ic{font-size:21px;line-height:1}
+.mb-t1{font-size:12px;font-weight:800;letter-spacing:.2px;text-align:center;line-height:1.25}
+.mb-t2{font-size:9px;color:rgba(255,255,255,.62);letter-spacing:.04em;text-align:center}
+.mb-n{
+  position:absolute;top:5px;right:7px;font-size:9px;font-family:'DM Mono',monospace;
+  background:rgba(0,0,0,.3);border-radius:20px;padding:1px 6px;color:var(--gold);font-weight:700;
+}
+
+/* Quick actions */
+.qa{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.qa button{
+  background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.11);border-radius:10px;
+  padding:9px 4px;color:var(--white);font-size:10.5px;font-weight:700;font-family:inherit;
+  cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;transition:.15s;
+}
+.qa button:hover{background:rgba(0,0,0,.34)}
+.qa .qi{font-size:15px}
+
+.foot{text-align:center;font-size:9.5px;color:rgba(255,255,255,.42);padding:4px 0 2px;letter-spacing:.05em}
+#toastwrap{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:2000;
+  display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none;max-width:92vw}
+.toast{background:#0f2b46;color:#fff;padding:9px 15px;border-radius:9px;font-size:12px;font-weight:600;
+  box-shadow:0 6px 20px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.14);text-align:center}
+.toast.ok{background:#166534} .toast.err{background:#991b1b} .toast.warn{background:#92400e}
+@media(max-width:340px){.mod-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
-<div class="hd">
-  <h1>🛡️ AC Security Platform</h1>
-  <p>VRT 安全管理平台入口 | Security Management Portal | ច្រកផ្លូវគ្រប់គ្រងសន្តិសុខ</p>
-</div>
 <div class="wrap">
 
-  <div class="sec">🚛 貨櫃與出貨 CONTAINER & OUTGOING</div>
-  <div class="grid">
-    <a class="card" href="ac_sec_container.html">
-      <div class="ic">🚛</div>
-      <div><div class="tt">Container Platform 貨櫃平台</div>
-      <div class="st">貨櫃車出入 Truck In/Out ・ 貨櫃檢查 Inspection ・ 出廠出貨單 Outgoing Delivery</div></div>
-    </a>
+  <div class="portal-hdr">
+    <div class="ph-icon">🛡️</div>
+    <div class="ph-text">
+      <div class="t1">AC Security</div>
+      <div class="t2">VRT · Sihanoukville</div>
+    </div>
+    <div class="ph-right">
+      <div class="lang-sw">
+        <button class="lb on" data-l="zh">繁中</button>
+        <button class="lb" data-l="en">EN</button>
+        <button class="lb" data-l="km">ខ្មែរ</button>
+      </div>
+    </div>
   </div>
 
-  <div class="sec">🧯 消防與監控 FIRE / CCTV / PATROL</div>
-  <div class="grid">
-    <a class="card" href="ac_sec_map.html">
-      <div class="ic">🗺️</div>
-      <div><div class="tt">Factory Map 工廠地圖</div>
-      <div class="st">消防設備 Fire Equipment ・ 設施檢查 Facility Inspection ・ QR 掃描巡檢</div></div>
-    </a>
-    <a class="card" href="ac_sec_cctv.html">
-      <div class="ic">📷</div>
-      <div><div class="tt">CCTV & Patrol 監控巡查</div>
-      <div class="st">116 支攝影機每日巡查 ・ 保安巡邏記錄 Patrol ・ Telegram 日報</div></div>
-    </a>
+  <div class="cloud-bar" id="cloudBar">
+    <span class="c-dot" id="dot"></span>
+    <span class="c-lbl" id="cLbl">☁ 雲端狀態</span>
+    <span class="c-ts" id="cTs">—</span>
   </div>
 
-  <div class="sec">👮 保安勤務 SECURITY OPERATIONS</div>
-  <div class="grid">
-    <a class="card" href="ac_sec_attendance.html">
-      <div class="ic">💰</div>
-      <div><div class="tt">Security Attendance & Expense 保安出勤薪資</div>
-      <div class="st">ICSC 排班 Roster ・ 出勤 Attendance ・ 薪資費用 Payroll ・ 異常 Anomaly</div></div>
-    </a>
-    <a class="card" href="ac_sec_commute.html">
-      <div class="ic">🏍️</div>
-      <div><div class="tt">Commute & Motor 通勤交通</div>
-      <div class="st">員工巴士 Bus ・ 摩托車 Motorbike ・ 遲到統計 Late ・ 趨勢分析 Trend</div></div>
-    </a>
+  <div class="mod-grid" id="grid"></div>
+
+  <div class="qa">
+    <button onclick="act('dashboard')"><span class="qi">📊</span><span data-zh="平台概況" data-en="Dashboard" data-km="ផ្ទាំង">平台概況</span></button>
+    <button onclick="act('anomalyReport')"><span class="qi">⚠️</span><span data-zh="異常報告" data-en="Anomalies" data-km="មិនប្រក្រតី">異常報告</span></button>
+    <button onclick="act('nightCheck')"><span class="qi">🌙</span><span data-zh="夜巡檢查" data-en="Night Check" data-km="ល្បាតយប់">夜巡檢查</span></button>
+  </div>
+  <div class="qa">
+    <button onclick="act('secMenu')"><span class="qi">📱</span><span data-zh="推送選單" data-en="Push Menu" data-km="ផ្ញើម៉ឺនុយ">推送選單</span></button>
+    <button onclick="pullAll()"><span class="qi">⬇️☁</span><span data-zh="檢查雲端" data-en="Check Cloud" data-km="ពិនិត្យ">檢查雲端</span></button>
+    <button onclick="openCfg()"><span class="qi">⚙️</span><span data-zh="設定" data-en="Settings" data-km="កំណត់">設定</span></button>
   </div>
 
-  <div class="ft">
-    <div><span class="badge">🤖 @VRTSecurityBot</span><span class="badge">✈️ 群組指令 <b>/sec</b> 開啟平台選單</span></div>
-    <div style="margin-top:8px">Vantage River Textiles Co., Ltd. ・ AC Security Platform ・ ac-gas-sec</div>
-  </div>
+  <div class="foot">AC SECURITY PLATFORM v2.0 · VANTAGE RIVER TEXTILES</div>
 </div>
+
+<div id="toastwrap"></div>
+<script src="./shared/sec-core.js"></script>
+<script>
+/* ═══ 模組定義（含本機筆數） ═══ */
+var MODS = [
+  { id:'patrol',    u:'ac_sec_patrol_v2.html',    ic:'🚨', zh:'保安巡邏', en:'Patrol',     km:'ល្បាត',
+    sub:'PATROL',    keys:['ac_sec_patrol_db','ac_sec_patrol_scan'] },
+  { id:'cctv',      u:'ac_sec_cctv.html',         ic:'📷', zh:'CCTV 監控', en:'CCTV',      km:'កាមេរ៉ា',
+    sub:'CCTV',      keys:['vrt_security_cctv','cctv_data','vrt_cctv_v1'] },
+  { id:'container', u:'ac_sec_container.html',    ic:'🚛', zh:'貨櫃出入', en:'Container',  km:'កុងតឺន័រ',
+    sub:'CONTAINER', keys:['vrt_truck_v2','vr-container-inspections','vrt_v2'] },
+  { id:'expense',   u:'ac_sec_expense_v1.html',   ic:'💰', zh:'保安費用', en:'Expense',    km:'ចំណាយ',
+    sub:'EXPENSE',   keys:['ac_sec_expense_db'] },
+  { id:'attendance',u:'ac_sec_attendance.html',   ic:'🕐', zh:'保安出勤', en:'Attendance', km:'វត្តមាន',
+    sub:'ATTENDANCE',keys:['vrt_security_v4','vrt_sec_att','ac_sec_att_db'] },
+  { id:'commute',   u:'ac_sec_commute_v2.html',   ic:'🏍', zh:'通勤交通', en:'Commute',    km:'ដំណើរ',
+    sub:'COMMUTE',   keys:['ac_sec_car_db','ac_sec_bike_db','ac_sec_gate_db','ac_sec_late_db'] },
+  { id:'fire',      u:'ac_sec_fire_v1.html',          ic:'🧯', zh:'消防設施', en:'Fire & Map', km:'ពន្លត់ភ្លើង',
+    sub:'FIRE / MAP',keys:['ac_sec_fire_db'] },
+  { id:'personnel', u:'ac_sec_personnel_v1.html', ic:'👮', zh:'保安人員', en:'Personnel',  km:'បុគ្គលិក',
+    sub:'PERSONNEL', keys:['ac_sec_personnel_db'] },
+];
+
+function cnt(keys) {
+  var n = 0;
+  keys.forEach(function (k) {
+    try {
+      var raw = localStorage.getItem(k); if (!raw) return;
+      var d = JSON.parse(raw);
+      if (Array.isArray(d)) n += d.length;
+      else if (d && Array.isArray(d.records)) n += d.records.length;
+      else if (d && typeof d === 'object') n += Object.keys(d).length;
+    } catch (e) {}
+  });
+  return n;
+}
+
+function renderGrid() {
+  var L = SEC.lang();
+  document.getElementById('grid').innerHTML = MODS.map(function (m) {
+    var n = cnt(m.keys);
+    return '<a class="mod-btn" href="' + m.u + '">' +
+      (n ? '<span class="mb-n">' + (n > 9999 ? '9k+' : n) + '</span>' : '') +
+      '<span class="mb-ic">' + m.ic + '</span>' +
+      '<span class="mb-t1">' + (m[L] || m.zh) + '</span>' +
+      '<span class="mb-t2">' + m.sub + '</span></a>';
+  }).join('') +
+  '<a class="mod-btn full" href="ac_sec_patrol_v2.html">' +
+    '<span class="mb-ic">🌙</span>' +
+    '<span><span class="mb-t1">' +
+      (L === 'en' ? 'Night Patrol Compliance' : L === 'km' ? 'ត្រួតពិនិត្យល្បាតយប់' : '夜間巡邏達標檢查') +
+    '</span><span class="mb-t2" style="display:block">NIGHT PATROL CHECK</span></span></a>';
+}
+
+function applyLang() {
+  var L = SEC.lang();
+  document.querySelectorAll('[data-zh]').forEach(function (el) {
+    var v = el.getAttribute('data-' + L) || el.getAttribute('data-zh');
+    if (v) el.textContent = v;
+  });
+  document.querySelectorAll('.lb').forEach(function (b) { b.classList.toggle('on', b.dataset.l === L); });
+  document.getElementById('cLbl').textContent =
+    L === 'en' ? '☁ Cloud Status' : L === 'km' ? '☁ ស្ថានភាពពពក' : '☁ 雲端狀態';
+  renderGrid();
+}
+document.querySelectorAll('.lb').forEach(function (b) {
+  b.onclick = function () { SEC.setLang(b.dataset.l); applyLang(); };
+});
+applyLang();
+
+/* ═══ 雲端狀態 ═══ */
+var lastTs = '';
+MODS.forEach(function (m) {
+  var t = SEC.lastSync(m.id);
+  if (t && t !== '—' && t > lastTs) lastTs = t;
+});
+document.getElementById('cTs').textContent = lastTs || '—';
+
+document.getElementById('cloudBar').onclick = function () { pullAll(); };
+
+async function pullAll() {
+  var dot = document.getElementById('dot');
+  dot.className = 'c-dot syncing';
+  SEC.toast('<span>⏳</span> 連線雲端檢查中…');
+  try {
+    var r = await SEC.gasPost({ action: 'ping' });
+    dot.className = 'c-dot ok';
+    document.getElementById('cTs').textContent = SEC.nowStr();
+    SEC.toast('✅ 雲端連線正常', 'ok');
+  } catch (e) {
+    dot.className = 'c-dot err';
+    SEC.toast('❌ 雲端連線失敗：' + e.message, 'err', 5000);
+  }
+}
+
+async function act(action) {
+  SEC.toast('<span>⏳</span> 執行中…');
+  try {
+    await SEC.gasPost({ action: action, lang: SEC.lang() });
+    SEC.toast('✅ 已送出，請看 Telegram 群組', 'ok', 4000);
+  } catch (e) { SEC.toast('❌ ' + e.message, 'err', 5000); }
+}
+function openCfg() { SEC.openSettings(); }
+
+/* 首次載入自動 ping 一次（不擋畫面） */
+setTimeout(function () {
+  SEC.gasPost({ action: 'ping' })
+    .then(function () { document.getElementById('dot').className = 'c-dot ok'; })
+    .catch(function () { document.getElementById('dot').className = 'c-dot err'; });
+}, 600);
+</script>
 </body>
 </html>

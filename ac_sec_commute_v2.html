@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>通勤交通 Commute & Motor | AC Security</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="./shared/sec.css">
+</head>
+<body>
+<div id="hdr"></div>
+
+<div class="tabs" id="tabs">
+  <button class="tab on" data-p="car"  data-zh="🚐 車輛派遣" data-en="🚐 Vehicle"   data-km="🚐 រថយន្ត">🚐 車輛派遣</button>
+  <button class="tab"    data-p="bike" data-zh="🏍 摩托車"   data-en="🏍 Motorbike" data-km="🏍 ម៉ូតូ">🏍 摩托車</button>
+  <button class="tab"    data-p="gate" data-zh="🚛 車輛出入閘" data-en="🚛 Gate Log"   data-km="🚛 ច្រកចេញចូល">🚛 車輛出入閘</button>
+  <button class="tab"    data-p="late" data-zh="⏰ 遲到登記" data-en="⏰ Come Late" data-km="⏰ មកយឺត">⏰ 遲到登記</button>
+  <button class="tab"    data-p="ana"  data-zh="📊 統計分析" data-en="📊 Analytics" data-km="📊 វិភាគ">📊 統計分析</button>
+  <button class="tab"    data-p="data" data-zh="💾 資料管理" data-en="💾 Data"      data-km="💾 ទិន្នន័យ">💾 資料管理</button>
+</div>
+
+<div class="wrap">
+  <div id="pnavHost"></div>
+
+  <!-- ═══ 車輛派遣 ═══ -->
+  <div class="page" id="p-car">
+    <div class="grid g4" style="margin-bottom:12px">
+      <div class="kpi"><div class="v" id="ck1">0</div><div class="l" data-zh="派遣次數" data-en="Trips" data-km="ដំណើរ">派遣次數</div></div>
+      <div class="kpi"><div class="v" id="ck2">0</div><div class="l" data-zh="總里程 KM" data-en="Total KM" data-km="គីឡូម៉ែត្រ">總里程 KM</div></div>
+      <div class="kpi"><div class="v" id="ck3">0</div><div class="l" data-zh="司機人數" data-en="Drivers" data-km="អ្នកបើកបរ">司機人數</div></div>
+      <div class="kpi warn"><div class="v" id="ck4">0</div><div class="l" data-zh="平均每趟 KM" data-en="Avg KM/trip" data-km="មធ្យម">平均每趟 KM</div></div>
+    </div>
+    <div class="card">
+      <h3>🚐 <span data-zh="車輛派遣記錄" data-en="Vehicle Dispatch" data-km="ការចាត់ចែងរថយន្ត">車輛派遣記錄</span>
+        <span class="sp">
+          <select id="fDriver" style="width:auto" onchange="renderCar()"><option value="">全部司機</option></select>
+          <select id="fType" style="width:auto" onchange="renderCar()"><option value="">全部用途</option></select>
+          <button class="btn sm" onclick="openAdd('car')">➕ <span data-t="add">新增</span></button>
+          <button class="btn sm gh" onclick="impCar()">📥 Excel</button>
+        </span></h3>
+      <div class="tw"><table><thead><tr>
+        <th data-zh="日期" data-en="Date" data-km="កាល">日期</th>
+        <th data-zh="司機" data-en="Driver" data-km="អ្នកបើក">司機</th>
+        <th data-zh="用途" data-en="Purpose" data-km="គោលបំណង">用途</th>
+        <th data-zh="事由" data-en="Reason" data-km="មូលហេតុ">事由</th>
+        <th class="num" data-zh="里程 KM" data-en="KM" data-km="គីឡូ">里程 KM</th>
+        <th></th></tr></thead><tbody id="tbCar"></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- ═══ 摩托車 ═══ -->
+  <div class="page" id="p-bike" style="display:none">
+    <div class="grid g4" style="margin-bottom:12px">
+      <div class="kpi"><div class="v" id="bk1">0</div><div class="l" data-zh="記錄天數" data-en="Days" data-km="ថ្ងៃ">記錄天數</div></div>
+      <div class="kpi"><div class="v" id="bk2">0</div><div class="l" data-zh="平均每日總數" data-en="Avg total/day" data-km="មធ្យម">平均每日總數</div></div>
+      <div class="kpi ok"><div class="v" id="bk3">0</div><div class="l">A 棟平均</div></div>
+      <div class="kpi ok"><div class="v" id="bk4">0</div><div class="l">B 棟平均</div></div>
+    </div>
+    <div class="card">
+      <h3>🏍 <span data-zh="摩托車停放記錄" data-en="Motorbike Parking" data-km="ចំណតម៉ូតូ">摩托車停放記錄</span>
+        <span class="sp">
+          <button class="btn sm" onclick="openAdd('bike')">➕ <span data-t="add">新增</span></button>
+          <button class="btn sm gh" onclick="impBike()">📥 Excel</button>
+        </span></h3>
+      <div class="tw"><table><thead><tr>
+        <th data-zh="日期" data-en="Date" data-km="កាល">日期</th>
+        <th class="num">Building A</th><th class="num">Building B</th>
+        <th class="num" data-zh="合計" data-en="Total" data-km="សរុប">合計</th>
+        <th data-zh="備註" data-en="Remark" data-km="កំណត់">備註</th>
+        <th></th></tr></thead><tbody id="tbBike"></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- ═══ 車輛出入閘 ═══ -->
+  <div class="page" id="p-gate" style="display:none">
+    <div class="grid g4" style="margin-bottom:12px">
+      <div class="kpi"><div class="v" id="gk1">0</div><div class="l" data-zh="出入次數" data-en="Gate logs" data-km="ចំនួន">出入次數</div></div>
+      <div class="kpi"><div class="v" id="gk2">0</div><div class="l" data-zh="車輛數" data-en="Vehicles" data-km="រថយន្ត">車輛數</div></div>
+      <div class="kpi"><div class="v" id="gk3">0</div><div class="l" data-zh="總乘客人次" data-en="Total pax" data-km="អ្នកដំណើរ">總乘客人次</div></div>
+      <div class="kpi warn"><div class="v" id="gk4">0</div><div class="l" data-zh="總里程 KM" data-en="Total KM" data-km="គីឡូ">總里程 KM</div></div>
+    </div>
+    <div class="card">
+      <h3>🚛 <span data-zh="公司車輛出入閘登記" data-en="Company Vehicle Gate Log" data-km="កំណត់ត្រាច្រកចេញចូល">公司車輛出入閘登記</span>
+        <span class="sp">
+          <input id="qGate" placeholder="搜尋車牌/司機…" style="width:160px" oninput="renderGate()">
+          <button class="btn sm" onclick="openAdd('gate')">➕ <span data-t="add">新增</span></button>
+          <button class="btn sm gh" onclick="impGate()">📥 Excel</button>
+        </span></h3>
+      <div class="tw"><table><thead><tr>
+        <th data-zh="日期" data-en="Date" data-km="កាល">日期</th>
+        <th data-zh="車牌" data-en="Plate" data-km="ស្លាកលេខ">車牌</th>
+        <th data-zh="司機" data-en="Driver" data-km="អ្នកបើក">司機</th>
+        <th data-zh="乘客" data-en="Passenger" data-km="អ្នកដំណើរ">乘客</th>
+        <th data-zh="部門" data-en="Dept" data-km="ផ្នែក">部門</th>
+        <th class="num" data-zh="人數" data-en="Pax" data-km="ចំនួន">人數</th>
+        <th data-zh="出閘" data-en="Out" data-km="ចេញ">出閘</th>
+        <th data-zh="入閘" data-en="In" data-km="ចូល">入閘</th>
+        <th class="num" data-zh="里程" data-en="KM" data-km="គីឡូ">里程</th>
+        <th data-zh="用車原因" data-en="Reason" data-km="មូលហេតុ">用車原因</th>
+        <th></th></tr></thead><tbody id="tbGate"></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- ═══ 遲到登記 ═══ -->
+  <div class="page" id="p-late" style="display:none">
+    <div class="grid g4" style="margin-bottom:12px">
+      <div class="kpi err"><div class="v" id="lk1">0</div><div class="l" data-zh="遲到人次" data-en="Late count" data-km="ចំនួនមកយឺត">遲到人次</div></div>
+      <div class="kpi"><div class="v" id="lk2">0</div><div class="l" data-zh="不重複人數" data-en="Unique staff" data-km="បុគ្គលិក">不重複人數</div></div>
+      <div class="kpi warn"><div class="v" id="lk3">0</div><div class="l" data-zh="重複遲到（≥3次）" data-en="Repeat (≥3)" data-km="ម្តងទៀត">重複遲到（≥3次）</div></div>
+      <div class="kpi"><div class="v" id="lk4">—</div><div class="l" data-zh="最常遲到部門" data-en="Top dept" data-km="ផ្នែក">最常遲到部門</div></div>
+    </div>
+    <div class="card">
+      <h3>⏰ <span data-zh="遲到登記記錄" data-en="Come Late Register" data-km="បញ្ជីមកយឺត">遲到登記記錄</span>
+        <span class="sp">
+          <input id="qLate" placeholder="搜尋姓名/工號…" style="width:160px" oninput="renderLate()">
+          <button class="btn sm" onclick="openAdd('late')">➕ <span data-t="add">新增</span></button>
+          <button class="btn sm gh" onclick="impLate()">📥 Excel</button>
+        </span></h3>
+      <div class="tw"><table><thead><tr>
+        <th data-zh="日期" data-en="Date" data-km="កាល">日期</th>
+        <th data-zh="工號" data-en="ID" data-km="អត្តលេខ">工號</th>
+        <th data-zh="姓名" data-en="Name" data-km="ឈ្មោះ">姓名</th>
+        <th data-zh="部門" data-en="Dept" data-km="ផ្នែក">部門</th>
+        <th data-zh="入廠" data-en="Check In" data-km="ចូល">入廠</th>
+        <th data-zh="出廠" data-en="Check Out" data-km="ចេញ">出廠</th>
+        <th data-zh="門衛" data-en="Gatekeeper" data-km="សន្តិសុខ">門衛</th>
+        <th data-zh="說明" data-en="Note" data-km="កំណត់">說明</th>
+        <th></th></tr></thead><tbody id="tbLate"></tbody></table></div>
+    </div>
+    <div class="card">
+      <h3>🔁 <span data-zh="重複遲到人員" data-en="Repeat Offenders" data-km="អ្នកមកយឺតញឹកញាប់">重複遲到人員</span></h3>
+      <div class="tw"><table><thead><tr><th>工號</th><th>姓名</th><th>部門</th><th class="num">次數</th><th>日期</th></tr></thead>
+      <tbody id="tbRepeat"></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- ═══ 統計 ═══ -->
+  <div class="page" id="p-ana" style="display:none">
+    <div class="grid g2">
+      <div class="card"><h3>🚐 <span data-zh="車輛里程趨勢" data-en="Vehicle KM Trend" data-km="និន្នាការគីឡូ">車輛里程趨勢</span></h3>
+        <div style="height:240px"><canvas id="ch1"></canvas></div></div>
+      <div class="card"><h3>🏍 <span data-zh="摩托車趨勢" data-en="Motorbike Trend" data-km="និន្នាការម៉ូតូ">摩托車趨勢</span></h3>
+        <div style="height:240px"><canvas id="ch2"></canvas></div></div>
+      <div class="card"><h3>⏰ <span data-zh="遲到趨勢" data-en="Late Trend" data-km="និន្នាការមកយឺត">遲到趨勢</span></h3>
+        <div style="height:240px"><canvas id="ch3"></canvas></div></div>
+      <div class="card"><h3>🏭 <span data-zh="遲到部門分佈" data-en="Late by Dept" data-km="តាមផ្នែក">遲到部門分佈</span></h3>
+        <div style="height:240px"><canvas id="ch4"></canvas></div></div>
+    </div>
+  </div>
+
+  <!-- ═══ 資料管理 ═══ -->
+  <div class="page" id="p-data" style="display:none">
+    <div class="card">
+      <h3>📥 <span data-zh="Excel 匯入（專用解析器）" data-en="Excel Import (dedicated parsers)" data-km="នាំចូល">Excel 匯入（專用解析器）</span></h3>
+      <div class="grid g3">
+        <div><button class="btn" style="width:100%" onclick="impCar()">🚐 <span data-zh="匯入車輛派遣表" data-en="Import Vehicle Record" data-km="នាំចូលរថយន្ត">匯入車輛派遣表</span></button>
+          <p class="hint" style="margin-top:5px">支援 transportation_record 格式：每位司機一張工作表、Reason/KM 成對欄位、多層標題。</p></div>
+        <div><button class="btn" style="width:100%" onclick="impBike()">🏍 <span data-zh="匯入摩托車表" data-en="Import Motorbike" data-km="នាំចូលម៉ូតូ">匯入摩托車表</span></button>
+          <p class="hint" style="margin-top:5px">支援 Motor_Bike 格式：每月一張工作表、Building A/B/Total、Holiday/Sunday 自動略過。</p></div>
+        <div><button class="btn" style="width:100%" onclick="impGate()">🚛 <span data-zh="匯入車輛出入閘表" data-en="Import Gate Log" data-km="នាំចូលច្រក">匯入車輛出入閘表</span></button>
+          <p class="hint" style="margin-top:5px">支援 Container_Truck_Register 檔中的 <b>公司派車分頁</b>（日期/車牌/司機/乘客/部門/出入閘時間/里程/用車原因，中緬雙層標題、日期合併儲存格）。</p></div>
+        <div><button class="btn" style="width:100%" onclick="impLate()">⏰ <span data-zh="匯入遲到登記表" data-en="Import Come Late" data-km="នាំចូលមកយឺត">匯入遲到登記表</span></button>
+          <p class="hint" style="margin-top:5px">支援 Come_Late_Register 格式：英/中/柬三層標題、Check In/Out、門衛簽名。</p></div>
+      </div>
+      <div class="sep"></div>
+      <div id="impLog" class="hint">匯入後這裡會顯示每張工作表的偵測與匯入筆數，方便確認為何某張表沒有資料。</div>
+    </div>
+    <div class="card">
+      <h3>💾 <span data-zh="匯出 / 備份" data-en="Export / Backup" data-km="នាំចេញ">匯出 / 備份</span></h3>
+      <div class="row">
+        <button class="btn gh" onclick="expExcel()">📊 <span data-t="expExcel">匯出 Excel</span></button>
+        <button class="btn gh" onclick="SEC.backupJson({car:CAR,bike:BIKE,gate:GATE,late:LATE},'commute_backup_'+SEC.ymd()+'.json')">💾 <span data-t="backup">備份 JSON</span></button>
+        <button class="btn gh" onclick="restore()">📂 <span data-t="restore">還原 JSON</span></button>
+        <button class="btn err" onclick="clearAll()">🗑 <span data-zh="清空" data-en="Clear" data-km="សម្អាត">清空</span></button>
+      </div>
+      <div class="sep"></div>
+      <div class="row">
+        <button class="btn" onclick="doUpload()">⬆️☁ <span data-t="upload">上傳雲端</span></button>
+        <button class="btn gh" onclick="doDownload()">⬇️☁ <span data-t="download">下載雲端</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 新增 Modal -->
+<div class="mask" id="mAdd"><div class="modal"><div class="mh"><span>➕</span><b id="mTitle">新增</b>
+<button class="x" onclick="SEC.closeModal('mAdd')">×</button></div>
+<div class="mb"><div id="mBody" class="grid"></div></div>
+<div class="mf"><button class="btn gray" onclick="SEC.closeModal('mAdd')" data-t="cancel">取消</button>
+<button class="btn" onclick="saveAdd()" data-t="save">儲存</button></div></div></div>
+
+<div id="toastwrap"></div>
+<script src="./shared/sec-core.js"></script>
+<script>
+var LSC = 'ac_sec_car_db', LSB = 'ac_sec_bike_db', LSL = 'ac_sec_late_db', LSG = 'ac_sec_gate_db';
+var CAR = [], BIKE = [], LATE = [], GATE = [], PER = new SEC.Period('month'), CH = {}, TOOL = 'commute', ADDKIND = 'car';
+
+function load() {
+  try { CAR = JSON.parse(localStorage.getItem(LSC) || '[]'); } catch (e) { CAR = []; }
+  try { BIKE = JSON.parse(localStorage.getItem(LSB) || '[]'); } catch (e) { BIKE = []; }
+  try { LATE = JSON.parse(localStorage.getItem(LSL) || '[]'); } catch (e) { LATE = []; }
+  try { GATE = JSON.parse(localStorage.getItem(LSG) || '[]'); } catch (e) { GATE = []; }
+}
+function save() {
+  localStorage.setItem(LSC, JSON.stringify(CAR));
+  localStorage.setItem(LSB, JSON.stringify(BIKE));
+  localStorage.setItem(LSL, JSON.stringify(LATE));
+  localStorage.setItem(LSG, JSON.stringify(GATE));
+}
+
+document.getElementById('hdr').innerHTML = SEC.headerHtml('🏍', '通勤交通 Commute & Motor', 'AC SECURITY · COMMUTE');
+document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
+load();
+SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: pushSummary });
+SEC.bindPeriodNav('pnav', PER, renderAll);
+document.getElementById('tabs').addEventListener('click', function (e) {
+  var b = e.target.closest('.tab'); if (!b) return;
+  document.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('on'); });
+  b.classList.add('on');
+  document.querySelectorAll('.page').forEach(function (p) { p.style.display = 'none'; });
+  document.getElementById('p-' + b.dataset.p).style.display = '';
+  document.getElementById('pnavHost').style.display = (b.dataset.p === 'data') ? 'none' : '';
+  renderAll();
+});
+window.onLangChange = renderAll;
+renderAll();
+
+function inP(arr) { return arr.filter(function (r) { return PER.has(r.date); }); }
+function renderAll() { renderCar(); renderBike(); renderGate(); renderLate(); renderAna(); }
+
+/* ═══ 車輛 ═══ */
+function renderCar() {
+  var list = inP(CAR);
+  var fd = document.getElementById('fDriver').value, ft = document.getElementById('fType').value;
+  /* 篩選器選項 */
+  var ds = {}, ts = {};
+  inP(CAR).forEach(function (r) { if (r.driver) ds[r.driver] = 1; if (r.type) ts[r.type] = 1; });
+  fillSel('fDriver', ds, '全部司機'); fillSel('fType', ts, '全部用途');
+  if (fd) list = list.filter(function (r) { return r.driver === fd; });
+  if (ft) list = list.filter(function (r) { return r.type === ft; });
+
+  var km = list.reduce(function (s, r) { return s + (+r.km || 0); }, 0);
+  var dr = {}; list.forEach(function (r) { if (r.driver) dr[r.driver] = 1; });
+  document.getElementById('ck1').textContent = list.length;
+  document.getElementById('ck2').textContent = Math.round(km).toLocaleString();
+  document.getElementById('ck3').textContent = Object.keys(dr).length;
+  document.getElementById('ck4').textContent = list.length ? (km / list.length).toFixed(1) : 0;
+
+  var tb = document.getElementById('tbCar');
+  tb.innerHTML = list.length ? list.slice().sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); })
+    .map(function (r) {
+      return '<tr><td>' + SEC.esc(r.date) + '</td><td>' + SEC.esc(r.driver || '') + '</td>' +
+        '<td><span class="tag info">' + SEC.esc(r.type || '') + '</span></td>' +
+        '<td>' + SEC.esc(r.reason || '') + '</td><td class="num"><b>' + (r.km || 0) + '</b></td>' +
+        '<td><button class="btn sm err" onclick="del(\'car\',\'' + r.id + '\')">×</button></td></tr>';
+    }).join('') : '<tr><td colspan="6" class="empty">' + SEC.T().noData + '</td></tr>';
+}
+function fillSel(id, obj, first) {
+  var s = document.getElementById(id), cur = s.value;
+  s.innerHTML = '<option value="">' + first + '</option>' + Object.keys(obj).sort().map(function (k) {
+    return '<option>' + SEC.esc(k) + '</option>';
+  }).join('');
+  s.value = cur;
+}
+
+/* ═══ 摩托車 ═══ */
+function renderBike() {
+  var list = inP(BIKE);
+  var tot = list.reduce(function (s, r) { return s + (+r.total || 0); }, 0);
+  var a = list.reduce(function (s, r) { return s + (+r.a || 0); }, 0);
+  var b = list.reduce(function (s, r) { return s + (+r.b || 0); }, 0);
+  var n = list.length || 1;
+  document.getElementById('bk1').textContent = list.length;
+  document.getElementById('bk2').textContent = Math.round(tot / n);
+  document.getElementById('bk3').textContent = Math.round(a / n);
+  document.getElementById('bk4').textContent = Math.round(b / n);
+  var tb = document.getElementById('tbBike');
+  tb.innerHTML = list.length ? list.slice().sort(function (x, y) { return (y.date || '').localeCompare(x.date || ''); })
+    .map(function (r) {
+      return '<tr><td>' + SEC.esc(r.date) + '</td><td class="num">' + (r.a || 0) + '</td>' +
+        '<td class="num">' + (r.b || 0) + '</td><td class="num"><b>' + (r.total || 0) + '</b></td>' +
+        '<td>' + SEC.esc(r.remark || '') + '</td>' +
+        '<td><button class="btn sm err" onclick="del(\'bike\',\'' + r.id + '\')">×</button></td></tr>';
+    }).join('') : '<tr><td colspan="6" class="empty">' + SEC.T().noData + '</td></tr>';
+}
+
+/* ═══ 車輛出入閘 ═══ */
+function renderGate() {
+  var list = inP(GATE);
+  var q = (document.getElementById('qGate').value || '').toLowerCase();
+  if (q) list = list.filter(function (r) {
+    return (r.plate || '').toLowerCase().indexOf(q) >= 0 || (r.driver || '').toLowerCase().indexOf(q) >= 0;
+  });
+  var pl = {}; list.forEach(function (r) { if (r.plate) pl[r.plate] = 1; });
+  document.getElementById('gk1').textContent = list.length;
+  document.getElementById('gk2').textContent = Object.keys(pl).length;
+  document.getElementById('gk3').textContent = list.reduce(function (s, r) { return s + (+r.pax || 0); }, 0);
+  document.getElementById('gk4').textContent = Math.round(list.reduce(function (s, r) { return s + (+r.km || 0); }, 0)).toLocaleString();
+  var tb = document.getElementById('tbGate');
+  tb.innerHTML = list.length ? list.slice().sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); })
+    .slice(0, 500).map(function (r) {
+      return '<tr><td>' + SEC.esc(r.date) + '</td><td><code>' + SEC.esc(r.plate || '') + '</code></td>' +
+        '<td>' + SEC.esc(r.driver || '') + '</td><td>' + SEC.esc(r.passenger || '') + '</td>' +
+        '<td>' + SEC.esc(r.dept || '') + '</td><td class="num">' + (r.pax || '') + '</td>' +
+        '<td>' + SEC.esc(r.outTime || '') + '</td><td>' + SEC.esc(r.inTime || '') + '</td>' +
+        '<td class="num">' + (r.km || '') + '</td><td>' + SEC.esc(r.reason || '') + '</td>' +
+        '<td><button class="btn sm err" onclick="del(\'gate\',\'' + r.id + '\')">×</button></td></tr>';
+    }).join('') : '<tr><td colspan="11" class="empty">' + SEC.T().noData + '</td></tr>';
+}
+
+/* ── ④ 公司車輛出入閘：Container_Truck_Register 檔內的派車分頁 ──
+   結構：標題在第 4-5 列（中文 + 緬文雙層）、日期合併儲存格（僅每日第一列有值）、
+        行駛里數有兩欄（出閘 / 入閘），里程 = 入閘里數 − 出閘里數。 */
+var GATE_SPEC = {
+  date     : ['日期','date','ရက္စြဲ','កាលបរិច្ឆេទ'],
+  seq      : ['序号','序號','no','စဥ္'],
+  plate    : ['车牌号','车牌','車牌','plate','ကားနံပါတ္','vehicleno','trucknumber'],
+  driver   : ['司机名字','司機','driver','ဒါရိုက္ဘာအမည္','drivername'],
+  passenger: ['乘客名子','乘客名字','乘客','passenger','လိုက္ပါသူအမည္'],
+  dept     : ['部门','部門','dept','department','ဌာန'],
+  pax      : ['乘客人數','乘客人数','人數','pax','လိုက္ပါသူအေရအတြက္'],
+  outTime  : ['出闸時间','出閘時間','出闸时间','ထြက္ခ်ိန္','timeout'],
+  outSign  : ['出闸時保安簽客','出闸时保安签客','ထြက္ခ်ိန္ဂိတ္'],
+  inTime   : ['入闸時间','入閘時間','入闸时间','၀င္ခ်ိန္','timein'],
+  inSign   : ['入闸時保安簽客','入闸时保安签客','၀င္ခ်ိန္ဂိတ္'],
+  reason   : ['用车原因','用車原因','reason','ကားသုံးသည့္','purpose'],
+};
+function impGate() {
+  SEC.pickExcel(function (sheets) {
+    var added = 0, log = [];
+    sheets.forEach(function (sh) {
+      var rows = sh.rows, hr = -1, map = {};
+      for (var r = 0; r < Math.min(rows.length, 12); r++) {
+        var m = {}, sc = 0;
+        for (var c = 0; c < (rows[r] || []).length; c++) {
+          var a = SEC.norm(rows[r][c]);
+          if (!a) continue;
+          Object.keys(GATE_SPEC).forEach(function (k) {
+            if (m[k] !== undefined) return;
+            if (GATE_SPEC[k].some(function (al) { var nn = SEC.norm(al); return nn && a.indexOf(nn) >= 0; })) { m[k] = c; sc++; }
+          });
+        }
+        if (sc >= 6) { hr = r; map = m; break; }
+      }
+      if (hr < 0) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：非派車格式（欄位比對不足），略過'); return; }
+      /* 行駛里數兩欄 */
+      var kmCols = [];
+      for (var c2 = 0; c2 < (rows[hr] || []).length; c2++) {
+        var v = SEC.norm(rows[hr][c2]);
+        if (v.indexOf('行驶里數') >= 0 || v.indexOf('行驶里数') >= 0 || v.indexOf('行駛里數') >= 0 || v === 'km' || v === 'ကီလို') kmCols.push(c2);
+      }
+      var n = 0, lastDate = '';
+      for (var i = hr + 1; i < rows.length; i++) {
+        var R = rows[i] || [];
+        var d = SEC.parseD(R[map.date]);
+        if (d) lastDate = SEC.ymd(d);            /* 合併儲存格：沿用上一列日期 */
+        var plate = SEC.str(R[map.plate]), driver = SEC.str(R[map.driver]);
+        if (!plate && !driver) continue;
+        if (SEC.norm(plate) === '车牌号' || SEC.norm(driver) === '司机名字') continue;
+        if (!lastDate) continue;
+        var k1 = kmCols.length > 0 ? SEC.num(R[kmCols[0]]) : 0;
+        var k2 = kmCols.length > 1 ? SEC.num(R[kmCols[1]]) : 0;
+        var km = (k1 && k2 && k2 > k1) ? (k2 - k1) : 0;
+        GATE.push({
+          id: 'G' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          date: lastDate, plate: plate, driver: driver,
+          passenger: SEC.str(R[map.passenger]), dept: SEC.str(R[map.dept]),
+          pax: SEC.num(R[map.pax]),
+          outTime: fmtTime(R[map.outTime]), inTime: fmtTime(R[map.inTime]),
+          outKm: k1, inKm: k2, km: km,
+          outSign: SEC.str(R[map.outSign]), inSign: SEC.str(R[map.inSign]),
+          reason: SEC.str(R[map.reason]), src: sh.name,
+        });
+        n++; added++;
+      }
+      log.push('· <b>' + SEC.esc(sh.name) + '</b>：匯入 <b>' + n + '</b> 筆（標題第 ' + (hr + 1) +
+               ' 列，里程欄 ' + kmCols.length + ' 個）');
+    });
+    save(); renderAll(); logImp(log.join('<br>'));
+    SEC.toast(added ? '✅ 車輛出入閘匯入 ' + added + ' 筆' : '⚠ 未匯入，請看偵測記錄', added ? 'ok' : 'warn', 5000);
+  });
+}
+
+/* ═══ 遲到 ═══ */
+function renderLate() {
+  var list = inP(LATE);
+  var q = (document.getElementById('qLate').value || '').toLowerCase();
+  if (q) list = list.filter(function (r) {
+    return (r.name || '').toLowerCase().indexOf(q) >= 0 || String(r.empId || '').indexOf(q) >= 0;
+  });
+  var uniq = {}, byDept = {};
+  list.forEach(function (r) {
+    var k = r.empId || r.name;
+    if (!uniq[k]) uniq[k] = { n: 0, name: r.name, dept: r.dept, dates: [] };
+    uniq[k].n++; uniq[k].dates.push(r.date);
+    var d = r.dept || '—'; byDept[d] = (byDept[d] || 0) + 1;
+  });
+  var uk = Object.keys(uniq);
+  var rep = uk.filter(function (k) { return uniq[k].n >= 3; });
+  var topD = Object.keys(byDept).sort(function (a, b) { return byDept[b] - byDept[a]; })[0];
+  document.getElementById('lk1').textContent = list.length;
+  document.getElementById('lk2').textContent = uk.length;
+  document.getElementById('lk3').textContent = rep.length;
+  document.getElementById('lk4').textContent = topD ? topD.slice(0, 12) : '—';
+
+  var tb = document.getElementById('tbLate');
+  tb.innerHTML = list.length ? list.slice().sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); })
+    .slice(0, 400).map(function (r) {
+      return '<tr><td>' + SEC.esc(r.date) + '</td><td><code>' + SEC.esc(r.empId || '') + '</code></td>' +
+        '<td>' + SEC.esc(r.name || '') + '</td><td>' + SEC.esc(r.dept || '') + '</td>' +
+        '<td>' + SEC.esc(r.checkIn || '') + '</td><td>' + SEC.esc(r.checkOut || '') + '</td>' +
+        '<td>' + SEC.esc(r.gate || '') + '</td><td>' + SEC.esc(r.note || '') + '</td>' +
+        '<td><button class="btn sm err" onclick="del(\'late\',\'' + r.id + '\')">×</button></td></tr>';
+    }).join('') : '<tr><td colspan="9" class="empty">' + SEC.T().noData + '</td></tr>';
+
+  document.getElementById('tbRepeat').innerHTML = rep.length
+    ? rep.sort(function (a, b) { return uniq[b].n - uniq[a].n; }).map(function (k) {
+        var u = uniq[k];
+        return '<tr><td><code>' + SEC.esc(k) + '</code></td><td><b>' + SEC.esc(u.name || '') + '</b></td>' +
+          '<td>' + SEC.esc(u.dept || '') + '</td>' +
+          '<td class="num"><span class="tag err">' + u.n + '</span></td>' +
+          '<td class="hint">' + SEC.esc(u.dates.slice(0, 8).join('、')) + (u.dates.length > 8 ? '…' : '') + '</td></tr>';
+      }).join('')
+    : '<tr><td colspan="5" class="empty">無重複遲到（≥3 次）人員</td></tr>';
+}
+
+/* ═══ 統計 ═══ */
+function renderAna() {
+  var c = {}, b = {}, l = {}, d = {};
+  inP(CAR).forEach(function (r) { c[r.date] = (c[r.date] || 0) + (+r.km || 0); });
+  inP(BIKE).forEach(function (r) { b[r.date] = (+r.total || 0); });
+  inP(LATE).forEach(function (r) { l[r.date] = (l[r.date] || 0) + 1; d[r.dept || '—'] = (d[r.dept || '—'] || 0) + 1; });
+  var ck = Object.keys(c).sort(), bk = Object.keys(b).sort(), lk = Object.keys(l).sort();
+  chart('ch1', 'line', ck, [{ label: 'KM', data: ck.map(function (k) { return c[k]; }),
+    borderColor: '#1e6f8e', backgroundColor: 'rgba(30,111,142,.14)', fill: true, tension: .3 }]);
+  chart('ch2', 'line', bk, [{ label: '摩托車總數', data: bk.map(function (k) { return b[k]; }),
+    borderColor: '#2a8fb0', backgroundColor: 'rgba(42,143,176,.14)', fill: true, tension: .3 }]);
+  chart('ch3', 'bar', lk, [{ label: '遲到人次', data: lk.map(function (k) { return l[k]; }), backgroundColor: '#f87171' }]);
+  var dk = Object.keys(d).sort(function (x, y) { return d[y] - d[x]; }).slice(0, 10);
+  chart('ch4', 'bar', dk, [{ label: '遲到人次', data: dk.map(function (k) { return d[k]; }), backgroundColor: '#fbbf24' }]);
+}
+function chart(id, type, labels, ds) {
+  var el = document.getElementById(id); if (!el) return;
+  if (CH[id]) CH[id].destroy();
+  CH[id] = new Chart(el, { type: type, data: { labels: labels, datasets: ds },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } } } });
+}
+
+/* ═══ 新增 Modal ═══ */
+var FIELDS = {
+  car : [['date','日期','date'],['driver','司機','text'],['type','用途','text'],['reason','事由','text'],['km','里程 KM','number']],
+  bike: [['date','日期','date'],['a','Building A','number'],['b','Building B','number'],['remark','備註','text']],
+  gate: [['date','日期','date'],['plate','車牌','text'],['driver','司機','text'],['passenger','乘客','text'],
+         ['dept','部門','text'],['pax','人數','number'],['outTime','出閘時間','time'],['inTime','入閘時間','time'],
+         ['km','里程 KM','number'],['reason','用車原因','text']],
+  late: [['date','日期','date'],['empId','工號','text'],['name','姓名','text'],['dept','部門','text'],
+         ['checkIn','入廠時間','time'],['checkOut','出廠時間','time'],['gate','門衛','text'],['note','說明','text']],
+};
+function openAdd(kind) {
+  ADDKIND = kind;
+  document.getElementById('mTitle').textContent = { car: '新增車輛派遣', bike: '新增摩托車記錄', gate: '新增車輛出入閘', late: '新增遲到登記' }[kind];
+  document.getElementById('mBody').innerHTML = FIELDS[kind].map(function (f) {
+    return '<div class="f"><label>' + f[1] + '</label><input type="' + f[2] + '" id="m_' + f[0] + '"' +
+      (f[0] === 'date' ? ' value="' + SEC.ymd() + '"' : '') + '></div>';
+  }).join('');
+  SEC.openModal('mAdd');
+}
+function saveAdd() {
+  var o = { id: ADDKIND.charAt(0).toUpperCase() + Date.now().toString(36) };
+  FIELDS[ADDKIND].forEach(function (f) {
+    var v = document.getElementById('m_' + f[0]).value;
+    o[f[0]] = f[2] === 'number' ? (Number(v) || 0) : v.trim();
+  });
+  if (!o.date) { SEC.toast('⚠ 請選日期', 'warn'); return; }
+  if (ADDKIND === 'bike') o.total = (o.a || 0) + (o.b || 0);
+  ({ car: CAR, bike: BIKE, gate: GATE, late: LATE })[ADDKIND].push(o);
+  save(); renderAll(); SEC.closeModal('mAdd'); SEC.toast('✅ 已新增', 'ok');
+}
+function del(kind, id) {
+  if (!confirm(SEC.T().confirmDel)) return;
+  if (kind === 'car')  CAR  = CAR.filter(function (r) { return r.id !== id; });
+  if (kind === 'bike') BIKE = BIKE.filter(function (r) { return r.id !== id; });
+  if (kind === 'gate') GATE = GATE.filter(function (r) { return r.id !== id; });
+  if (kind === 'late') LATE = LATE.filter(function (r) { return r.id !== id; });
+  save(); renderAll();
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ★ 專用 Excel 匯入器 —— 針對三種實際檔案格式
+   ═══════════════════════════════════════════════════════════════════ */
+function logImp(html) { document.getElementById('impLog').innerHTML = '<b>匯入結果</b><br>' + html; }
+
+/* ── ① 車輛派遣：transportation_record 格式 ──
+   結構：每張表 = 一位司機；第 1 列「Driver: xxx」；
+        第 2 列為用途大類（Personal / Bank / Others / Come…），跨欄合併；
+        第 3 列為子類（Long distance / Short distance / Company / Personal）；
+        第 4 列為 Reason / KM 交替；第 5 列為合計；資料從第 6 列起。
+   作法：掃描前 8 列找出「Reason / KM」成對欄位，往上回溯取大類名稱。 */
+function impCar() {
+  SEC.pickExcel(function (sheets) {
+    var added = 0, log = [];
+    sheets.forEach(function (sh) {
+      var rows = sh.rows;
+      /* 找 Reason/KM 標題列 */
+      var hr = -1, pairs = [];
+      for (var r = 0; r < Math.min(rows.length, 10); r++) {
+        var found = [];
+        for (var c = 0; c < (rows[r] || []).length; c++) {
+          var v = SEC.norm(rows[r][c]);
+          if (v === 'km' || v === 'kms' || v === '里數' || v === 'distance') {
+            /* 左邊找 reason */
+            var rc = -1;
+            for (var k = c - 1; k >= Math.max(0, c - 3); k--) {
+              var vv = SEC.norm(rows[r][k]);
+              if (vv === 'reason' || vv === '事由' || vv === '原因' || vv === 'purpose') { rc = k; break; }
+            }
+            found.push({ km: c, reason: rc >= 0 ? rc : c - 1 });
+          }
+        }
+        if (found.length >= 1) { hr = r; pairs = found; break; }
+      }
+      if (hr < 0) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：找不到 Reason/KM 欄位對，略過'); return; }
+      /* 大類名稱：往上回溯 hr-1 / hr-2 兩層標題並合併（處理跨欄合併儲存格）
+         ★ 掃描下限設在「前一組的 KM 欄之後」，避免抓到隔壁組的標題 */
+      pairs.forEach(function (p, pi) {
+        var floor = pi > 0 ? (pairs[pi - 1].km + 1) : 0;
+        function lookUp(rowIdx) {
+          if (rowIdx < 0 || !rows[rowIdx]) return '';
+          for (var c2 = p.reason; c2 >= floor; c2--) {
+            var v2 = SEC.str(rows[rowIdx][c2]);
+            if (v2 && !/^reason$|^km$/i.test(v2) && !/^driver\s*[:：]/i.test(v2)) return v2;
+          }
+          return '';
+        }
+        var sub   = lookUp(hr - 1);          /* 子類：Long distance / Company… */
+        var major = lookUp(hr - 2);          /* 大類：Personal / Bank / Others… */
+        var parts = [];
+        if (major) parts.push(major);
+        if (sub && sub !== major) parts.push(sub);
+        p.type = parts.join(' · ') || ('Col' + p.km);
+      });
+      /* 日期欄：找標題含 date/日期 的欄，否則預設第 0 欄 */
+      var dc = 0;
+      for (var r2 = 0; r2 < Math.min(rows.length, 10); r2++) {
+        for (var c3 = 0; c3 < Math.min((rows[r2] || []).length, 5); c3++) {
+          var v3 = SEC.norm(rows[r2][c3]);
+          if (v3 === 'date' || v3 === '日期' || v3 === 'កាលបរិច្ឆេទ') { dc = c3; }
+        }
+      }
+      /* 司機名：第 1 列 "Driver: tola" 或工作表名 */
+      var driver = sh.name.trim();
+      var head0 = SEC.str(rows[0] && rows[0][0]);
+      var dm = head0.match(/driver\s*[:：]\s*(.+)/i);
+      if (dm) driver = dm[1].trim();
+
+      var n = 0, lastDate = '';
+      for (var i = hr + 1; i < rows.length; i++) {
+        var R = rows[i] || [];
+        var d = SEC.parseD(R[dc]);
+        if (d) lastDate = SEC.ymd(d);
+        if (!lastDate) continue;
+        pairs.forEach(function (p) {
+          var reason = SEC.str(R[p.reason]);
+          var km = SEC.num(R[p.km]);
+          if (!reason && !km) return;
+          if (/^total|合計|小計$/i.test(reason)) return;
+          CAR.push({ id: 'X' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+            date: lastDate, driver: driver, type: p.type, reason: reason, km: km, src: sh.name });
+          n++; added++;
+        });
+      }
+      log.push('· <b>' + SEC.esc(sh.name) + '</b>（司機 ' + SEC.esc(driver) + '）：匯入 <b>' + n +
+               '</b> 筆，偵測到 ' + pairs.length + ' 組用途欄（' + pairs.map(function (p) { return SEC.esc(p.type); }).join('、') + '）');
+    });
+    save(); renderAll(); logImp(log.join('<br>'));
+    SEC.toast(added ? '✅ 車輛派遣匯入 ' + added + ' 筆' : '⚠ 未匯入，請看偵測記錄', added ? 'ok' : 'warn', 5000);
+  });
+}
+
+/* ── ② 摩托車：Motor_Bike 格式（每月一張表；Holiday/Sunday 略過） ── */
+function impBike() {
+  SEC.pickExcel(function (sheets) {
+    var added = 0, log = [];
+    sheets.forEach(function (sh) {
+      var rows = sh.rows, hr = -1, ca = -1, cb = -1, ct = -1, cd = -1, cr = -1;
+      for (var r = 0; r < Math.min(rows.length, 10); r++) {
+        var R = rows[r] || [], hit = 0;
+        for (var c = 0; c < R.length; c++) {
+          var v = SEC.norm(R[c]);
+          if (v.indexOf('buildinga') >= 0 || v === 'a' || v === 'អគារa') { ca = c; hit++; }
+          else if (v.indexOf('buildingb') >= 0 || v === 'b' || v === 'អគារb') { cb = c; hit++; }
+          else if (v === 'total' || v === '合計' || v === 'សរុប') { ct = c; hit++; }
+          else if (v === 'date' || v === '日期' || v === 'កាលបរិច្ឆេទ') { cd = c; hit++; }
+          else if (v === 'remark' || v === '備註' || v === 'note') { cr = c; }
+        }
+        if (hit >= 2) { hr = r; break; }
+      }
+      if (hr < 0) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：找不到 Building A/B 欄，略過'); return; }
+      if (cd < 0) cd = 0;
+      var n = 0, skip = 0;
+      for (var i = hr + 1; i < rows.length; i++) {
+        var R2 = rows[i] || [];
+        var d = SEC.parseD(R2[cd]);
+        if (!d) continue;
+        var va = SEC.str(R2[ca]), vb = SEC.str(R2[cb]);
+        /* Holiday / Sunday 等文字 → 略過但計數 */
+        if (/holiday|sunday|放假|假日|ថ្ងៃឈប់/i.test(va + ' ' + vb)) { skip++; continue; }
+        var a = SEC.num(va), b = SEC.num(vb);
+        var tot = ct >= 0 ? SEC.num(R2[ct]) : 0;
+        if (!tot) tot = a + b;
+        if (!a && !b && !tot) continue;
+        BIKE.push({ id: 'X' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          date: SEC.ymd(d), a: a, b: b, total: tot,
+          remark: cr >= 0 ? SEC.str(R2[cr]) : '', src: sh.name });
+        n++; added++;
+      }
+      log.push('· <b>' + SEC.esc(sh.name) + '</b>：匯入 <b>' + n + '</b> 筆' +
+               (skip ? '（略過假日 ' + skip + ' 天）' : '') + '，標題第 ' + (hr + 1) + ' 列');
+    });
+    save(); renderAll(); logImp(log.join('<br>'));
+    SEC.toast(added ? '✅ 摩托車匯入 ' + added + ' 筆' : '⚠ 未匯入，請看偵測記錄', added ? 'ok' : 'warn', 5000);
+  });
+}
+
+/* ── ③ 遲到登記：Come_Late_Register 格式（英/中/柬三層標題） ── */
+var LATE_SPEC = {
+  date    : ['date','日期','កាលបរិច្ឆេទ'],
+  empId   : ['companyid','来宾证号码','អត្តលេខ','id','vrtcode','factoryid','工號','編號'],
+  name    : ['name','姓名','ឈ្មោះ','surenamename','englishname','គោត្តនាមនិងនាម'],
+  dept    : ['dept','部門','ផ្នែក','department','身份证','section'],
+  late    : ['comelate','遲到','មកយឺត'],
+  checkIn : ['checkin','入廠时间','入廠時間','ពេលវេលាចូលរោងចក្រ','ពេលវេលាចូល'],
+  checkOut: ['checkout','退出时间','退出時間','ពេលវេលាចេញ'],
+  gate    : ['signbygatekeeper','门卫','門衛','ស៊ីញ៉េដោយសន្តិសុខ','gatekeeper','signby'],
+  note    : ['hour','小时','小時','ចំនួនម៉ោង','remark','備註','reason'],
+};
+function impLate() {
+  SEC.pickExcel(function (sheets) {
+    var added = 0, log = [];
+    sheets.forEach(function (sh) {
+      var res = SEC.parseSheet(sh.rows, LATE_SPEC, { minScore: 3, scan: 12 });
+      if (!res.rows.length) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：未偵測到遲到資料（比對分數 ' + res.header.score + '，需 ≥3）'); return; }
+      var n = 0;
+      res.rows.forEach(function (o) {
+        var d = SEC.parseD(o.date);
+        var name = SEC.str(o.name);
+        if (!d || !name) return;
+        LATE.push({ id: 'X' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          date: SEC.ymd(d), empId: SEC.str(o.empId), name: name, dept: SEC.str(o.dept),
+          checkIn: fmtTime(o.checkIn), checkOut: fmtTime(o.checkOut),
+          gate: SEC.str(o.gate), note: SEC.str(o.note), src: sh.name });
+        n++; added++;
+      });
+      log.push('· <b>' + SEC.esc(sh.name) + '</b>：匯入 <b>' + n + '</b> 筆（標題第 ' +
+               (res.header.row + 1) + ' 列，比對 ' + res.header.score + ' 欄）');
+    });
+    save(); renderAll(); logImp(log.join('<br>'));
+    SEC.toast(added ? '✅ 遲到登記匯入 ' + added + ' 筆' : '⚠ 未匯入，請看偵測記錄', added ? 'ok' : 'warn', 5000);
+  });
+}
+function fmtTime(v) {
+  if (v === '' || v == null) return '';
+  if (typeof v === 'number' && v > 0 && v < 1) {
+    var m = Math.round(v * 1440);
+    return SEC.p2(Math.floor(m / 60)) + ':' + SEC.p2(m % 60);
+  }
+  var s = String(v).trim();
+  var m2 = s.match(/(\d{1,2})[:：](\d{2})/);
+  return m2 ? SEC.p2(+m2[1]) + ':' + m2[2] : '';
+}
+
+/* ═══ 匯出 / 備份 / 雲端 ═══ */
+function expExcel() {
+  SEC.exportExcel([
+    { name: 'Vehicle', rows: inP(CAR).map(function (r) {
+        return { '日期 Date': r.date, '司機 Driver': r.driver, '用途 Type': r.type, '事由 Reason': r.reason, '里程 KM': r.km }; }) },
+    { name: 'Motorbike', rows: inP(BIKE).map(function (r) {
+        return { '日期 Date': r.date, 'Building A': r.a, 'Building B': r.b, '合計 Total': r.total, '備註 Remark': r.remark }; }) },
+    { name: 'GateLog', rows: inP(GATE).map(function (r) {
+        return { '日期 Date': r.date, '車牌 Plate': r.plate, '司機 Driver': r.driver, '乘客 Passenger': r.passenger,
+          '部門 Dept': r.dept, '人數 Pax': r.pax, '出閘 Out': r.outTime, '入閘 In': r.inTime,
+          '出閘里數': r.outKm, '入閘里數': r.inKm, '里程 KM': r.km, '用車原因 Reason': r.reason }; }) },
+    { name: 'ComeLate', rows: inP(LATE).map(function (r) {
+        return { '日期 Date': r.date, '工號 ID': r.empId, '姓名 Name': r.name, '部門 Dept': r.dept,
+          '入廠 In': r.checkIn, '出廠 Out': r.checkOut, '門衛 Gate': r.gate, '說明 Note': r.note }; }) },
+  ], 'AC_SEC_Commute_' + PER.key() + '.xlsx');
+}
+function restore() {
+  SEC.restoreJson(function (o) {
+    if (o.car) CAR = o.car; if (o.bike) BIKE = o.bike; if (o.gate) GATE = o.gate; if (o.late) LATE = o.late;
+    save(); renderAll();
+  });
+}
+function clearAll() {
+  if (!confirm('確定清空車輛／摩托車／遲到全部資料？')) return;
+  CAR = []; BIKE = []; GATE = []; LATE = []; save(); renderAll();
+}
+async function doUpload() {
+  var all = [].concat(
+    CAR.map(function (r) { return Object.assign({ _k: 'car' }, r); }),
+    BIKE.map(function (r) { return Object.assign({ _k: 'bike' }, r); }),
+    GATE.map(function (r) { return Object.assign({ _k: 'gate' }, r); }),
+    LATE.map(function (r) { return Object.assign({ _k: 'late' }, r); })
+  );
+  await SEC.cloudPush(TOOL, all, { car: CAR.length, bike: BIKE.length, gate: GATE.length, late: LATE.length });
+}
+async function doDownload() {
+  if (!confirm('⬇️☁ 下載會覆蓋本機通勤資料，確定？')) return;
+  var recs = await SEC.cloudPull(TOOL);
+  if (!recs) return;
+  CAR = recs.filter(function (r) { return r._k === 'car'; });
+  BIKE = recs.filter(function (r) { return r._k === 'bike'; });
+  GATE = recs.filter(function (r) { return r._k === 'gate'; });
+  LATE = recs.filter(function (r) { return r._k === 'late'; });
+  save(); renderAll(); SEC.toast('⬇️☁ 已下載 ' + recs.length + ' 筆', 'ok');
+}
+function pushSummary() {
+  var c = inP(CAR), b = inP(BIKE), l = inP(LATE);
+  var km = c.reduce(function (s, r) { return s + (+r.km || 0); }, 0);
+  var uniq = {}; l.forEach(function (r) { uniq[r.empId || r.name] = (uniq[r.empId || r.name] || 0) + 1; });
+  var rep = Object.keys(uniq).filter(function (k) { return uniq[k] >= 3; });
+  var avgB = b.length ? Math.round(b.reduce(function (s, r) { return s + (+r.total || 0); }, 0) / b.length) : 0;
+  var g = inP(GATE);
+  var txt = '🏍 <b>通勤交通摘要</b> · ' + PER.label() + '\n─────────────\n' +
+    '🚐 車輛派遣：<b>' + c.length + '</b> 趟 · <b>' + Math.round(km).toLocaleString() + '</b> KM\n' +
+    '🚛 車輛出入閘：<b>' + g.length + '</b> 次 · 乘客 ' + g.reduce(function (s2, r) { return s2 + (+r.pax || 0); }, 0) + ' 人次\n' +
+    '🏍 摩托車平均每日：<b>' + avgB + '</b> 台\n' +
+    '⏰ 遲到人次：<b>' + l.length + '</b>（不重複 ' + Object.keys(uniq).length + ' 人）\n' +
+    '🔁 重複遲到（≥3 次）：<b>' + rep.length + '</b> 人\n';
+  if (rep.length) {
+    txt += '\n<b>重複遲到名單</b>\n';
+    rep.slice(0, 10).forEach(function (k) { txt += '· ' + k + '：' + uniq[k] + ' 次\n'; });
+  }
+  SEC.tgSummary(txt, 'commute');
+}
+</script>
+</body>
+</html>

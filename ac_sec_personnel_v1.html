@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>保安人員 Personnel | AC Security</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="./shared/sec.css">
+</head>
+<body>
+<div id="hdr"></div>
+
+<div class="tabs" id="tabs">
+  <button class="tab on" data-p="ros" data-zh="👮 人員名冊" data-en="👮 Roster"     data-km="👮 បញ្ជីឈ្មោះ">👮 人員名冊</button>
+  <button class="tab"    data-p="chg" data-zh="🔄 人員異動" data-en="🔄 Changes"    data-km="🔄 ការផ្លាស់ប្តូរ">🔄 人員異動</button>
+  <button class="tab"    data-p="shf" data-zh="🕐 班別崗位" data-en="🕐 Shift/Post" data-km="🕐 វេន">🕐 班別崗位</button>
+  <button class="tab"    data-p="ana" data-zh="📊 統計分析" data-en="📊 Analytics"  data-km="📊 វិភាគ">📊 統計分析</button>
+  <button class="tab"    data-p="data"data-zh="💾 資料管理" data-en="💾 Data"       data-km="💾 ទិន្នន័យ">💾 資料管理</button>
+</div>
+
+<div class="wrap">
+  <div id="pnavHost" style="display:none"></div>
+
+  <!-- ═══ 名冊 ═══ -->
+  <div class="page" id="p-ros">
+    <div class="grid g4" style="margin-bottom:12px">
+      <div class="kpi"><div class="v" id="k1">0</div><div class="l" data-zh="在職人數" data-en="Active" data-km="សកម្ម">在職人數</div></div>
+      <div class="kpi ok"><div class="v" id="k2">0</div><div class="l" data-zh="A 早班" data-en="Shift A" data-km="វេន A">A 早班</div></div>
+      <div class="kpi warn"><div class="v" id="k3">0</div><div class="l" data-zh="B 中班" data-en="Shift B" data-km="វេន B">B 中班</div></div>
+      <div class="kpi"><div class="v" id="k4">0</div><div class="l" data-zh="C 夜班" data-en="Shift C" data-km="វេន C">C 夜班</div></div>
+    </div>
+    <div class="card">
+      <h3>👮 <span data-zh="保安人員名冊" data-en="Security Roster" data-km="បញ្ជីបុគ្គលិកសន្តិសុខ">保安人員名冊</span>
+        <span class="sp">
+          <select id="fShift" style="width:auto" onchange="renderRos()">
+            <option value="">全部班別</option><option value="A">A 早班</option><option value="B">B 中班</option><option value="C">C 夜班</option></select>
+          <select id="fStat" style="width:auto" onchange="renderRos()">
+            <option value="active">在職</option><option value="resigned">已離職</option><option value="">全部</option></select>
+          <input id="q" placeholder="搜尋姓名/工號…" style="width:150px" oninput="renderRos()">
+          <button class="btn sm" onclick="openEdit()">➕ <span data-zh="新增人員" data-en="Add" data-km="បន្ថែម">新增人員</span></button>
+        </span></h3>
+      <div class="tw"><table><thead><tr>
+        <th data-zh="工號" data-en="ID" data-km="អត្តលេខ">工號</th>
+        <th data-zh="姓名" data-en="Name" data-km="ឈ្មោះ">姓名</th>
+        <th data-zh="職稱" data-en="Position" data-km="តំណែង">職稱</th>
+        <th data-zh="班別" data-en="Shift" data-km="វេន">班別</th>
+        <th data-zh="崗位" data-en="Post" data-km="ប៉ុស្តិ៍">崗位</th>
+        <th data-zh="到職日" data-en="Join Date" data-km="ថ្ងៃចូល">到職日</th>
+        <th data-zh="電話" data-en="Phone" data-km="ទូរស័ព្ទ">電話</th>
+        <th data-zh="狀態" data-en="Status" data-km="ស្ថានភាព">狀態</th>
+        <th></th></tr></thead><tbody id="tbRos"></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- ═══ 人員異動 ═══ -->
+  <div class="page" id="p-chg" style="display:none">
+    <div class="card">
+      <h3>🔄 <span data-zh="登錄人員異動（送出即時通知群組）" data-en="Record Personnel Change (instant Telegram notice)" data-km="កត់ត្រាការផ្លាស់ប្តូរ">🔄 登錄人員異動（送出即時通知群組）</span></h3>
+      <div class="grid g3">
+        <div class="f"><label data-zh="異動類型" data-en="Change Type" data-km="ប្រភេទ">異動類型</label>
+          <select id="cKind" onchange="onKind()">
+            <option value="join">🟢 新進到職 New Hire</option>
+            <option value="resign">🔴 離職 Resignation</option>
+            <option value="transfer">🔄 調動 Transfer</option>
+            <option value="shift">🕐 班別異動 Shift Change</option>
+            <option value="promote">⬆️ 升遷 Promotion</option>
+            <option value="update">✏️ 資料更新 Update</option>
+          </select></div>
+        <div class="f"><label data-zh="人員" data-en="Person" data-km="បុគ្គល">人員</label>
+          <select id="cEmp" onchange="fillFrom()"><option value="">— 選擇既有人員 —</option></select></div>
+        <div class="f"><label data-zh="生效日" data-en="Effective Date" data-km="កាលបរិច្ឆេទ">生效日</label><input type="date" id="cDate"></div>
+        <div class="f"><label data-zh="工號" data-en="ID" data-km="អត្តលេខ">工號</label><input id="cId"></div>
+        <div class="f"><label data-zh="姓名" data-en="Name" data-km="ឈ្មោះ">姓名</label><input id="cName"></div>
+        <div class="f"><label data-zh="職稱" data-en="Position" data-km="តំណែង">職稱</label><input id="cPos"></div>
+        <div class="f"><label data-zh="原班別" data-en="From Shift" data-km="ពីវេន">原班別</label><input id="cFromShift" placeholder="—"></div>
+        <div class="f"><label data-zh="新班別" data-en="To Shift" data-km="ទៅវេន">新班別</label><input id="cToShift" placeholder="—"></div>
+        <div class="f"><label data-zh="原崗位" data-en="From Post" data-km="ពីប៉ុស្តិ៍">原崗位</label><input id="cFromPost" placeholder="—"></div>
+        <div class="f"><label data-zh="新崗位" data-en="To Post" data-km="ទៅប៉ុស្តិ៍">新崗位</label><input id="cToPost" placeholder="—"></div>
+        <div class="f"><label data-zh="經辦人" data-en="Handled By" data-km="ដោយ">經辦人</label><input id="cBy"></div>
+      </div>
+      <div class="f" style="margin-top:9px"><label data-zh="原因 / 說明" data-en="Reason" data-km="មូលហេតុ">原因 / 說明</label><textarea id="cReason" rows="2"></textarea></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn" onclick="submitChange()">📤 <span data-zh="登錄並即時通知" data-en="Save & Notify Now" data-km="រក្សាទុក និងជូនដំណឹង">登錄並即時通知</span></button>
+        <button class="btn gh" onclick="submitChange(true)">💾 <span data-zh="只登錄不通知" data-en="Save only" data-km="រក្សាទុកតែប៉ុណ្ណោះ">只登錄不通知</span></button>
+      </div>
+      <p class="hint" style="margin-top:8px">「登錄並即時通知」會同步：① 更新名冊資料 ② 寫入異動記錄 ③ 立刻推送 Telegram 群組（含異動前後對照）。無需核可。</p>
+    </div>
+    <div class="card">
+      <h3>📜 <span data-zh="異動記錄" data-en="Change Log" data-km="កំណត់ត្រា">異動記錄</span>
+        <span class="sp"><button class="btn sm gh" onclick="expChange()">📊 Excel</button></span></h3>
+      <div class="tw"><table><thead><tr>
+        <th data-zh="生效日" data-en="Date" data-km="កាល">生效日</th>
+        <th data-zh="類型" data-en="Type" data-km="ប្រភេទ">類型</th>
+        <th data-zh="工號" data-en="ID" data-km="អត្តលេខ">工號</th>
+        <th data-zh="姓名" data-en="Name" data-km="ឈ្មោះ">姓名</th>
+        <th data-zh="異動內容" data-en="Detail" data-km="លម្អិត">異動內容</th>
+        <th data-zh="經辦" data-en="By" data-km="ដោយ">經辦</th>
+        <th data-zh="通知" data-en="Notified" data-km="ជូនដំណឹង">通知</th>
+        <th></th></tr></thead><tbody id="tbChg"></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- ═══ 班別崗位 ═══ -->
+  <div class="page" id="p-shf" style="display:none">
+    <div class="card">
+      <h3>🕐 <span data-zh="班別 × 崗位配置表" data-en="Shift × Post Matrix" data-km="តារាងវេន">班別 × 崗位配置表</span>
+        <span class="sp"><button class="btn sm" onclick="pushRoster()">✈️ <span data-zh="推送配置到群組" data-en="Push to group" data-km="ផ្ញើទៅក្រុម">推送配置到群組</span></button></span></h3>
+      <div class="tw"><table id="tblMatrix"><thead></thead><tbody></tbody></table></div>
+      <p class="hint" style="margin-top:9px">數字為該班別／崗位的在職人數。點欄位可看名單。空白代表該時段無人值守，需注意夜班（C）崗位是否留白。</p>
+    </div>
+    <div class="card">
+      <h3>⚠️ <span data-zh="配置缺口檢查" data-en="Coverage Gaps" data-km="ចន្លោះប្រហោង">配置缺口檢查</span></h3>
+      <div id="gapBox"></div>
+    </div>
+  </div>
+
+  <!-- ═══ 統計 ═══ -->
+  <div class="page" id="p-ana" style="display:none">
+    <div class="grid g2">
+      <div class="card"><h3>🕐 <span data-zh="班別人數分佈" data-en="By Shift" data-km="តាមវេន">班別人數分佈</span></h3>
+        <div style="height:240px"><canvas id="ch1"></canvas></div></div>
+      <div class="card"><h3>📍 <span data-zh="崗位人數分佈" data-en="By Post" data-km="តាមប៉ុស្តិ៍">崗位人數分佈</span></h3>
+        <div style="height:240px"><canvas id="ch2"></canvas></div></div>
+      <div class="card"><h3>🔄 <span data-zh="異動趨勢" data-en="Change Trend" data-km="និន្នាការ">異動趨勢</span></h3>
+        <div style="height:240px"><canvas id="ch3"></canvas></div></div>
+      <div class="card"><h3>📅 <span data-zh="年資分佈" data-en="Tenure" data-km="អាយុការងារ">年資分佈</span></h3>
+        <div style="height:240px"><canvas id="ch4"></canvas></div></div>
+    </div>
+  </div>
+
+  <!-- ═══ 資料管理 ═══ -->
+  <div class="page" id="p-data" style="display:none">
+    <div class="card">
+      <h3>💾 <span data-zh="資料工具" data-en="Data Tools" data-km="ឧបករណ៍">資料工具</span></h3>
+      <div class="row">
+        <button class="btn" onclick="impExcel()">📥 <span data-zh="匯入人員名冊 Excel" data-en="Import Roster" data-km="នាំចូល">匯入人員名冊 Excel</span></button>
+        <button class="btn gh" onclick="expExcel()">📊 <span data-t="expExcel">匯出 Excel</span></button>
+        <button class="btn gh" onclick="SEC.backupJson({staff:DB,changes:CHG},'personnel_backup_'+SEC.ymd()+'.json')">💾 <span data-t="backup">備份 JSON</span></button>
+        <button class="btn gh" onclick="restore()">📂 <span data-t="restore">還原 JSON</span></button>
+        <button class="btn err" onclick="clearAll()">🗑 <span data-zh="清空" data-en="Clear" data-km="សម្អាត">清空</span></button>
+      </div>
+      <div class="sep"></div>
+      <p class="hint">可辨識欄位：工號 ID / Code / អត្តលេខ、姓名 Name / ឈ្មោះ、職稱 Position、班別 Shift、崗位 Post / Location、到職日 Join Date、電話 Phone、狀態 Status。標題列可在任何位置、可跨兩列（中英柬）。</p>
+      <div id="impLog" class="hint" style="margin-top:8px"></div>
+    </div>
+    <div class="card">
+      <h3>☁ <span data-zh="雲端同步" data-en="Cloud Sync" data-km="សមកាលកម្ម">雲端同步</span></h3>
+      <div class="row">
+        <button class="btn" onclick="doUpload()">⬆️☁ <span data-t="upload">上傳雲端</span></button>
+        <button class="btn gh" onclick="doDownload()">⬇️☁ <span data-t="download">下載雲端</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 編輯 Modal -->
+<div class="mask" id="mEdit"><div class="modal"><div class="mh"><span>👮</span><b id="mTitle">新增人員</b>
+<button class="x" onclick="SEC.closeModal('mEdit')">×</button></div>
+<div class="mb"><div class="grid g2">
+  <div class="f"><label>工號 ID</label><input id="e_empId"></div>
+  <div class="f"><label>姓名 Name</label><input id="e_name"></div>
+  <div class="f"><label>職稱 Position</label><input id="e_position" list="posList"><datalist id="posList"></datalist></div>
+  <div class="f"><label>班別 Shift</label><select id="e_shift"><option value="A">A 早班 06-14</option><option value="B">B 中班 14-22</option><option value="C">C 夜班 22-06</option><option value="">未排班</option></select></div>
+  <div class="f"><label>崗位 Post</label><input id="e_post" list="postList"><datalist id="postList"></datalist></div>
+  <div class="f"><label>到職日 Join Date</label><input type="date" id="e_joinDate"></div>
+  <div class="f"><label>電話 Phone</label><input id="e_phone"></div>
+  <div class="f"><label>狀態 Status</label><select id="e_status"><option value="active">在職 Active</option><option value="resigned">離職 Resigned</option></select></div>
+  <div class="f" style="grid-column:1/-1"><label>備註 Remark</label><input id="e_remark"></div>
+</div></div>
+<div class="mf"><button class="btn gray" onclick="SEC.closeModal('mEdit')" data-t="cancel">取消</button>
+<button class="btn" onclick="saveEdit()" data-t="save">儲存</button></div></div></div>
+
+<div id="toastwrap"></div>
+<script src="./shared/sec-core.js"></script>
+<script>
+var LS = 'ac_sec_personnel_db', LSC = 'ac_sec_personnel_chg';
+var DB = [], CHG = [], CH = {}, TOOL = 'personnel', EDIT_ID = '';
+
+function load() {
+  try { DB = JSON.parse(localStorage.getItem(LS) || '[]'); } catch (e) { DB = []; }
+  try { CHG = JSON.parse(localStorage.getItem(LSC) || '[]'); } catch (e) { CHG = []; }
+}
+function save() { localStorage.setItem(LS, JSON.stringify(DB)); localStorage.setItem(LSC, JSON.stringify(CHG)); }
+
+document.getElementById('hdr').innerHTML = SEC.headerHtml('👮', '保安人員 Personnel', 'AC SECURITY · PERSONNEL');
+load();
+SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: pushSummary });
+document.getElementById('tabs').addEventListener('click', function (e) {
+  var b = e.target.closest('.tab'); if (!b) return;
+  document.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('on'); });
+  b.classList.add('on');
+  document.querySelectorAll('.page').forEach(function (p) { p.style.display = 'none'; });
+  document.getElementById('p-' + b.dataset.p).style.display = '';
+  renderAll();
+});
+document.getElementById('cDate').value = SEC.ymd();
+window.onLangChange = renderAll;
+renderAll();
+
+var KIND = {
+  join   : { icon:'🟢', zh:'新進到職', en:'New Hire' },
+  resign : { icon:'🔴', zh:'離職',     en:'Resignation' },
+  transfer:{ icon:'🔄', zh:'調動',     en:'Transfer' },
+  shift  : { icon:'🕐', zh:'班別異動', en:'Shift Change' },
+  promote: { icon:'⬆️', zh:'升遷',     en:'Promotion' },
+  update : { icon:'✏️', zh:'資料更新', en:'Update' },
+};
+
+function renderAll() { renderRos(); renderChg(); renderShift(); renderAna(); fillSelects(); }
+
+/* ═══ 名冊 ═══ */
+function active() { return DB.filter(function (r) { return r.status !== 'resigned'; }); }
+function renderRos() {
+  var list = DB.slice();
+  var st = document.getElementById('fStat').value;
+  var sf = document.getElementById('fShift').value;
+  var q = (document.getElementById('q').value || '').toLowerCase();
+  if (st) list = list.filter(function (r) { return (r.status || 'active') === st; });
+  if (sf) list = list.filter(function (r) { return r.shift === sf; });
+  if (q) list = list.filter(function (r) {
+    return (r.name || '').toLowerCase().indexOf(q) >= 0 || String(r.empId || '').toLowerCase().indexOf(q) >= 0;
+  });
+  var a = active();
+  document.getElementById('k1').textContent = a.length;
+  ['A','B','C'].forEach(function (s, i) {
+    document.getElementById('k' + (i + 2)).textContent = a.filter(function (r) { return r.shift === s; }).length;
+  });
+  var tb = document.getElementById('tbRos');
+  tb.innerHTML = list.length ? list.map(function (r) {
+    return '<tr><td><code>' + SEC.esc(r.empId || '') + '</code></td>' +
+      '<td><b>' + SEC.esc(r.name || '') + '</b></td>' +
+      '<td>' + SEC.esc(r.position || '') + '</td>' +
+      '<td>' + (r.shift ? '<span class="tag info">' + SEC.esc(r.shift) + '</span>' : '<span class="tag gray">未排</span>') + '</td>' +
+      '<td>' + SEC.esc(r.post || '') + '</td>' +
+      '<td>' + SEC.esc(r.joinDate || '') + '</td>' +
+      '<td>' + SEC.esc(r.phone || '') + '</td>' +
+      '<td>' + (r.status === 'resigned' ? '<span class="tag err">離職</span>' : '<span class="tag ok">在職</span>') + '</td>' +
+      '<td><button class="btn sm gh" onclick="openEdit(\'' + r.id + '\')">✏️</button> ' +
+      '<button class="btn sm err" onclick="delRec(\'' + r.id + '\')">×</button></td></tr>';
+  }).join('') : '<tr><td colspan="9" class="empty">' + SEC.T().noData + '</td></tr>';
+}
+
+function fillSelects() {
+  var sel = document.getElementById('cEmp'), cur = sel.value;
+  sel.innerHTML = '<option value="">— 選擇既有人員 —</option>' + DB.map(function (r) {
+    return '<option value="' + r.id + '">' + SEC.esc((r.empId ? r.empId + ' ' : '') + (r.name || '')) + '</option>';
+  }).join('');
+  sel.value = cur;
+  var ps = {}, po = {};
+  DB.forEach(function (r) { if (r.position) ps[r.position] = 1; if (r.post) po[r.post] = 1; });
+  document.getElementById('posList').innerHTML = Object.keys(ps).map(function (k) { return '<option value="' + SEC.esc(k) + '">'; }).join('');
+  document.getElementById('postList').innerHTML = Object.keys(po).map(function (k) { return '<option value="' + SEC.esc(k) + '">'; }).join('');
+}
+
+/* ═══ 新增 / 編輯 ═══ */
+var EFIELDS = ['empId','name','position','shift','post','joinDate','phone','status','remark'];
+function openEdit(id) {
+  EDIT_ID = id || '';
+  var r = id ? DB.filter(function (x) { return x.id === id; })[0] : {};
+  if (!r) r = {};
+  document.getElementById('mTitle').textContent = id ? '編輯人員' : '新增人員';
+  EFIELDS.forEach(function (f) { document.getElementById('e_' + f).value = r[f] || (f === 'status' ? 'active' : ''); });
+  if (!id) document.getElementById('e_joinDate').value = SEC.ymd();
+  SEC.openModal('mEdit');
+}
+function saveEdit() {
+  var o = {};
+  EFIELDS.forEach(function (f) { o[f] = document.getElementById('e_' + f).value.trim(); });
+  if (!o.name) { SEC.toast('⚠ 請填姓名', 'warn'); return; }
+  if (EDIT_ID) {
+    DB.forEach(function (r) { if (r.id === EDIT_ID) Object.assign(r, o); });
+  } else {
+    o.id = 'S' + Date.now().toString(36);
+    o.createdAt = SEC.nowStr();
+    DB.push(o);
+  }
+  save(); renderAll(); SEC.closeModal('mEdit'); SEC.toast('✅ 已儲存', 'ok');
+}
+function delRec(id) {
+  if (!confirm(SEC.T().confirmDel)) return;
+  DB = DB.filter(function (r) { return r.id !== id; });
+  save(); renderAll();
+}
+
+/* ═══ 異動 ═══ */
+function onKind() {
+  var k = document.getElementById('cKind').value;
+  /* 新進：清空 from 欄位 */
+  if (k === 'join') { document.getElementById('cFromShift').value = ''; document.getElementById('cFromPost').value = ''; }
+}
+function fillFrom() {
+  var id = document.getElementById('cEmp').value;
+  var r = DB.filter(function (x) { return x.id === id; })[0];
+  if (!r) return;
+  document.getElementById('cId').value = r.empId || '';
+  document.getElementById('cName').value = r.name || '';
+  document.getElementById('cPos').value = r.position || '';
+  document.getElementById('cFromShift').value = r.shift || '';
+  document.getElementById('cFromPost').value = r.post || '';
+}
+async function submitChange(silent) {
+  var kind = document.getElementById('cKind').value;
+  var rec = {
+    id      : 'C' + Date.now().toString(36),
+    kind    : kind,
+    date    : document.getElementById('cDate').value,
+    empId   : document.getElementById('cId').value.trim(),
+    name    : document.getElementById('cName').value.trim(),
+    position: document.getElementById('cPos').value.trim(),
+    fromShift: document.getElementById('cFromShift').value.trim(),
+    toShift  : document.getElementById('cToShift').value.trim(),
+    fromPost : document.getElementById('cFromPost').value.trim(),
+    toPost   : document.getElementById('cToPost').value.trim(),
+    reason  : document.getElementById('cReason').value.trim(),
+    by      : document.getElementById('cBy').value.trim() || SEC.getCfg().operator,
+    notified: false,
+    createdAt: SEC.nowStr(),
+  };
+  if (!rec.name) { SEC.toast('⚠ 請填姓名', 'warn'); return; }
+  if (!rec.date) { SEC.toast('⚠ 請選生效日', 'warn'); return; }
+
+  /* ① 同步更新名冊 */
+  var linkId = document.getElementById('cEmp').value;
+  var st = linkId ? DB.filter(function (x) { return x.id === linkId; })[0] : null;
+  if (!st && rec.empId) st = DB.filter(function (x) { return String(x.empId) === rec.empId; })[0];
+  if (kind === 'join' && !st) {
+    st = { id: 'S' + Date.now().toString(36), empId: rec.empId, name: rec.name, position: rec.position,
+           shift: rec.toShift, post: rec.toPost, joinDate: rec.date, status: 'active', createdAt: SEC.nowStr() };
+    DB.push(st);
+  } else if (st) {
+    if (kind === 'resign') { st.status = 'resigned'; st.resignDate = rec.date; }
+    if (rec.toShift) st.shift = rec.toShift;
+    if (rec.toPost)  st.post  = rec.toPost;
+    if (kind === 'promote' && rec.position) st.position = rec.position;
+  }
+
+  /* ② 寫入異動記錄 */
+  CHG.unshift(rec);
+  save(); renderAll();
+
+  if (silent) { SEC.toast('✅ 已登錄（未通知）', 'ok'); clearChangeForm(); return; }
+
+  /* ③ 即時推送 Telegram */
+  try {
+    await SEC.gasPost({
+      action: 'personnelChange', kind: kind, lang: SEC.lang(),
+      empId: rec.empId, name: rec.name, position: rec.position, date: rec.date,
+      fromShift: rec.fromShift, toShift: rec.toShift,
+      fromPost: rec.fromPost, toPost: rec.toPost,
+      reason: rec.reason, by: rec.by,
+    });
+    rec.notified = true; save(); renderChg();
+    SEC.toast('✅ 已登錄並通知群組', 'ok');
+    clearChangeForm();
+  } catch (e) { SEC.toast('⚠ 已登錄，但通知失敗：' + e.message, 'warn', 6000); }
+}
+function clearChangeForm() {
+  ['cId','cName','cPos','cFromShift','cToShift','cFromPost','cToPost','cReason'].forEach(function (i) {
+    document.getElementById(i).value = '';
+  });
+  document.getElementById('cEmp').value = '';
+}
+function renderChg() {
+  var tb = document.getElementById('tbChg');
+  tb.innerHTML = CHG.length ? CHG.slice(0, 300).map(function (r) {
+    var k = KIND[r.kind] || KIND.update;
+    var det = [];
+    if (r.fromShift || r.toShift) det.push('班別 ' + (r.fromShift || '—') + ' → <b>' + (r.toShift || '—') + '</b>');
+    if (r.fromPost || r.toPost)   det.push('崗位 ' + (r.fromPost || '—') + ' → <b>' + (r.toPost || '—') + '</b>');
+    if (r.reason) det.push(SEC.esc(r.reason));
+    return '<tr><td>' + SEC.esc(r.date) + '</td>' +
+      '<td>' + k.icon + ' ' + k.zh + '</td>' +
+      '<td><code>' + SEC.esc(r.empId || '') + '</code></td>' +
+      '<td><b>' + SEC.esc(r.name) + '</b></td>' +
+      '<td>' + (det.join('　') || '—') + '</td>' +
+      '<td>' + SEC.esc(r.by || '') + '</td>' +
+      '<td>' + (r.notified ? '<span class="tag ok">✅ 已通知</span>' : '<span class="tag gray">未通知</span>') + '</td>' +
+      '<td>' + (r.notified ? '' : '<button class="btn sm" onclick="renotify(\'' + r.id + '\')">✈️</button>') + '</td></tr>';
+  }).join('') : '<tr><td colspan="8" class="empty">尚無異動記錄</td></tr>';
+}
+async function renotify(id) {
+  var r = CHG.filter(function (x) { return x.id === id; })[0]; if (!r) return;
+  try {
+    await SEC.gasPost({ action: 'personnelChange', kind: r.kind, lang: SEC.lang(),
+      empId: r.empId, name: r.name, position: r.position, date: r.date,
+      fromShift: r.fromShift, toShift: r.toShift, fromPost: r.fromPost, toPost: r.toPost,
+      reason: r.reason, by: r.by });
+    r.notified = true; save(); renderChg(); SEC.toast('✅ 已通知', 'ok');
+  } catch (e) { SEC.toast('❌ ' + e.message, 'err'); }
+}
+function expChange() {
+  SEC.exportExcel([{ name: 'Changes', rows: CHG.map(function (r) {
+    return { '生效日 Date': r.date, '類型 Type': (KIND[r.kind] || {}).zh || r.kind,
+      '工號 ID': r.empId, '姓名 Name': r.name, '職稱 Position': r.position,
+      '原班別 From Shift': r.fromShift, '新班別 To Shift': r.toShift,
+      '原崗位 From Post': r.fromPost, '新崗位 To Post': r.toPost,
+      '原因 Reason': r.reason, '經辦 By': r.by, '已通知 Notified': r.notified ? 'Y' : '' };
+  }) }], 'AC_SEC_Personnel_Changes_' + SEC.ymd() + '.xlsx');
+}
+
+/* ═══ 班別 × 崗位 ═══ */
+function renderShift() {
+  var a = active();
+  var posts = {};
+  a.forEach(function (r) { posts[r.post || '（未指定）'] = 1; });
+  var pk = Object.keys(posts).sort();
+  var shifts = ['A','B','C',''];
+  var SN = { A:'A 早班', B:'B 中班', C:'C 夜班', '':'未排班' };
+  var thead = '<tr><th>崗位 Post</th>' + shifts.map(function (s) { return '<th class="num">' + SN[s] + '</th>'; }).join('') + '<th class="num">合計</th></tr>';
+  var body = pk.map(function (p) {
+    var cells = shifts.map(function (s) {
+      var n = a.filter(function (r) { return (r.post || '（未指定）') === p && (r.shift || '') === s; }).length;
+      var cls = (s === 'C' && n === 0) ? ' style="background:#fff5f5;color:#b91c1c;font-weight:800"' : '';
+      return '<td class="num"' + cls + '>' + (n || '') + '</td>';
+    }).join('');
+    var tot = a.filter(function (r) { return (r.post || '（未指定）') === p; }).length;
+    return '<tr><td><b>' + SEC.esc(p) + '</b></td>' + cells + '<td class="num"><b>' + tot + '</b></td></tr>';
+  }).join('');
+  var totRow = '<tr style="background:#eef4f8"><td><b>合計</b></td>' + shifts.map(function (s) {
+    return '<td class="num"><b>' + a.filter(function (r) { return (r.shift || '') === s; }).length + '</b></td>';
+  }).join('') + '<td class="num"><b>' + a.length + '</b></td></tr>';
+  var tbl = document.getElementById('tblMatrix');
+  tbl.querySelector('thead').innerHTML = thead;
+  tbl.querySelector('tbody').innerHTML = pk.length ? body + totRow : '<tr><td colspan="6" class="empty">' + SEC.T().noData + '</td></tr>';
+
+  /* 缺口檢查 */
+  var gaps = [];
+  pk.forEach(function (p) {
+    ['A','B','C'].forEach(function (s) {
+      var n = a.filter(function (r) { return (r.post || '（未指定）') === p && r.shift === s; }).length;
+      if (n === 0) gaps.push({ post: p, shift: s });
+    });
+  });
+  var noShift = a.filter(function (r) { return !r.shift; });
+  var box = document.getElementById('gapBox');
+  var h = '';
+  if (gaps.length) {
+    h += '<div class="row" style="margin-bottom:9px"><span class="tag err">⛔ ' + gaps.length + ' 個班別／崗位無人配置</span></div>';
+    h += '<div class="tw"><table><thead><tr><th>崗位</th><th>缺口班別</th></tr></thead><tbody>' +
+      Object.keys(gaps.reduce(function (m, g) { (m[g.post] = m[g.post] || []).push(g.shift); return m; }, {}))
+        .map(function (p) {
+          var ss = gaps.filter(function (g) { return g.post === p; }).map(function (g) { return g.shift; });
+          return '<tr><td><b>' + SEC.esc(p) + '</b></td><td>' + ss.map(function (x) {
+            return '<span class="tag ' + (x === 'C' ? 'err' : 'warn') + '">' + x + (x === 'C' ? ' 夜班' : '') + '</span>';
+          }).join(' ') + '</td></tr>';
+        }).join('') + '</tbody></table></div>';
+  } else {
+    h += '<span class="tag ok">✅ 所有崗位三班皆有人配置</span>';
+  }
+  if (noShift.length) {
+    h += '<p class="hint" style="margin-top:9px">⚠️ 有 <b>' + noShift.length + '</b> 位在職人員尚未指定班別：' +
+      noShift.slice(0, 12).map(function (r) { return SEC.esc(r.name); }).join('、') +
+      (noShift.length > 12 ? ' …' : '') + '</p>';
+  }
+  box.innerHTML = h;
+}
+function pushRoster() {
+  var a = active();
+  var byS = { A: [], B: [], C: [], '': [] };
+  a.forEach(function (r) { (byS[r.shift || ''] = byS[r.shift || ''] || []).push(r); });
+  var txt = '👮 <b>保安人員配置</b>\n🛡️ ' + SEC.ymd() + '\n─────────────\n' +
+    '在職人數：<b>' + a.length + '</b>\n\n';
+  [['A','A 早班 06-14'],['B','B 中班 14-22'],['C','C 夜班 22-06']].forEach(function (p) {
+    var l = byS[p[0]] || [];
+    txt += '<b>' + p[1] + '</b>（' + l.length + '）\n';
+    var byPost = {};
+    l.forEach(function (r) { (byPost[r.post || '未指定'] = byPost[r.post || '未指定'] || []).push(r.name); });
+    Object.keys(byPost).forEach(function (k) { txt += '· ' + k + '：' + byPost[k].join('、') + '\n'; });
+    if (!l.length) txt += '· ⚠️ <b>無人值班</b>\n';
+    txt += '\n';
+  });
+  if ((byS[''] || []).length) txt += '⚠️ 未排班：' + byS[''].map(function (r) { return r.name; }).join('、') + '\n';
+  SEC.tgSummary(txt, 'personnel');
+}
+
+/* ═══ 統計 ═══ */
+function renderAna() {
+  var a = active();
+  var s = { 'A 早班':0, 'B 中班':0, 'C 夜班':0, '未排班':0 };
+  a.forEach(function (r) {
+    var k = r.shift === 'A' ? 'A 早班' : r.shift === 'B' ? 'B 中班' : r.shift === 'C' ? 'C 夜班' : '未排班';
+    s[k]++;
+  });
+  chart('ch1', 'doughnut', Object.keys(s), [{ data: Object.keys(s).map(function (k) { return s[k]; }),
+    backgroundColor: ['#4ade80','#fbbf24','#0f2b46','#cbd5e1'] }]);
+  var p = {};
+  a.forEach(function (r) { var k = r.post || '未指定'; p[k] = (p[k] || 0) + 1; });
+  var pk = Object.keys(p).sort(function (x, y) { return p[y] - p[x]; }).slice(0, 10);
+  chart('ch2', 'bar', pk, [{ label: '人數', data: pk.map(function (k) { return p[k]; }), backgroundColor: '#1e6f8e' }]);
+  var c = {};
+  CHG.forEach(function (r) { var m = String(r.date || '').slice(0, 7); if (m) c[m] = (c[m] || 0) + 1; });
+  var ck = Object.keys(c).sort();
+  chart('ch3', 'bar', ck, [{ label: '異動件數', data: ck.map(function (k) { return c[k]; }), backgroundColor: '#2a8fb0' }]);
+  var band = { '<6月':0, '6-12月':0, '1-2年':0, '2-5年':0, '>5年':0 };
+  var now = new Date();
+  a.forEach(function (r) {
+    var d = SEC.parseD(r.joinDate); if (!d) return;
+    var days = (now - d) / 86400000;
+    if (days < 180) band['<6月']++;
+    else if (days < 365) band['6-12月']++;
+    else if (days < 730) band['1-2年']++;
+    else if (days < 1825) band['2-5年']++;
+    else band['>5年']++;
+  });
+  chart('ch4', 'bar', Object.keys(band), [{ label: '人數', data: Object.keys(band).map(function (k) { return band[k]; }), backgroundColor: '#f5c842' }]);
+}
+function chart(id, type, labels, ds) {
+  var el = document.getElementById(id); if (!el) return;
+  if (CH[id]) CH[id].destroy();
+  CH[id] = new Chart(el, { type: type, data: { labels: labels, datasets: ds },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: type === 'doughnut', position: 'bottom', labels: { font: { size: 10 } } } },
+      scales: type === 'doughnut' ? {} : { y: { beginAtZero: true, ticks: { precision: 0 } } } } });
+}
+
+/* ═══ Excel ═══ */
+var SPEC = {
+  empId   : ['工號','工号','id','code','編號','អត្តលេខ','vrtcode','factoryid','employeeid','no'],
+  name    : ['姓名','name','ឈ្មោះ','fullname','surenamename','englishname','員工姓名'],
+  position: ['職稱','职称','position','តំណែង','title','job','崗位職稱','rank'],
+  shift   : ['班別','班别','shift','វេន','班','group','組別'],
+  post    : ['崗位','岗位','post','ប៉ុស្តិ៍','location','地點','區域','zone','duty','責任區'],
+  joinDate: ['到職日','到职日','joindate','ថ្ងៃចូល','startdate','入職','hiredate','entrydate'],
+  phone   : ['電話','电话','phone','ទូរស័ព្ទ','tel','mobile','聯絡'],
+  status  : ['狀態','状态','status','ស្ថានភាព','在職'],
+  remark  : ['備註','remark','note','កំណត់ចំណាំ','說明'],
+};
+function impExcel() {
+  SEC.pickExcel(function (sheets) {
+    var added = 0, log = [];
+    sheets.forEach(function (sh) {
+      var res = SEC.parseSheet(sh.rows, SPEC, { minScore: 2 });
+      if (!res.rows.length) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：未偵測到人員資料（分數 ' + res.header.score + '）'); return; }
+      var n = 0;
+      res.rows.forEach(function (o) {
+        var name = SEC.str(o.name); if (!name) return;
+        var jd = SEC.parseD(o.joinDate);
+        var sf = SEC.str(o.shift).toUpperCase().replace(/[^ABC]/g, '').slice(0, 1);
+        DB.push({
+          id: 'X' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          empId: SEC.str(o.empId), name: name, position: SEC.str(o.position),
+          shift: sf, post: SEC.str(o.post), joinDate: jd ? SEC.ymd(jd) : '',
+          phone: SEC.str(o.phone),
+          status: /離職|resign|離|inactive/i.test(SEC.str(o.status)) ? 'resigned' : 'active',
+          remark: SEC.str(o.remark), src: sh.name, createdAt: SEC.nowStr(),
+        });
+        n++; added++;
+      });
+      log.push('· <b>' + SEC.esc(sh.name) + '</b>：匯入 <b>' + n + '</b> 筆（標題第 ' + (res.header.row + 1) + ' 列，比對 ' + res.header.score + ' 欄）');
+    });
+    save(); renderAll();
+    document.getElementById('impLog').innerHTML = '<b>匯入結果</b><br>' + log.join('<br>');
+    SEC.toast(added ? '✅ ' + SEC.T().imported + ' ' + added + ' ' + SEC.T().records : '⚠ 未匯入，請看偵測記錄', added ? 'ok' : 'warn', 5000);
+  });
+}
+function expExcel() {
+  SEC.exportExcel([
+    { name: 'Roster', rows: DB.map(function (r, i) {
+        return { '#': i + 1, '工號 ID': r.empId, '姓名 Name': r.name, '職稱 Position': r.position,
+          '班別 Shift': r.shift, '崗位 Post': r.post, '到職日 Join': r.joinDate,
+          '電話 Phone': r.phone, '狀態 Status': r.status === 'resigned' ? '離職' : '在職', '備註 Remark': r.remark }; }) },
+    { name: 'Changes', rows: CHG.map(function (r) {
+        return { '生效日': r.date, '類型': (KIND[r.kind] || {}).zh || r.kind, '工號': r.empId, '姓名': r.name,
+          '原班別': r.fromShift, '新班別': r.toShift, '原崗位': r.fromPost, '新崗位': r.toPost,
+          '原因': r.reason, '經辦': r.by }; }) },
+  ], 'AC_SEC_Personnel_' + SEC.ymd() + '.xlsx');
+}
+function restore() {
+  SEC.restoreJson(function (o) {
+    if (o.staff) DB = o.staff;
+    if (o.changes) CHG = o.changes;
+    save(); renderAll();
+  });
+}
+function clearAll() {
+  if (!confirm('確定清空人員名冊與異動記錄？')) return;
+  DB = []; CHG = []; save(); renderAll();
+}
+
+/* ═══ 雲端 ═══ */
+async function doUpload() {
+  var all = DB.map(function (r) { return Object.assign({ _k: 'staff' }, r); })
+    .concat(CHG.map(function (r) { return Object.assign({ _k: 'chg' }, r); }));
+  await SEC.cloudPush(TOOL, all, { staff: DB.length, active: active().length, changes: CHG.length });
+}
+async function doDownload() {
+  if (!confirm('⬇️☁ 下載會覆蓋本機人員資料，確定？')) return;
+  var recs = await SEC.cloudPull(TOOL);
+  if (!recs) return;
+  DB = recs.filter(function (r) { return r._k !== 'chg'; });
+  CHG = recs.filter(function (r) { return r._k === 'chg'; });
+  save(); renderAll(); SEC.toast('⬇️☁ 已下載 ' + recs.length + ' 筆', 'ok');
+}
+function pushSummary() {
+  var a = active();
+  var ym = SEC.ymd().slice(0, 7);
+  var mChg = CHG.filter(function (r) { return String(r.date || '').slice(0, 7) === ym; });
+  var byK = {};
+  mChg.forEach(function (r) { byK[r.kind] = (byK[r.kind] || 0) + 1; });
+  var txt = '👮 <b>保安人員摘要</b> · ' + ym + '\n─────────────\n' +
+    '在職人數：<b>' + a.length + '</b>\n' +
+    '離職人數：' + DB.filter(function (r) { return r.status === 'resigned'; }).length + '\n' +
+    'A 早班 ' + a.filter(function (r) { return r.shift === 'A'; }).length +
+    ' · B 中班 ' + a.filter(function (r) { return r.shift === 'B'; }).length +
+    ' · C 夜班 ' + a.filter(function (r) { return r.shift === 'C'; }).length + '\n';
+  if (mChg.length) {
+    txt += '\n<b>🔄 本月異動（' + mChg.length + '）</b>\n';
+    Object.keys(byK).forEach(function (k) {
+      var K = KIND[k] || KIND.update;
+      txt += '· ' + K.icon + ' ' + K.zh + '：' + byK[k] + '\n';
+    });
+  }
+  SEC.tgSummary(txt, 'personnel');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>保安費用 Security Expense | AC Security</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="./shared/sec.css">
+</head>
+<body>
+<div id="hdr"></div>
+
+<div class="tabs" id="tabs">
+  <button class="tab on" data-p="list" data-zh="📋 費用清單" data-en="📋 Expenses" data-km="📋 ចំណាយ">📋 費用清單</button>
+  <button class="tab"    data-p="new"  data-zh="➕ 新增申請" data-en="➕ New"      data-km="➕ ថ្មី">➕ 新增申請</button>
+  <button class="tab"    data-p="appr" data-zh="✅ 送出核可" data-en="✅ Approval" data-km="✅ អនុម័ត">✅ 送出核可</button>
+  <button class="tab"    data-p="ana"  data-zh="📊 統計分析" data-en="📊 Analytics" data-km="📊 វិភាគ">📊 統計分析</button>
+  <button class="tab"    data-p="data" data-zh="💾 資料管理" data-en="💾 Data"      data-km="💾 ទិន្នន័យ">💾 資料管理</button>
+</div>
+
+<div class="wrap">
+  <div id="pnavHost"></div>
+
+  <!-- ═══ 費用清單 ═══ -->
+  <div class="page" id="p-list">
+    <div class="grid g4" style="margin-bottom:12px">
+      <div class="kpi"><div class="v" id="k1">0</div><div class="l" data-zh="筆數" data-en="Items" data-km="ចំនួន">筆數</div></div>
+      <div class="kpi"><div class="v" id="k2">$0</div><div class="l" data-zh="總金額" data-en="Total" data-km="សរុប">總金額</div></div>
+      <div class="kpi warn"><div class="v" id="k3">0</div><div class="l" data-zh="待送核可" data-en="Not submitted" data-km="មិនទាន់ស្នើ">待送核可</div></div>
+      <div class="kpi ok"><div class="v" id="k4">0</div><div class="l" data-zh="已核可" data-en="Approved" data-km="បានអនុម័ត">已核可</div></div>
+    </div>
+    <div class="card">
+      <h3>📋 <span data-zh="費用清單" data-en="Expense List" data-km="បញ្ជីចំណាយ">費用清單</span>
+        <span class="sp">
+          <select id="fCat" style="width:auto" onchange="renderList()"><option value="">全部分類</option></select>
+          <input id="q" placeholder="搜尋…" style="width:150px">
+          <button class="btn sm gh" onclick="expExcel()">📊 Excel</button>
+        </span></h3>
+      <div class="tw"><table>
+        <thead><tr>
+          <th><input type="checkbox" id="chkAll" onchange="toggleAll(this)"></th>
+          <th data-zh="編號" data-en="ID" data-km="លេខ">編號</th>
+          <th data-zh="日期" data-en="Date" data-km="កាល">日期</th>
+          <th data-zh="項目" data-en="Item" data-km="ធាតុ">項目</th>
+          <th data-zh="分類" data-en="Category" data-km="ប្រភេទ">分類</th>
+          <th data-zh="廠商" data-en="Vendor" data-km="អ្នកផ្គត់ផ្គង់">廠商</th>
+          <th class="num" data-zh="數量" data-en="Qty" data-km="បរិមាណ">數量</th>
+          <th class="num" data-zh="金額" data-en="Amount" data-km="ទឹកប្រាក់">金額</th>
+          <th data-zh="狀態" data-en="Status" data-km="ស្ថានភាព">狀態</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="tbList"></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <!-- ═══ 新增申請 ═══ -->
+  <div class="page" id="p-new" style="display:none">
+    <div class="card">
+      <h3>➕ <span data-zh="新增費用申請（線上操作）" data-en="New Expense (online entry)" data-km="បន្ថែមចំណាយថ្មី">➕ 新增費用申請（線上操作）</span></h3>
+      <div class="grid g3">
+        <div class="f"><label data-zh="日期" data-en="Date" data-km="កាល">日期</label><input type="date" id="nDate"></div>
+        <div class="f"><label data-zh="項目名稱" data-en="Item" data-km="ធាតុ">項目名稱</label><input id="nName" placeholder="例：制服訂製 / 對講機電池"></div>
+        <div class="f"><label data-zh="分類" data-en="Category" data-km="ប្រភេទ">分類</label>
+          <select id="nCat">
+            <option>制服 Uniform</option><option>裝備 Equipment</option><option>維修 Repair</option>
+            <option>耗材 Consumable</option><option>加班 Overtime</option><option>訓練 Training</option>
+            <option>交通 Transport</option><option>其他 Others</option>
+          </select></div>
+        <div class="f"><label data-zh="廠商" data-en="Vendor" data-km="អ្នកផ្គត់ផ្គង់">廠商</label><input id="nVendor"></div>
+        <div class="f"><label data-zh="數量" data-en="Qty" data-km="បរិមាណ">數量</label><input type="number" id="nQty" step="0.01" value="1"></div>
+        <div class="f"><label data-zh="單位" data-en="Unit" data-km="ឯកតា">單位</label><input id="nUnit" placeholder="件/個/次"></div>
+        <div class="f"><label data-zh="單價 USD" data-en="Unit Price" data-km="តម្លៃ">單價 USD</label><input type="number" id="nPrice" step="0.01" oninput="calcAmt()"></div>
+        <div class="f"><label data-zh="金額 USD" data-en="Amount" data-km="ទឹកប្រាក់">金額 USD</label><input type="number" id="nAmt" step="0.01"></div>
+        <div class="f"><label data-zh="申請人" data-en="Requester" data-km="អ្នកស្នើ">申請人</label><input id="nBy"></div>
+      </div>
+      <div class="f" style="margin-top:9px"><label data-zh="用途 / 原因" data-en="Reason" data-km="មូលហេតុ">用途 / 原因</label><textarea id="nReason" rows="2"></textarea></div>
+      <div class="f" style="margin-top:9px"><label data-zh="單據照片" data-en="Receipt Photo" data-km="រូបភាពបង្កាន់ដៃ">單據照片</label>
+        <div class="photo-drop" onclick="addPhoto()">📷 <span data-zh="點此拍照或選擇單據圖片" data-en="Tap to add receipt photo" data-km="ចុចដើម្បីថត">點此拍照或選擇單據圖片</span></div>
+        <div id="nPhotos"></div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn" onclick="saveNew()">💾 <span data-zh="儲存" data-en="Save" data-km="រក្សាទុក">儲存</span></button>
+        <button class="btn gh" onclick="saveNew(true)">💾✅ <span data-zh="儲存並立即送核可" data-en="Save & Submit" data-km="រក្សាទុក និងស្នើ">儲存並立即送核可</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 送出核可 ═══ -->
+  <div class="page" id="p-appr" style="display:none">
+    <div class="card">
+      <h3>✅ <span data-zh="送出核可" data-en="Send for Approval" data-km="ស្នើសុំអនុម័ត">✅ 送出核可</span></h3>
+      <p class="hint" style="margin-bottom:11px">
+        選擇核可路徑後按「送出」。核可訊息會出現在 Telegram 群組（或私訊），可逐筆按 ✅／✕ 決定。<br>
+        全部處理完按「🔒 關閉批次」，系統會自動產生 <b>Excel / PDF / 線上檢視</b> 三個連結貼回群組。
+      </p>
+      <div class="f"><label data-t="route">核可路徑</label></div>
+      <div id="routePick"></div>
+      <div class="sep"></div>
+      <div class="grid g3">
+        <div class="f"><label data-zh="批次標題" data-en="Batch Title" data-km="ចំណងជើង">批次標題</label><input id="aTitle" placeholder="例：2026-08 保安費用"></div>
+        <div class="f"><label data-zh="期間" data-en="Period" data-km="ដំណាក់កាល">期間</label><input id="aPeriod"></div>
+        <div class="f"><label data-zh="送出範圍" data-en="Scope" data-km="វិសាលភាព">送出範圍</label>
+          <select id="aScope" onchange="renderAppr()">
+            <option value="period">本期間未送核可的全部</option>
+            <option value="checked">清單中勾選的項目</option>
+          </select></div>
+      </div>
+      <div class="sep"></div>
+      <div id="apprPreview"></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn ok" onclick="doSend()">📤 <span data-zh="送出核可請求" data-en="Send Approval Request" data-km="ផ្ញើសំណើ">送出核可請求</span></button>
+        <button class="btn gh" onclick="checkStatus()">🔍 <span data-zh="查詢批次狀態" data-en="Check Status" data-km="ពិនិត្យស្ថានភាព">查詢批次狀態</span></button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>📜 <span data-zh="送出記錄" data-en="Submission Log" data-km="កំណត់ត្រា">送出記錄</span></h3>
+      <div class="tw"><table><thead><tr>
+        <th data-zh="批次" data-en="Batch" data-km="បាច់">批次</th>
+        <th data-zh="時間" data-en="Time" data-km="ម៉ោង">時間</th>
+        <th data-zh="路徑" data-en="Route" data-km="ផ្លូវ">路徑</th>
+        <th class="num" data-zh="筆數" data-en="Items" data-km="ចំនួន">筆數</th>
+        <th class="num" data-zh="金額" data-en="Amount" data-km="ទឹកប្រាក់">金額</th>
+        <th data-zh="狀態" data-en="Status" data-km="ស្ថានភាព">狀態</th></tr></thead>
+        <tbody id="tbBatch"></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- ═══ 統計 ═══ -->
+  <div class="page" id="p-ana" style="display:none">
+    <div class="card"><h3>📈 <span data-zh="費用趨勢" data-en="Expense Trend" data-km="និន្នាការ">費用趨勢</span></h3>
+      <div style="height:250px"><canvas id="ch1"></canvas></div></div>
+    <div class="grid g2">
+      <div class="card"><h3>🏷 <span data-zh="分類佔比" data-en="By Category" data-km="តាមប្រភេទ">分類佔比</span></h3>
+        <div style="height:250px"><canvas id="ch2"></canvas></div></div>
+      <div class="card"><h3>🏪 <span data-zh="廠商金額" data-en="By Vendor" data-km="តាមអ្នកផ្គត់ផ្គង់">廠商金額</span></h3>
+        <div style="height:250px"><canvas id="ch3"></canvas></div></div>
+    </div>
+    <div class="card">
+      <h3>💵 <span data-zh="預算控管" data-en="Budget Control" data-km="ថវិកា">預算控管</span>
+        <span class="sp"><label style="font-size:11px;color:var(--ink2)">本期預算 USD</label>
+        <input type="number" id="budget" style="width:110px" oninput="renderBudget()"></span></h3>
+      <div id="budgetBox" class="hint">填入預算後顯示執行率。超出預算時 Telegram <code>/anomaly</code> 會列為異常。</div>
+    </div>
+  </div>
+
+  <!-- ═══ 資料管理 ═══ -->
+  <div class="page" id="p-data" style="display:none">
+    <div class="card">
+      <h3>💾 <span data-zh="資料工具" data-en="Data Tools" data-km="ឧបករណ៍">資料工具</span></h3>
+      <div class="row">
+        <button class="btn" onclick="impFee()">🛡 <span data-zh="匯入保安服務費申請表" data-en="Import Security Service Fee" data-km="នាំចូលថ្លៃសេវា">匯入保安服務費申請表</span></button>
+        <button class="btn gh" onclick="impExcel()">📥 <span data-t="impExcel">匯入一般 Excel</span></button>
+        <button class="btn gh" onclick="expExcel()">📊 <span data-t="expExcel">匯出 Excel</span></button>
+        <button class="btn gh" onclick="SEC.backupJson({records:DB,batches:BATCH},'expense_backup_'+SEC.ymd()+'.json')">💾 <span data-t="backup">備份 JSON</span></button>
+        <button class="btn gh" onclick="restore()">📂 <span data-t="restore">還原 JSON</span></button>
+        <button class="btn err" onclick="clearAll()">🗑 <span data-zh="清空" data-en="Clear" data-km="សម្អាត">清空</span></button>
+      </div>
+      <div class="sep"></div>
+      <p class="hint">可辨識欄位：日期 Date、項目 Item/Description、分類 Category、廠商 Vendor/Supplier、數量 Qty、單價 Price、金額 Amount/Total、原因 Reason/Purpose、備註 Remark。</p>
+      <div id="impLog" class="hint" style="margin-top:8px"></div>
+    </div>
+    <div class="card">
+      <h3>☁ <span data-zh="雲端同步" data-en="Cloud Sync" data-km="សមកាលកម្ម">雲端同步</span></h3>
+      <div class="row">
+        <button class="btn" onclick="doUpload()">⬆️☁ <span data-t="upload">上傳雲端</span></button>
+        <button class="btn gh" onclick="doDownload()">⬇️☁ <span data-t="download">下載雲端</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toastwrap"></div>
+<script src="./shared/sec-core.js"></script>
+<script>
+var LS = 'ac_sec_expense_db', LSB = 'ac_sec_expense_batches';
+var DB = [], BATCH = [], PH = [], PER = new SEC.Period('month'), CH = {}, TOOL = 'expense';
+
+function load() {
+  try { DB = JSON.parse(localStorage.getItem(LS) || '[]'); } catch (e) { DB = []; }
+  try { BATCH = JSON.parse(localStorage.getItem(LSB) || '[]'); } catch (e) { BATCH = []; }
+}
+function save() { localStorage.setItem(LS, JSON.stringify(DB)); localStorage.setItem(LSB, JSON.stringify(BATCH)); }
+
+document.getElementById('hdr').innerHTML = SEC.headerHtml('💰', '保安費用 Security Expense', 'AC SECURITY · EXPENSE');
+document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
+document.getElementById('routePick').innerHTML = SEC.routePickerHtml('rp');
+SEC.bindRoutePicker('rp');
+load();
+SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: pushSummary });
+SEC.bindPeriodNav('pnav', PER, renderAll);
+
+document.getElementById('tabs').addEventListener('click', function (e) {
+  var b = e.target.closest('.tab'); if (!b) return;
+  document.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('on'); });
+  b.classList.add('on');
+  document.querySelectorAll('.page').forEach(function (p) { p.style.display = 'none'; });
+  document.getElementById('p-' + b.dataset.p).style.display = '';
+  document.getElementById('pnavHost').style.display = (b.dataset.p === 'new' || b.dataset.p === 'data') ? 'none' : '';
+  renderAll();
+});
+document.getElementById('q').oninput = renderList;
+document.getElementById('nDate').value = SEC.ymd();
+window.onLangChange = renderAll;
+renderAll();
+
+/* ═══ 篩選 ═══ */
+function inPeriod() { return DB.filter(function (r) { return PER.has(r.date); }); }
+function money(n) { return '$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+function renderAll() {
+  document.getElementById('aPeriod').value = PER.key();
+  if (!document.getElementById('aTitle').value)
+    document.getElementById('aTitle').value = PER.key() + ' 保安費用';
+  renderList(); renderAppr(); renderAna(); renderBatch(); syncCats();
+}
+
+function syncCats() {
+  var s = {};
+  DB.forEach(function (r) { if (r.cat) s[r.cat] = 1; });
+  var sel = document.getElementById('fCat'), cur = sel.value;
+  sel.innerHTML = '<option value="">全部分類</option>' + Object.keys(s).map(function (k) {
+    return '<option>' + SEC.esc(k) + '</option>';
+  }).join('');
+  sel.value = cur;
+}
+
+function renderList() {
+  var list = inPeriod();
+  var q = (document.getElementById('q').value || '').toLowerCase();
+  var cat = document.getElementById('fCat').value;
+  if (cat) list = list.filter(function (r) { return r.cat === cat; });
+  if (q) list = list.filter(function (r) {
+    return (r.name || '').toLowerCase().indexOf(q) >= 0 || (r.vendor || '').toLowerCase().indexOf(q) >= 0;
+  });
+  var amt = list.reduce(function (s, r) { return s + (Number(r.amount) || 0); }, 0);
+  document.getElementById('k1').textContent = list.length;
+  document.getElementById('k2').textContent = money(amt);
+  document.getElementById('k3').textContent = list.filter(function (r) { return !r.batchId; }).length;
+  document.getElementById('k4').textContent = list.filter(function (r) { return r.apprStatus === 'approved'; }).length;
+
+  var tb = document.getElementById('tbList');
+  if (!list.length) { tb.innerHTML = '<tr><td colspan="10" class="empty">' + SEC.T().noData + '</td></tr>'; return; }
+  tb.innerHTML = list.slice().sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); })
+    .map(function (r) {
+      var st = r.apprStatus === 'approved' ? '<span class="tag ok">✅ 已核可</span>'
+             : r.apprStatus === 'rejected' ? '<span class="tag err">✕ 退件</span>'
+             : r.batchId ? '<span class="tag warn">⏳ 待核 ' + SEC.esc(r.batchId) + '</span>'
+             : '<span class="tag gray">未送核</span>';
+      return '<tr>' +
+        '<td>' + (r.batchId ? '' : '<input type="checkbox" class="ck" data-id="' + r.id + '">') + '</td>' +
+        '<td><code>' + SEC.esc(r.code || r.id) + '</code></td>' +
+        '<td>' + SEC.esc(r.date) + '</td>' +
+        '<td><b>' + SEC.esc(r.name) + '</b>' + (r.photos && r.photos.length ? ' 📷' : '') + '</td>' +
+        '<td>' + SEC.esc(r.cat || '') + '</td>' +
+        '<td>' + SEC.esc(r.vendor || '') + '</td>' +
+        '<td class="num">' + (r.qty || '') + ' ' + SEC.esc(r.unit || '') + '</td>' +
+        '<td class="num"><b>' + money(r.amount) + '</b></td>' +
+        '<td>' + st + '</td>' +
+        '<td><button class="btn sm err" onclick="delRec(\'' + r.id + '\')">×</button></td>' +
+      '</tr>';
+    }).join('');
+}
+function toggleAll(el) { document.querySelectorAll('.ck').forEach(function (c) { c.checked = el.checked; }); }
+function checkedIds() {
+  return Array.prototype.map.call(document.querySelectorAll('.ck:checked'), function (c) { return c.dataset.id; });
+}
+
+/* ═══ 新增 ═══ */
+function calcAmt() {
+  var q = Number(document.getElementById('nQty').value) || 0;
+  var p = Number(document.getElementById('nPrice').value) || 0;
+  if (p) document.getElementById('nAmt').value = (q * p).toFixed(2);
+}
+function addPhoto() {
+  SEC.pickPhoto(function (d) {
+    PH.push(d);
+    document.getElementById('nPhotos').innerHTML = SEC.photoListHtml(PH, true);
+    document.getElementById('nPhotos').querySelectorAll('.del').forEach(function (b) {
+      b.onclick = function () { PH.splice(+b.dataset.i, 1); addPhotoRefresh(); };
+    });
+  });
+}
+function addPhotoRefresh() {
+  document.getElementById('nPhotos').innerHTML = SEC.photoListHtml(PH, true);
+  document.getElementById('nPhotos').querySelectorAll('.del').forEach(function (b) {
+    b.onclick = function () { PH.splice(+b.dataset.i, 1); addPhotoRefresh(); };
+  });
+}
+function saveNew(submit) {
+  var r = {
+    id    : 'E' + Date.now().toString(36),
+    code  : 'EXP-' + SEC.ymd().replace(/-/g, '') + '-' + String(DB.length + 1).padStart(3, '0'),
+    date  : document.getElementById('nDate').value,
+    name  : document.getElementById('nName').value.trim(),
+    cat   : document.getElementById('nCat').value,
+    vendor: document.getElementById('nVendor').value.trim(),
+    qty   : Number(document.getElementById('nQty').value) || 0,
+    unit  : document.getElementById('nUnit').value.trim(),
+    price : Number(document.getElementById('nPrice').value) || 0,
+    amount: Number(document.getElementById('nAmt').value) || 0,
+    by    : document.getElementById('nBy').value.trim() || SEC.getCfg().operator,
+    reason: document.getElementById('nReason').value.trim(),
+    photos: PH.slice(),
+    batchId: '', apprStatus: '',
+    createdAt: SEC.nowStr(),
+  };
+  if (!r.name)  { SEC.toast('⚠ 請填項目名稱', 'warn'); return; }
+  if (!r.date)  { SEC.toast('⚠ 請選日期', 'warn'); return; }
+  DB.push(r); save(); renderAll();
+  SEC.toast('✅ 已儲存 ' + r.code, 'ok');
+  ['nName','nVendor','nUnit','nPrice','nAmt','nReason'].forEach(function (i) { document.getElementById(i).value = ''; });
+  document.getElementById('nQty').value = 1;
+  PH = []; document.getElementById('nPhotos').innerHTML = '';
+  if (submit) { document.querySelector('.tab[data-p="appr"]').click(); }
+}
+function delRec(id) {
+  if (!confirm(SEC.T().confirmDel)) return;
+  DB = DB.filter(function (r) { return r.id !== id; });
+  save(); renderAll();
+}
+
+/* ═══ 核可 ═══ */
+function targets() {
+  if (document.getElementById('aScope').value === 'checked') {
+    var ids = checkedIds();
+    return DB.filter(function (r) { return ids.indexOf(r.id) >= 0 && !r.batchId; });
+  }
+  return inPeriod().filter(function (r) { return !r.batchId; });
+}
+function renderAppr() {
+  var list = targets();
+  var amt = list.reduce(function (s, r) { return s + (Number(r.amount) || 0); }, 0);
+  var box = document.getElementById('apprPreview');
+  if (!list.length) { box.innerHTML = '<div class="empty">此範圍內沒有待送核可的項目</div>'; return; }
+  box.innerHTML = '<div class="grid g3" style="margin-bottom:10px">' +
+      '<div class="kpi"><div class="v">' + list.length + '</div><div class="l">送核筆數</div></div>' +
+      '<div class="kpi"><div class="v" style="font-size:19px">' + money(amt) + '</div><div class="l">送核金額</div></div>' +
+      '<div class="kpi"><div class="v" style="font-size:19px">' + SEC.esc(PER.key()) + '</div><div class="l">期間</div></div>' +
+    '</div><div class="tw"><table><thead><tr><th>#</th><th>編號</th><th>項目</th><th>分類</th><th class="num">金額</th></tr></thead><tbody>' +
+    list.map(function (r, i) {
+      return '<tr><td>' + (i + 1) + '</td><td><code>' + SEC.esc(r.code) + '</code></td><td>' + SEC.esc(r.name) +
+        '</td><td>' + SEC.esc(r.cat || '') + '</td><td class="num">' + money(r.amount) + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+}
+async function doSend() {
+  var list = targets();
+  if (!list.length) { SEC.toast('⚠ 沒有可送核可的項目', 'warn'); return; }
+  var route = SEC.pickedRoute('rp');
+  var r = await SEC.sendApproval({
+    module: 'expense',
+    period: document.getElementById('aPeriod').value || PER.key(),
+    title : document.getElementById('aTitle').value,
+    route : route,
+    items : list.map(function (x) {
+      return { key: x.code, id: x.code, name: x.name, dept: x.cat, vendor: x.vendor,
+        qty: x.qty, unit: x.unit, amount: x.amount, date: x.date,
+        reason: x.reason, info: x.by ? ('申請人 ' + x.by) : '' };
+    }),
+  });
+  if (!r || !r.batchId) return;
+  var amt = list.reduce(function (s, x) { return s + (Number(x.amount) || 0); }, 0);
+  list.forEach(function (x) { x.batchId = r.batchId; x.apprStatus = 'pending'; });
+  BATCH.unshift({ batchId: r.batchId, at: SEC.nowStr(), route: route,
+    n: list.length, amount: amt, status: 'open' });
+  save(); renderAll();
+}
+async function checkStatus() {
+  if (!BATCH.length) { SEC.toast('尚無送出記錄', 'warn'); return; }
+  SEC.toast('<span class="spin">⏳</span> 查詢中…');
+  for (var i = 0; i < Math.min(BATCH.length, 8); i++) {
+    var b = BATCH[i];
+    if (b.status === 'closed') continue;
+    try {
+      var r = await SEC.gasPost({ action: 'approvalStatus', batchId: b.batchId });
+      b.status = r.status; b.counts = r.counts; b.stage = r.stage;
+      (r.items || []).forEach(function (it) {
+        DB.forEach(function (x) { if (x.code === it.itemId || x.id === it.itemId) x.apprStatus = it.status; });
+      });
+    } catch (e) {}
+  }
+  save(); renderAll(); SEC.toast('✅ 狀態已更新', 'ok');
+}
+function renderBatch() {
+  var tb = document.getElementById('tbBatch');
+  if (!BATCH.length) { tb.innerHTML = '<tr><td colspan="6" class="empty">尚無送出記錄</td></tr>'; return; }
+  tb.innerHTML = BATCH.map(function (b) {
+    var c = b.counts || {};
+    var st = b.status === 'closed' ? '<span class="tag gray">🔒 已關閉</span>'
+           : b.stage === 'review' ? '<span class="tag info">🔍 待審查</span>'
+           : '<span class="tag warn">⏳ 待核可</span>';
+    if (c.approved !== undefined) st += ' <span class="hint">✅' + c.approved + ' ✕' + c.rejected + ' ⏳' + c.pending + '</span>';
+    return '<tr><td><code>' + SEC.esc(b.batchId) + '</code></td><td>' + SEC.esc(b.at) + '</td>' +
+      '<td>' + (b.route === 'direct' ? '🚀 直送' : '👥 群組審查') + '</td>' +
+      '<td class="num">' + b.n + '</td><td class="num">' + money(b.amount) + '</td><td>' + st + '</td></tr>';
+  }).join('');
+}
+
+/* ═══ 統計 ═══ */
+function renderAna() {
+  var list = inPeriod();
+  var byD = {};
+  list.forEach(function (r) { byD[r.date] = (byD[r.date] || 0) + (Number(r.amount) || 0); });
+  var ds = Object.keys(byD).sort();
+  chart('ch1', 'bar', ds, [{ label: '金額 USD', data: ds.map(function (d) { return byD[d]; }), backgroundColor: '#1e6f8e' }]);
+  var byC = {};
+  list.forEach(function (r) { var k = r.cat || '—'; byC[k] = (byC[k] || 0) + (Number(r.amount) || 0); });
+  var ck = Object.keys(byC).sort(function (a, b) { return byC[b] - byC[a]; });
+  chart('ch2', 'doughnut', ck, [{ data: ck.map(function (k) { return byC[k]; }),
+    backgroundColor: ['#0f2b46','#1e6f8e','#2a8fb0','#4ade80','#fbbf24','#f87171','#a78bfa','#94a3b8'] }]);
+  var byV = {};
+  list.forEach(function (r) { var k = r.vendor || '—'; byV[k] = (byV[k] || 0) + (Number(r.amount) || 0); });
+  var vk = Object.keys(byV).sort(function (a, b) { return byV[b] - byV[a]; }).slice(0, 8);
+  chart('ch3', 'bar', vk, [{ label: '金額', data: vk.map(function (k) { return byV[k]; }), backgroundColor: '#2a8fb0' }]);
+  renderBudget();
+}
+function chart(id, type, labels, ds) {
+  var el = document.getElementById(id); if (!el) return;
+  if (CH[id]) CH[id].destroy();
+  CH[id] = new Chart(el, { type: type, data: { labels: labels, datasets: ds },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: type === 'doughnut', position: 'bottom', labels: { font: { size: 10 } } } },
+      scales: type === 'doughnut' ? {} : { y: { beginAtZero: true } } } });
+}
+function renderBudget() {
+  var bud = Number(document.getElementById('budget').value) || 0;
+  var amt = inPeriod().reduce(function (s, r) { return s + (Number(r.amount) || 0); }, 0);
+  var box = document.getElementById('budgetBox');
+  if (!bud) { box.innerHTML = '填入預算後顯示執行率。'; return; }
+  var pct = Math.round(amt / bud * 100);
+  box.innerHTML = '<div class="row"><b style="font-size:17px;color:' + (pct > 100 ? 'var(--err)' : 'var(--n1)') + '">' +
+    money(amt) + ' / ' + money(bud) + '（' + pct + '%）</b>' +
+    (pct > 100 ? '<span class="tag err">⚠️ 超預算 ' + money(amt - bud) + '</span>' : '<span class="tag ok">✅ 預算內</span>') +
+    '</div><div class="bar" style="margin-top:8px"><i style="width:' + Math.min(100, pct) + '%;' +
+    (pct > 100 ? 'background:linear-gradient(90deg,#dc2626,#f87171)' : '') + '"></i></div>';
+}
+
+/* ═══ Excel ═══ */
+var SPEC = {
+  date  : ['日期','date','កាល','ថ្ងៃ','日子','購買日期','trans date'],
+  name  : ['項目','item','ធាតុ','品名','description','desc','名稱','name','內容','particulars','details'],
+  cat   : ['分類','category','ប្រភេទ','類別','type','種類','group'],
+  vendor: ['廠商','vendor','supplier','អ្នកផ្គត់ផ្គង់','供應商','店家','shop','company'],
+  qty   : ['數量','qty','quantity','បរិមាណ','pcs','件數'],
+  unit  : ['單位','unit','ឯកតា'],
+  price : ['單價','price','unitprice','តម្លៃ','rate'],
+  amount: ['金額','amount','total','ទឹកប្រាក់','費用','cost','價格','usd','小計','sum'],
+  reason: ['原因','reason','用途','purpose','មូលហេតុ','remark','備註','note','說明'],
+};
+function impExcel() {
+  SEC.pickExcel(function (sheets) {
+    var added = 0, log = [];
+    sheets.forEach(function (sh) {
+      var res = SEC.parseSheet(sh.rows, SPEC, { minScore: 2 });
+      if (!res.rows.length) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：未偵測到資料（分數 ' + res.header.score + '）'); return; }
+      var n = 0;
+      res.rows.forEach(function (o) {
+        var name = SEC.str(o.name);
+        var amount = SEC.num(o.amount) || (SEC.num(o.qty) * SEC.num(o.price));
+        if (!name && !amount) return;
+        var d = SEC.parseD(o.date);
+        DB.push({
+          id: 'X' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          code: 'IMP-' + (DB.length + 1),
+          date: d ? SEC.ymd(d) : SEC.ymd(),
+          name: name || '(未命名)', cat: SEC.str(o.cat) || sh.name,
+          vendor: SEC.str(o.vendor), qty: SEC.num(o.qty), unit: SEC.str(o.unit),
+          price: SEC.num(o.price), amount: amount,
+          reason: SEC.str(o.reason), photos: [], batchId: '', apprStatus: '',
+          src: sh.name, createdAt: SEC.nowStr(),
+        });
+        n++; added++;
+      });
+      log.push('· <b>' + SEC.esc(sh.name) + '</b>：匯入 <b>' + n + '</b> 筆（標題第 ' + (res.header.row + 1) + ' 列）');
+    });
+    save(); renderAll();
+    document.getElementById('impLog').innerHTML = '<b>匯入結果</b><br>' + log.join('<br>');
+    SEC.toast(added ? '✅ ' + SEC.T().imported + ' ' + added + ' ' + SEC.T().records : '⚠ 未匯入任何資料', added ? 'ok' : 'warn', 5000);
+  });
+}
+/* ── 保安服務費申請表專用（security_service_fee_application 格式）──
+   結構：上方 company / MONTH / DAY 摘要；下方兩段「day shift」「Night shift」
+        各有 name / location / per month / total wk day / total wk hr / total hour / one hour / total pay */
+function impFee() {
+  SEC.pickExcel(function (sheets) {
+    var added = 0, log = [];
+    sheets.forEach(function (sh) {
+      var rows = sh.rows;
+      var company = '', month = '', days = 0;
+      for (var r = 0; r < Math.min(rows.length, 6); r++) {
+        for (var c = 0; c < (rows[r] || []).length; c++) {
+          var a = SEC.norm(rows[r][c]);
+          if (a === 'company' && !company) company = SEC.str(rows[r][c + 1]);
+          if (a === 'month' && !month)     month   = SEC.str(rows[r][c + 1]);
+          if (a === 'day' && !days)        days    = SEC.num(rows[r][c + 1]);
+        }
+      }
+      /* 期間：從表頭月份名推年月，取不到就用目前期間 */
+      var per = PER.key();
+      if (month) {
+        var mi = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec']
+                 .indexOf(String(month).slice(0, 3).toLowerCase());
+        if (mi >= 0) per = (new Date().getFullYear()) + '-' + SEC.p2(mi + 1);
+      }
+      var shift = '', n = 0;
+      for (var i = 0; i < rows.length; i++) {
+        var R = rows[i] || [];
+        var joined = R.map(function (x) { return SEC.norm(x); }).join('|');
+        if (/(^|\|)dayshift(\||$)/.test(joined) && !/name/.test(joined)) { shift = '日班 Day'; continue; }
+        if (/(^|\|)night(shift)?(\||$)/.test(joined) && !/name/.test(joined)) { shift = '夜班 Night'; continue; }
+        if (/name/.test(joined) && /location/.test(joined)) continue;      /* 小標題列 */
+        /* 資料列：第 1 欄序號、第 2 欄姓名、第 3 欄地點 */
+        var seq = SEC.num(R[0]), name = SEC.str(R[1]), loc = SEC.str(R[2]);
+        if (!seq || !name) continue;
+        if (/^total$|^budget$|^\+\/-$/i.test(SEC.norm(name))) continue;
+        var pay = SEC.num(R[8]) || SEC.num(R[3]);
+        var hrs = SEC.num(R[6]);
+        if (!pay) continue;
+        DB.push({
+          id: 'FEE' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          code: 'SVC-' + per.replace('-', '') + '-' + String(DB.length + 1).padStart(3, '0'),
+          date: per + '-01', name: '保安服務費 ' + name,
+          cat: '保安服務費 Security Service', vendor: company || 'ICSC',
+          qty: 1, unit: '人月', price: pay, amount: pay,
+          reason: (shift || '') + (loc ? ' · ' + loc : '') + (hrs ? ' · ' + hrs + ' hr' : ''),
+          photos: [], batchId: '', apprStatus: '', src: sh.name, createdAt: SEC.nowStr(),
+        });
+        n++; added++;
+      }
+      log.push('· <b>' + SEC.esc(sh.name) + '</b>：匯入 <b>' + n + '</b> 筆' +
+               (company ? '（' + SEC.esc(company) + '）' : '') + (month ? ' · ' + SEC.esc(month) : '') +
+               (days ? ' · ' + days + ' 天' : ''));
+    });
+    save(); renderAll();
+    document.getElementById('impLog').innerHTML = '<b>匯入結果</b><br>' + log.join('<br>');
+    SEC.toast(added ? '✅ 保安服務費匯入 ' + added + ' 筆' : '⚠ 未匯入，格式可能不符', added ? 'ok' : 'warn', 5000);
+  });
+}
+
+function expExcel() {
+  var list = inPeriod();
+  SEC.exportExcel([{ name: 'Expense_' + PER.key(), rows: list.map(function (r, i) {
+    return { '#': i + 1, '編號 Code': r.code, '日期 Date': r.date, '項目 Item': r.name,
+      '分類 Category': r.cat, '廠商 Vendor': r.vendor, '數量 Qty': r.qty, '單位 Unit': r.unit,
+      '單價 Price': r.price, '金額 Amount': r.amount, '原因 Reason': r.reason,
+      '批次 Batch': r.batchId, '核可狀態 Status': r.apprStatus || '未送核' };
+  }) }], 'AC_SEC_Expense_' + PER.key() + '.xlsx');
+}
+function restore() {
+  SEC.restoreJson(function (o) {
+    if (o.records) DB = o.records;
+    if (o.batches) BATCH = o.batches;
+    save(); renderAll();
+  });
+}
+function clearAll() {
+  if (!confirm('確定清空所有費用資料？')) return;
+  DB = []; BATCH = []; save(); renderAll();
+}
+
+/* ═══ 雲端 / Telegram ═══ */
+async function doUpload() {
+  var slim = DB.map(function (r) { var o = Object.assign({}, r); o.photos = (r.photos || []).length; return o; });
+  await SEC.cloudPush(TOOL, slim, { total: DB.length, amount: DB.reduce(function (s, r) { return s + (+r.amount || 0); }, 0) });
+}
+async function doDownload() {
+  if (!confirm('⬇️☁ 下載會覆蓋本機費用資料，確定？')) return;
+  var recs = await SEC.cloudPull(TOOL);
+  if (recs) { DB = recs.map(function (r) { if (typeof r.photos === 'number') r.photos = []; return r; }); save(); renderAll(); }
+}
+function pushSummary() {
+  var list = inPeriod();
+  var amt = list.reduce(function (s, r) { return s + (+r.amount || 0); }, 0);
+  var byC = {};
+  list.forEach(function (r) { var k = r.cat || '—'; if (!byC[k]) byC[k] = { n: 0, a: 0 }; byC[k].n++; byC[k].a += (+r.amount || 0); });
+  var txt = '💰 <b>保安費用摘要</b> · ' + PER.label() + '\n─────────────\n' +
+    '📋 筆數：<b>' + list.length + '</b>\n💵 總金額：<b>' + money(amt) + '</b>\n' +
+    '⏳ 未送核：' + list.filter(function (r) { return !r.batchId; }).length + '\n' +
+    '✅ 已核可：' + list.filter(function (r) { return r.apprStatus === 'approved'; }).length + '\n';
+  var ks = Object.keys(byC).sort(function (a, b) { return byC[b].a - byC[a].a; });
+  if (ks.length) {
+    txt += '\n<b>🏷 分類明細</b>\n';
+    ks.slice(0, 10).forEach(function (k) { txt += '· ' + k + '：' + byC[k].n + ' 筆 · <b>' + money(byC[k].a) + '</b>\n'; });
+  }
+  SEC.tgSummary(txt, 'expense');
+}
+</script>
+</body>
+</html>
