@@ -255,6 +255,20 @@
 <div id="toastwrap"></div>
 <script src="./shared/sec-core.js"></script>
 <script>
+/* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
+if (typeof SEC === 'undefined') {
+  document.addEventListener('DOMContentLoaded', function () {
+    var b = document.createElement('div');
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#991b1b;color:#fff;'
+      + 'padding:12px 16px;font:600 13px/1.5 system-ui,sans-serif;text-align:center';
+    b.innerHTML = '⚠ 共用元件 shared/sec-core.js 未能載入。<br>'
+      + '請確認：① 已把 <b>shared</b> 資料夾（含 sec.css、sec-core.js）一起上傳到 GitHub；'
+      + '② 用網址開啟（https://saintdou-weng.github.io/ac-gas-sec/…），不要用檔案總管直接雙擊 HTML。';
+    document.body.insertBefore(b, document.body.firstChild);
+  });
+  throw new Error('sec-core.js not loaded');
+}
+
 /* ═══════════ 儲存 ═══════════ */
 var LS_SCAN = 'ac_sec_patrol_scan';     /* 巡更棒原始打點 */
 var LS_MAN  = 'ac_sec_patrol_db';       /* 人工登錄（沿用 v1 key） */

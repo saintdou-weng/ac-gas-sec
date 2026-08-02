@@ -174,7 +174,9 @@
     <div class="card">
       <h3>💾 <span data-zh="資料工具" data-en="Data Tools" data-km="ឧបករណ៍">資料工具</span></h3>
       <div class="row">
-        <button class="btn" onclick="impExcel()">📥 <span data-zh="匯入攝影機清單 Excel" data-en="Import camera list" data-km="នាំចូល">匯入攝影機清單 Excel</span></button>
+        <button class="btn" onclick="impCamJson()">🎥 <span data-zh="匯入相機清單 JSON（vrt_cameras）" data-en="Import cameras JSON" data-km="នាំចូល JSON">匯入相機清單 JSON（vrt_cameras）</span></button>
+        <button class="btn gh" onclick="impExcel()">📥 <span data-zh="匯入 Excel" data-en="Import Excel" data-km="នាំចូល">匯入 Excel</span></button>
+        <button class="btn gh" onclick="migrateOld()">♻️ <span data-zh="轉入舊 security.html 資料" data-en="Migrate old data" data-km="នាំចូលចាស់">轉入舊 security.html 資料</span></button>
         <button class="btn gh" onclick="expExcel()">📊 <span data-t="expExcel">匯出 Excel</span></button>
         <button class="btn gh" onclick="doBackup()">💾 <span data-t="backup">備份 JSON</span></button>
         <button class="btn gh" onclick="restore()">📂 <span data-t="restore">還原 JSON</span></button>
@@ -183,6 +185,8 @@
       <div class="sep"></div>
       <p class="hint">可辨識欄位：編號 Code/No/CH、名稱 Name、位置 Location、區域 Zone/Building、類型 Type、NVR、通道 Channel/CH、IP、狀態 Status、備註 Remark。標題列可在任何位置。</p>
       <div id="impLog" class="hint" style="margin-top:8px"></div>
+      <div class="sep"></div>
+      <p class="hint">💡 你上傳的 <code>vrt_cameras.json</code>（41 支：A 棟 25、B 棟 16，其中 8 支標記「No Video Available」）可直接用「🎥 匯入相機清單 JSON」載入。標記無畫面的會自動設為 🔴 離線狀態。</p>
       <div class="sep"></div>
       <div class="row">
         <label style="font-size:12px;font-weight:700;color:var(--ink2)">快速建立</label>
@@ -229,6 +233,20 @@
 <div id="toastwrap"></div>
 <script src="./shared/sec-core.js"></script>
 <script>
+/* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
+if (typeof SEC === 'undefined') {
+  document.addEventListener('DOMContentLoaded', function () {
+    var b = document.createElement('div');
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#991b1b;color:#fff;'
+      + 'padding:12px 16px;font:600 13px/1.5 system-ui,sans-serif;text-align:center';
+    b.innerHTML = '⚠ 共用元件 shared/sec-core.js 未能載入。<br>'
+      + '請確認：① 已把 <b>shared</b> 資料夾（含 sec.css、sec-core.js）一起上傳到 GitHub；'
+      + '② 用網址開啟（https://saintdou-weng.github.io/ac-gas-sec/…），不要用檔案總管直接雙擊 HTML。';
+    document.body.insertBefore(b, document.body.firstChild);
+  });
+  throw new Error('sec-core.js not loaded');
+}
+
 var LS = 'ac_sec_cctv_db', LSL = 'ac_sec_cctv_log';
 var DB = [], LOG = [], TODAY = {}, BRUSH = 'ok', CH = {}, TOOL = 'cctv';
 var PER = new SEC.Period('month'), EDIT_ID = '';
@@ -601,6 +619,92 @@ function impExcel() {
     SEC.toast(added ? '✅ 匯入 ' + added + ' 支攝影機' : '⚠ 未匯入，請看偵測記錄', added ? 'ok' : 'warn', 5000);
   });
 }
+/* ── 匯入 vrt_cameras.json（你上傳的 41 支格式）── */
+function impCamJson() {
+  var inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.json,application/json';
+  inp.onchange = function () {
+    var f = inp.files[0]; if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function () {
+      try {
+        var arr = JSON.parse(rd.result);
+        if (!Array.isArray(arr)) { SEC.toast('⚠ 格式不是陣列', 'warn'); return; }
+        loadCamArray(arr);
+      } catch (e) { SEC.toast('❌ JSON 解析失敗：' + e.message, 'err', 6000); }
+    };
+    rd.readAsText(f);
+  };
+  inp.click();
+}
+function loadCamArray(arr) {
+  var added = 0;
+  arr.forEach(function (c) {
+    var code = SEC.str(c.code || c.name || c.id);
+    if (!code) return;
+    /* 大樓 A/B → 區域；location 內含關鍵字再細分 */
+    var loc = SEC.str(c.loc || c.location || '');
+    var lz = (loc + ' ' + (c.bldg || '')).toLowerCase();
+    var zone = /front gate|大門/.test(lz) ? 'gate'
+             : /finished good|finishing|成品/.test(lz) ? 'fwh'
+             : /office|辦公/.test(lz) ? 'office'
+             : /container|貨櫃|loading/.test(lz) ? (/\bb\b|building b/.test(lz) ? 'bldB' : 'bldA')
+             : String(c.bldg).toUpperCase() === 'B' ? 'bldB'
+             : String(c.bldg).toUpperCase() === 'A' ? 'bldA' : 'yard';
+    /* 已存在同 code → 更新 */
+    var old = DB.filter(function (x) { return x.code === code; })[0];
+    var rec = { code: code, name: loc, zone: zone, type: 'dome',
+      nvr: '', ch: '', ip: '', bldg: c.bldg || '',
+      status: c.noVideo ? 'off' : 'ok',
+      remark: c.noVideo ? 'No Video Available（原標記無畫面）' : '' };
+    if (old) { Object.assign(old, rec); }
+    else { rec.id = 'J' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); DB.push(rec); }
+    added++;
+  });
+  save(); renderAll();
+  var noVid = DB.filter(function (c) { return c.status === 'off'; }).length;
+  document.getElementById('impLog').innerHTML = '<b>匯入結果</b>：' + added + ' 支相機（其中 ' + noVid + ' 支標記為無畫面 🔴）';
+  SEC.toast('✅ 匯入 ' + added + ' 支相機', 'ok', 5000);
+}
+/* ── 轉入舊 security.html 的 localStorage（vrt_cameras + cctv_YYYY-MM-DD）── */
+function migrateOld() {
+  var camRaw = localStorage.getItem('vrt_cameras');
+  if (!camRaw) {
+    SEC.toast('⚠ 本機找不到舊 vrt_cameras 資料。若舊系統在別的網址，請在那邊匯出 JSON 再用上面的按鈕匯入。', 'warn', 8000);
+    return;
+  }
+  if (!confirm('將把舊 security.html 的相機清單與歷史每日狀態轉入本模組。繼續？')) return;
+  var arr = [];
+  try { arr = JSON.parse(camRaw); } catch (e) {}
+  loadCamArray(arr);
+  /* 掃 cctv_ 開頭的每日狀態 */
+  var migrated = 0;
+  for (var i = 0; i < localStorage.length; i++) {
+    var k = localStorage.key(i);
+    if (!/^cctv_\d{4}-\d{2}-\d{2}$/.test(k)) continue;
+    var date = k.slice(5);
+    var day = [];
+    try { day = JSON.parse(localStorage.getItem(k)) || []; } catch (e) { continue; }
+    var st = {}, c = { ok:0, off:0, blur:0, fault:0, dis:0 };
+    day.forEach(function (d) {
+      var cam = DB.filter(function (x) { return String(x.code).indexOf(String(d.id)) >= 0 || x.oldId === d.id; })[0];
+      if (!cam) return;
+      var s = d.status === 'fail' ? 'fault' : 'ok';
+      st[cam.id] = s; c[s]++;
+    });
+    if (!Object.keys(st).length) continue;
+    var live = Object.keys(st).length;
+    LOG = LOG.filter(function (l) { return l.date !== date; });
+    LOG.push({ id: 'M' + date, date: date, by: '(舊系統轉入)', n: live, ok: c.ok, off: 0, blur: 0,
+      fault: c.fault, dis: 0, uptime: live ? Math.round(c.ok / live * 100) : 0,
+      badList: [], st: st });
+    migrated++;
+  }
+  LOG.sort(function (a, b) { return b.date.localeCompare(a.date); });
+  save(); renderAll();
+  SEC.toast('♻️ 已轉入 ' + DB.length + ' 支相機、' + migrated + ' 天歷史狀態', 'ok', 6000);
+}
+
 function genCams() {
   var n = parseInt(document.getElementById('genN').value, 10) || 0;
   if (!n) return;
