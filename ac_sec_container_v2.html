@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>貨櫃出入 Container | AC Security</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="./shared/sec.css">
+<style>
+.subnav{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.subnav .sb{flex:1;min-width:96px;padding:11px 8px;border-radius:11px;border:1px solid var(--line);
+  background:#fff;cursor:pointer;text-align:center;font-family:inherit;transition:.14s}
+.subnav .sb:hover{border-color:var(--n2)}
+.subnav .sb.on{background:linear-gradient(160deg,var(--n1),var(--n2));color:#fff;border-color:transparent;box-shadow:var(--shadow2)}
+.subnav .sb .i{font-size:20px;display:block}
+.subnav .sb .t{font-size:12px;font-weight:800;margin-top:3px}
+.subnav .sb .s{font-size:9px;opacity:.7;letter-spacing:.03em}
+.subnav .sb.on .s{opacity:.85}
+.ie-in{color:#0d8050;font-weight:700}
+.ie-out{color:#c62828;font-weight:700}
+.chk-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media(max-width:560px){.chk-grid{grid-template-columns:1fr}}
+.chk{display:flex;align-items:center;gap:8px;padding:8px 11px;border:1px solid var(--line);border-radius:9px;cursor:pointer;transition:.12s}
+.chk:hover{border-color:var(--n2)}
+.chk.yes{background:#e3f5ed;border-color:#6ee7b7}
+.chk.no{background:#fdeaea;border-color:#fca5a5}
+.chk .cbox{width:20px;height:20px;border-radius:5px;border:2px solid #cbd5e1;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}
+.chk.yes .cbox{background:#16a34a;border-color:#16a34a;color:#fff}
+.chk.no .cbox{background:#dc2626;border-color:#dc2626;color:#fff}
+.chk .lbl{font-size:12px;line-height:1.35}
+.itemrow{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:6px;margin-bottom:6px}
+.reason-tog{display:flex;gap:6px;flex-wrap:wrap}
+.rt{padding:6px 12px;border-radius:20px;border:1.5px solid var(--line);background:#fff;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit}
+.rt.on{background:var(--n2);color:#fff;border-color:var(--n2)}
+</style>
+</head>
+<body>
+<div id="hdr"></div>
+
+<div class="wrap">
+
+  <!-- 三合一子模組切換 -->
+  <div class="subnav" id="subnav">
+    <button class="sb on" data-m="truck"><span class="i">🚛</span><span class="t" data-zh="貨櫃車出入" data-en="Truck Log" data-km="ចេញចូល">貨櫃車出入</span><span class="s">TRUCK REGISTER</span></button>
+    <button class="sb"    data-m="insp"><span class="i">🔍</span><span class="t" data-zh="貨櫃檢查" data-en="Inspection" data-km="ត្រួតពិនិត្យ">貨櫃檢查</span><span class="s">CONTAINER INSPECT</span></button>
+    <button class="sb"    data-m="gate"><span class="i">📤</span><span class="t" data-zh="出廠/出貨單" data-en="Gate Pass" data-km="វិក្កយបត្រ">出廠/出貨單</span><span class="s">GATE PASS · DELIVERY</span></button>
+  </div>
+
+  <div id="pnavHost"></div>
+
+  <!-- ══════════════════ 模組 A：貨櫃車出入 ══════════════════ -->
+  <div id="mod-truck">
+    <div class="tabs" data-tabs="truck">
+      <button class="tab on" data-p="tk-board" data-zh="📋 進出清單" data-en="📋 Records" data-km="📋 កំណត់ត្រា">📋 進出清單</button>
+      <button class="tab" data-p="tk-ana" data-zh="📊 統計分析" data-en="📊 Analytics" data-km="📊 វិភាគ">📊 統計分析</button>
+      <button class="tab" data-p="tk-co" data-zh="🏢 貨櫃車公司" data-en="🏢 Companies" data-km="🏢 ក្រុមហ៊ុន">🏢 貨櫃車公司</button>
+      <button class="tab" data-p="tk-data" data-zh="💾 資料管理" data-en="💾 Data" data-km="💾 ទិន្នន័យ">💾 資料管理</button>
+    </div>
+
+    <div class="page" id="p-tk-board">
+      <div class="grid g4" style="margin-bottom:12px">
+        <div class="kpi"><div class="v" id="tk1">0</div><div class="l" data-zh="進出總數" data-en="Total" data-km="សរុប">進出總數</div></div>
+        <div class="kpi ok"><div class="v" id="tk2">0</div><div class="l" data-zh="🟢 進口" data-en="Import" data-km="នាំចូល">🟢 進口</div></div>
+        <div class="kpi err"><div class="v" id="tk3">0</div><div class="l" data-zh="🔴 出口" data-en="Export" data-km="នាំចេញ">🔴 出口</div></div>
+        <div class="kpi"><div class="v" id="tk4">0</div><div class="l" data-zh="貨櫃車公司" data-en="Companies" data-km="ក្រុមហ៊ុន">貨櫃車公司</div></div>
+      </div>
+      <div class="card">
+        <h3>🚛 <span data-zh="貨櫃車進出登記" data-en="Container Truck Register" data-km="ការចុះឈ្មោះ">貨櫃車進出登記</span>
+          <span class="sp">
+            <select id="tkFie" style="width:auto" onchange="renderTk()"><option value="">全部</option><option value="imp">🟢 進口</option><option value="exp">🔴 出口</option></select>
+            <input id="tkQ" placeholder="搜尋貨櫃號/司機…" style="width:150px" oninput="renderTk()">
+            <button class="btn sm" onclick="tkAdd()">➕ <span data-t="add">新增</span></button>
+            <button class="btn sm gh" onclick="tkExp()">📊 Excel</button>
+          </span></h3>
+        <div class="tw"><table><thead><tr>
+          <th data-zh="日期" data-en="Date" data-km="កាល">日期</th>
+          <th data-zh="司機" data-en="Driver" data-km="អ្នកបើក">司機</th>
+          <th data-zh="貨櫃號" data-en="Container" data-km="កុងតឺន័រ">貨櫃號</th>
+          <th data-zh="車牌" data-en="Truck" data-km="ស្លាកលេខ">車牌</th>
+          <th data-zh="公司" data-en="Company" data-km="ក្រុមហ៊ុន">公司</th>
+          <th>I/E</th>
+          <th data-zh="入廠" data-en="In" data-km="ចូល">入廠</th>
+          <th data-zh="出廠" data-en="Out" data-km="ចេញ">出廠</th>
+          <th></th></tr></thead><tbody id="tbTk"></tbody></table></div>
+        <p class="hint" id="tkMore" style="margin-top:8px"></p>
+      </div>
+    </div>
+
+    <div class="page" id="p-tk-ana" style="display:none">
+      <div class="card"><h3>📈 <span data-zh="每日進出趨勢" data-en="Daily Trend" data-km="និន្នាការ">每日進出趨勢</span></h3>
+        <div style="height:250px"><canvas id="tkc1"></canvas></div></div>
+      <div class="grid g2">
+        <div class="card"><h3>🟢🔴 <span data-zh="進出口比例" data-en="Import/Export" data-km="សមាមាត្រ">進出口比例</span></h3>
+          <div style="height:230px"><canvas id="tkc2"></canvas></div></div>
+        <div class="card"><h3>🏢 <span data-zh="各公司趟次" data-en="By Company" data-km="តាមក្រុមហ៊ុន">各公司趟次</span></h3>
+          <div style="height:230px"><canvas id="tkc3"></canvas></div></div>
+      </div>
+    </div>
+
+    <div class="page" id="p-tk-co" style="display:none">
+      <div class="card"><h3>🏢 <span data-zh="貨櫃車公司統計" data-en="Company Statistics" data-km="ស្ថិតិក្រុមហ៊ុន">貨櫃車公司統計</span></h3>
+        <div class="tw"><table><thead><tr><th>公司</th><th class="num">總趟次</th><th class="num">進口</th><th class="num">出口</th>
+        <th class="num">司機數</th><th data-zh="最近一次" data-en="Latest" data-km="ចុងក្រោយ">最近一次</th></tr></thead>
+        <tbody id="tbTkCo"></tbody></table></div></div>
+    </div>
+
+    <div class="page" id="p-tk-data" style="display:none">
+      <div class="card">
+        <h3>💾 <span data-zh="資料工具" data-en="Data Tools" data-km="ឧបករណ៍">資料工具</span></h3>
+        <div class="row">
+          <button class="btn" onclick="tkImp()">📥 <span data-zh="匯入貨櫃車登記表" data-en="Import truck register" data-km="នាំចូល">匯入貨櫃車登記表</span></button>
+          <button class="btn gh" onclick="tkExp()">📊 <span data-t="expExcel">匯出 Excel</span></button>
+          <button class="btn gh" onclick="doBackup()">💾 <span data-t="backup">備份 JSON</span></button>
+          <button class="btn gh" onclick="restore()">📂 <span data-t="restore">還原 JSON</span></button>
+          <button class="btn err" onclick="tkClear()">🗑 <span data-zh="清空" data-en="Clear" data-km="សម្អាត">清空</span></button>
+        </div>
+        <p class="hint" style="margin-top:9px">
+          匯入 VRT 貨櫃車登記表（NO. / DATE / NAME / Driver Licence / Container Number / Truck Number /
+          Container Company / Import / Export / VISITOR ID / TIME IN / SIGN / TIME OUT / SIGN / REMARK，
+          中英柬三層標題）。進口/出口欄位填 <code>P</code> 或 <code>V</code> 判定方向。</p>
+        <div id="tkLog" class="hint" style="margin-top:8px"></div>
+      </div>
+      <div class="card"><h3>☁ <span data-zh="雲端同步" data-en="Cloud Sync" data-km="សមកាលកម្ម">雲端同步</span></h3>
+        <div class="row"><button class="btn" onclick="doUpload()">⬆️☁ <span data-t="upload">上傳雲端</span></button>
+        <button class="btn gh" onclick="doDownload()">⬇️☁ <span data-t="download">下載雲端</span></button></div></div>
+    </div>
+  </div>
+
+  <!-- ══════════════════ 模組 B：貨櫃檢查 ══════════════════ -->
+  <div id="mod-insp" style="display:none">
+    <div class="tabs" data-tabs="insp">
+      <button class="tab on" data-p="ci-form" data-zh="📝 檢查登錄" data-en="📝 New" data-km="📝 បញ្ចូល">📝 檢查登錄</button>
+      <button class="tab" data-p="ci-rec" data-zh="📋 檢查紀錄" data-en="📋 Records" data-km="📋 កំណត់ត្រា">📋 檢查紀錄</button>
+      <button class="tab" data-p="ci-ana" data-zh="📊 統計分析" data-en="📊 Analytics" data-km="📊 វិភាគ">📊 統計分析</button>
+    </div>
+
+    <div class="page" id="p-ci-form">
+      <div class="card">
+        <h3>📝 <span data-zh="貨櫃裝載前檢查（免核可）" data-en="Pre-loading Inspection" data-km="ការត្រួតពិនិត្យ">貨櫃裝載前檢查（免核可）</span></h3>
+        <div class="grid g3">
+          <div class="f"><label data-zh="檢查日期" data-en="Date" data-km="កាល">檢查日期</label><input type="date" id="ci_date"></div>
+          <div class="f"><label data-zh="貨櫃號" data-en="Container No" data-km="លេខកុងតឺន័រ">貨櫃號</label><input id="ci_cno" placeholder="ABCU1234567/40'HC"></div>
+          <div class="f"><label data-zh="封條號" data-en="Seal No" data-km="លេខ Seal">封條號</label><input id="ci_seal"></div>
+          <div class="f"><label data-zh="車牌" data-en="Truck No" data-km="ស្លាកលេខ">車牌</label><input id="ci_truck"></div>
+          <div class="f"><label data-zh="貨櫃車公司" data-en="Company" data-km="ក្រុមហ៊ុន">貨櫃車公司</label><input id="ci_co"></div>
+          <div class="f"><label data-zh="檢查人" data-en="Inspector" data-km="អ្នកត្រួតពិនិត្យ">檢查人</label><input id="ci_by"></div>
+        </div>
+        <div class="sep"></div>
+        <p style="font-size:12px;font-weight:700;color:var(--n1);margin-bottom:8px">🔍 <span data-zh="17 點檢查（點一下切換 ✅ / ❌）" data-en="17-Point Checklist (tap to toggle)" data-km="ត្រួតពិនិត្យ ១៧ចំណុច">17 點檢查（點一下切換 ✅ / ❌）</span></p>
+        <div class="chk-grid" id="ciChecks"></div>
+        <div class="sep"></div>
+        <p style="font-size:12px;font-weight:700;color:var(--n1);margin-bottom:8px">📦 <span data-zh="裝載貨物明細" data-en="Loaded Items" data-km="ទំនិញ">裝載貨物明細</span></p>
+        <div id="ciItems"></div>
+        <button class="btn sm gh" onclick="ciAddItem()">➕ <span data-zh="新增品項" data-en="Add item" data-km="បន្ថែម">新增品項</span></button>
+        <div class="f" style="margin-top:12px"><label data-zh="異常說明 / 備註" data-en="Remark" data-km="កំណត់ចំណាំ">異常說明 / 備註</label><textarea id="ci_note" rows="2"></textarea></div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn" onclick="ciSave()">💾 <span data-zh="儲存" data-en="Save" data-km="រក្សាទុក">儲存</span></button>
+          <button class="btn gh" onclick="ciSave(true)">💾✈️ <span data-zh="儲存並通報" data-en="Save & notify" data-km="ផ្ញើ">儲存並通報</span></button>
+          <span style="margin-left:auto;font-size:12px;color:var(--ink2)" id="ciStat"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="page" id="p-ci-rec" style="display:none">
+      <div class="card">
+        <h3>📋 <span data-zh="檢查紀錄" data-en="Inspection Records" data-km="កំណត់ត្រា">檢查紀錄</span>
+          <span class="sp"><button class="btn sm gh" onclick="ciExp()">📊 Excel</button></span></h3>
+        <div class="tw"><table><thead><tr>
+          <th data-zh="日期" data-en="Date" data-km="កាល">日期</th>
+          <th data-zh="貨櫃號" data-en="Container" data-km="កុងតឺន័រ">貨櫃號</th>
+          <th data-zh="封條" data-en="Seal" data-km="Seal">封條</th>
+          <th data-zh="檢查人" data-en="Inspector" data-km="អ្នកពិនិត្យ">檢查人</th>
+          <th class="num" data-zh="通過" data-en="Pass" data-km="ជាប់">通過</th>
+          <th data-zh="判定" data-en="Result" data-km="លទ្ធផល">判定</th>
+          <th data-zh="品項" data-en="Items" data-km="ទំនិញ">品項</th>
+          <th></th></tr></thead><tbody id="tbCi"></tbody></table></div>
+      </div>
+    </div>
+
+    <div class="page" id="p-ci-ana" style="display:none">
+      <div class="grid g2">
+        <div class="card"><h3>📈 <span data-zh="每日檢查數" data-en="Daily Count" data-km="ប្រចាំថ្ងៃ">每日檢查數</span></h3>
+          <div style="height:230px"><canvas id="cic1"></canvas></div></div>
+        <div class="card"><h3>✅❌ <span data-zh="合格率" data-en="Pass Rate" data-km="អត្រាជាប់">合格率</span></h3>
+          <div style="height:230px"><canvas id="cic2"></canvas></div></div>
+      </div>
+      <div class="card"><h3>⚠️ <span data-zh="最常不合格項目" data-en="Most Failed Items" data-km="ធ្លាក់ញឹកញាប់">最常不合格項目</span></h3>
+        <div class="tw"><table><thead><tr><th>#</th><th data-zh="檢查項目" data-en="Item" data-km="ចំណុច">檢查項目</th>
+        <th class="num" data-zh="不合格次數" data-en="Fail" data-km="ធ្លាក់">不合格次數</th></tr></thead>
+        <tbody id="tbCiFail"></tbody></table></div></div>
+    </div>
+  </div>
+
+  <!-- ══════════════════ 模組 C：出廠/出貨單 ══════════════════ -->
+  <div id="mod-gate" style="display:none">
+    <div class="tabs" data-tabs="gate">
+      <button class="tab on" data-p="gd-new" data-zh="🚪 開單" data-en="🚪 New Pass" data-km="🚪 បង្កើត">🚪 開單</button>
+      <button class="tab" data-p="gd-rec" data-zh="📋 單據紀錄" data-en="📋 Records" data-km="📋 កំណត់ត្រា">📋 單據紀錄</button>
+      <button class="tab" data-p="gd-ana" data-zh="📊 統計分析" data-en="📊 Analytics" data-km="📊 វិភាគ">📊 統計分析</button>
+    </div>
+
+    <div class="page" id="p-gd-new">
+      <div class="card">
+        <h3>🚪 <span data-zh="開立出廠單 / 出貨單" data-en="Issue Gate Pass / Delivery Note" data-km="បង្កើតវិក្កយបត្រ">開立出廠單 / 出貨單</span></h3>
+        <div class="reason-tog" style="margin-bottom:12px">
+          <button class="rt on" id="gdT-gp" onclick="gdType('gp')">🚪 <span data-zh="出廠單 GA-01" data-en="Gate Pass GA-01" data-km="វិក្កយបត្រ GA-01">出廠單 GA-01</span></button>
+          <button class="rt" id="gdT-dn" onclick="gdType('dn')">📤 <span data-zh="出貨單 GA-04" data-en="Delivery Note GA-04" data-km="វិក្កយបត្រ GA-04">出貨單 GA-04</span></button>
+        </div>
+        <div class="grid g3">
+          <div class="f"><label data-zh="單號" data-en="No" data-km="លេខ">單號</label><input id="gd_no" readonly style="background:var(--bg2)"></div>
+          <div class="f"><label data-zh="日期" data-en="Date" data-km="កាល">日期</label><input type="date" id="gd_date"></div>
+          <div class="f"><label data-zh="時間" data-en="Time" data-km="ម៉ោង">時間</label><input type="time" id="gd_time"></div>
+          <div class="f"><label data-zh="申請部門" data-en="Department" data-km="ផ្នែក">申請部門</label><input id="gd_dept"></div>
+          <div class="f"><label data-zh="經手人" data-en="Handler" data-km="អ្នកកាន់">經手人</label><input id="gd_by"></div>
+          <div class="f"><label data-zh="車牌 / 提貨人" data-en="Vehicle / Receiver" data-km="យានយន្ត">車牌 / 提貨人</label><input id="gd_vehicle"></div>
+        </div>
+        <div class="sep"></div>
+        <p style="font-size:12px;font-weight:700;color:var(--n1);margin-bottom:8px">📋 <span data-zh="事由（可複選）" data-en="Reason" data-km="មូលហេតុ">事由（可複選）</span></p>
+        <div class="reason-tog" id="gdReasons"></div>
+        <div class="sep"></div>
+        <p style="font-size:12px;font-weight:700;color:var(--n1);margin-bottom:8px">📦 <span data-zh="物品明細" data-en="Items" data-km="ទំនិញ">物品明細</span></p>
+        <div id="gdItems"></div>
+        <button class="btn sm gh" onclick="gdAddItem()">➕ <span data-zh="新增品項" data-en="Add item" data-km="បន្ថែម">新增品項</span></button>
+        <div class="f" style="margin-top:12px"><label data-zh="備註" data-en="Remark" data-km="កំណត់ចំណាំ">備註</label><textarea id="gd_note" rows="2"></textarea></div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn" onclick="gdSave()">💾 <span data-zh="儲存" data-en="Save" data-km="រក្សាទុក">儲存</span></button>
+          <button class="btn gh" onclick="gdSave(true)">💾✈️ <span data-zh="儲存並通報" data-en="Save & notify" data-km="ផ្ញើ">儲存並通報</span></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="page" id="p-gd-rec" style="display:none">
+      <div class="card">
+        <h3>📋 <span data-zh="單據紀錄" data-en="Pass Records" data-km="កំណត់ត្រា">單據紀錄</span>
+          <span class="sp">
+            <select id="gdFt" style="width:auto" onchange="renderGd()"><option value="">全部</option><option value="gp">🚪 出廠單</option><option value="dn">📤 出貨單</option></select>
+            <button class="btn sm gh" onclick="gdExp()">📊 Excel</button>
+          </span></h3>
+        <div class="tw"><table><thead><tr>
+          <th data-zh="單號" data-en="No" data-km="លេខ">單號</th>
+          <th data-zh="類型" data-en="Type" data-km="ប្រភេទ">類型</th>
+          <th data-zh="日期" data-en="Date" data-km="កាល">日期</th>
+          <th data-zh="部門" data-en="Dept" data-km="ផ្នែក">部門</th>
+          <th data-zh="經手人" data-en="Handler" data-km="អ្នកកាន់">經手人</th>
+          <th data-zh="事由" data-en="Reason" data-km="មូលហេតុ">事由</th>
+          <th data-zh="品項" data-en="Items" data-km="ទំនិញ">品項</th>
+          <th></th></tr></thead><tbody id="tbGd"></tbody></table></div>
+      </div>
+    </div>
+
+    <div class="page" id="p-gd-ana" style="display:none">
+      <div class="card"><h3>📈 <span data-zh="14 天單據趨勢" data-en="14-Day Trend" data-km="និន្នាការ">14 天單據趨勢</span></h3>
+        <div style="height:250px"><canvas id="gdc1"></canvas></div></div>
+      <div class="grid g2">
+        <div class="card"><h3>🚪📤 <span data-zh="出廠 vs 出貨" data-en="Pass vs Delivery" data-km="ប្រៀបធៀប">出廠 vs 出貨</span></h3>
+          <div style="height:230px"><canvas id="gdc2"></canvas></div></div>
+        <div class="card"><h3>🏢 <span data-zh="各部門開單" data-en="By Department" data-km="តាមផ្នែក">各部門開單</span></h3>
+          <div style="height:230px"><canvas id="gdc3"></canvas></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 貨櫃車 Modal -->
+<div class="mask" id="mTk"><div class="modal"><div class="mh"><span>🚛</span><b id="tkTitle">新增貨櫃車紀錄</b>
+<button class="x" onclick="SEC.closeModal('mTk')">×</button></div>
+<div class="mb"><div class="grid g2">
+  <div class="f"><label>日期 Date</label><input type="date" id="t_date"></div>
+  <div class="f"><label>方向 Direction</label><select id="t_ie"><option value="imp">🟢 進口 Import</option><option value="exp">🔴 出口 Export</option></select></div>
+  <div class="f"><label>司機 Driver</label><input id="t_name"></div>
+  <div class="f"><label>駕駛證 Licence</label><input id="t_licence"></div>
+  <div class="f"><label>貨櫃號 Container No</label><input id="t_containerNo"></div>
+  <div class="f"><label>車牌 Truck No</label><input id="t_truckNo"></div>
+  <div class="f"><label>貨櫃車公司 Company</label><input id="t_company" list="coList"><datalist id="coList"></datalist></div>
+  <div class="f"><label>來賓證 Visitor ID</label><input id="t_visitorId"></div>
+  <div class="f"><label>入廠時間 Time In</label><input id="t_timeIn" placeholder="08:00"></div>
+  <div class="f"><label>門衛(入) Sign In</label><input id="t_signIn"></div>
+  <div class="f"><label>出廠時間 Time Out</label><input id="t_timeOut" placeholder="16:00"></div>
+  <div class="f"><label>門衛(出) Sign Out</label><input id="t_signOut"></div>
+  <div class="f" style="grid-column:1/-1"><label>備註 Remark</label><input id="t_remark"></div>
+</div></div>
+<div class="mf"><button class="btn err" onclick="tkDel()" data-t="del">刪除</button>
+<button class="btn gray" onclick="SEC.closeModal('mTk')" data-t="cancel">取消</button>
+<button class="btn" onclick="tkSaveEdit()" data-t="save">儲存</button></div></div></div>
+
+<div id="toastwrap"></div>
+<script src="./shared/sec-core.js"></script>
+<script>
+/* ═══════════ 儲存 key（保留舊資料相容） ═══════════ */
+var LS_TK = 'vrt_truck_v2';            /* 貨櫃車出入（沿用舊 key） */
+var LS_CI = 'vr-container-inspections'; /* 貨櫃檢查（沿用舊 key） */
+var LS_GD = 'vrt_v2';                   /* 出廠出貨單（沿用舊 key） */
+var TK = [], CI = [], GD = [], CH = {}, TOOL = 'container';
+var PER = new SEC.Period('month'), MOD = 'truck', TK_EDIT = '';
+var GD_TYPE = 'gp', CI_ITEMS = [], GD_ITEMS = [], CI_CHK = {}, GD_REASON = {};
+
+/* 17 點檢查項目 */
+var CHK17 = [
+  ['front','前牆 Front wall'], ['left','左側 Left side'], ['right','右側 Right side'],
+  ['floor','地板 Floor'], ['ceiling','頂板 Ceiling / roof'], ['door','門與門封 Doors & seals'],
+  ['outside','外部結構 Outside / undercarriage'], ['clean','清潔乾燥 Clean & dry'],
+  ['smell','無異味 No odor'], ['pest','無蟲害 No pest'], ['light','不透光 No light leak'],
+  ['damage','無破損 No damage'], ['repair','無臨時修補 No false repair'], ['seal','封條完整 Seal intact'],
+  ['sealno','封條號相符 Seal no. matches'], ['lock','鎖具正常 Locking bars OK'], ['label','標記清晰 Markings clear'],
+];
+/* 出廠 / 出貨事由 */
+var REASONS = {
+  gp: [['sample','樣品 Sample'], ['repair','維修送外 Repair-out'], ['return','退貨 Return'],
+       ['scrap','報廢 Scrap'], ['borrow','借出 Borrow'], ['transfer','調撥 Transfer'], ['other','其他 Other']],
+  dn: [['fg','成品出貨 Finished goods'], ['sample','樣品 Sample'], ['subcon','外發加工 Sub-contract'],
+       ['material','物料調撥 Material'], ['other','其他 Other']],
+};
+
+function load() {
+  try { TK = JSON.parse(localStorage.getItem(LS_TK) || '[]'); } catch (e) { TK = []; }
+  try { CI = JSON.parse(localStorage.getItem(LS_CI) || '[]'); } catch (e) { CI = []; }
+  try { GD = JSON.parse(localStorage.getItem(LS_GD) || '[]'); } catch (e) { GD = []; }
+}
+function saveTk() { localStorage.setItem(LS_TK, JSON.stringify(TK)); }
+function saveCi() { localStorage.setItem(LS_CI, JSON.stringify(CI)); }
+function saveGd() { localStorage.setItem(LS_GD, JSON.stringify(GD)); }
+
+/* ═══════════ 初始化 ═══════════ */
+document.getElementById('hdr').innerHTML = SEC.headerHtml('🚛', '貨櫃出入 Container', 'AC SECURITY · CONTAINER');
+document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
+load();
+SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: pushSummary });
+SEC.bindPeriodNav('pnav', PER, renderAll);
+
+/* 子模組切換 */
+document.getElementById('subnav').addEventListener('click', function (e) {
+  var b = e.target.closest('.sb'); if (!b) return;
+  MOD = b.dataset.m;
+  document.querySelectorAll('.sb').forEach(function (x) { x.classList.toggle('on', x === b); });
+  ['truck','insp','gate'].forEach(function (m) {
+    document.getElementById('mod-' + m).style.display = m === MOD ? '' : 'none';
+  });
+  document.getElementById('pnavHost').style.display = (MOD === 'insp' || MOD === 'gate') ? 'none' : '';
+  renderAll();
+});
+/* 各模組分頁 */
+document.querySelectorAll('.tabs').forEach(function (bar) {
+  bar.addEventListener('click', function (e) {
+    var b = e.target.closest('.tab'); if (!b) return;
+    bar.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('on'); });
+    b.classList.add('on');
+    /* 該模組下所有 page 藏起，顯示目標 */
+    var mod = bar.getAttribute('data-tabs');
+    var host = document.getElementById('mod-' + mod);
+    host.querySelectorAll('.page').forEach(function (p) { p.style.display = 'none'; });
+    document.getElementById('p-' + b.dataset.p).style.display = '';
+    /* 貨櫃車的期間導覽只在清單/統計/公司頁顯示 */
+    if (mod === 'truck') document.getElementById('pnavHost').style.display = (b.dataset.p === 'tk-data') ? 'none' : '';
+    renderAll();
+  });
+});
+
+document.getElementById('ci_date').value = SEC.ymd();
+document.getElementById('gd_date').value = SEC.ymd();
+document.getElementById('gd_time').value = SEC.hm();
+buildChecks(); ciAddItem(); gdType('gp'); gdAddItem();
+window.onLangChange = renderAll;
+renderAll();
+
+function renderAll() {
+  if (MOD === 'truck') { renderTk(); renderTkCo(); renderTkAna(); }
+  if (MOD === 'insp')  { renderCi(); renderCiAna(); }
+  if (MOD === 'gate')  { renderGd(); renderGdAna(); }
+}
+function inPer(arr) { return arr.filter(function (r) { return PER.has(r.date); }); }
+
+/* ═══════════════════ 貨櫃車 ═══════════════════ */
+function renderTk() {
+  var list = inPer(TK);
+  var fie = document.getElementById('tkFie').value;
+  var q = (document.getElementById('tkQ').value || '').toLowerCase();
+  if (fie === 'imp') list = list.filter(function (r) { return r.isImport; });
+  if (fie === 'exp') list = list.filter(function (r) { return r.isExport; });
+  if (q) list = list.filter(function (r) {
+    return (r.containerNo || '').toLowerCase().indexOf(q) >= 0 || (r.name || '').toLowerCase().indexOf(q) >= 0;
+  });
+  var all = inPer(TK);
+  var co = {}; all.forEach(function (r) { if (r.company) co[r.company] = 1; });
+  document.getElementById('tk1').textContent = all.length;
+  document.getElementById('tk2').textContent = all.filter(function (r) { return r.isImport; }).length;
+  document.getElementById('tk3').textContent = all.filter(function (r) { return r.isExport; }).length;
+  document.getElementById('tk4').textContent = Object.keys(co).length;
+  var cap = list.slice().sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); }).slice(0, 400);
+  document.getElementById('tbTk').innerHTML = cap.length ? cap.map(function (r) {
+    return '<tr><td>' + SEC.esc(r.date) + '</td><td>' + SEC.esc(r.name || '') + '</td>' +
+      '<td><code style="font-size:11px">' + SEC.esc(r.containerNo || '') + '</code></td>' +
+      '<td>' + SEC.esc(r.truckNo || '') + '</td><td>' + SEC.esc(r.company || '') + '</td>' +
+      '<td>' + (r.isImport ? '<span class="tag ok">🟢 進</span>' : '') + (r.isExport ? '<span class="tag err">🔴 出</span>' : '') + '</td>' +
+      '<td>' + SEC.esc(r.timeIn || '') + '</td><td>' + SEC.esc(r.timeOut || '') + '</td>' +
+      '<td><button class="btn sm gh" onclick="tkAdd(\'' + r.id + '\')">✏️</button></td></tr>';
+  }).join('') : '<tr><td colspan="9" class="empty">' + SEC.T().noData + '</td></tr>';
+  document.getElementById('tkMore').textContent = list.length > 400 ? ('僅顯示最近 400 筆，共 ' + list.length + ' 筆。') : '';
+  var dl = Object.keys(co).sort().map(function (k) { return '<option value="' + SEC.esc(k) + '">'; }).join('');
+  document.getElementById('coList').innerHTML = dl;
+}
+var TF = ['date','name','licence','containerNo','truckNo','company','visitorId','timeIn','signIn','timeOut','signOut','remark'];
+function tkAdd(id) {
+  TK_EDIT = id || '';
+  var r = id ? TK.filter(function (x) { return x.id === id; })[0] : {};
+  if (!r) r = {};
+  document.getElementById('tkTitle').textContent = id ? '編輯貨櫃車紀錄' : '新增貨櫃車紀錄';
+  TF.forEach(function (f) { document.getElementById('t_' + f).value = r[f] || ''; });
+  document.getElementById('t_ie').value = r.isExport ? 'exp' : 'imp';
+  if (!id) document.getElementById('t_date').value = SEC.ymd();
+  SEC.openModal('mTk');
+}
+function tkSaveEdit() {
+  var o = {};
+  TF.forEach(function (f) { o[f] = document.getElementById('t_' + f).value.trim(); });
+  var ie = document.getElementById('t_ie').value;
+  o.isImport = ie === 'imp'; o.isExport = ie === 'exp';
+  if (!o.date) { SEC.toast('⚠ 請填日期', 'warn'); return; }
+  if (TK_EDIT) TK.forEach(function (r) { if (r.id === TK_EDIT) Object.assign(r, o); });
+  else { o.id = 'T' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); TK.push(o); }
+  saveTk(); renderAll(); SEC.closeModal('mTk'); SEC.toast('✅ 已儲存', 'ok');
+}
+function tkDel() {
+  if (!TK_EDIT) { SEC.closeModal('mTk'); return; }
+  if (!confirm(SEC.T().confirmDel)) return;
+  TK = TK.filter(function (r) { return r.id !== TK_EDIT; });
+  saveTk(); renderAll(); SEC.closeModal('mTk');
+}
+function renderTkCo() {
+  var all = inPer(TK), co = {};
+  all.forEach(function (r) {
+    var k = r.company || '（未填）';
+    if (!co[k]) co[k] = { n: 0, imp: 0, exp: 0, drivers: {}, last: '' };
+    co[k].n++; if (r.isImport) co[k].imp++; if (r.isExport) co[k].exp++;
+    if (r.name) co[k].drivers[r.name] = 1;
+    if ((r.date || '') > co[k].last) co[k].last = r.date;
+  });
+  var ks = Object.keys(co).sort(function (a, b) { return co[b].n - co[a].n; });
+  document.getElementById('tbTkCo').innerHTML = ks.length ? ks.map(function (k) {
+    var c = co[k];
+    return '<tr><td><b>' + SEC.esc(k) + '</b></td><td class="num">' + c.n + '</td>' +
+      '<td class="num">' + c.imp + '</td><td class="num">' + c.exp + '</td>' +
+      '<td class="num">' + Object.keys(c.drivers).length + '</td><td>' + SEC.esc(c.last) + '</td></tr>';
+  }).join('') : '<tr><td colspan="6" class="empty">' + SEC.T().noData + '</td></tr>';
+}
+function renderTkAna() {
+  var all = inPer(TK);
+  var byD = {};
+  all.forEach(function (r) { if (r.date) byD[r.date] = (byD[r.date] || 0) + 1; });
+  var dk = Object.keys(byD).sort();
+  chart('tkc1', 'line', dk, [{ label: '進出數', data: dk.map(function (k) { return byD[k]; }),
+    borderColor: '#1e6f8e', backgroundColor: 'rgba(30,111,142,.14)', fill: true, tension: .3 }]);
+  var imp = all.filter(function (r) { return r.isImport; }).length;
+  var exp = all.filter(function (r) { return r.isExport; }).length;
+  chart('tkc2', 'doughnut', ['🟢 進口', '🔴 出口'], [{ data: [imp, exp], backgroundColor: ['#16a34a', '#dc2626'] }]);
+  var co = {};
+  all.forEach(function (r) { var k = r.company || '未填'; co[k] = (co[k] || 0) + 1; });
+  var ck = Object.keys(co).sort(function (a, b) { return co[b] - co[a]; }).slice(0, 8);
+  chart('tkc3', 'bar', ck, [{ label: '趟次', data: ck.map(function (k) { return co[k]; }), backgroundColor: '#2a8fb0' }]);
+}
+function tkExp() {
+  SEC.exportExcel([{ name: 'TruckLog', rows: inPer(TK).map(function (r, i) {
+    return { 'NO.': i + 1, 'DATE 日期': r.date, 'NAME 司機': r.name, 'Driver Licence 駕駛證': r.licence,
+      'Container No 貨櫃號': r.containerNo, 'Truck No 車牌': r.truckNo, 'Company 公司': r.company,
+      'Import 進口': r.isImport ? 'P' : '', 'Export 出口': r.isExport ? 'P' : '', 'Visitor ID 來賓證': r.visitorId,
+      'Time In 入廠': r.timeIn, 'Sign In 門衛入': r.signIn, 'Time Out 出廠': r.timeOut,
+      'Sign Out 門衛出': r.signOut, 'Remark 備註': r.remark };
+  }) }], 'AC_SEC_Container_Truck_' + PER.key() + '.xlsx');
+}
+
+/* 貨櫃車登記表匯入（中英柬三層標題、進出口 P/V 判定） */
+function tkImp() {
+  SEC.pickExcel(function (sheets) {
+    var added = 0, log = [], seen = {};
+    TK.forEach(function (r) { seen[(r.date || '') + '|' + (r.containerNo || '') + '|' + (r.name || '')] = 1; });
+    sheets.forEach(function (sh) {
+      var rows = sh.rows, hr = -1;
+      /* 找含 DATE 與 Container 的標題列 */
+      for (var r = 0; r < Math.min(rows.length, 8); r++) {
+        var joined = (rows[r] || []).map(function (x) { return SEC.norm(x); }).join('|');
+        if (/date|日期|កាល/.test(joined) && /container|貨櫃|កុងតឺ|truck/.test(joined)) { hr = r; break; }
+      }
+      if (hr < 0) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：非貨櫃車登記格式，略過'); return; }
+      var n = 0, d0 = 0;
+      for (var i = hr + 3; i < rows.length; i++) {   /* 跳過中/柬兩層副標題 */
+        var R = rows[i] || [];
+        var no = R[0];
+        if (no === '' || no == null) continue;
+        if (typeof no === 'string' && /^(note|no|序号|ល)/i.test(no.trim())) continue;
+        var name = SEC.str(R[2]); if (!name) continue;
+        var date = fmtDate(R[1]);
+        var cno = SEC.str(R[4]);
+        var key = date + '|' + cno + '|' + name;
+        if (seen[key]) { d0++; continue; }
+        seen[key] = 1;
+        var imp = /^[pv]$/i.test(SEC.str(R[7]));
+        var exp = /^[pv]$/i.test(SEC.str(R[8]));
+        TK.push({ id: 'I' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          date: date, name: name, licence: SEC.str(R[3]), containerNo: cno, truckNo: SEC.str(R[5]),
+          company: SEC.str(R[6]), isImport: imp, isExport: exp, visitorId: SEC.str(R[9]),
+          timeIn: fmtT(R[10]), signIn: SEC.str(R[11]), timeOut: fmtT(R[12]), signOut: SEC.str(R[13]),
+          remark: SEC.str(R[14]), src: sh.name });
+        n++; added++;
+      }
+      log.push('· <b>' + SEC.esc(sh.name) + '</b>：新增 <b>' + n + '</b> 筆' + (d0 ? '（重複略過 ' + d0 + '）' : ''));
+    });
+    saveTk(); renderAll();
+    document.getElementById('tkLog').innerHTML = '<b>匯入結果</b>：新增 <b>' + added + '</b> 筆<br>' + log.join('<br>');
+    SEC.toast(added ? '✅ 匯入 ' + added + ' 筆貨櫃車紀錄' : '⚠ 全部重複或格式不符', added ? 'ok' : 'warn', 5000);
+  });
+}
+function fmtDate(v) { var d = SEC.parseD(v); return d ? SEC.ymd(d) : ''; }
+function fmtT(v) {
+  if (v === '' || v == null) return '';
+  if (typeof v === 'number' && v > 0 && v < 1) { var m = Math.round(v * 1440); return SEC.p2(Math.floor(m / 60)) + ':' + SEC.p2(m % 60); }
+  var s = String(v).match(/(\d{1,2})[:：](\d{2})/);
+  return s ? SEC.p2(+s[1]) + ':' + s[2] : String(v).trim();
+}
+function tkClear() {
+  if (!confirm('確定清空貨櫃車進出紀錄？')) return;
+  TK = []; saveTk(); renderAll();
+}
+
+/* ═══════════════════ 貨櫃檢查 ═══════════════════ */
+function buildChecks() {
+  document.getElementById('ciChecks').innerHTML = CHK17.map(function (c, i) {
+    return '<div class="chk yes" data-c="' + c[0] + '" onclick="ciToggle(this)">' +
+      '<span class="cbox">✓</span><span class="lbl">' + (i + 1) + '. ' + c[1] + '</span></div>';
+  }).join('');
+  CHK17.forEach(function (c) { CI_CHK[c[0]] = true; });
+  updateCiStat();
+}
+function ciToggle(el) {
+  var c = el.dataset.c;
+  CI_CHK[c] = !CI_CHK[c];
+  el.className = 'chk ' + (CI_CHK[c] ? 'yes' : 'no');
+  el.querySelector('.cbox').textContent = CI_CHK[c] ? '✓' : '✗';
+  updateCiStat();
+}
+function updateCiStat() {
+  var pass = Object.keys(CI_CHK).filter(function (k) { return CI_CHK[k]; }).length;
+  var el = document.getElementById('ciStat');
+  el.innerHTML = '通過 <b>' + pass + '</b> / 17　' + (pass === 17 ? '<span class="tag ok">✅ 合格</span>' : '<span class="tag err">⛔ ' + (17 - pass) + ' 項不合格</span>');
+}
+function ciAddItem(name, qty, unit) {
+  var d = document.createElement('div'); d.className = 'itemrow';
+  d.innerHTML = '<input placeholder="品名" value="' + SEC.esc(name || '') + '">' +
+    '<input placeholder="數量" value="' + SEC.esc(qty || '') + '">' +
+    '<input placeholder="單位" value="' + SEC.esc(unit || '') + '">' +
+    '<button class="btn sm err" onclick="this.parentElement.remove()">×</button>';
+  document.getElementById('ciItems').appendChild(d);
+}
+function ciSave(notify) {
+  var items = [];
+  document.querySelectorAll('#ciItems .itemrow').forEach(function (row) {
+    var inp = row.querySelectorAll('input');
+    if (inp[0].value.trim()) items.push({ name: inp[0].value.trim(), qty: inp[1].value.trim(), unit: inp[2].value.trim() });
+  });
+  var pass = Object.keys(CI_CHK).filter(function (k) { return CI_CHK[k]; }).length;
+  var fails = CHK17.filter(function (c) { return !CI_CHK[c[0]]; }).map(function (c) { return c[1]; });
+  var rec = { id: 'CI' + Date.now().toString(36),
+    date: document.getElementById('ci_date').value,
+    containerNo: document.getElementById('ci_cno').value.trim(),
+    seal: document.getElementById('ci_seal').value.trim(),
+    truck: document.getElementById('ci_truck').value.trim(),
+    company: document.getElementById('ci_co').value.trim(),
+    by: document.getElementById('ci_by').value.trim() || SEC.getCfg().operator,
+    checks: Object.assign({}, CI_CHK), pass: pass, fails: fails, items: items,
+    result: pass === 17 ? 'pass' : 'fail',
+    note: document.getElementById('ci_note').value.trim(), createdAt: SEC.nowStr() };
+  if (!rec.date || !rec.containerNo) { SEC.toast('⚠ 請填日期與貨櫃號', 'warn'); return; }
+  CI.unshift(rec); saveCi(); renderAll();
+  SEC.toast('✅ 已儲存檢查（通過 ' + pass + '/17）', pass === 17 ? 'ok' : 'warn', 5000);
+  /* 重置表單 */
+  document.getElementById('ci_cno').value = ''; document.getElementById('ci_seal').value = '';
+  document.getElementById('ci_note').value = '';
+  document.getElementById('ciItems').innerHTML = ''; ciAddItem();
+  CHK17.forEach(function (c) { CI_CHK[c[0]] = true; }); buildChecks();
+  if (notify) {
+    var txt = '🔍 <b>貨櫃裝載檢查</b>\n📅 ' + rec.date + '　👤 ' + SEC.esc(rec.by || '') + '\n─────────────\n' +
+      '📦 貨櫃號：<b>' + SEC.esc(rec.containerNo) + '</b>\n' + (rec.seal ? '🔒 封條：' + SEC.esc(rec.seal) + '\n' : '') +
+      '✅ 通過：<b>' + pass + ' / 17</b>\n';
+    if (fails.length) { txt += '\n<b>⛔ 不合格項目</b>\n'; fails.forEach(function (f) { txt += '· ' + f + '\n'; }); }
+    else txt += '\n✅ 全部合格。';
+    if (items.length) { txt += '\n📦 裝載：' + items.map(function (it) { return it.name + '×' + (it.qty || '-'); }).join('、'); }
+    SEC.tgSummary(txt, 'container');
+  }
+}
+function renderCi() {
+  var list = CI.filter(function (r) { return PER.has(r.date); });
+  document.getElementById('tbCi').innerHTML = list.length ? list.map(function (r) {
+    return '<tr><td>' + SEC.esc(r.date) + '</td><td><code style="font-size:11px">' + SEC.esc(r.containerNo || '') + '</code></td>' +
+      '<td>' + SEC.esc(r.seal || '') + '</td><td>' + SEC.esc(r.by || '') + '</td>' +
+      '<td class="num">' + (r.pass || 0) + '/17</td>' +
+      '<td>' + (r.result === 'pass' ? '<span class="tag ok">✅ 合格</span>' : '<span class="tag err">⛔ 不合格</span>') + '</td>' +
+      '<td class="hint">' + SEC.esc((r.items || []).map(function (it) { return it.name; }).slice(0, 3).join('、')) + '</td>' +
+      '<td><button class="btn sm err" onclick="ciDel(\'' + r.id + '\')">×</button></td></tr>';
+  }).join('') : '<tr><td colspan="8" class="empty">' + SEC.T().noData + '</td></tr>';
+}
+function ciDel(id) {
+  if (!confirm(SEC.T().confirmDel)) return;
+  CI = CI.filter(function (r) { return r.id !== id; }); saveCi(); renderAll();
+}
+function renderCiAna() {
+  var list = CI.filter(function (r) { return PER.has(r.date); });
+  var byD = {};
+  list.forEach(function (r) { byD[r.date] = (byD[r.date] || 0) + 1; });
+  var dk = Object.keys(byD).sort();
+  chart('cic1', 'bar', dk, [{ label: '檢查數', data: dk.map(function (k) { return byD[k]; }), backgroundColor: '#1e6f8e' }]);
+  var pass = list.filter(function (r) { return r.result === 'pass'; }).length;
+  chart('cic2', 'doughnut', ['✅ 合格', '⛔ 不合格'], [{ data: [pass, list.length - pass], backgroundColor: ['#16a34a', '#dc2626'] }]);
+  var fail = {};
+  list.forEach(function (r) { (r.fails || []).forEach(function (f) { fail[f] = (fail[f] || 0) + 1; }); });
+  var fk = Object.keys(fail).sort(function (a, b) { return fail[b] - fail[a]; });
+  document.getElementById('tbCiFail').innerHTML = fk.length ? fk.map(function (k, i) {
+    return '<tr><td>' + (i + 1) + '</td><td>' + SEC.esc(k) + '</td><td class="num"><span class="tag err">' + fail[k] + '</span></td></tr>';
+  }).join('') : '<tr><td colspan="3" class="empty">此期間無不合格項目 ✅</td></tr>';
+}
+function ciExp() {
+  SEC.exportExcel([{ name: 'Inspections', rows: CI.filter(function (r) { return PER.has(r.date); }).map(function (r) {
+    var o = { '日期 Date': r.date, '貨櫃號 Container': r.containerNo, '封條 Seal': r.seal, '車牌 Truck': r.truck,
+      '公司 Company': r.company, '檢查人 Inspector': r.by, '通過 Pass': r.pass + '/17',
+      '判定 Result': r.result === 'pass' ? '合格' : '不合格' };
+    CHK17.forEach(function (c, i) { o[(i + 1) + '.' + c[1]] = (r.checks && r.checks[c[0]]) ? '✓' : '✗'; });
+    o['裝載品項'] = (r.items || []).map(function (it) { return it.name + '×' + (it.qty || '') + (it.unit || ''); }).join(' ; ');
+    o['備註 Remark'] = r.note;
+    return o;
+  }) }], 'AC_SEC_Container_Inspection_' + PER.key() + '.xlsx');
+}
+
+/* ═══════════════════ 出廠/出貨單 ═══════════════════ */
+function gdType(t) {
+  GD_TYPE = t;
+  document.getElementById('gdT-gp').classList.toggle('on', t === 'gp');
+  document.getElementById('gdT-dn').classList.toggle('on', t === 'dn');
+  GD_REASON = {};
+  document.getElementById('gdReasons').innerHTML = REASONS[t].map(function (r) {
+    return '<button class="rt" data-r="' + r[0] + '" onclick="gdToggleReason(this)">' + r[1] + '</button>';
+  }).join('');
+  document.getElementById('gd_no').value = gdGenNo(t);
+}
+function gdToggleReason(el) {
+  var r = el.dataset.r;
+  GD_REASON[r] = !GD_REASON[r];
+  el.classList.toggle('on', GD_REASON[r]);
+}
+function gdGenNo(t) {
+  var d = SEC.ymd().replace(/-/g, '');
+  var n = GD.filter(function (r) { return r.type === t; }).length + 1;
+  return (t === 'gp' ? 'GP' : 'DN') + '-' + d + '-' + SEC.p2(n);
+}
+function gdAddItem(name, qty, unit) {
+  var d = document.createElement('div'); d.className = 'itemrow';
+  d.innerHTML = '<input placeholder="品名" value="' + SEC.esc(name || '') + '">' +
+    '<input placeholder="數量" value="' + SEC.esc(qty || '') + '">' +
+    '<input placeholder="單位" value="' + SEC.esc(unit || '') + '">' +
+    '<button class="btn sm err" onclick="this.parentElement.remove()">×</button>';
+  document.getElementById('gdItems').appendChild(d);
+}
+function gdSave(notify) {
+  var items = [];
+  document.querySelectorAll('#gdItems .itemrow').forEach(function (row) {
+    var inp = row.querySelectorAll('input');
+    if (inp[0].value.trim()) items.push({ name: inp[0].value.trim(), qty: inp[1].value.trim(), unit: inp[2].value.trim() });
+  });
+  var reasons = Object.keys(GD_REASON).filter(function (k) { return GD_REASON[k]; });
+  var rec = { id: 'GD' + Date.now().toString(36), type: GD_TYPE,
+    no: document.getElementById('gd_no').value,
+    date: document.getElementById('gd_date').value, time: document.getElementById('gd_time').value,
+    dept: document.getElementById('gd_dept').value.trim(),
+    by: document.getElementById('gd_by').value.trim() || SEC.getCfg().operator,
+    vehicle: document.getElementById('gd_vehicle').value.trim(),
+    reasons: reasons, items: items,
+    note: document.getElementById('gd_note').value.trim(), createdAt: SEC.nowStr() };
+  if (!rec.date) { SEC.toast('⚠ 請填日期', 'warn'); return; }
+  if (!items.length) { SEC.toast('⚠ 請至少填一個品項', 'warn'); return; }
+  GD.unshift(rec); saveGd(); renderAll();
+  SEC.toast('✅ 已開立 ' + rec.no, 'ok');
+  document.getElementById('gd_dept').value = ''; document.getElementById('gd_vehicle').value = '';
+  document.getElementById('gd_note').value = '';
+  document.getElementById('gdItems').innerHTML = ''; gdAddItem();
+  gdType(GD_TYPE);
+  if (notify) {
+    var rN = rec.reasons.map(function (k) { var f = REASONS[rec.type].filter(function (x) { return x[0] === k; })[0]; return f ? f[1] : k; });
+    var txt = (rec.type === 'gp' ? '🚪 <b>出廠單 GA-01</b>' : '📤 <b>出貨單 GA-04</b>') +
+      '\n🔖 ' + SEC.esc(rec.no) + '\n📅 ' + rec.date + ' ' + rec.time + '\n─────────────\n' +
+      (rec.dept ? '🏢 部門：' + SEC.esc(rec.dept) + '\n' : '') +
+      '👤 經手：' + SEC.esc(rec.by || '') + '\n' + (rec.vehicle ? '🚗 車牌/提貨：' + SEC.esc(rec.vehicle) + '\n' : '') +
+      (rN.length ? '📋 事由：' + rN.join('、') + '\n' : '') +
+      '📦 品項：\n' + items.map(function (it, i) { return '  ' + (i + 1) + '. ' + it.name + ' × ' + (it.qty || '-') + ' ' + (it.unit || ''); }).join('\n') +
+      (rec.note ? '\n📝 ' + rec.note : '');
+    SEC.tgSummary(txt, 'container');
+  }
+}
+function renderGd() {
+  var list = GD.filter(function (r) { return PER.has(r.date); });
+  var ft = document.getElementById('gdFt').value;
+  if (ft) list = list.filter(function (r) { return r.type === ft; });
+  document.getElementById('tbGd').innerHTML = list.length ? list.map(function (r) {
+    var rN = (r.reasons || []).map(function (k) { var f = (REASONS[r.type] || []).filter(function (x) { return x[0] === k; })[0]; return f ? f[1].split(' ')[0] : k; });
+    return '<tr><td><code>' + SEC.esc(r.no) + '</code></td>' +
+      '<td>' + (r.type === 'gp' ? '🚪 出廠' : '📤 出貨') + '</td>' +
+      '<td>' + SEC.esc(r.date) + ' ' + SEC.esc(r.time || '') + '</td>' +
+      '<td>' + SEC.esc(r.dept || '') + '</td><td>' + SEC.esc(r.by || '') + '</td>' +
+      '<td class="hint">' + SEC.esc(rN.join('、')) + '</td>' +
+      '<td class="hint">' + SEC.esc((r.items || []).map(function (it) { return it.name; }).slice(0, 3).join('、')) + '</td>' +
+      '<td><button class="btn sm err" onclick="gdDel(\'' + r.id + '\')">×</button></td></tr>';
+  }).join('') : '<tr><td colspan="8" class="empty">' + SEC.T().noData + '</td></tr>';
+}
+function gdDel(id) {
+  if (!confirm(SEC.T().confirmDel)) return;
+  GD = GD.filter(function (r) { return r.id !== id; }); saveGd(); renderAll();
+}
+function renderGdAna() {
+  var list = GD.filter(function (r) { return PER.has(r.date); });
+  /* 14 天趨勢 */
+  var days = [];
+  for (var i = 13; i >= 0; i--) { var d = new Date(); d.setDate(d.getDate() - i); days.push(SEC.ymd(d)); }
+  var gp = days.map(function (d) { return GD.filter(function (r) { return r.date === d && r.type === 'gp'; }).length; });
+  var dn = days.map(function (d) { return GD.filter(function (r) { return r.date === d && r.type === 'dn'; }).length; });
+  chart('gdc1', 'line', days.map(function (d) { return d.slice(5); }), [
+    { label: '🚪 出廠單', data: gp, borderColor: '#1e6f8e', backgroundColor: 'rgba(30,111,142,.12)', fill: true, tension: .3 },
+    { label: '📤 出貨單', data: dn, borderColor: '#c8a02e', backgroundColor: 'rgba(200,160,46,.12)', fill: true, tension: .3 },
+  ], true);
+  chart('gdc2', 'doughnut', ['🚪 出廠單', '📤 出貨單'],
+    [{ data: [list.filter(function (r) { return r.type === 'gp'; }).length, list.filter(function (r) { return r.type === 'dn'; }).length],
+       backgroundColor: ['#1e6f8e', '#c8a02e'] }]);
+  var dept = {};
+  list.forEach(function (r) { var k = r.dept || '未填'; dept[k] = (dept[k] || 0) + 1; });
+  var dk = Object.keys(dept).sort(function (a, b) { return dept[b] - dept[a]; }).slice(0, 8);
+  chart('gdc3', 'bar', dk, [{ label: '開單數', data: dk.map(function (k) { return dept[k]; }), backgroundColor: '#2a8fb0' }]);
+}
+function gdExp() {
+  SEC.exportExcel([{ name: 'GatePass', rows: GD.filter(function (r) { return PER.has(r.date); }).map(function (r) {
+    var rN = (r.reasons || []).map(function (k) { var f = (REASONS[r.type] || []).filter(function (x) { return x[0] === k; })[0]; return f ? f[1] : k; });
+    return { '單號 No': r.no, '類型 Type': r.type === 'gp' ? '出廠單' : '出貨單', '日期 Date': r.date, '時間 Time': r.time,
+      '部門 Dept': r.dept, '經手人 Handler': r.by, '車牌/提貨 Vehicle': r.vehicle, '事由 Reason': rN.join('；'),
+      '品項 Items': (r.items || []).map(function (it) { return it.name + '×' + (it.qty || '') + (it.unit || ''); }).join(' ; '),
+      '備註 Remark': r.note };
+  }) }], 'AC_SEC_Container_GatePass_' + PER.key() + '.xlsx');
+}
+
+/* ═══════════════════ 共用 ═══════════════════ */
+function chart(id, type, labels, ds, legend) {
+  var el = document.getElementById(id); if (!el) return;
+  if (CH[id]) CH[id].destroy();
+  CH[id] = new Chart(el, { type: type, data: { labels: labels, datasets: ds },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: legend || type === 'doughnut', position: 'bottom', labels: { font: { size: 10 } } } },
+      scales: type === 'doughnut' ? {} : { y: { beginAtZero: true, ticks: { precision: 0 } } } } });
+}
+function doBackup() { SEC.backupJson({ truck: TK, inspection: CI, gate: GD }, 'container_backup_' + SEC.ymd() + '.json'); }
+function restore() {
+  SEC.restoreJson(function (o) {
+    if (o.truck) TK = o.truck;
+    if (o.inspection) CI = o.inspection;
+    if (o.gate) GD = o.gate;
+    saveTk(); saveCi(); saveGd(); renderAll();
+  });
+}
+async function doUpload() {
+  var all = TK.map(function (r) { return Object.assign({ _k: 'truck' }, r); })
+    .concat(CI.map(function (r) { return Object.assign({ _k: 'insp' }, r); }))
+    .concat(GD.map(function (r) { return Object.assign({ _k: 'gate' }, r); }));
+  await SEC.cloudPush(TOOL, all, { truck: TK.length, inspection: CI.length, gate: GD.length });
+}
+async function doDownload() {
+  if (!confirm('⬇️☁ 下載會覆蓋本機三類貨櫃資料，確定？')) return;
+  var recs = await SEC.cloudPull(TOOL);
+  if (!recs) return;
+  TK = recs.filter(function (r) { return r._k === 'truck'; });
+  CI = recs.filter(function (r) { return r._k === 'insp'; });
+  GD = recs.filter(function (r) { return r._k === 'gate'; });
+  saveTk(); saveCi(); saveGd(); renderAll();
+  SEC.toast('⬇️☁ 已下載 ' + recs.length + ' 筆', 'ok');
+}
+function pushSummary() {
+  var tk = inPer(TK), ci = CI.filter(function (r) { return PER.has(r.date); }), gd = GD.filter(function (r) { return PER.has(r.date); });
+  var txt = '🚛 <b>貨櫃出入摘要</b> · ' + PER.label() + '\n─────────────\n' +
+    '🚛 貨櫃車進出：<b>' + tk.length + '</b>（🟢進 ' + tk.filter(function (r) { return r.isImport; }).length +
+    ' · 🔴出 ' + tk.filter(function (r) { return r.isExport; }).length + '）\n' +
+    '🔍 貨櫃檢查：<b>' + ci.length + '</b>（合格 ' + ci.filter(function (r) { return r.result === 'pass'; }).length + '）\n' +
+    '📤 出廠/出貨單：<b>' + gd.length + '</b>（🚪 ' + gd.filter(function (r) { return r.type === 'gp'; }).length +
+    ' · 📤 ' + gd.filter(function (r) { return r.type === 'dn'; }).length + '）\n';
+  var co = {};
+  tk.forEach(function (r) { if (r.company) co[r.company] = (co[r.company] || 0) + 1; });
+  var ck = Object.keys(co).sort(function (a, b) { return co[b] - co[a]; });
+  if (ck.length) { txt += '\n<b>🏢 貨櫃車公司</b>\n'; ck.slice(0, 8).forEach(function (k) { txt += '· ' + k + '：' + co[k] + ' 趟\n'; }); }
+  SEC.tgSummary(txt, 'container');
+}
+</script>
+</body>
+</html>
