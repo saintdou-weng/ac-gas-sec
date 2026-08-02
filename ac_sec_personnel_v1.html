@@ -9,7 +9,18 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <link rel="stylesheet" href="./shared/sec.css">
+<style>
+.avt{width:38px;height:38px;border-radius:9px;object-fit:cover;border:1px solid var(--line);background:#eef2f6;display:block}
+.avt-ph{width:38px;height:38px;border-radius:9px;background:#eef2f6;display:flex;align-items:center;
+  justify-content:center;font-size:17px;color:#94a3b8;border:1px solid var(--line)}
+.avt-lg{width:110px;height:130px;border-radius:11px;object-fit:cover;border:1px solid var(--line)}
+.card-prev{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px;margin-top:10px}
+.card-prev .cp{border:1px solid var(--line);border-radius:10px;padding:9px;text-align:center;background:#fff}
+.card-prev .cp b{font-size:12px;display:block;margin-top:5px}
+.card-prev .cp small{font-size:10px;color:var(--ink2)}
+</style>
 </head>
 <body>
 <div id="hdr"></div>
@@ -44,6 +55,7 @@
           <button class="btn sm" onclick="openEdit()">➕ <span data-zh="新增人員" data-en="Add" data-km="បន្ថែម">新增人員</span></button>
         </span></h3>
       <div class="tw"><table><thead><tr>
+        <th data-zh="照片" data-en="Photo" data-km="រូបភាព">照片</th>
         <th data-zh="工號" data-en="ID" data-km="អត្តលេខ">工號</th>
         <th data-zh="姓名" data-en="Name" data-km="ឈ្មោះ">姓名</th>
         <th data-zh="職稱" data-en="Position" data-km="តំណែង">職稱</th>
@@ -137,14 +149,21 @@
     <div class="card">
       <h3>💾 <span data-zh="資料工具" data-en="Data Tools" data-km="ឧបករណ៍">資料工具</span></h3>
       <div class="row">
-        <button class="btn" onclick="impExcel()">📥 <span data-zh="匯入人員名冊 Excel" data-en="Import Roster" data-km="នាំចូល">匯入人員名冊 Excel</span></button>
+        <button class="btn" onclick="impCards()">📇 <span data-zh="匯入保安資料卡（含照片）" data-en="Import ID Cards (with photos)" data-km="នាំចូលកាត">匯入保安資料卡（含照片）</span></button>
+        <button class="btn gh" onclick="impExcel()">📥 <span data-zh="匯入一般名冊 Excel" data-en="Import Roster" data-km="នាំចូល">匯入一般名冊 Excel</span></button>
         <button class="btn gh" onclick="expExcel()">📊 <span data-t="expExcel">匯出 Excel</span></button>
         <button class="btn gh" onclick="SEC.backupJson({staff:DB,changes:CHG},'personnel_backup_'+SEC.ymd()+'.json')">💾 <span data-t="backup">備份 JSON</span></button>
         <button class="btn gh" onclick="restore()">📂 <span data-t="restore">還原 JSON</span></button>
         <button class="btn err" onclick="clearAll()">🗑 <span data-zh="清空" data-en="Clear" data-km="សម្អាត">清空</span></button>
       </div>
       <div class="sep"></div>
-      <p class="hint">可辨識欄位：工號 ID / Code / អត្តលេខ、姓名 Name / ឈ្មោះ、職稱 Position、班別 Shift、崗位 Post / Location、到職日 Join Date、電話 Phone、狀態 Status。標題列可在任何位置、可跨兩列（中英柬）。</p>
+      <p class="hint">
+        <b>📇 保安資料卡</b>：專門讀「一人一張卡片」格式（information(day shift) / information(night shift) 那種）。
+        會自動抓 Name / Company ID / I.D number / Age / Gender / Language / Education / Status / Contract /
+        Security company / Family / Address / Contact number / Crime record，
+        <b>並從 .xlsx 裡取出每個人的照片</b>，壓縮後存進名冊。崗位與班別由卡片標題（Night Shift-Building A 等）自動判讀。<br>
+        ⚠️ 照片只有 <b>.xlsx</b> 讀得到；若是舊的 .xls，請先在 Excel 另存成 .xlsx。<br><br>
+        <b>📥 一般名冊</b>：可辨識 工號 ID / 姓名 Name / 職稱 Position / 班別 Shift / 崗位 Post / 到職日 Join Date / 電話 Phone / 狀態 Status，標題列可在任何位置、可跨兩列。</p>
       <div id="impLog" class="hint" style="margin-top:8px"></div>
     </div>
     <div class="card">
@@ -170,6 +189,10 @@
   <div class="f"><label>電話 Phone</label><input id="e_phone"></div>
   <div class="f"><label>狀態 Status</label><select id="e_status"><option value="active">在職 Active</option><option value="resigned">離職 Resigned</option></select></div>
   <div class="f" style="grid-column:1/-1"><label>備註 Remark</label><input id="e_remark"></div>
+  <div class="f" style="grid-column:1/-1"><label>照片 Photo</label>
+    <div class="row"><div id="e_photoBox"></div>
+      <button class="btn sm gh" onclick="pickAvatar()">📷 上傳照片</button>
+      <button class="btn sm gh" onclick="clearAvatar()">🗑 移除</button></div></div>
 </div></div>
 <div class="mf"><button class="btn gray" onclick="SEC.closeModal('mEdit')" data-t="cancel">取消</button>
 <button class="btn" onclick="saveEdit()" data-t="save">儲存</button></div></div></div>
@@ -231,7 +254,7 @@ function renderRos() {
   });
   var tb = document.getElementById('tbRos');
   tb.innerHTML = list.length ? list.map(function (r) {
-    return '<tr><td><code>' + SEC.esc(r.empId || '') + '</code></td>' +
+    return '<tr><td>' + avatarHtml(r) + '</td><td><code>' + SEC.esc(r.empId || '') + '</code></td>' +
       '<td><b>' + SEC.esc(r.name || '') + '</b></td>' +
       '<td>' + SEC.esc(r.position || '') + '</td>' +
       '<td>' + (r.shift ? '<span class="tag info">' + SEC.esc(r.shift) + '</span>' : '<span class="tag gray">未排</span>') + '</td>' +
@@ -241,7 +264,7 @@ function renderRos() {
       '<td>' + (r.status === 'resigned' ? '<span class="tag err">離職</span>' : '<span class="tag ok">在職</span>') + '</td>' +
       '<td><button class="btn sm gh" onclick="openEdit(\'' + r.id + '\')">✏️</button> ' +
       '<button class="btn sm err" onclick="delRec(\'' + r.id + '\')">×</button></td></tr>';
-  }).join('') : '<tr><td colspan="9" class="empty">' + SEC.T().noData + '</td></tr>';
+  }).join('') : '<tr><td colspan="10" class="empty">' + SEC.T().noData + '</td></tr>';
 }
 
 function fillSelects() {
@@ -258,19 +281,33 @@ function fillSelects() {
 
 /* ═══ 新增 / 編輯 ═══ */
 var EFIELDS = ['empId','name','position','shift','post','joinDate','phone','status','remark'];
+var EDIT_PHOTO = '';
+function avatarHtml(r) {
+  return r.photo ? '<img class="avt" src="' + r.photo + '" onclick="SEC.viewPhoto(0,this)">'
+                 : '<div class="avt-ph">👤</div>';
+}
 function openEdit(id) {
   EDIT_ID = id || '';
   var r = id ? DB.filter(function (x) { return x.id === id; })[0] : {};
   if (!r) r = {};
+  EDIT_PHOTO = r.photo || '';
   document.getElementById('mTitle').textContent = id ? '編輯人員' : '新增人員';
   EFIELDS.forEach(function (f) { document.getElementById('e_' + f).value = r[f] || (f === 'status' ? 'active' : ''); });
   if (!id) document.getElementById('e_joinDate').value = SEC.ymd();
+  paintAvatar();
   SEC.openModal('mEdit');
 }
+function paintAvatar() {
+  document.getElementById('e_photoBox').innerHTML = EDIT_PHOTO
+    ? '<img class="avt-lg" src="' + EDIT_PHOTO + '">' : '<div class="avt-ph" style="width:110px;height:130px">👤</div>';
+}
+function pickAvatar() { SEC.pickPhoto(function (d) { EDIT_PHOTO = d; paintAvatar(); }, 380); }
+function clearAvatar() { EDIT_PHOTO = ''; paintAvatar(); }
 function saveEdit() {
   var o = {};
   EFIELDS.forEach(function (f) { o[f] = document.getElementById('e_' + f).value.trim(); });
   if (!o.name) { SEC.toast('⚠ 請填姓名', 'warn'); return; }
+  o.photo = EDIT_PHOTO;
   if (EDIT_ID) {
     DB.forEach(function (r) { if (r.id === EDIT_ID) Object.assign(r, o); });
   } else {
@@ -517,6 +554,243 @@ function chart(id, type, labels, ds) {
       scales: type === 'doughnut' ? {} : { y: { beginAtZero: true, ticks: { precision: 0 } } } } });
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   📇 保安資料卡匯入（一人一張卡 + 內嵌照片）
+   ─────────────────────────────────────────────────────────────────
+   格式：每個人一個「兩欄區塊」— 左欄標籤、右欄值；區塊上方是崗位標題，
+        標題下方是該人的照片（.xlsx 內嵌圖片）。
+   作法：① SheetJS 讀格子 → 找所有 "Name" 標籤定出區塊
+        ② JSZip 解開 .xlsx → 讀 drawing 錨點，把圖片對應到欄位範圍
+        ③ 圖片壓縮成 dataURL 存進名冊
+   ═══════════════════════════════════════════════════════════════════ */
+var CARD_LABEL = {
+  name    : ['name','姓名','ឈ្មោះ'],
+  empId   : ['companyid','companyld','工號','工号','編號','អត្តលេខ','id'],
+  crimeChk: ['datecheckcrimerecord','datecheckcrime','檢核日'],
+  idNo    : ['idnumber','idnumber','身分證','身份证','លេខអត្តសញ្ញាណប័ណ្ណ'],
+  age     : ['age','年齡','年龄','អាយុ'],
+  gender  : ['gender','性別','性别','ភេទ'],
+  language: ['language','語言','语言','ភាសា'],
+  edu     : ['education','學歷','学历','ការសិក្សា'],
+  marital : ['status','婚姻','ស្ថានភាព'],
+  contract: ['contract','合約','合同','កិច្ចសន្យា'],
+  company : ['securitycompany','securitycompany','保安公司','ក្រុមហ៊ុន'],
+  family  : ['family','家庭','គ្រួសារ'],
+  address : ['address','地址','អាសយដ្ឋាន'],
+  phone   : ['contactnumber','contactno','電話','电话','ទូរស័ព្ទ'],
+  crime   : ['crimerecord','犯罪紀錄','犯罪记录'],
+};
+function labelKey(v) {
+  var n = SEC.norm(v);
+  if (!n) return '';
+  var hit = '';
+  Object.keys(CARD_LABEL).forEach(function (k) {
+    if (hit) return;
+    if (CARD_LABEL[k].some(function (a) { return SEC.norm(a) === n; })) hit = k;
+  });
+  return hit;
+}
+function impCards() {
+  var inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.xlsx';
+  inp.onchange = function () { if (inp.files[0]) readCards(inp.files[0]); };
+  inp.click();
+}
+async function readCards(file) {
+  SEC.toast('<span class="spin">⏳</span> 解析資料卡與照片中…');
+  var buf = await file.arrayBuffer();
+  var wb = XLSX.read(new Uint8Array(buf), { type: 'array', cellDates: false, raw: true });
+
+  /* ── 取出內嵌圖片與錨點 ── */
+  var media = {};        /* sheetIndex → [{col,row,dataUrl}] */
+  try { media = await extractImages(buf, wb); }
+  catch (e) { console.warn('image extract failed', e); }
+
+  var added = 0, log = [], preview = [];
+  for (var si = 0; si < wb.SheetNames.length; si++) {
+    var sn = wb.SheetNames[si];
+    var rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: '', raw: true, blankrows: true });
+    var imgs = media[si] || [];
+
+    /* 找所有 Name 標籤 → 區塊 */
+    var blocks = [];
+    for (var r = 0; r < rows.length; r++) {
+      for (var c = 0; c < (rows[r] || []).length; c++) {
+        if (labelKey(rows[r][c]) !== 'name') continue;
+        var vc = -1;
+        for (var k = c + 1; k <= c + 3; k++) { if (SEC.str(rows[r][k])) { vc = k; break; } }
+        if (vc < 0) vc = c + 1;
+        blocks.push({ row: r, lc: c, vc: vc });
+      }
+    }
+    if (!blocks.length) { log.push('· <b>' + SEC.esc(sn) + '</b>：找不到 Name 欄位，略過'); continue; }
+
+    var n = 0;
+    blocks.forEach(function (b, bi) {
+      var F = {}, extra = [];
+      var stop = false;
+      for (var i = b.row; i < Math.min(rows.length, b.row + 28) && !stop; i++) {
+        var lab = labelKey(rows[i] && rows[i][b.lc]);
+        var rawLab = SEC.str(rows[i] && rows[i][b.lc]);
+        var val = SEC.str(rows[i] && rows[i][b.vc]);
+        if (i > b.row && lab === 'name') { stop = true; break; }
+        if (lab) { F[lab] = F[lab] ? (F[lab] + ' ' + val) : val; }
+        else if (val) {
+          /* 續行（Contract 的 End: / Family 的 Wife / Child） */
+          if (F.contract !== undefined && !F.company) F.contract += ' ' + val;
+          else if (F.family !== undefined && !F.address) F.family += ' ' + val;
+          else extra.push(val);
+        }
+        if (rawLab && !lab && !val) { /* 空標籤空值 → 忽略 */ }
+      }
+      if (!F.name) return;
+
+      /* 標題（崗位／班別）：往上找最近的非空字串 */
+      var title = '';
+      for (var up = b.row - 1; up >= Math.max(0, b.row - 16) && !title; up--) {
+        for (var c2 = b.lc; c2 <= b.vc + 1; c2++) {
+          var v2 = SEC.str(rows[up] && rows[up][c2]);
+          if (v2 && !labelKey(v2)) { title = v2; break; }
+        }
+      }
+      var tl = title.toLowerCase();
+      var shift = /night/.test(tl) ? 'C' : /day/.test(tl) ? 'D' : (/night/i.test(sn) ? 'C' : /day/i.test(sn) ? 'D' : '');
+      var post = title.replace(/^\s*(night|day)[\s-]*shift[\s-]*/i, '').replace(/^[-–\s]+/, '').trim() || title;
+
+      /* 照片：錨點欄落在區塊欄位範圍內、且列在 Name 之上 */
+      var ph = '';
+      var cand = imgs.filter(function (im) {
+        return !im.used && im.col >= b.lc && im.col <= b.vc + 1 && im.row < b.row && im.row >= b.row - 20;
+      });
+      if (!cand.length) cand = imgs.filter(function (im) {
+        return !im.used && im.col >= b.lc - 1 && im.col <= b.vc + 2 && im.row < b.row;
+      });
+      if (!cand.length) cand = imgs.filter(function (im) { return !im.used && im.col >= b.lc - 1 && im.col <= b.vc + 2; });
+      if (cand.length) { ph = cand[0].data; cand[0].used = true; }
+
+      /* 到職日：Contract "Start: 25-11-2021" / "Start:2023-12-01" */
+      var jd = '';
+      var cm = String(F.contract || '').match(/start\s*[:：]?\s*([0-9]{1,4}[-\/][0-9]{1,2}[-\/][0-9]{1,4})/i);
+      if (cm) { var d = SEC.parseD(cm[1]); if (d) jd = SEC.ymd(d); }
+
+      var remark = [];
+      if (F.idNo)     remark.push('身分證 ' + F.idNo);
+      if (F.age)      remark.push('年齡 ' + F.age);
+      if (F.gender)   remark.push('性別 ' + (/^m/i.test(F.gender) ? '男' : /^f/i.test(F.gender) ? '女' : F.gender));
+      if (F.language) remark.push('語言 ' + F.language);
+      if (F.edu)      remark.push('學歷 ' + F.edu);
+      if (F.marital)  remark.push('婚姻 ' + F.marital);
+      if (F.company)  remark.push('保安公司 ' + F.company);
+      if (F.contract) remark.push('合約 ' + F.contract.replace(/\s+/g, ' '));
+      if (F.family)   remark.push('家庭 ' + F.family.replace(/\s+/g, ' '));
+      if (F.address)  remark.push('地址 ' + F.address);
+      if (F.crime)    remark.push('犯罪紀錄 ' + F.crime);
+      if (F.crimeChk) remark.push('查核日 ' + F.crimeChk);
+      if (extra.length) remark.push(extra.join(' '));
+
+      var rec = {
+        id: 'C' + Date.now().toString(36) + '_' + bi,
+        empId: F.empId || '', name: F.name,
+        position: '保安員 Security Guard' + (F.company && /vrt/i.test(F.company) ? '（VRT）' : ''),
+        shift: shift, post: post, joinDate: jd, phone: F.phone || '',
+        status: 'active', remark: remark.join('｜'), photo: ph,
+        src: sn, createdAt: SEC.nowStr(),
+      };
+      /* 同工號／同姓名 → 更新而非重複新增 */
+      var old = DB.filter(function (x) {
+        return (rec.empId && String(x.empId) === String(rec.empId)) ||
+               (!rec.empId && x.name === rec.name);
+      })[0];
+      if (old) { var oid = old.id; Object.assign(old, rec, { id: oid }); }
+      else DB.push(rec);
+      preview.push(rec);
+      n++; added++;
+    });
+    log.push('· <b>' + SEC.esc(sn) + '</b>：讀到 <b>' + n + '</b> 張資料卡，圖片 ' + imgs.length + ' 張');
+  }
+
+  save(); renderAll();
+  var ph = preview.filter(function (r) { return r.photo; }).length;
+  document.getElementById('impLog').innerHTML =
+    '<b>資料卡匯入結果</b>：共 <b>' + added + '</b> 人，含照片 <b>' + ph + '</b> 張<br>' + log.join('<br>') +
+    (preview.length ? '<div class="card-prev">' + preview.map(function (r) {
+      return '<div class="cp">' + (r.photo ? '<img class="avt-lg" style="width:100%;height:100px" src="' + r.photo + '">'
+        : '<div class="avt-ph" style="width:100%;height:100px">👤</div>') +
+        '<b>' + SEC.esc(r.name) + '</b><small>' + SEC.esc(r.empId || '') + ' · ' +
+        (r.shift === 'C' ? '🌙 夜班' : r.shift === 'D' ? '☀️ 日班' : '—') + '</small>' +
+        '<small>' + SEC.esc(r.post || '') + '</small></div>';
+    }).join('') + '</div>' : '');
+  SEC.toast(added ? '✅ 匯入 ' + added + ' 人（照片 ' + ph + ' 張）' : '⚠ 未讀到資料卡，請確認格式',
+            added ? 'ok' : 'warn', 5500);
+}
+
+/* 從 .xlsx 取出圖片與其錨定的欄列 */
+async function extractImages(buf, wb) {
+  if (typeof JSZip === 'undefined') return {};
+  var zip = await JSZip.loadAsync(buf);
+  var out = {};
+  /* sheetN.xml → drawingN.xml */
+  for (var si = 0; si < wb.SheetNames.length; si++) {
+    var relPath = 'xl/worksheets/_rels/sheet' + (si + 1) + '.xml.rels';
+    var relFile = zip.file(relPath);
+    if (!relFile) continue;
+    var relXml = await relFile.async('string');
+    var dm = relXml.match(/Target="([^"]*drawing\d+\.xml)"/);
+    if (!dm) continue;
+    var dPath = 'xl/drawings/' + dm[1].split('/').pop();
+    var dFile = zip.file(dPath); if (!dFile) continue;
+    var dXml = await dFile.async('string');
+    var dRelFile = zip.file('xl/drawings/_rels/' + dPath.split('/').pop() + '.rels');
+    var rid2path = {};
+    if (dRelFile) {
+      var dRel = await dRelFile.async('string');
+      /* Target 可能是 ../media/x.png 或 /xl/media/x.png，Id 與 Target 前後順序不定 */
+      dRel.split('<Relationship').slice(1).forEach(function (seg) {
+        var im = seg.match(/Id="([^"]+)"/), tm = seg.match(/Target="([^"]+)"/);
+        if (!im || !tm) return;
+        var t = tm[1];
+        rid2path[im[1]] = t.charAt(0) === '/' ? t.slice(1) : ('xl/' + t.replace(/^\.\.\//, ''));
+      });
+    }
+    /* 逐個 anchor */
+    /* openpyxl 產生的檔沒有 xdr: 前綴，Excel 產生的有 —— 兩種都要吃 */
+    var anchors = dXml.split(/<(?:xdr:)?(?:two|one|absolute)CellAnchor/).slice(1);
+    var list = [];
+    for (var i = 0; i < anchors.length; i++) {
+      var a = anchors[i];
+      var fm = a.match(/<(?:xdr:)?from>[\s\S]*?<(?:xdr:)?col>(\d+)<\/(?:xdr:)?col>[\s\S]*?<(?:xdr:)?row>(\d+)<\/(?:xdr:)?row>/);
+      var em = a.match(/r:embed="([^"]+)"/);
+      if (!fm || !em) continue;
+      var path = rid2path[em[1]]; if (!path) continue;
+      var f = zip.file(path); if (!f) continue;
+      var b64 = await f.async('base64');
+      var ext = (path.split('.').pop() || 'png').toLowerCase();
+      var mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'gif' ? 'image/gif' : 'image/png';
+      var raw = 'data:' + mime + ';base64,' + b64;
+      var small = await shrink(raw, 320);
+      list.push({ col: +fm[1], row: +fm[2], data: small });
+    }
+    list.sort(function (x, y) { return x.col - y.col || x.row - y.row; });
+    out[si] = list;
+  }
+  return out;
+}
+function shrink(dataUrl, maxW) {
+  return new Promise(function (res) {
+    var img = new Image();
+    img.onload = function () {
+      var w = img.width, h = img.height;
+      if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+      var cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      res(cv.toDataURL('image/jpeg', 0.75));
+    };
+    img.onerror = function () { res(dataUrl); };
+    img.src = dataUrl;
+  });
+}
+
 /* ═══ Excel ═══ */
 var SPEC = {
   empId   : ['工號','工号','id','code','編號','អត្តលេខ','vrtcode','factoryid','employeeid','no'],
@@ -562,7 +836,8 @@ function expExcel() {
     { name: 'Roster', rows: DB.map(function (r, i) {
         return { '#': i + 1, '工號 ID': r.empId, '姓名 Name': r.name, '職稱 Position': r.position,
           '班別 Shift': r.shift, '崗位 Post': r.post, '到職日 Join': r.joinDate,
-          '電話 Phone': r.phone, '狀態 Status': r.status === 'resigned' ? '離職' : '在職', '備註 Remark': r.remark }; }) },
+          '電話 Phone': r.phone, '狀態 Status': r.status === 'resigned' ? '離職' : '在職',
+          '有照片 Photo': r.photo ? 'Y' : '', '備註 Remark': r.remark }; }) },
     { name: 'Changes', rows: CHG.map(function (r) {
         return { '生效日': r.date, '類型': (KIND[r.kind] || {}).zh || r.kind, '工號': r.empId, '姓名': r.name,
           '原班別': r.fromShift, '新班別': r.toShift, '原崗位': r.fromPost, '新崗位': r.toPost,
@@ -583,7 +858,7 @@ function clearAll() {
 
 /* ═══ 雲端 ═══ */
 async function doUpload() {
-  var all = DB.map(function (r) { return Object.assign({ _k: 'staff' }, r); })
+  var all = DB.map(function (r) { var o = Object.assign({ _k: 'staff' }, r); o.photo = r.photo ? 1 : 0; return o; })
     .concat(CHG.map(function (r) { return Object.assign({ _k: 'chg' }, r); }));
   await SEC.cloudPush(TOOL, all, { staff: DB.length, active: active().length, changes: CHG.length });
 }
@@ -591,7 +866,12 @@ async function doDownload() {
   if (!confirm('⬇️☁ 下載會覆蓋本機人員資料，確定？')) return;
   var recs = await SEC.cloudPull(TOOL);
   if (!recs) return;
-  DB = recs.filter(function (r) { return r._k !== 'chg'; });
+  var keep = {};
+  DB.forEach(function (r) { if (r.photo && typeof r.photo === 'string') keep[r.empId || r.name] = r.photo; });
+  DB = recs.filter(function (r) { return r._k !== 'chg'; }).map(function (r) {
+    r.photo = keep[r.empId || r.name] || '';   /* 照片留本機，不從雲端覆蓋掉 */
+    return r;
+  });
   CHG = recs.filter(function (r) { return r._k === 'chg'; });
   save(); renderAll(); SEC.toast('⬇️☁ 已下載 ' + recs.length + ' 筆', 'ok');
 }

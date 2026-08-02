@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>保安出勤 Attendance | AC Security</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="./shared/sec.css">
+<style>
+#gridT{border-collapse:separate;border-spacing:0;font-size:11px;white-space:nowrap}
+#gridT th,#gridT td{padding:0;border:none}
+#gridT .nm{position:sticky;left:0;z-index:3;background:#fff;padding:4px 8px;border-right:2px solid var(--line);
+  min-width:118px;max-width:118px;text-align:left;font-size:11.5px;font-weight:700}
+#gridT thead .nm{background:#eef4f8;z-index:5}
+#gridT .dh{width:23px;min-width:23px;text-align:center;font-size:9.5px;font-weight:700;
+  background:#eef4f8;padding:4px 0;color:var(--n1)}
+#gridT .dh.we{background:#dbe6ee;color:#5b7186}
+#gridT .cell{width:23px;min-width:23px;height:23px;text-align:center;cursor:pointer;
+  border-right:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;font-weight:800;font-size:10px;
+  user-select:none;transition:.08s}
+#gridT .cell:hover{outline:2px solid var(--n2);outline-offset:-2px;position:relative;z-index:2}
+#gridT .sum{position:sticky;right:0;background:#f8fafc;border-left:2px solid var(--line);
+  padding:4px 7px;font-family:'DM Mono',monospace;font-size:10.5px;text-align:right;min-width:52px}
+.c-W{background:#dcfce7;color:#14532d}
+.c-O{background:#c7f0d8;color:#065f46}
+.c-R{background:#e2e8f0;color:#64748b}
+.c-L{background:#fef3c7;color:#92400e}
+.c-A{background:#fee2e2;color:#991b1b}
+.c-H{background:#dbeafe;color:#1e40af}
+.c-{background:#fff;color:#cbd5e1}
+.pal{display:flex;gap:5px;flex-wrap:wrap;align-items:center;background:#fff;border:1px solid var(--line);
+  border-radius:10px;padding:8px 10px;margin-bottom:10px}
+.pb{padding:5px 10px;border-radius:8px;border:2px solid transparent;cursor:pointer;
+  font-size:11.5px;font-weight:700;font-family:inherit}
+.pb.on{border-color:#0f2b46;box-shadow:0 0 0 2px rgba(15,43,70,.1)}
+</style>
+</head>
+<body>
+<div id="hdr"></div>
+
+<div class="tabs" id="tabs">
+  <button class="tab on" data-p="grid" data-zh="🗓 排班出勤表" data-en="🗓 Roster Grid" data-km="🗓 តារាងវេន">🗓 排班出勤表</button>
+  <button class="tab"    data-p="sum"  data-zh="📋 工時彙總"  data-en="📋 Summary"    data-km="📋 សង្ខេប">📋 工時彙總</button>
+  <button class="tab"    data-p="fee"  data-zh="💵 服務費對帳" data-en="💵 Fee Recon"  data-km="💵 ថ្លៃសេវា">💵 服務費對帳</button>
+  <button class="tab"    data-p="ana"  data-zh="📊 統計分析"  data-en="📊 Analytics"  data-km="📊 វិភាគ">📊 統計分析</button>
+  <button class="tab"    data-p="data" data-zh="💾 資料管理"  data-en="💾 Data"       data-km="💾 ទិន្នន័យ">💾 資料管理</button>
+</div>
+
+<div class="wrap">
+  <div id="pnavHost"></div>
+
+  <!-- ═══ 排班表 ═══ -->
+  <div class="page" id="p-grid">
+    <div class="grid g4" style="margin-bottom:12px">
+      <div class="kpi"><div class="v" id="k1">0</div><div class="l" data-zh="在職人數" data-en="Staff" data-km="បុគ្គលិក">在職人數</div></div>
+      <div class="kpi ok"><div class="v" id="k2">0</div><div class="l" data-zh="出勤總人日" data-en="Man-days" data-km="ថ្ងៃការងារ">出勤總人日</div></div>
+      <div class="kpi"><div class="v" id="k3">0</div><div class="l" data-zh="總工時" data-en="Total hours" data-km="ម៉ោងសរុប">總工時</div></div>
+      <div class="kpi err"><div class="v" id="k4">0</div><div class="l" data-zh="曠職人日" data-en="Absent" data-km="អវត្តមាន">曠職人日</div></div>
+    </div>
+
+    <div class="card">
+      <h3>🗓 <span data-zh="排班出勤表" data-en="Attendance Roster" data-km="តារាងវត្តមាន">排班出勤表</span>
+        <span class="sp">
+          <label style="font-size:11px;color:var(--ink2)">每班時數</label>
+          <input type="number" id="hrDay" value="12" min="1" max="24" style="width:56px" onchange="renderAll()">
+          <button class="btn sm gh" onclick="syncStaff()">🔄 <span data-zh="同步人員名冊" data-en="Sync roster" data-km="ធ្វើសមកាលកម្ម">同步人員名冊</span></button>
+          <button class="btn sm gh" onclick="fillMonth()">📅 <span data-zh="整月填出勤" data-en="Fill month" data-km="បំពេញខែ">整月填出勤</span></button>
+          <button class="btn sm" onclick="saveGrid(true)">💾✈️ <span data-zh="儲存並推送" data-en="Save & push" data-km="ផ្ញើ">儲存並推送</span></button>
+        </span></h3>
+
+      <div class="pal">
+        <span style="font-size:11px;color:var(--ink2);font-weight:700">畫筆</span>
+        <button class="pb c-W on" data-s="W" onclick="setBrush('W')">W 出勤</button>
+        <button class="pb c-O"    data-s="O" onclick="setBrush('O')">O 加班</button>
+        <button class="pb c-R"    data-s="R" onclick="setBrush('R')">R 例休</button>
+        <button class="pb c-L"    data-s="L" onclick="setBrush('L')">L 請假</button>
+        <button class="pb c-A"    data-s="A" onclick="setBrush('A')">A 曠職</button>
+        <button class="pb c-H"    data-s="H" onclick="setBrush('H')">H 國定假</button>
+        <button class="pb c-"     data-s=""  onclick="setBrush('')">清除</button>
+        <span class="hint" style="margin-left:auto">點格子填入，可按住拖過去連續填</span>
+      </div>
+
+      <div class="tw" style="max-height:520px;overflow:auto"><table id="gridT"></table></div>
+      <p class="hint" style="margin-top:8px">
+        班別代號沿用人員名冊：A 早班 06–14、B 中班 14–22、C 夜班 22–06。
+        每格右上角小字是該人的班別；出勤日一律以「每班時數」計算工時（預設 12 小時，對應 ICSC 合約）。
+      </p>
+    </div>
+  </div>
+
+  <!-- ═══ 工時彙總 ═══ -->
+  <div class="page" id="p-sum" style="display:none">
+    <div class="card">
+      <h3>📋 <span data-zh="個人工時彙總" data-en="Hours Summary" data-km="សង្ខេបម៉ោង">個人工時彙總</span>
+        <span class="sp"><button class="btn sm gh" onclick="expSum()">📊 Excel</button></span></h3>
+      <div class="tw"><table><thead><tr>
+        <th data-zh="工號" data-en="ID" data-km="អត្តលេខ">工號</th>
+        <th data-zh="姓名" data-en="Name" data-km="ឈ្មោះ">姓名</th>
+        <th data-zh="班別" data-en="Shift" data-km="វេន">班別</th>
+        <th data-zh="崗位" data-en="Post" data-km="ប៉ុស្តិ៍">崗位</th>
+        <th class="num" data-zh="出勤" data-en="Work" data-km="ការងារ">出勤</th>
+        <th class="num" data-zh="加班" data-en="OT" data-km="បន្ថែម">加班</th>
+        <th class="num" data-zh="例休" data-en="Rest" data-km="សម្រាក">例休</th>
+        <th class="num" data-zh="請假" data-en="Leave" data-km="ឈប់">請假</th>
+        <th class="num" data-zh="曠職" data-en="Absent" data-km="អវត្តមាន">曠職</th>
+        <th class="num" data-zh="總工時" data-en="Hours" data-km="ម៉ោង">總工時</th>
+        <th data-zh="出勤率" data-en="Rate" data-km="អត្រា">出勤率</th></tr></thead>
+        <tbody id="tbSum"></tbody></table></div>
+    </div>
+    <div class="card">
+      <h3>⚠️ <span data-zh="出勤異常提醒" data-en="Attendance Alerts" data-km="ការជូនដំណឹង">出勤異常提醒</span></h3>
+      <div id="alertBox"></div>
+    </div>
+  </div>
+
+  <!-- ═══ 服務費對帳 ═══ -->
+  <div class="page" id="p-fee" style="display:none">
+    <div class="card">
+      <h3>💵 <span data-zh="保安服務費對帳" data-en="Security Fee Reconciliation" data-km="ការផ្ទៀងផ្ទាត់ថ្លៃសេវា">保安服務費對帳</span></h3>
+      <div class="grid g4" style="margin-bottom:11px">
+        <div class="f"><label>保安公司</label><input id="fCo" value="ICSC"></div>
+        <div class="f"><label>每人月費 USD</label><input type="number" id="fRate" value="300" oninput="renderFee()"></div>
+        <div class="f"><label>合約人數</label><input type="number" id="fHead" value="11" oninput="renderFee()"></div>
+        <div class="f"><label>當月天數</label><input type="number" id="fDays" value="31" oninput="renderFee()"></div>
+      </div>
+      <div class="grid g4" style="margin-bottom:12px">
+        <div class="kpi"><div class="v" id="fk1">$0</div><div class="l">合約應付</div></div>
+        <div class="kpi"><div class="v" id="fk2">$0</div><div class="l">實際出勤應付</div></div>
+        <div class="kpi warn"><div class="v" id="fk3">$0</div><div class="l">差額 +/-</div></div>
+        <div class="kpi"><div class="v" id="fk4">—</div><div class="l">每小時單價</div></div>
+      </div>
+      <div class="tw"><table><thead><tr>
+        <th>姓名</th><th>班別</th><th>崗位</th>
+        <th class="num">合約工時</th><th class="num">實際工時</th><th class="num">差異</th>
+        <th class="num">合約應付</th><th class="num">實際應付</th><th class="num">差額</th></tr></thead>
+        <tbody id="tbFee"></tbody></table></div>
+      <div class="row" style="margin-top:11px">
+        <button class="btn" onclick="pushFee()">✈️ <span data-zh="推送對帳結果" data-en="Push recon" data-km="ផ្ញើ">推送對帳結果</span></button>
+        <button class="btn gh" onclick="expFee()">📊 <span data-zh="匯出對帳表" data-en="Export" data-km="នាំចេញ">匯出對帳表</span></button>
+      </div>
+      <p class="hint" style="margin-top:9px">
+        依 ICSC 合約：每人每月 $300、每日 12 小時。單價 = 月費 ÷（天數 × 12）。
+        實際工時來自排班表，差額為正代表<b>實際超過合約</b>（可能有加班），為負代表<b>人力不足應扣款</b>。
+      </p>
+    </div>
+  </div>
+
+  <!-- ═══ 統計 ═══ -->
+  <div class="page" id="p-ana" style="display:none">
+    <div class="grid g2">
+      <div class="card"><h3>📈 <span data-zh="每日出勤人數" data-en="Daily Headcount" data-km="ប្រចាំថ្ងៃ">每日出勤人數</span></h3>
+        <div style="height:240px"><canvas id="ch1"></canvas></div></div>
+      <div class="card"><h3>🕐 <span data-zh="班別工時佔比" data-en="Hours by Shift" data-km="តាមវេន">班別工時佔比</span></h3>
+        <div style="height:240px"><canvas id="ch2"></canvas></div></div>
+      <div class="card"><h3>👮 <span data-zh="個人工時排名" data-en="Hours by Person" data-km="តាមបុគ្គល">個人工時排名</span></h3>
+        <div style="height:240px"><canvas id="ch3"></canvas></div></div>
+      <div class="card"><h3>📅 <span data-zh="缺勤類型分佈" data-en="Absence Types" data-km="ប្រភេទអវត្តមាន">缺勤類型分佈</span></h3>
+        <div style="height:240px"><canvas id="ch4"></canvas></div></div>
+    </div>
+  </div>
+
+  <!-- ═══ 資料 ═══ -->
+  <div class="page" id="p-data" style="display:none">
+    <div class="card">
+      <h3>💾 <span data-zh="資料工具" data-en="Data Tools" data-km="ឧបករណ៍">資料工具</span></h3>
+      <div class="row">
+        <button class="btn" onclick="impExcel()">📥 <span data-zh="匯入出勤 Excel" data-en="Import attendance" data-km="នាំចូល">匯入出勤 Excel</span></button>
+        <button class="btn gh" onclick="expGrid()">📊 <span data-zh="匯出排班表" data-en="Export roster" data-km="នាំចេញ">匯出排班表</span></button>
+        <button class="btn gh" onclick="doBackup()">💾 <span data-t="backup">備份 JSON</span></button>
+        <button class="btn gh" onclick="restore()">📂 <span data-t="restore">還原 JSON</span></button>
+        <button class="btn err" onclick="clearMonth()">🗑 <span data-zh="清空本月" data-en="Clear month" data-km="សម្អាតខែ">清空本月</span></button>
+      </div>
+      <div class="sep"></div>
+      <p class="hint">
+        <b>匯入格式</b>：第一欄姓名（或工號），其後每欄一天（1、2、3… 或日期），格內填 W/O/R/L/A/H 或 ✓/○/×。
+        也接受「姓名 / 日期 / 狀態」三欄的長格式，會自動判斷。<br>
+        <b>人員來源</b>：出勤表的人員直接讀「保安人員」模組的名冊（<code>ac_sec_personnel_db</code>），
+        在人員模組新增或離職，這裡按「🔄 同步人員名冊」就會更新。
+      </p>
+      <div id="impLog" class="hint" style="margin-top:8px"></div>
+    </div>
+    <div class="card">
+      <h3>☁ <span data-zh="雲端同步" data-en="Cloud Sync" data-km="សមកាលកម្ម">雲端同步</span></h3>
+      <div class="row">
+        <button class="btn" onclick="doUpload()">⬆️☁ <span data-t="upload">上傳雲端</span></button>
+        <button class="btn gh" onclick="doDownload()">⬇️☁ <span data-t="download">下載雲端</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toastwrap"></div>
+<script src="./shared/sec-core.js"></script>
+<script>
+var LS = 'ac_sec_att_db', LS_STAFF = 'ac_sec_personnel_db';
+var ATT = {};          /* { 'YYYY-MM': { staffKey: { '01':'W', ... } } } */
+var STAFF = [], BRUSH = 'W', CH = {}, TOOL = 'attendance';
+var PER = new SEC.Period('month'), DRAGGING = false;
+
+var CODE = {
+  W: { zh:'出勤', en:'Work',    hr:1 },
+  O: { zh:'加班', en:'Overtime',hr:1.5 },
+  R: { zh:'例休', en:'Rest',    hr:0 },
+  L: { zh:'請假', en:'Leave',   hr:0 },
+  A: { zh:'曠職', en:'Absent',  hr:0 },
+  H: { zh:'國定假',en:'Holiday', hr:0 },
+};
+
+function load() {
+  try { ATT = JSON.parse(localStorage.getItem(LS) || '{}'); } catch (e) { ATT = {}; }
+  loadStaff();
+}
+function loadStaff() {
+  try {
+    var s = JSON.parse(localStorage.getItem(LS_STAFF) || '[]');
+    STAFF = s.filter(function (r) { return r.status !== 'resigned'; });
+  } catch (e) { STAFF = []; }
+}
+function save() { localStorage.setItem(LS, JSON.stringify(ATT)); }
+function key(r) { return String(r.empId || r.name || r.id); }
+function ym() { return PER.key().slice(0, 7); }
+function monthMap() { if (!ATT[ym()]) ATT[ym()] = {}; return ATT[ym()]; }
+function daysInMonth() {
+  var d = PER.range().toD;
+  return d.getDate();
+}
+function hrDay() { return Number(document.getElementById('hrDay').value) || 12; }
+
+document.getElementById('hdr').innerHTML = SEC.headerHtml('🕐', '保安出勤 Attendance', 'AC SECURITY · ATTENDANCE');
+document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
+load();
+SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: pushSummary });
+PER.setMode('month');
+SEC.bindPeriodNav('pnav', PER, function () { renderAll(); });
+document.getElementById('tabs').addEventListener('click', function (e) {
+  var b = e.target.closest('.tab'); if (!b) return;
+  document.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('on'); });
+  b.classList.add('on');
+  document.querySelectorAll('.page').forEach(function (p) { p.style.display = 'none'; });
+  document.getElementById('p-' + b.dataset.p).style.display = '';
+  document.getElementById('pnavHost').style.display = (b.dataset.p === 'data') ? 'none' : '';
+  renderAll();
+});
+window.onmouseup = function () { DRAGGING = false; };
+window.onLangChange = renderAll;
+renderAll();
+
+function setBrush(s) {
+  BRUSH = s;
+  document.querySelectorAll('.pb').forEach(function (b) { b.classList.toggle('on', b.dataset.s === s); });
+}
+function syncStaff() {
+  loadStaff(); renderAll();
+  SEC.toast(STAFF.length ? '🔄 已同步 ' + STAFF.length + ' 位在職保安' : '⚠ 人員名冊是空的，請先到「保安人員」模組匯入', STAFF.length ? 'ok' : 'warn', 5000);
+}
+
+/* ═══ 排班表 ═══ */
+function renderAll() { renderGrid(); renderSum(); renderFee(); renderAna(); }
+
+function renderGrid() {
+  var t = document.getElementById('gridT');
+  if (!STAFF.length) {
+    t.innerHTML = '<tbody><tr><td class="empty">尚無人員。請先到「👮 保安人員」模組匯入名冊，再回來按「🔄 同步人員名冊」。</td></tr></tbody>';
+    renderKpi(); return;
+  }
+  var nd = daysInMonth(), M = monthMap(), y = ym();
+  var head = '<thead><tr><th class="nm">姓名 / 班別</th>';
+  for (var d = 1; d <= nd; d++) {
+    var dt = new Date(y + '/' + SEC.p2(d));
+    var w = dt.getDay();
+    head += '<th class="dh' + (w === 0 || w === 6 ? ' we' : '') + '">' + d + '</th>';
+  }
+  head += '<th class="sum">工時</th></tr></thead>';
+
+  var body = '<tbody>' + STAFF.map(function (r) {
+    var k = key(r), row = M[k] || {};
+    var h = '<tr><td class="nm">' + SEC.esc(r.name || '') +
+      '<span style="font-weight:400;color:var(--ink2)"> · ' + (r.shift || '—') + '</span></td>';
+    var hrs = 0;
+    for (var d = 1; d <= nd; d++) {
+      var dd = SEC.p2(d), v = row[dd] || '';
+      if (v && CODE[v]) hrs += CODE[v].hr * hrDay();
+      h += '<td class="cell c-' + v + '" data-k="' + SEC.esc(k) + '" data-d="' + dd + '">' + v + '</td>';
+    }
+    h += '<td class="sum"><b>' + hrs + '</b></td></tr>';
+    return h;
+  }).join('') + '</tbody>';
+  t.innerHTML = head + body;
+
+  t.querySelectorAll('.cell').forEach(function (el) {
+    el.onmousedown = function () { DRAGGING = true; paint(el); };
+    el.onmouseenter = function () { if (DRAGGING) paint(el); };
+    el.ontouchstart = function (ev) { paint(el); ev.preventDefault(); };
+  });
+  renderKpi();
+}
+function paint(el) {
+  var M = monthMap(), k = el.dataset.k, d = el.dataset.d;
+  if (!M[k]) M[k] = {};
+  if (BRUSH === '') delete M[k][d]; else M[k][d] = BRUSH;
+  el.className = 'cell c-' + BRUSH;
+  el.textContent = BRUSH;
+  save();
+  /* 只重算該列合計，避免整表重畫 */
+  var tr = el.parentElement, hrs = 0;
+  tr.querySelectorAll('.cell').forEach(function (c) {
+    var v = c.textContent.trim();
+    if (v && CODE[v]) hrs += CODE[v].hr * hrDay();
+  });
+  tr.querySelector('.sum').innerHTML = '<b>' + hrs + '</b>';
+  renderKpi();
+}
+function fillMonth() {
+  if (!STAFF.length) { SEC.toast('⚠ 尚無人員', 'warn'); return; }
+  if (!confirm('把本月所有人的空白格全部填為「' + (CODE[BRUSH] ? CODE[BRUSH].zh : '清除') + '」？已填的不動。')) return;
+  var nd = daysInMonth(), M = monthMap();
+  STAFF.forEach(function (r) {
+    var k = key(r); if (!M[k]) M[k] = {};
+    for (var d = 1; d <= nd; d++) {
+      var dd = SEC.p2(d);
+      if (!M[k][dd]) { if (BRUSH) M[k][dd] = BRUSH; }
+    }
+  });
+  save(); renderAll(); SEC.toast('✅ 已整月填入', 'ok');
+}
+function stats(r) {
+  var M = monthMap(), row = M[key(r)] || {};
+  var c = { W:0, O:0, R:0, L:0, A:0, H:0 }, hrs = 0;
+  Object.keys(row).forEach(function (d) {
+    var v = row[d]; if (!CODE[v]) return;
+    c[v]++; hrs += CODE[v].hr * hrDay();
+  });
+  return { c: c, hrs: hrs };
+}
+function renderKpi() {
+  var tw = 0, thr = 0, ta = 0;
+  STAFF.forEach(function (r) { var s = stats(r); tw += s.c.W + s.c.O; thr += s.hrs; ta += s.c.A; });
+  document.getElementById('k1').textContent = STAFF.length;
+  document.getElementById('k2').textContent = tw;
+  document.getElementById('k3').textContent = thr.toLocaleString();
+  document.getElementById('k4').textContent = ta;
+}
+function saveGrid(push) {
+  save();
+  SEC.toast('💾 已儲存', 'ok');
+  if (push) pushSummary();
+}
+
+/* ═══ 彙總 ═══ */
+function renderSum() {
+  var nd = daysInMonth();
+  document.getElementById('tbSum').innerHTML = STAFF.length ? STAFF.map(function (r) {
+    var s = stats(r), c = s.c;
+    var expect = nd;
+    var rate = Math.round((c.W + c.O) / expect * 100);
+    return '<tr><td><code>' + SEC.esc(r.empId || '') + '</code></td><td><b>' + SEC.esc(r.name) + '</b></td>' +
+      '<td>' + (r.shift || '—') + '</td><td>' + SEC.esc(r.post || '') + '</td>' +
+      '<td class="num">' + c.W + '</td><td class="num">' + (c.O || '') + '</td>' +
+      '<td class="num">' + (c.R || '') + '</td><td class="num">' + (c.L || '') + '</td>' +
+      '<td class="num">' + (c.A ? '<span class="tag err">' + c.A + '</span>' : '') + '</td>' +
+      '<td class="num"><b>' + s.hrs + '</b></td>' +
+      '<td><div class="bar" style="width:80px;display:inline-block;vertical-align:middle"><i style="width:' +
+        Math.min(100, rate) + '%' + (rate < 90 ? ';background:linear-gradient(90deg,#dc2626,#f87171)' : '') +
+        '"></i></div> ' + rate + '%</td></tr>';
+  }).join('') : '<tr><td colspan="11" class="empty">' + SEC.T().noData + '</td></tr>';
+
+  /* 異常提醒 */
+  var al = [];
+  STAFF.forEach(function (r) {
+    var s = stats(r), M = monthMap(), row = M[key(r)] || {};
+    if (s.c.A >= 2) al.push({ t: 'err', m: r.name + ' 曠職 <b>' + s.c.A + '</b> 天' });
+    if (s.c.L >= 5) al.push({ t: 'warn', m: r.name + ' 請假 <b>' + s.c.L + '</b> 天' });
+    /* 連續上班超過 12 天 */
+    var run = 0, maxRun = 0;
+    for (var d = 1; d <= daysInMonth(); d++) {
+      var v = row[SEC.p2(d)];
+      if (v === 'W' || v === 'O') { run++; if (run > maxRun) maxRun = run; } else run = 0;
+    }
+    if (maxRun >= 13) al.push({ t: 'warn', m: r.name + ' 連續上班 <b>' + maxRun + '</b> 天，未安排休息' });
+    if (r.shift === 'C' && s.c.W + s.c.O >= daysInMonth() - 1)
+      al.push({ t: 'warn', m: r.name + ' 整月夜班無休，建議輪替' });
+    var filled = Object.keys(row).length;
+    if (filled && filled < daysInMonth())
+      al.push({ t: 'info', m: r.name + ' 尚有 <b>' + (daysInMonth() - filled) + '</b> 天未填' });
+  });
+  var box = document.getElementById('alertBox');
+  box.innerHTML = al.length
+    ? al.map(function (a) { return '<div style="padding:6px 0;border-bottom:1px dashed #eef2f6">' +
+        (a.t === 'err' ? '⛔ ' : a.t === 'warn' ? '⚠️ ' : 'ℹ️ ') + a.m + '</div>'; }).join('')
+    : '<span class="tag ok">✅ 本月無出勤異常</span>';
+}
+function expSum() {
+  SEC.exportExcel([{ name: 'Summary_' + ym(), rows: STAFF.map(function (r) {
+    var s = stats(r);
+    return { '工號 ID': r.empId, '姓名 Name': r.name, '班別 Shift': r.shift, '崗位 Post': r.post,
+      '出勤 Work': s.c.W, '加班 OT': s.c.O, '例休 Rest': s.c.R, '請假 Leave': s.c.L,
+      '曠職 Absent': s.c.A, '國定假 Holiday': s.c.H, '總工時 Hours': s.hrs };
+  }) }], 'AC_SEC_Attendance_Summary_' + ym() + '.xlsx');
+}
+
+/* ═══ 服務費對帳 ═══ */
+function feeCalc() {
+  var rate = Number(document.getElementById('fRate').value) || 300;
+  var days = Number(document.getElementById('fDays').value) || daysInMonth();
+  var hd = hrDay();
+  var contractHr = days * hd;
+  var perHr = contractHr ? rate / contractHr : 0;
+  return { rate: rate, days: days, hd: hd, contractHr: contractHr, perHr: perHr };
+}
+function renderFee() {
+  var f = feeCalc();
+  var head = Number(document.getElementById('fHead').value) || STAFF.length;
+  var rows = STAFF.map(function (r) {
+    var s = stats(r);
+    var pay = Math.round(s.hrs * f.perHr * 100) / 100;
+    return { r: r, hrs: s.hrs, pay: pay, diff: Math.round((pay - f.rate) * 100) / 100,
+             dHr: s.hrs - f.contractHr };
+  });
+  var contractTotal = f.rate * head;
+  var actualTotal = rows.reduce(function (a, x) { return a + x.pay; }, 0);
+  document.getElementById('fk1').textContent = '$' + contractTotal.toLocaleString();
+  document.getElementById('fk2').textContent = '$' + Math.round(actualTotal).toLocaleString();
+  var d = Math.round((actualTotal - contractTotal) * 100) / 100;
+  var el = document.getElementById('fk3');
+  el.textContent = (d >= 0 ? '+$' : '-$') + Math.abs(Math.round(d)).toLocaleString();
+  el.parentElement.className = 'kpi ' + (Math.abs(d) < 1 ? 'ok' : d > 0 ? 'warn' : 'err');
+  document.getElementById('fk4').textContent = '$' + f.perHr.toFixed(4);
+
+  document.getElementById('tbFee').innerHTML = rows.length ? rows.map(function (x) {
+    return '<tr><td><b>' + SEC.esc(x.r.name) + '</b></td><td>' + (x.r.shift || '—') + '</td>' +
+      '<td>' + SEC.esc(x.r.post || '') + '</td>' +
+      '<td class="num">' + f.contractHr + '</td><td class="num">' + x.hrs + '</td>' +
+      '<td class="num">' + (x.dHr === 0 ? '0' : (x.dHr > 0 ? '<span class="tag warn">+' + x.dHr + '</span>'
+        : '<span class="tag err">' + x.dHr + '</span>')) + '</td>' +
+      '<td class="num">$' + f.rate.toFixed(2) + '</td><td class="num">$' + x.pay.toFixed(2) + '</td>' +
+      '<td class="num">' + (Math.abs(x.diff) < 0.01 ? '—'
+        : '<b style="color:' + (x.diff > 0 ? 'var(--warn)' : 'var(--err)') + '">' +
+          (x.diff > 0 ? '+' : '') + x.diff.toFixed(2) + '</b>') + '</td></tr>';
+  }).join('') : '<tr><td colspan="9" class="empty">' + SEC.T().noData + '</td></tr>';
+}
+function expFee() {
+  var f = feeCalc();
+  SEC.exportExcel([{ name: 'FeeRecon_' + ym(), rows: STAFF.map(function (r) {
+    var s = stats(r), pay = Math.round(s.hrs * f.perHr * 100) / 100;
+    return { '姓名 Name': r.name, '班別 Shift': r.shift, '崗位 Post': r.post,
+      '合約工時 Contract hr': f.contractHr, '實際工時 Actual hr': s.hrs,
+      '差異 Diff hr': s.hrs - f.contractHr, '單價 Rate/hr': f.perHr.toFixed(4),
+      '合約應付 Contract $': f.rate, '實際應付 Actual $': pay,
+      '差額 Variance $': (pay - f.rate).toFixed(2) };
+  }) }], 'AC_SEC_FeeRecon_' + ym() + '.xlsx');
+}
+function pushFee() {
+  var f = feeCalc();
+  var head = Number(document.getElementById('fHead').value) || STAFF.length;
+  var co = document.getElementById('fCo').value.trim() || 'ICSC';
+  var rows = STAFF.map(function (r) {
+    var s = stats(r);
+    return { n: r.name, hrs: s.hrs, pay: s.hrs * f.perHr, dHr: s.hrs - f.contractHr };
+  });
+  var cT = f.rate * head, aT = rows.reduce(function (a, x) { return a + x.pay; }, 0);
+  var txt = '💵 <b>保安服務費對帳</b> · ' + ym() + '\n🏢 ' + SEC.esc(co) + '\n─────────────\n' +
+    '合約：' + head + ' 人 × $' + f.rate + ' × ' + f.days + ' 天 × ' + f.hd + ' hr\n' +
+    '每小時單價：$' + f.perHr.toFixed(4) + '\n' +
+    '合約應付：<b>$' + cT.toLocaleString() + '</b>\n' +
+    '實際應付：<b>$' + Math.round(aT).toLocaleString() + '</b>\n' +
+    '差額：<b>' + (aT - cT >= 0 ? '+' : '') + Math.round(aT - cT) + '</b>\n';
+  var bad = rows.filter(function (x) { return Math.abs(x.dHr) > 0.01; });
+  if (bad.length) {
+    txt += '\n<b>⚠️ 工時與合約不符（' + bad.length + '）</b>\n';
+    bad.slice(0, 15).forEach(function (x) {
+      txt += '· ' + x.n + '：' + x.hrs + ' hr（' + (x.dHr > 0 ? '+' : '') + x.dHr + '）\n';
+    });
+  } else { txt += '\n✅ 全員工時與合約相符。'; }
+  SEC.tgSummary(txt, 'attendance');
+}
+
+/* ═══ 統計 ═══ */
+function renderAna() {
+  var nd = daysInMonth(), M = monthMap();
+  var byD = [];
+  for (var d = 1; d <= nd; d++) {
+    var dd = SEC.p2(d), n = 0;
+    STAFF.forEach(function (r) { var v = (M[key(r)] || {})[dd]; if (v === 'W' || v === 'O') n++; });
+    byD.push(n);
+  }
+  chart('ch1', 'bar', byD.map(function (_, i) { return i + 1; }),
+    [{ label: '出勤人數', data: byD, backgroundColor: '#1e6f8e' }]);
+  var byS = { 'A 早班':0, 'B 中班':0, 'C 夜班':0, '未排':0 };
+  STAFF.forEach(function (r) {
+    var s = stats(r);
+    var k = r.shift === 'A' ? 'A 早班' : r.shift === 'B' ? 'B 中班' : r.shift === 'C' ? 'C 夜班' : '未排';
+    byS[k] += s.hrs;
+  });
+  chart('ch2', 'doughnut', Object.keys(byS), [{ data: Object.keys(byS).map(function (k) { return byS[k]; }),
+    backgroundColor: ['#4ade80','#fbbf24','#0f2b46','#cbd5e1'] }]);
+  var ppl = STAFF.map(function (r) { return { n: r.name, h: stats(r).hrs }; })
+    .sort(function (a, b) { return b.h - a.h; }).slice(0, 15);
+  chart('ch3', 'bar', ppl.map(function (x) { return x.n; }),
+    [{ label: '工時', data: ppl.map(function (x) { return x.h; }), backgroundColor: '#2a8fb0' }]);
+  var ab = { 例休:0, 請假:0, 曠職:0, 國定假:0 };
+  STAFF.forEach(function (r) { var c = stats(r).c; ab['例休'] += c.R; ab['請假'] += c.L; ab['曠職'] += c.A; ab['國定假'] += c.H; });
+  chart('ch4', 'doughnut', Object.keys(ab), [{ data: Object.keys(ab).map(function (k) { return ab[k]; }),
+    backgroundColor: ['#94a3b8','#f59e0b','#dc2626','#3b82f6'] }]);
+}
+function chart(id, type, labels, ds) {
+  var el = document.getElementById(id); if (!el) return;
+  if (CH[id]) CH[id].destroy();
+  CH[id] = new Chart(el, { type: type, data: { labels: labels, datasets: ds },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: type === 'doughnut', position: 'bottom', labels: { font: { size: 10 } } } },
+      scales: type === 'doughnut' ? {} : { y: { beginAtZero: true, ticks: { precision: 0 } } } } });
+}
+
+/* ═══ Excel ═══ */
+function impExcel() {
+  SEC.pickExcel(function (sheets) {
+    var added = 0, log = [], M = monthMap();
+    sheets.forEach(function (sh) {
+      var rows = sh.rows;
+      /* 找標題列：含姓名/name 且後面有連續數字或日期 */
+      var hr = -1, nameCol = -1, dayCols = {};
+      for (var r = 0; r < Math.min(rows.length, 12); r++) {
+        var R = rows[r] || [], nc = -1, dc = {};
+        for (var c = 0; c < R.length; c++) {
+          var a = SEC.norm(R[c]);
+          if (nc < 0 && (a === 'name' || a === '姓名' || a === '員工姓名' || a === 'ឈ្មោះ')) { nc = c; continue; }
+          var dn = 0;
+          if (/^\d{1,2}$/.test(String(R[c]).trim())) dn = parseInt(R[c], 10);
+          else { var pd = SEC.parseD(R[c]); if (pd) dn = pd.getDate(); }
+          if (dn >= 1 && dn <= 31) dc[c] = SEC.p2(dn);
+        }
+        if (nc >= 0 && Object.keys(dc).length >= 10) { hr = r; nameCol = nc; dayCols = dc; break; }
+      }
+      if (hr < 0) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：非月曆式出勤表，略過'); return; }
+      var n = 0;
+      for (var i = hr + 1; i < rows.length; i++) {
+        var R2 = rows[i] || [];
+        var nm = SEC.str(R2[nameCol]); if (!nm) continue;
+        if (/^total|合計|小計$/i.test(SEC.norm(nm))) continue;
+        /* 對到名冊 */
+        var st = STAFF.filter(function (x) {
+          return x.name === nm || String(x.empId) === nm ||
+                 SEC.norm(x.name) === SEC.norm(nm);
+        })[0];
+        var k = st ? key(st) : nm;
+        if (!M[k]) M[k] = {};
+        Object.keys(dayCols).forEach(function (c) {
+          var v = SEC.str(R2[c]).toUpperCase();
+          if (!v) return;
+          var code = CODE[v] ? v
+                   : /^(✓|V|O K|OK|●|○|上|工)$/.test(v) ? 'W'
+                   : /^(X|×|✗|曠)$/.test(v) ? 'A'
+                   : /^(休|REST)$/.test(v) ? 'R'
+                   : /^(假|LEAVE)$/.test(v) ? 'L' : '';
+          if (code) { M[k][dayCols[c]] = code; n++; }
+        });
+        added++;
+      }
+      log.push('· <b>' + SEC.esc(sh.name) + '</b>：讀到 <b>' + added + '</b> 人、<b>' + n + '</b> 格（標題第 ' + (hr + 1) + ' 列）');
+    });
+    save(); renderAll();
+    document.getElementById('impLog').innerHTML = '<b>匯入結果（寫入 ' + ym() + '）</b><br>' + log.join('<br>');
+    SEC.toast(added ? '✅ 匯入 ' + added + ' 人的出勤' : '⚠ 未匯入，請看偵測記錄', added ? 'ok' : 'warn', 5000);
+  });
+}
+function expGrid() {
+  var nd = daysInMonth(), M = monthMap();
+  var head = ['工號','姓名','班別','崗位'];
+  for (var d = 1; d <= nd; d++) head.push(String(d));
+  head.push('出勤','加班','例休','請假','曠職','總工時');
+  var aoa = [head];
+  STAFF.forEach(function (r) {
+    var row = M[key(r)] || {}, s = stats(r);
+    var line = [r.empId || '', r.name, r.shift || '', r.post || ''];
+    for (var d = 1; d <= nd; d++) line.push(row[SEC.p2(d)] || '');
+    line.push(s.c.W, s.c.O, s.c.R, s.c.L, s.c.A, s.hrs);
+    aoa.push(line);
+  });
+  SEC.exportExcel([{ name: 'Roster_' + ym(), rows: aoa }], 'AC_SEC_Attendance_' + ym() + '.xlsx');
+}
+function doBackup() { SEC.backupJson({ attendance: ATT }, 'attendance_backup_' + SEC.ymd() + '.json'); }
+function restore() {
+  SEC.restoreJson(function (o) { if (o.attendance) { ATT = o.attendance; save(); renderAll(); } });
+}
+function clearMonth() {
+  if (!confirm('確定清空 ' + ym() + ' 的出勤資料？')) return;
+  delete ATT[ym()]; save(); renderAll();
+}
+async function doUpload() {
+  var M = monthMap(), recs = [];
+  STAFF.forEach(function (r) {
+    var s = stats(r);
+    recs.push({ month: ym(), empId: r.empId, name: r.name, shift: r.shift, post: r.post,
+      work: s.c.W, ot: s.c.O, rest: s.c.R, leave: s.c.L, absent: s.c.A, holiday: s.c.H,
+      hours: s.hrs, detail: M[key(r)] || {} });
+  });
+  await SEC.cloudPush(TOOL, recs, { month: ym(), staff: STAFF.length,
+    hours: recs.reduce(function (a, x) { return a + x.hours; }, 0) });
+}
+async function doDownload() {
+  if (!confirm('⬇️☁ 下載會覆蓋本機 ' + ym() + ' 出勤資料，確定？')) return;
+  var recs = await SEC.cloudPull(TOOL);
+  if (!recs) return;
+  var M = {};
+  recs.forEach(function (r) { if (r.month === ym()) M[r.empId || r.name] = r.detail || {}; });
+  ATT[ym()] = M; save(); renderAll();
+  SEC.toast('⬇️☁ 已下載 ' + Object.keys(M).length + ' 人', 'ok');
+}
+function pushSummary() {
+  var tw = 0, thr = 0, ta = 0, tl = 0;
+  STAFF.forEach(function (r) { var s = stats(r); tw += s.c.W + s.c.O; thr += s.hrs; ta += s.c.A; tl += s.c.L; });
+  var txt = '🕐 <b>保安出勤摘要</b> · ' + ym() + '\n─────────────\n' +
+    '👮 在職人數：<b>' + STAFF.length + '</b>\n' +
+    '📅 出勤人日：<b>' + tw + '</b>\n' +
+    '⏱ 總工時：<b>' + thr.toLocaleString() + '</b> hr\n' +
+    '🏖 請假：' + tl + ' 人日\n⛔ 曠職：<b>' + ta + '</b> 人日\n';
+  var byS = { A:0, B:0, C:0 };
+  STAFF.forEach(function (r) { if (byS[r.shift] !== undefined) byS[r.shift]++; });
+  txt += '\nA 早班 ' + byS.A + ' 人 · B 中班 ' + byS.B + ' 人 · C 夜班 ' + byS.C + ' 人\n';
+  var bad = STAFF.filter(function (r) { return stats(r).c.A >= 2; });
+  if (bad.length) {
+    txt += '\n<b>⚠️ 曠職 2 天以上</b>\n';
+    bad.forEach(function (r) { txt += '· ' + r.name + '：' + stats(r).c.A + ' 天\n'; });
+  }
+  SEC.tgSummary(txt, 'attendance');
+}
+</script>
+</body>
+</html>
