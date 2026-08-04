@@ -223,12 +223,19 @@ function esc(s) {
 async function gasPost(payload) {
   var c = getCfg();
   if (!c.gasUrl) { toast('⚠ 請先在 ⚙️ 設定填入 GAS URL', 'warn'); throw new Error('no gas url'); }
-  var res = await fetch(c.gasUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(payload),
-  });
-  var j = await res.json();
+  var res;
+  try {
+    res = await fetch(c.gasUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload),
+    });
+  } catch (e) {
+    throw new Error('GAS 網路連線失敗，請確認 /exec 網址與網路狀態');
+  }
+  var raw = await res.text(), j;
+  try { j = JSON.parse(raw); } catch (e) { throw new Error('GAS 回傳不是 JSON：' + raw.slice(0, 120)); }
+  if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
   if (j && j.ok === false) throw new Error(j.error || 'GAS error');
   return (j && j.data !== undefined) ? j.data : j;
 }
@@ -243,13 +250,14 @@ async function cloudPush(tool, records, summary, extra) {
       var per = Math.max(1, Math.floor(records.length / Math.ceil(json.length / LIMIT)));
       var total = Math.ceil(records.length / per);
       for (var i = 0; i < total; i++) {
-        await gasPost({ action:'push', tool:tool, chunk:i, totalChunks:total,
+        await gasPost({ action:'push', tool:tool, chunk:i, totalChunks:total, syncMode:'merge',
           records: records.slice(i*per, (i+1)*per),
-          recordCount: records.length, summary: summary || {} });
+          recordCount: records.length, summary: summary || {}, extra: i === total - 1 ? (extra || {}) : {} });
       }
     } else {
-      await gasPost({ action:'push', tool:tool, records: records || [],
+      var result = await gasPost({ action:'push', tool:tool, syncMode:'merge', records: records || [],
         recordCount: (records||[]).length, summary: summary || {}, extra: extra || {} });
+      if (result && result.keptExisting) toast('ℹ️ 雲端原有較完整資料，已合併保留，沒有刪除較多筆數', 'warn', 5000);
     }
     markSync(tool);
     if (dot) dot.className = 'c-dot ok';
@@ -273,6 +281,8 @@ async function cloudPull(tool) {
         recs = recs.concat(c.records || []);
       }
     } else { recs = (r && r.records) || []; }
+    recs._cloudExtra = (r && r.extra) || {};
+    recs._cloudMeta = (r && r.meta) || {};
     if (dot) dot.className = 'c-dot ok';
     return recs;
   } catch (e) {
@@ -286,6 +296,39 @@ function markSync(tool) {
   var ts = document.querySelector('.c-ts'); if (ts) ts.textContent = nowStr();
 }
 function lastSync(tool) { return localStorage.getItem('ac_sec_sync_' + tool) || '—'; }
+
+/* 雲端／Excel 合併工具：同一筆更新，新增筆保留，絕不因較少資料而清空本機。 */
+function recordKey(tool, r, i) {
+  r = r || {};
+  if (r.id !== undefined && r.id !== '') return tool + '|id|' + r.id;
+  if (r.code !== undefined && r.code !== '') return tool + '|code|' + r.code;
+  if (r._k !== undefined && r._k !== '') return tool + '|kind|' + r._k + '|' + (r.empId || r.name || r.date || i);
+  if (r.month && (r.empId || r.name)) return tool + '|month|' + r.month + '|' + (r.empId || r.name);
+  if (r.date && (r.empId || r.name)) return tool + '|date|' + r.date + '|' + (r.empId || r.name);
+  if (r.date && r.time && (r.guard || r.person || r.name)) return tool + '|event|' + r.date + '|' + r.time + '|' + (r.guard || r.person || r.name) + '|' + (r.location || r.c || '');
+  if (r.t && (r.c || r.g)) return tool + '|scan|' + r.t + '|' + r.c + '|' + (r.g || '');
+  return tool + '|row|' + i + '|' + JSON.stringify(r);
+}
+function mergeRecords(tool, local, incoming) {
+  var out = Array.isArray(local) ? local.slice() : [], pos = {};
+  out.forEach(function (r, i) { pos[recordKey(tool, r, i)] = i; });
+  var added = 0, updated = 0;
+  (Array.isArray(incoming) ? incoming : []).forEach(function (r, i) {
+    var k = recordKey(tool, r, i);
+    if (pos[k] === undefined) { pos[k] = out.length; out.push(r); added++; }
+    else { out[pos[k]] = Object.assign({}, out[pos[k]], r); updated++; }
+  });
+  return { records: out, added: added, updated: updated, kept: Math.max(0, out.length - (incoming || []).length) };
+}
+function mergeObject(local, incoming) {
+  var out = Object.assign({}, local || {});
+  Object.keys(incoming || {}).forEach(function (k) {
+    if (Array.isArray(out[k]) && Array.isArray(incoming[k])) out[k] = mergeRecords('extra-' + k, out[k], incoming[k]).records;
+    else if (incoming[k] && typeof incoming[k] === 'object' && out[k] && typeof out[k] === 'object' && !Array.isArray(incoming[k])) out[k] = mergeObject(out[k], incoming[k]);
+    else if (incoming[k] !== undefined) out[k] = incoming[k];
+  });
+  return out;
+}
 
 /* ───────── Telegram 摘要（自動附平台按鈕，由 GAS 加） ───────── */
 async function tgSummary(text, module, photo) {
@@ -395,11 +438,16 @@ function viewPhoto(i, el) {
 function readWorkbook(file, cb) {
   var fr = new FileReader();
   fr.onload = function (e) {
-    var wb = XLSX.read(new Uint8Array(e.target.result), { type:'array', cellDates:false, raw:true });
-    var sheets = wb.SheetNames.map(function (n) {
-      return { name:n, rows: XLSX.utils.sheet_to_json(wb.Sheets[n], { header:1, defval:'', raw:true, blankrows:false }) };
-    });
-    cb(sheets, wb);
+    try {
+      if (typeof XLSX === 'undefined') throw new Error('Excel 元件尚未載入');
+      var wb = XLSX.read(new Uint8Array(e.target.result), { type:'array', cellDates:false, raw:true });
+      var sheets = wb.SheetNames.map(function (n) {
+        return { name:n, fileName:file.name || '', rows: XLSX.utils.sheet_to_json(wb.Sheets[n], { header:1, defval:'', raw:true, blankrows:false }) };
+      });
+      cb(sheets, wb);
+    } catch (err) {
+      toast('❌ Excel 讀取失敗：' + err.message + '。請重新整理後再試。', 'err', 7000);
+    }
   };
   fr.readAsArrayBuffer(file);
 }
@@ -485,6 +533,7 @@ function str(v) { var s = String(v == null ? '' : v).trim(); return (s === '_' |
 
 /* ── 匯出 Excel（多工作表） ── */
 function exportExcel(sheets, filename) {
+  if (typeof XLSX === 'undefined') { toast('❌ Excel 元件未載入，請重新整理後再試', 'err', 6000); return; }
   var wb = XLSX.utils.book_new();
   sheets.forEach(function (s) {
     var ws = Array.isArray(s.rows[0]) ? XLSX.utils.aoa_to_sheet(s.rows)
@@ -520,7 +569,11 @@ function restoreJson(cb) {
 function pickExcel(cb) {
   var inp = document.createElement('input');
   inp.type = 'file'; inp.accept = '.xlsx,.xls,.csv';
-  inp.onchange = function () { if (inp.files[0]) readWorkbook(inp.files[0], cb); };
+  inp.onchange = function () {
+    if (!inp.files[0]) return;
+    if (typeof XLSX === 'undefined') { toast('❌ Excel 元件未載入，請重新整理後再試', 'err', 6000); return; }
+    readWorkbook(inp.files[0], cb);
+  };
   inp.click();
 }
 
@@ -634,6 +687,7 @@ G.SEC = {
   T:T, lang:lang, setLang:setLang, applyI18n:applyI18n, I18N:BASE_I18N,
   toast:toast, gasPost:gasPost, cloudPush:cloudPush, cloudPull:cloudPull,
   markSync:markSync, lastSync:lastSync, tgSummary:tgSummary,
+  recordKey:recordKey, mergeRecords:mergeRecords, mergeObject:mergeObject,
   routePickerHtml:routePickerHtml, bindRoutePicker:bindRoutePicker, pickedRoute:pickedRoute,
   sendApproval:sendApproval,
   pickPhoto:pickPhoto, compressImage:compressImage, photoListHtml:photoListHtml, viewPhoto:viewPhoto,
