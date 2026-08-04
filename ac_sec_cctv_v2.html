@@ -562,7 +562,8 @@ function renderAna() {
   }).join('') : '<tr><td colspan="6" class="empty">此期間無重複故障記錄</td></tr>';
 }
 function chart(id, type, labels, ds, max) {
-  var el = document.getElementById(id); if (!el) return;
+ var el = document.getElementById(id); if (!el) return;
+  if (typeof Chart === 'undefined') { el.parentNode.innerHTML = '<div class="empty" style="padding:30px">📊 圖表元件未載入，表格功能仍可使用；請重新整理後再試。</div>'; return; }
   if (CH[id]) CH[id].destroy();
   CH[id] = new Chart(el, { type: type, data: { labels: labels, datasets: ds },
     options: { responsive: true, maintainAspectRatio: false,
@@ -606,10 +607,12 @@ function impExcel() {
         var sRaw = SEC.str(o.status);
         var st = /離線|offline|斷/.test(sRaw) ? 'off' : /故障|fault|壞/.test(sRaw) ? 'fault'
                : /模糊|blur/.test(sRaw) ? 'blur' : /停用|disable/.test(sRaw) ? 'dis' : 'ok';
-        DB.push({ id: 'X' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        var row = { id: 'X' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
           code: code || ('CAM-' + String(DB.length + 1).padStart(3, '0')),
           name: name, zone: zone, type: type, nvr: SEC.str(o.nvr), ch: SEC.str(o.ch),
-          ip: SEC.str(o.ip), status: st, remark: SEC.str(o.remark), src: sh.name });
+          ip: SEC.str(o.ip), status: st, remark: SEC.str(o.remark), src: sh.name };
+        var old = DB.filter(function (x) { return x.code === row.code; })[0];
+        if (old) { row.id = old.id; Object.assign(old, row); } else DB.push(row);
         n++; added++;
       });
       log.push('· <b>' + SEC.esc(sh.name) + '</b>：匯入 <b>' + n + '</b> 支（標題第 ' + (res.header.row + 1) + ' 列）');
@@ -752,9 +755,15 @@ async function doUpload() {
     lastUptime: LOG.length ? LOG[0].uptime : null }, { log: slim });
 }
 async function doDownload() {
-  if (!confirm('⬇️☁ 下載會覆蓋本機攝影機清單，確定？')) return;
+  if (!confirm('⬇️☁ 下載會與本機攝影機清單合併；相同編號更新，較多資料保留。繼續？')) return;
   var recs = await SEC.cloudPull(TOOL);
-  if (recs) { DB = recs; save(); renderAll(); SEC.toast('⬇️☁ 已下載 ' + DB.length + ' 支', 'ok'); }
+  if (recs) {
+    var m = SEC.mergeRecords(TOOL, DB, recs);
+    DB = m.records;
+    var ex = recs._cloudExtra || {};
+    if (Array.isArray(ex.log)) LOG = SEC.mergeRecords('cctv-log', LOG, ex.log).records;
+    save(); renderAll(); SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，保留 ' + DB.length + ' 支', 'ok', 5000);
+  }
 }
 </script>
 </body>

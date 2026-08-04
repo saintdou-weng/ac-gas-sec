@@ -593,7 +593,8 @@ function renderHeat(list) {
   el.innerHTML = head + body;
 }
 function chart(id, type, labels, ds) {
-  var el = document.getElementById(id); if (!el) return;
+ var el = document.getElementById(id); if (!el) return;
+  if (typeof Chart === 'undefined') { el.parentNode.innerHTML = '<div class="empty" style="padding:30px">📊 圖表元件未載入，表格功能仍可使用；請重新整理後再試。</div>'; return; }
   if (CH[id]) CH[id].destroy();
   CH[id] = new Chart(el, { type: type, data: { labels: labels, datasets: ds },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
@@ -876,14 +877,15 @@ async function doUpload() {
   await SEC.cloudPush(TOOL, recs, { rounds: ROUNDS.length, scans: SCAN.length, checkpoints: TC });
 }
 async function doDownload() {
-  if (!confirm('⬇️☁ 下載會覆蓋本機人工登錄資料（巡更棒原始打點不受影響），確定？')) return;
+  if (!confirm('⬇️☁ 下載會與本機人工巡邏合併；相同日期／時間／人員更新，較多資料保留。繼續？')) return;
   var recs = await SEC.cloudPull(TOOL);
   if (!recs) return;
-  MAN = recs.filter(function (r) { return r.manual; }).map(function (r) {
-    return { id: 'D' + Math.random().toString(36).slice(2, 9), date: r.date, time: r.time,
+  var remote = recs.filter(function (r) { return r.manual; }).map(function (r) {
+    return { id: 'CL-' + [r.date, r.time, r.guard, r.location].join('|'), date: r.date, time: r.time,
       shift: r.shift === 'C' ? 'N' : 'D', guard: r.guard, location: r.location, status: r.status, photos: [] };
   });
-  saveMan(); renderAll(); SEC.toast('⬇️☁ 已下載 ' + recs.length + ' 筆', 'ok');
+  var m = SEC.mergeRecords('patrol-man', MAN, remote); MAN = m.records;
+  saveMan(); renderAll(); SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，共 ' + MAN.length + ' 筆人工紀錄', 'ok', 5000);
 }
 </script>
 </body>

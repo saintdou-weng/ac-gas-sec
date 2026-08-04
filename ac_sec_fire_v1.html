@@ -50,6 +50,7 @@
 </div>
 
 <div class="wrap">
+  <div id="pnavHost"></div>
 
   <!-- ═══ 地圖 ═══ -->
   <div class="page" id="p-map">
@@ -252,7 +253,7 @@ if (typeof SEC === 'undefined') {
 
 /* ═══════════ 資料 ═══════════ */
 var LS = 'ac_sec_fire_db', LSH = 'ac_sec_fire_hist', LS_CHIP = 'ac_sec_chipmap';
-var DB = [], HIST = [], CHIP = {}, CH = {}, TOOL = 'fire';
+var DB = [], HIST = [], CHIP = {}, CH = {}, TOOL = 'fire', PER = new SEC.Period('month');
 var MODE = 'view', SEL = null, DRAG = null, INSP = {};
 
 /* VRT 廠區區域（依實際崗位配置） */
@@ -314,14 +315,17 @@ function zoneName(id) { var z = ZONES.filter(function (x) { return x.id === id; 
 
 /* ═══════════ 初始化 ═══════════ */
 document.getElementById('hdr').innerHTML = SEC.headerHtml('🧯', '消防設施與地圖 Fire & Map', 'AC SECURITY · FIRE');
+document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
 load();
 SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: pushSummary });
+SEC.bindPeriodNav('pnav', PER, renderAll);
 document.getElementById('tabs').addEventListener('click', function (e) {
   var b = e.target.closest('.tab'); if (!b) return;
   document.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('on'); });
   b.classList.add('on');
   document.querySelectorAll('.page').forEach(function (p) { p.style.display = 'none'; });
   document.getElementById('p-' + b.dataset.p).style.display = '';
+  document.getElementById('pnavHost').style.display = b.dataset.p === 'data' ? 'none' : '';
   renderAll();
 });
 document.getElementById('cDate').value = SEC.ymd();
@@ -651,12 +655,13 @@ function renderAna() {
       (pct < 80 ? ';background:linear-gradient(90deg,#dc2626,#f87171)' : '') + '"></i></div> ' + pct + '%</td></tr>';
   }).join('') || '<tr><td colspan="6" class="empty">' + SEC.T().noData + '</td></tr>';
   var byD = {};
-  HIST.forEach(function (h) { byD[h.date] = (byD[h.date] || 0) + h.n; });
+  HIST.filter(function (h) { return PER.has(h.date); }).forEach(function (h) { byD[h.date] = (byD[h.date] || 0) + h.n; });
   var dk = Object.keys(byD).sort();
   chart('ch3', 'bar', dk, [{ label: '受檢項數', data: dk.map(function (k) { return byD[k]; }), backgroundColor: '#1e6f8e' }]);
 }
 function chart(id, type, labels, ds) {
-  var el = document.getElementById(id); if (!el) return;
+ var el = document.getElementById(id); if (!el) return;
+  if (typeof Chart === 'undefined') { el.parentNode.innerHTML = '<div class="empty" style="padding:30px">📊 圖表元件未載入，表格功能仍可使用；請重新整理後再試。</div>'; return; }
   if (CH[id]) CH[id].destroy();
   CH[id] = new Chart(el, { type: type, data: { labels: labels, datasets: ds },
     options: { responsive: true, maintainAspectRatio: false,
@@ -696,12 +701,14 @@ function impExcel() {
                  : /b/.test(zRaw) ? 'bldB' : /a/.test(zRaw) ? 'bldA' : 'yard';
         var d = SEC.parseD(o.last);
         var z = ZONES.filter(function (x) { return x.id === zone; })[0] || ZONES[6];
-        DB.push({ id: 'X' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        var row = { id: 'X' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
           code: code || ('IMP-' + (DB.length + 1)), type: type, zone: zone, loc: loc,
           last: d ? SEC.ymd(d) : '', cycle: SEC.num(o.cycle) || 30,
           status: /故障|fault|異常|壞/.test(SEC.str(o.status)) ? 'fault' : /停用|off|disabled/.test(SEC.str(o.status)) ? 'off' : 'ok',
           remark: SEC.str(o.remark),
-          x: z.x + 30 + (n % 8) * 30, y: z.y + 60 + Math.floor(n / 8) * 30, src: sh.name });
+          x: z.x + 30 + (n % 8) * 30, y: z.y + 60 + Math.floor(n / 8) * 30, src: sh.name };
+        var old = DB.filter(function (x) { return x.code === row.code; })[0];
+        if (old) { row.id = old.id; row.x = old.x; row.y = old.y; Object.assign(old, row); } else DB.push(row);
         n++; added++;
       });
       log.push('· <b>' + SEC.esc(sh.name) + '</b>：匯入 <b>' + n + '</b> 筆（標題第 ' + (res.header.row + 1) + ' 列）');
@@ -764,9 +771,15 @@ function seedDemo() {
 }
 async function doUpload() { await SEC.cloudPush(TOOL, DB, { total: DB.length, history: HIST.length }, { history: HIST, chip: CHIP }); }
 async function doDownload() {
-  if (!confirm('⬇️☁ 下載會覆蓋本機消防設備資料，確定？')) return;
+  if (!confirm('⬇️☁ 下載會與本機消防設備合併；相同編號更新，較多資料保留。繼續？')) return;
   var recs = await SEC.cloudPull(TOOL);
-  if (recs) { DB = recs; save(); renderAll(); SEC.toast('⬇️☁ 已下載 ' + DB.length + ' 筆', 'ok'); }
+  if (recs) {
+    var m = SEC.mergeRecords(TOOL, DB, recs); DB = m.records;
+    var ex = recs._cloudExtra || {};
+    if (Array.isArray(ex.history)) HIST = SEC.mergeRecords('fire-history', HIST, ex.history).records;
+    if (ex.chip && typeof ex.chip === 'object') CHIP = Object.assign({}, CHIP, ex.chip);
+    save(); saveChipMap(); renderAll(); SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，保留 ' + DB.length + ' 筆', 'ok', 5000);
+  }
 }
 function pushDue() {
   var over = DB.filter(function (e) { return statusOf(e) === 'over'; });

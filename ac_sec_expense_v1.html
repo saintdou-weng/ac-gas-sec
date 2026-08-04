@@ -254,19 +254,20 @@ function renderList() {
   var amt = list.reduce(function (s, r) { return s + (Number(r.amount) || 0); }, 0);
   document.getElementById('k1').textContent = list.length;
   document.getElementById('k2').textContent = money(amt);
-  document.getElementById('k3').textContent = list.filter(function (r) { return !r.batchId; }).length;
-  document.getElementById('k4').textContent = list.filter(function (r) { return r.apprStatus === 'approved'; }).length;
+  document.getElementById('k3').textContent = list.filter(function (r) { return isSecurityFee(r) && !r.batchId; }).length;
+  document.getElementById('k4').textContent = list.filter(function (r) { return isSecurityFee(r) && r.apprStatus === 'approved'; }).length;
 
   var tb = document.getElementById('tbList');
   if (!list.length) { tb.innerHTML = '<tr><td colspan="10" class="empty">' + SEC.T().noData + '</td></tr>'; return; }
   tb.innerHTML = list.slice().sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); })
     .map(function (r) {
-      var st = r.apprStatus === 'approved' ? '<span class="tag ok">✅ 已核可</span>'
+      var st = !isSecurityFee(r) ? '<span class="tag gray">⚪ 免核／一般費用</span>'
+             : r.apprStatus === 'approved' ? '<span class="tag ok">✅ 已核可</span>'
              : r.apprStatus === 'rejected' ? '<span class="tag err">✕ 退件</span>'
              : r.batchId ? '<span class="tag warn">⏳ 待核 ' + SEC.esc(r.batchId) + '</span>'
              : '<span class="tag gray">未送核</span>';
       return '<tr>' +
-        '<td>' + (r.batchId ? '' : '<input type="checkbox" class="ck" data-id="' + r.id + '">') + '</td>' +
+        '<td>' + (r.batchId || !isSecurityFee(r) ? '' : '<input type="checkbox" class="ck" data-id="' + r.id + '">') + '</td>' +
         '<td><code>' + SEC.esc(r.code || r.id) + '</code></td>' +
         '<td>' + SEC.esc(r.date) + '</td>' +
         '<td><b>' + SEC.esc(r.name) + '</b>' + (r.photos && r.photos.length ? ' 📷' : '') + '</td>' +
@@ -339,12 +340,16 @@ function delRec(id) {
 }
 
 /* ═══ 核可 ═══ */
+function isSecurityFee(r) {
+  var s = String((r && r.cat) || '') + ' ' + String((r && r.name) || '');
+  return /security\s*(service\s*)?fee|保安服務費|保安費|security service/i.test(s);
+}
 function targets() {
   if (document.getElementById('aScope').value === 'checked') {
     var ids = checkedIds();
-    return DB.filter(function (r) { return ids.indexOf(r.id) >= 0 && !r.batchId; });
+    return DB.filter(function (r) { return ids.indexOf(r.id) >= 0 && isSecurityFee(r) && !r.batchId; });
   }
-  return inPeriod().filter(function (r) { return !r.batchId; });
+  return inPeriod().filter(function (r) { return isSecurityFee(r) && !r.batchId; });
 }
 function renderAppr() {
   var list = targets();
@@ -433,7 +438,8 @@ function renderAna() {
   renderBudget();
 }
 function chart(id, type, labels, ds) {
-  var el = document.getElementById(id); if (!el) return;
+ var el = document.getElementById(id); if (!el) return;
+  if (typeof Chart === 'undefined') { el.parentNode.innerHTML = '<div class="empty" style="padding:30px">📊 圖表元件未載入，表格功能仍可使用；請重新整理後再試。</div>'; return; }
   if (CH[id]) CH[id].destroy();
   CH[id] = new Chart(el, { type: type, data: { labels: labels, datasets: ds },
     options: { responsive: true, maintainAspectRatio: false,
@@ -477,7 +483,7 @@ function impExcel() {
         var amount = SEC.num(o.amount) || (SEC.num(o.qty) * SEC.num(o.price));
         if (!name && !amount) return;
         var d = SEC.parseD(o.date);
-        DB.push({
+        var row = {
           id: 'X' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
           code: 'IMP-' + (DB.length + 1),
           date: d ? SEC.ymd(d) : SEC.ymd(),
@@ -486,7 +492,9 @@ function impExcel() {
           price: SEC.num(o.price), amount: amount,
           reason: SEC.str(o.reason), photos: [], batchId: '', apprStatus: '',
           src: sh.name, createdAt: SEC.nowStr(),
-        });
+        };
+        var old = DB.filter(function (x) { return x.date === row.date && x.name === row.name && x.vendor === row.vendor && Number(x.amount) === Number(row.amount); })[0];
+        if (old) { row.id = old.id; row.code = old.code; Object.assign(old, row); } else DB.push(row);
         n++; added++;
       });
       log.push('· <b>' + SEC.esc(sh.name) + '</b>：匯入 <b>' + n + '</b> 筆（標題第 ' + (res.header.row + 1) + ' 列）');
@@ -582,9 +590,13 @@ async function doUpload() {
   await SEC.cloudPush(TOOL, slim, { total: DB.length, amount: DB.reduce(function (s, r) { return s + (+r.amount || 0); }, 0) });
 }
 async function doDownload() {
-  if (!confirm('⬇️☁ 下載會覆蓋本機費用資料，確定？')) return;
+  if (!confirm('⬇️☁ 下載會與本機費用合併；相同編號更新，較多資料保留。繼續？')) return;
   var recs = await SEC.cloudPull(TOOL);
-  if (recs) { DB = recs.map(function (r) { if (typeof r.photos === 'number') r.photos = []; return r; }); save(); renderAll(); }
+  if (recs) {
+    recs = recs.map(function (r) { if (typeof r.photos === 'number') r.photos = []; return r; });
+    var m = SEC.mergeRecords(TOOL, DB, recs); DB = m.records;
+    save(); renderAll(); SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，保留 ' + DB.length + ' 筆', 'ok', 5000);
+  }
 }
 function pushSummary() {
   var list = inPeriod();

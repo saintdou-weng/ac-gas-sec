@@ -759,7 +759,8 @@ function gdExp() {
 
 /* ═══════════════════ 共用 ═══════════════════ */
 function chart(id, type, labels, ds, legend) {
-  var el = document.getElementById(id); if (!el) return;
+ var el = document.getElementById(id); if (!el) return;
+  if (typeof Chart === 'undefined') { el.parentNode.innerHTML = '<div class="empty" style="padding:30px">📊 圖表元件未載入，表格功能仍可使用；請重新整理後再試。</div>'; return; }
   if (CH[id]) CH[id].destroy();
   CH[id] = new Chart(el, { type: type, data: { labels: labels, datasets: ds },
     options: { responsive: true, maintainAspectRatio: false,
@@ -782,14 +783,18 @@ async function doUpload() {
   await SEC.cloudPush(TOOL, all, { truck: TK.length, inspection: CI.length, gate: GD.length });
 }
 async function doDownload() {
-  if (!confirm('⬇️☁ 下載會覆蓋本機三類貨櫃資料，確定？')) return;
+  if (!confirm('⬇️☁ 下載會與本機三類貨櫃資料合併；相同紀錄更新，較多資料保留。繼續？')) return;
   var recs = await SEC.cloudPull(TOOL);
   if (!recs) return;
-  TK = recs.filter(function (r) { return r._k === 'truck'; });
-  CI = recs.filter(function (r) { return r._k === 'insp'; });
-  GD = recs.filter(function (r) { return r._k === 'gate'; });
+  var local = TK.map(function (r) { return Object.assign({_k:'truck'}, r); })
+    .concat(CI.map(function (r) { return Object.assign({_k:'insp'}, r); }))
+    .concat(GD.map(function (r) { return Object.assign({_k:'gate'}, r); }));
+  var m = SEC.mergeRecords(TOOL, local, recs);
+  TK = m.records.filter(function (r) { return r._k === 'truck'; });
+  CI = m.records.filter(function (r) { return r._k === 'insp'; });
+  GD = m.records.filter(function (r) { return r._k === 'gate'; });
   saveTk(); saveCi(); saveGd(); renderAll();
-  SEC.toast('⬇️☁ 已下載 ' + recs.length + ' 筆', 'ok');
+  SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，共 ' + m.records.length + ' 筆', 'ok', 5000);
 }
 function pushSummary() {
   var tk = inPer(TK), ci = CI.filter(function (r) { return PER.has(r.date); }), gd = GD.filter(function (r) { return PER.has(r.date); });

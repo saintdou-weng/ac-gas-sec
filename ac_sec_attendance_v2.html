@@ -115,6 +115,12 @@
       <h3>⚠️ <span data-zh="出勤異常提醒" data-en="Attendance Alerts" data-km="ការជូនដំណឹង">出勤異常提醒</span></h3>
       <div id="alertBox"></div>
     </div>
+    <div class="card">
+      <h3>🧾 <span data-zh="原始打卡明細（Day / Night）" data-en="Raw Punch Details" data-km="ទិន្នន័យវត្តមានដើម">原始打卡明細（Day / Night）</span>
+        <span class="sp"><button class="btn sm gh" onclick="expRaw()">📊 Excel</button></span></h3>
+      <p class="hint">從日班／夜班 attendance Excel 讀入的上下班時間會保留在這裡；同一人同一天重複匯入會更新，不會新增重複資料。</p>
+      <div class="tw"><table><thead><tr><th>日期</th><th>班別</th><th>工號</th><th>姓名</th><th>地點</th><th>上班</th><th>下班</th><th>原始值</th><th>來源</th></tr></thead><tbody id="tbRaw"></tbody></table></div>
+    </div>
   </div>
 
   <!-- ═══ 服務費對帳 ═══ -->
@@ -210,8 +216,9 @@ if (typeof SEC === 'undefined') {
   throw new Error('sec-core.js not loaded');
 }
 
-var LS = 'ac_sec_att_db', LS_STAFF = 'ac_sec_personnel_db';
+var LS = 'ac_sec_att_db', LS_STAFF = 'ac_sec_personnel_db', LS_RAW = 'ac_sec_att_raw';
 var ATT = {};          /* { 'YYYY-MM': { staffKey: { '01':'W', ... } } } */
+var ATT_LOG = [];      /* normalized raw punches from day/night attendance workbooks */
 var STAFF = [], BRUSH = 'W', CH = {}, TOOL = 'attendance';
 var PER = new SEC.Period('month'), DRAGGING = false;
 
@@ -226,6 +233,7 @@ var CODE = {
 
 function load() {
   try { ATT = JSON.parse(localStorage.getItem(LS) || '{}'); } catch (e) { ATT = {}; }
+  try { ATT_LOG = JSON.parse(localStorage.getItem(LS_RAW) || '[]'); } catch (e) { ATT_LOG = []; }
   loadStaff();
 }
 function loadStaff() {
@@ -234,7 +242,7 @@ function loadStaff() {
     STAFF = s.filter(function (r) { return r.status !== 'resigned'; });
   } catch (e) { STAFF = []; }
 }
-function save() { localStorage.setItem(LS, JSON.stringify(ATT)); }
+function save() { localStorage.setItem(LS, JSON.stringify(ATT)); localStorage.setItem(LS_RAW, JSON.stringify(ATT_LOG)); }
 function key(r) { return String(r.empId || r.name || r.id); }
 function ym() { return PER.key().slice(0, 7); }
 function monthMap() { if (!ATT[ym()]) ATT[ym()] = {}; return ATT[ym()]; }
@@ -287,7 +295,7 @@ function syncStaff() {
 }
 
 /* ═══ 排班表 ═══ */
-function renderAll() { renderGrid(); renderSum(); renderFee(); renderAna(); }
+function renderAll() { renderGrid(); renderSum(); renderFee(); renderRaw(); renderAna(); }
 
 function renderGrid() {
   var t = document.getElementById('gridT');
@@ -422,6 +430,21 @@ function renderSum() {
         (a.t === 'err' ? '⛔ ' : a.t === 'warn' ? '⚠️ ' : 'ℹ️ ') + a.m + '</div>'; }).join('')
     : '<span class="tag ok">✅ 本月無出勤異常</span>';
 }
+function renderRaw() {
+  var tb = document.getElementById('tbRaw'); if (!tb) return;
+  var list = ATT_LOG.filter(function (r) { return PER.has(r.date); }).slice(0, 500);
+  tb.innerHTML = list.length ? list.map(function (r) {
+    return '<tr><td>' + SEC.esc(r.date) + '</td><td>' + SEC.esc(r.shift || '') + '</td><td><code>' + SEC.esc(r.empId || '') + '</code></td>' +
+      '<td><b>' + SEC.esc(r.name || '') + '</b></td><td>' + SEC.esc(r.location || '') + '</td><td>' + SEC.esc(r.inTime || '—') + '</td>' +
+      '<td>' + SEC.esc(r.outTime || '—') + '</td><td class="hint">' + SEC.esc(r.raw || '') + '</td><td class="hint">' + SEC.esc(r.source || '') + '</td></tr>';
+  }).join('') : '<tr><td colspan="9" class="empty">此期間尚無原始打卡資料</td></tr>';
+}
+function expRaw() {
+  SEC.exportExcel([{ name:'RawAttendance_' + PER.key(), rows:ATT_LOG.filter(function (r) { return PER.has(r.date); }).map(function (r) {
+    return { Date:r.date, Shift:r.shift, ID:r.empId, Name:r.name, Location:r.location, Company:r.company,
+      In:r.inTime, Out:r.outTime, Status:r.status, Raw:r.raw, Source:r.source };
+  }) }], 'AC_SEC_Attendance_Raw_' + PER.key() + '.xlsx');
+}
 function expSum() {
   SEC.exportExcel([{ name: 'Summary_' + ym(), rows: STAFF.map(function (r) {
     var s = stats(r);
@@ -536,7 +559,8 @@ function renderAna() {
     backgroundColor: ['#94a3b8','#f59e0b','#dc2626','#3b82f6'] }]);
 }
 function chart(id, type, labels, ds) {
-  var el = document.getElementById(id); if (!el) return;
+ var el = document.getElementById(id); if (!el) return;
+  if (typeof Chart === 'undefined') { el.parentNode.innerHTML = '<div class="empty" style="padding:30px">📊 圖表元件未載入，表格功能仍可使用；請重新整理後再試。</div>'; return; }
   if (CH[id]) CH[id].destroy();
   CH[id] = new Chart(el, { type: type, data: { labels: labels, datasets: ds },
     options: { responsive: true, maintainAspectRatio: false,
@@ -545,56 +569,107 @@ function chart(id, type, labels, ds) {
 }
 
 /* ═══ Excel ═══ */
+var MONTHS = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+function normalizeShift(v, fileName) {
+  var s = String(v || '').toLowerCase() + ' ' + String(fileName || '').toLowerCase();
+  if (/night|夜|យប់/.test(s)) return 'C';
+  if (/middle|mid|中班/.test(s)) return 'B';
+  if (/day|早班|日班|daytime/.test(s)) return 'A';
+  return '';
+}
+function sheetPeriod(sh) {
+  var text = (sh.rows || []).slice(0, 8).map(function (r) { return (r || []).join(' '); }).join(' ');
+  var all = String(sh.name || '') + ' ' + text;
+  var mon = -1, low = all.toLowerCase();
+  MONTHS.some(function (m, i) { if (low.indexOf(m) >= 0 || low.indexOf(m.slice(0, 3)) >= 0) { mon = i; return true; } return false; });
+  if (mon < 0) mon = PER.at.getMonth();
+  var yrm = all.match(/20\d{2}/);
+  var yr = yrm ? yrm[0] : String(PER.at.getFullYear());
+  return yr + '-' + SEC.p2(mon + 1);
+}
+function normalizePunch(v) {
+  var raw = SEC.str(v), status = '';
+  if (!raw) return { raw:'', status:'', inTime:'', outTime:'' };
+  if (/dayoff|rest|例休|休息/i.test(raw)) status = 'R';
+  else if (/holiday|國定|假日/i.test(raw)) status = 'H';
+  var ms = raw.match(/\b\d{1,2}:\d{2}\s*(?:AM|PM)?/ig) || [];
+  function tm(s) {
+    var m = String(s).trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i); if (!m) return '';
+    var h = +m[1], ap = (m[3] || '').toUpperCase();
+    if (ap === 'PM' && h < 12) h += 12;
+    if (ap === 'AM' && h === 12) h = 0;
+    return SEC.p2(h) + ':' + m[2];
+  }
+  return { raw:raw, status:status, inTime:tm(ms[0]), outTime:tm(ms[1]) };
+}
+function findAttendanceHeader(rows) {
+  var best = null;
+  for (var r = 0; r < Math.min(rows.length, 14); r++) {
+    var R = rows[r] || [], map = {}, days = {};
+    R.forEach(function (v, c) {
+      var n = SEC.norm(v);
+      if (map.id === undefined && /^(id|no|工號|工号|編號|លេខ)$/.test(n)) map.id = c;
+      if (map.name === undefined && /^(name|姓名|ឈ្មោះ)$/.test(n)) map.name = c;
+      if (map.location === undefined && /^(location|地點|位置|តំបន់)$/.test(n)) map.location = c;
+      if (map.company === undefined && /^(company|公司)$/.test(n)) map.company = c;
+      var d = /^\d{1,2}$/.test(String(v).trim()) ? +String(v).trim() : 0;
+      if (d >= 1 && d <= 31) days[c] = SEC.p2(d);
+    });
+    if (map.name !== undefined && Object.keys(days).length >= 10) {
+      var score = Object.keys(map).length * 10 + Object.keys(days).length;
+      if (!best || score > best.score) best = { row:r, map:map, days:days, score:score };
+    }
+  }
+  if (best && best.map.id === undefined && best.row > 0) {
+    var above = rows[best.row - 1] || [];
+    for (var c = 0; c < above.length; c++) if (/^(id|no|工號|工号|編號|លេខ)$/.test(SEC.norm(above[c]))) { best.map.id = c; break; }
+  }
+  return best;
+}
 function impExcel() {
   SEC.pickExcel(function (sheets) {
-    var added = 0, newStaff = 0, log = [], M = monthMap();
+    var added = 0, rawAdded = 0, newStaff = 0, log = [];
     sheets.forEach(function (sh) {
       var rows = sh.rows;
-      /* 找標題列：含姓名/name 且後面有連續數字或日期 */
-      var hr = -1, nameCol = -1, dayCols = {};
-      for (var r = 0; r < Math.min(rows.length, 12); r++) {
-        var R = rows[r] || [], nc = -1, dc = {};
-        for (var c = 0; c < R.length; c++) {
-          var a = SEC.norm(R[c]);
-          if (nc < 0 && (a === 'name' || a === '姓名' || a === '員工姓名' || a === 'ឈ្មោះ')) { nc = c; continue; }
-          var dn = 0;
-          if (/^\d{1,2}$/.test(String(R[c]).trim())) dn = parseInt(R[c], 10);
-          else { var pd = SEC.parseD(R[c]); if (pd) dn = pd.getDate(); }
-          if (dn >= 1 && dn <= 31) dc[c] = SEC.p2(dn);
-        }
-        if (nc >= 0 && Object.keys(dc).length >= 10) { hr = r; nameCol = nc; dayCols = dc; break; }
-      }
-      if (hr < 0) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：非月曆式出勤表，略過'); return; }
-      var n = 0;
-      for (var i = hr + 1; i < rows.length; i++) {
+      var h = findAttendanceHeader(rows), targetYm = sheetPeriod(sh);
+      if (!h) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：非月曆式出勤表，略過'); return; }
+      var M = ATT[targetYm] || (ATT[targetYm] = {}), n = 0, rn = 0;
+      var shift = normalizeShift(rows.slice(0, 8).map(function (r) { return (r || []).join(' '); }).join(' '), sh.fileName || '');
+      for (var i = h.row + 1; i < rows.length; i++) {
         var R2 = rows[i] || [];
-        var nm = SEC.str(R2[nameCol]); if (!nm) continue;
+        var nm = SEC.str(R2[h.map.name]); if (!nm) continue;
         if (/^total|合計|小計$/i.test(SEC.norm(nm))) continue;
+        var empId = h.map.id === undefined ? '' : SEC.str(R2[h.map.id]);
         /* 對到名冊；沒有就即時建立一個臨時人員（因為現場只有真實出勤、沒有事先排班） */
         var st = STAFF.filter(function (x) {
-          return x.name === nm || String(x.empId) === nm ||
+          return (empId && String(x.empId) === empId) || x.name === nm || String(x.empId) === nm ||
                  SEC.norm(x.name) === SEC.norm(nm);
         })[0];
         if (!st) {
           st = { id: 'A' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
-                 empId: '', name: nm, shift: '', post: '', status: 'active', _fromAtt: true };
+                 empId: empId, name: nm, shift: shift, post: '', status: 'active', _fromAtt: true };
           STAFF.push(st); newStaff++;
-        }
+        } else if (!st.shift && shift) st.shift = shift;
         var k = key(st);
         if (!M[k]) M[k] = {};
-        Object.keys(dayCols).forEach(function (c) {
-          var v = SEC.str(R2[c]).toUpperCase();
-          if (!v) return;
-          var code = CODE[v] ? v
-                   : /^(✓|V|O K|OK|●|○|上|工)$/.test(v) ? 'W'
-                   : /^(X|×|✗|曠)$/.test(v) ? 'A'
-                   : /^(休|REST)$/.test(v) ? 'R'
-                   : /^(假|LEAVE)$/.test(v) ? 'L' : '';
-          if (code) { M[k][dayCols[c]] = code; n++; }
+        Object.keys(h.days).forEach(function (c) {
+          var p = normalizePunch(R2[c]); if (!p.raw) return;
+          var day = h.days[c], date = targetYm + '-' + day;
+          var code = p.status || (p.inTime || p.outTime ? 'W' : '');
+          if (code && !M[k][day]) { M[k][day] = code; n++; }
+          var rawKey = [date, empId || nm, shift].join('|');
+          var rec = { id:'AR-' + rawKey.replace(/[^A-Za-z0-9_-]/g,'_'),
+            date:date, shift:shift || '—', empId:empId, name:nm,
+            location:h.map.location === undefined ? '' : SEC.str(R2[h.map.location]),
+            company:h.map.company === undefined ? '' : SEC.str(R2[h.map.company]),
+            inTime:p.inTime, outTime:p.outTime, status:p.status || (p.inTime || p.outTime ? 'W' : ''), raw:p.raw,
+            source:sh.fileName ? sh.fileName + ' / ' + sh.name : sh.name };
+          var old = ATT_LOG.filter(function (x) { return x.id === rec.id; })[0];
+          if (old) Object.assign(old, rec); else { ATT_LOG.push(rec); rawAdded++; }
         });
         added++;
       }
-      log.push('· <b>' + SEC.esc(sh.name) + '</b>：讀到 <b>' + added + '</b> 人、<b>' + n + '</b> 格（標題第 ' + (hr + 1) + ' 列）');
+      log.push('· <b>' + SEC.esc(sh.name) + '</b>：寫入 <b>' + targetYm + '</b>、' + n + ' 格、' + rawAdded + ' 筆原始打卡（標題第 ' + (h.row + 1) + ' 列）');
     });
     /* 匯入時自動建立的人員寫回名冊，讓下次不用重建 */
     if (newStaff) {
@@ -609,10 +684,11 @@ function impExcel() {
         localStorage.setItem(LS_STAFF, JSON.stringify(full));
       } catch (e) {}
     }
+    ATT_LOG.sort(function (a, b) { return String(b.date + b.inTime).localeCompare(String(a.date + a.inTime)); });
     save(); renderAll();
     document.getElementById('impLog').innerHTML = '<b>匯入結果（寫入 ' + ym() + '）</b><br>' + log.join('<br>') +
       (newStaff ? '<br>➕ 自動建立 <b>' + newStaff + '</b> 位新人員（已寫回名冊）' : '');
-    SEC.toast(added ? '✅ 匯入 ' + added + ' 人的出勤' + (newStaff ? '（新增 ' + newStaff + ' 人）' : '') : '⚠ 未匯入，請看偵測記錄', added ? 'ok' : 'warn', 5000);
+    SEC.toast(added ? '✅ 匯入 ' + added + ' 人、' + rawAdded + ' 筆原始打卡' + (newStaff ? '（新增 ' + newStaff + ' 人）' : '') : '⚠ 未匯入，請看偵測記錄', added ? 'ok' : 'warn', 5000);
   });
 }
 function expGrid() {
@@ -630,13 +706,13 @@ function expGrid() {
   });
   SEC.exportExcel([{ name: 'Roster_' + ym(), rows: aoa }], 'AC_SEC_Attendance_' + ym() + '.xlsx');
 }
-function doBackup() { SEC.backupJson({ attendance: ATT }, 'attendance_backup_' + SEC.ymd() + '.json'); }
+function doBackup() { SEC.backupJson({ attendance: ATT, raw: ATT_LOG }, 'attendance_backup_' + SEC.ymd() + '.json'); }
 function restore() {
-  SEC.restoreJson(function (o) { if (o.attendance) { ATT = o.attendance; save(); renderAll(); } });
+  SEC.restoreJson(function (o) { if (o.attendance) ATT = o.attendance; if (o.raw) ATT_LOG = o.raw; save(); renderAll(); });
 }
 function clearMonth() {
   if (!confirm('確定清空 ' + ym() + ' 的出勤資料？')) return;
-  delete ATT[ym()]; save(); renderAll();
+  delete ATT[ym()]; ATT_LOG = ATT_LOG.filter(function (r) { return String(r.date || '').slice(0, 7) !== ym(); }); save(); renderAll();
 }
 async function doUpload() {
   var M = monthMap(), recs = [];
@@ -647,16 +723,21 @@ async function doUpload() {
       hours: s.hrs, detail: M[key(r)] || {} });
   });
   await SEC.cloudPush(TOOL, recs, { month: ym(), staff: STAFF.length,
-    hours: recs.reduce(function (a, x) { return a + x.hours; }, 0) });
+    hours: recs.reduce(function (a, x) { return a + x.hours; }, 0) }, { attendance: ATT, raw: ATT_LOG });
 }
 async function doDownload() {
-  if (!confirm('⬇️☁ 下載會覆蓋本機 ' + ym() + ' 出勤資料，確定？')) return;
+  if (!confirm('⬇️☁ 下載會與本機出勤資料合併；相同月份／人員更新，較多資料保留。繼續？')) return;
   var recs = await SEC.cloudPull(TOOL);
   if (!recs) return;
-  var M = {};
-  recs.forEach(function (r) { if (r.month === ym()) M[r.empId || r.name] = r.detail || {}; });
-  ATT[ym()] = M; save(); renderAll();
-  SEC.toast('⬇️☁ 已下載 ' + Object.keys(M).length + ' 人', 'ok');
+  recs.forEach(function (r) {
+    if (!r.month) return;
+    var M = ATT[r.month] || (ATT[r.month] = {}), k = r.empId || r.name;
+    M[k] = Object.assign({}, M[k] || {}, r.detail || {});
+  });
+  var ex = recs._cloudExtra || {};
+  if (ex.attendance) ATT = SEC.mergeObject(ATT, ex.attendance);
+  if (Array.isArray(ex.raw)) ATT_LOG = SEC.mergeRecords('attendance-raw', ATT_LOG, ex.raw).records;
+  save(); renderAll(); SEC.toast('⬇️☁ 已合併雲端出勤與原始打卡資料，共 ' + ATT_LOG.length + ' 筆明細', 'ok', 5000);
 }
 function pushSummary() {
   var tw = 0, thr = 0, ta = 0, tl = 0;

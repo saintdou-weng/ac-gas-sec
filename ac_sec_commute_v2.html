@@ -458,7 +458,8 @@ function renderAna() {
   chart('ch4', 'bar', dk, [{ label: '遲到人次', data: dk.map(function (k) { return d[k]; }), backgroundColor: '#fbbf24' }]);
 }
 function chart(id, type, labels, ds) {
-  var el = document.getElementById(id); if (!el) return;
+ var el = document.getElementById(id); if (!el) return;
+  if (typeof Chart === 'undefined') { el.parentNode.innerHTML = '<div class="empty" style="padding:30px">📊 圖表元件未載入，表格功能仍可使用；請重新整理後再試。</div>'; return; }
   if (CH[id]) CH[id].destroy();
   CH[id] = new Chart(el, { type: type, data: { labels: labels, datasets: ds },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
@@ -724,14 +725,19 @@ async function doUpload() {
   await SEC.cloudPush(TOOL, all, { car: CAR.length, bike: BIKE.length, gate: GATE.length, late: LATE.length });
 }
 async function doDownload() {
-  if (!confirm('⬇️☁ 下載會覆蓋本機通勤資料，確定？')) return;
+  if (!confirm('⬇️☁ 下載會與本機通勤資料合併；相同紀錄更新，較多資料保留。繼續？')) return;
   var recs = await SEC.cloudPull(TOOL);
   if (!recs) return;
-  CAR = recs.filter(function (r) { return r._k === 'car'; });
-  BIKE = recs.filter(function (r) { return r._k === 'bike'; });
-  GATE = recs.filter(function (r) { return r._k === 'gate'; });
-  LATE = recs.filter(function (r) { return r._k === 'late'; });
-  save(); renderAll(); SEC.toast('⬇️☁ 已下載 ' + recs.length + ' 筆', 'ok');
+  var local = CAR.map(function (r) { return Object.assign({_k:'car'}, r); })
+    .concat(BIKE.map(function (r) { return Object.assign({_k:'bike'}, r); }))
+    .concat(GATE.map(function (r) { return Object.assign({_k:'gate'}, r); }))
+    .concat(LATE.map(function (r) { return Object.assign({_k:'late'}, r); }));
+  var m = SEC.mergeRecords(TOOL, local, recs);
+  CAR = m.records.filter(function (r) { return r._k === 'car'; });
+  BIKE = m.records.filter(function (r) { return r._k === 'bike'; });
+  GATE = m.records.filter(function (r) { return r._k === 'gate'; });
+  LATE = m.records.filter(function (r) { return r._k === 'late'; });
+  save(); renderAll(); SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，共 ' + m.records.length + ' 筆', 'ok', 5000);
 }
 function pushSummary() {
   var c = inP(CAR), b = inP(BIKE), l = inP(LATE);

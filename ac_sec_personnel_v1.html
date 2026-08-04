@@ -34,7 +34,7 @@
 </div>
 
 <div class="wrap">
-  <div id="pnavHost" style="display:none"></div>
+  <div id="pnavHost"></div>
 
   <!-- ═══ 名冊 ═══ -->
   <div class="page" id="p-ros">
@@ -214,7 +214,7 @@ if (typeof SEC === 'undefined') {
   throw new Error('sec-core.js not loaded');
 }
 
-var LS = 'ac_sec_personnel_db', LSC = 'ac_sec_personnel_chg';
+var LS = 'ac_sec_personnel_db', LSC = 'ac_sec_personnel_chg', PER = new SEC.Period('month');
 var DB = [], CHG = [], CH = {}, TOOL = 'personnel', EDIT_ID = '';
 
 function load() {
@@ -224,14 +224,17 @@ function load() {
 function save() { localStorage.setItem(LS, JSON.stringify(DB)); localStorage.setItem(LSC, JSON.stringify(CHG)); }
 
 document.getElementById('hdr').innerHTML = SEC.headerHtml('👮', '保安人員 Personnel', 'AC SECURITY · PERSONNEL');
+document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
 load();
 SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: pushSummary });
+SEC.bindPeriodNav('pnav', PER, renderAll);
 document.getElementById('tabs').addEventListener('click', function (e) {
   var b = e.target.closest('.tab'); if (!b) return;
   document.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('on'); });
   b.classList.add('on');
   document.querySelectorAll('.page').forEach(function (p) { p.style.display = 'none'; });
   document.getElementById('p-' + b.dataset.p).style.display = '';
+  document.getElementById('pnavHost').style.display = (b.dataset.p === 'ros' || b.dataset.p === 'data') ? 'none' : '';
   renderAll();
 });
 document.getElementById('cDate').value = SEC.ymd();
@@ -417,7 +420,8 @@ function clearChangeForm() {
 }
 function renderChg() {
   var tb = document.getElementById('tbChg');
-  tb.innerHTML = CHG.length ? CHG.slice(0, 300).map(function (r) {
+  var view = CHG.filter(function (r) { return PER.has(r.date); });
+  tb.innerHTML = view.length ? view.slice(0, 300).map(function (r) {
     var k = KIND[r.kind] || KIND.update;
     var det = [];
     if (r.fromShift || r.toShift) det.push('班別 ' + (r.fromShift || '—') + ' → <b>' + (r.toShift || '—') + '</b>');
@@ -543,7 +547,7 @@ function renderAna() {
   var pk = Object.keys(p).sort(function (x, y) { return p[y] - p[x]; }).slice(0, 10);
   chart('ch2', 'bar', pk, [{ label: '人數', data: pk.map(function (k) { return p[k]; }), backgroundColor: '#1e6f8e' }]);
   var c = {};
-  CHG.forEach(function (r) { var m = String(r.date || '').slice(0, 7); if (m) c[m] = (c[m] || 0) + 1; });
+  CHG.filter(function (r) { return PER.has(r.date); }).forEach(function (r) { var m = String(r.date || '').slice(0, 7); if (m) c[m] = (c[m] || 0) + 1; });
   var ck = Object.keys(c).sort();
   chart('ch3', 'bar', ck, [{ label: '異動件數', data: ck.map(function (k) { return c[k]; }), backgroundColor: '#2a8fb0' }]);
   var band = { '<6月':0, '6-12月':0, '1-2年':0, '2-5年':0, '>5年':0 };
@@ -560,7 +564,8 @@ function renderAna() {
   chart('ch4', 'bar', Object.keys(band), [{ label: '人數', data: Object.keys(band).map(function (k) { return band[k]; }), backgroundColor: '#f5c842' }]);
 }
 function chart(id, type, labels, ds) {
-  var el = document.getElementById(id); if (!el) return;
+ var el = document.getElementById(id); if (!el) return;
+  if (typeof Chart === 'undefined') { el.parentNode.innerHTML = '<div class="empty" style="padding:30px">📊 圖表元件未載入，表格功能仍可使用；請重新整理後再試。</div>'; return; }
   if (CH[id]) CH[id].destroy();
   CH[id] = new Chart(el, { type: type, data: { labels: labels, datasets: ds },
     options: { responsive: true, maintainAspectRatio: false,
@@ -810,13 +815,20 @@ var SPEC = {
   empId   : ['工號','工号','id','code','編號','អត្តលេខ','vrtcode','factoryid','employeeid','no'],
   name    : ['姓名','name','ឈ្មោះ','fullname','surenamename','englishname','員工姓名'],
   position: ['職稱','职称','position','តំណែង','title','job','崗位職稱','rank'],
-  shift   : ['班別','班别','shift','វេន','班','group','組別'],
+  shift   : ['班別','班别','shift','schedule','វេន','班','group','組別'],
   post    : ['崗位','岗位','post','ប៉ុស្តិ៍','location','地點','區域','zone','duty','責任區'],
   joinDate: ['到職日','到职日','joindate','ថ្ងៃចូល','startdate','入職','hiredate','entrydate'],
   phone   : ['電話','电话','phone','ទូរស័ព្ទ','tel','mobile','聯絡'],
   status  : ['狀態','状态','status','ស្ថានភាព','在職'],
   remark  : ['備註','remark','note','កំណត់ចំណាំ','說明'],
 };
+function rosterShift(v) {
+  var s = String(v || '').toLowerCase();
+  if (/night|យប់|夜/.test(s) || /^n$/.test(s)) return 'C';
+  if (/middle|mid|中班|សៀល/.test(s) || /^b$/.test(s)) return 'B';
+  if (/day|早班|日班|ព្រឹក/.test(s) || /^a$/.test(s)) return 'A';
+  return String(v || '').toUpperCase().replace(/[^ABC]/g, '').slice(0, 1);
+}
 function impExcel() {
   SEC.pickExcel(function (sheets) {
     var added = 0, log = [];
@@ -827,15 +839,18 @@ function impExcel() {
       res.rows.forEach(function (o) {
         var name = SEC.str(o.name); if (!name) return;
         var jd = SEC.parseD(o.joinDate);
-        var sf = SEC.str(o.shift).toUpperCase().replace(/[^ABC]/g, '').slice(0, 1);
-        DB.push({
+        var sf = rosterShift(o.shift);
+        var row = {
           id: 'X' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
           empId: SEC.str(o.empId), name: name, position: SEC.str(o.position),
           shift: sf, post: SEC.str(o.post), joinDate: jd ? SEC.ymd(jd) : '',
           phone: SEC.str(o.phone),
           status: /離職|resign|離|inactive/i.test(SEC.str(o.status)) ? 'resigned' : 'active',
           remark: SEC.str(o.remark), src: sh.name, createdAt: SEC.nowStr(),
-        });
+        };
+        var old = DB.filter(function (x) { return (row.empId && String(x.empId) === String(row.empId)) || SEC.norm(x.name) === SEC.norm(row.name); })[0];
+        if (old) { row.id = old.id; row.photo = old.photo || ''; Object.assign(old, row); }
+        else DB.push(row);
         n++; added++;
       });
       log.push('· <b>' + SEC.esc(sh.name) + '</b>：匯入 <b>' + n + '</b> 筆（標題第 ' + (res.header.row + 1) + ' 列，比對 ' + res.header.score + ' 欄）');
@@ -877,17 +892,20 @@ async function doUpload() {
   await SEC.cloudPush(TOOL, all, { staff: DB.length, active: active().length, changes: CHG.length });
 }
 async function doDownload() {
-  if (!confirm('⬇️☁ 下載會覆蓋本機人員資料，確定？')) return;
+  if (!confirm('⬇️☁ 下載會與本機人員資料合併；相同工號更新，較多資料保留。繼續？')) return;
   var recs = await SEC.cloudPull(TOOL);
   if (!recs) return;
   var keep = {};
   DB.forEach(function (r) { if (r.photo && typeof r.photo === 'string') keep[r.empId || r.name] = r.photo; });
-  DB = recs.filter(function (r) { return r._k !== 'chg'; }).map(function (r) {
+  var remoteStaff = recs.filter(function (r) { return r._k !== 'chg'; }).map(function (r) {
     r.photo = keep[r.empId || r.name] || '';   /* 照片留本機，不從雲端覆蓋掉 */
     return r;
   });
-  CHG = recs.filter(function (r) { return r._k === 'chg'; });
-  save(); renderAll(); SEC.toast('⬇️☁ 已下載 ' + recs.length + ' 筆', 'ok');
+  var sm = SEC.mergeRecords(TOOL, DB, remoteStaff);
+  DB = sm.records;
+  var cm = SEC.mergeRecords('personnel-chg', CHG, recs.filter(function (r) { return r._k === 'chg'; }));
+  CHG = cm.records;
+  save(); renderAll(); SEC.toast('⬇️☁ 已合併人員 ' + sm.added + ' 新增／' + sm.updated + ' 更新，保留 ' + DB.length + ' 人', 'ok', 5000);
 }
 function pushSummary() {
   var a = active();
