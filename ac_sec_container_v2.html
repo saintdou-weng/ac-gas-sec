@@ -347,7 +347,7 @@ SEC.bindPeriodNav('pnav', PER, renderAll);
 
 /* 子模組切換 */
 document.getElementById('subnav').addEventListener('click', function (e) {
-  var b = e.target.closest('.sb'); if (!b) return;
+  var b = SEC.closest(e.target, '.sb'); if (!b) return;
   MOD = b.dataset.m;
   document.querySelectorAll('.sb').forEach(function (x) { x.classList.toggle('on', x === b); });
   ['truck','insp','gate'].forEach(function (m) {
@@ -359,7 +359,7 @@ document.getElementById('subnav').addEventListener('click', function (e) {
 /* 各模組分頁 */
 document.querySelectorAll('.tabs').forEach(function (bar) {
   bar.addEventListener('click', function (e) {
-    var b = e.target.closest('.tab'); if (!b) return;
+    var b = SEC.closest(e.target, '.tab'); if (!b) return;
     bar.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('on'); });
     b.classList.add('on');
     /* 該模組下所有 page 藏起，顯示目標 */

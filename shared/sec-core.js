@@ -139,7 +139,7 @@ function bindPeriodNav(id, period, onChange) {
     var lb = el.querySelector('.plabel'); if (lb) lb.textContent = period.label();
   }
   el.addEventListener('click', function (ev) {
-    var b = ev.target.closest('button'); if (!b) return;
+    var b = closest(ev.target, 'button'); if (!b) return;
     if (b.dataset.m)     period.setMode(b.dataset.m);
     else if (b.dataset.n) period.shift(parseInt(b.dataset.n, 10));
     else if (b.dataset.today) period.today();
@@ -148,6 +148,16 @@ function bindPeriodNav(id, period, onChange) {
   });
   paint();
   return paint;
+}
+
+/* 舊版 Android WebView／部分內嵌瀏覽器沒有 Element.closest。 */
+function closest(el, selector) {
+  var n = el;
+  while (n && n !== document) {
+    if (n.matches && n.matches(selector)) return n;
+    n = n.parentElement || n.parentNode;
+  }
+  return null;
 }
 
 /* ───────── 三語 ───────── */
@@ -351,7 +361,7 @@ function routePickerHtml(id) {
 function bindRoutePicker(id) {
   var el = document.getElementById(id); if (!el) return;
   el.addEventListener('click', function (ev) {
-    var o = ev.target.closest('.route-opt'); if (!o) return;
+    var o = closest(ev.target, '.route-opt'); if (!o) return;
     el.querySelectorAll('.route-opt').forEach(function (x) { x.classList.remove('on'); });
     o.classList.add('on');
     setCfg({ route: o.dataset.r });
@@ -608,12 +618,38 @@ function bindHeader(tool, handlers) {
     b.onclick = function () { setLang(b.dataset.l); };
   });
   var ts = document.querySelector('.c-ts'); if (ts) ts.textContent = lastSync(tool);
-  var up = document.getElementById('btnUp');   if (up)   up.onclick   = handlers.onUpload;
-  var dn = document.getElementById('btnDown'); if (dn)   dn.onclick   = handlers.onDownload;
-  var tg = document.getElementById('btnTg');   if (tg)   tg.onclick   = handlers.onTelegram;
+  function bindAction(id, fn) {
+    var el = document.getElementById(id); if (!el || typeof fn !== 'function') return;
+    el.onclick = function (ev) {
+      try {
+        var out = fn(ev);
+        if (out && typeof out.catch === 'function') out.catch(function (e) { bootError(e); });
+      } catch (e) { bootError(e); }
+    };
+  }
+  bindAction('btnUp', handlers.onUpload);
+  bindAction('btnDown', handlers.onDownload);
+  bindAction('btnTg', handlers.onTelegram);
   var cf = document.getElementById('btnCfg');  if (cf)   cf.onclick   = openSettings;
   setLang(getCfg().lang || 'zh');
 }
+
+/* 如果頁面初始化或按鈕事件出錯，直接在畫面顯示原因，避免「完全沒反應」。 */
+function bootError(e) {
+  var msg = String(e && e.message || e || 'Unknown JavaScript error');
+  try { console.error('[AC SEC]', e); } catch (_) {}
+  var b = document.getElementById('secBootError');
+  if (!b) {
+    b = document.createElement('div'); b.id = 'secBootError';
+    b.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:99998;background:#991b1b;color:#fff;padding:11px 14px;border-radius:10px;font:600 12px/1.5 system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.28)';
+    document.body.appendChild(b);
+  }
+  b.innerHTML = '⚠️ JavaScript / JavaScript 錯誤：' + esc(msg) + '<br><small>請重新整理；若仍存在，請把這行錯誤文字回傳。</small>';
+}
+try {
+  G.addEventListener('error', function (ev) { if (ev && ev.error) bootError(ev.error); });
+  G.addEventListener('unhandledrejection', function (ev) { if (ev && ev.reason) bootError(ev.reason); });
+} catch (_) {}
 
 /* ───────── 設定 Modal ───────── */
 function openSettings() {
@@ -683,6 +719,7 @@ function closeModal(id) { var m = document.getElementById(id); if (m) m.classLis
 G.SEC = {
   CFG_KEY:CFG_KEY, getCfg:getCfg, setCfg:setCfg,
   p2:p2, ymd:ymd, hm:hm, nowStr:nowStr, parseD:parseD, num:num, str:str, esc:esc,
+  closest:closest, bootError:bootError,
   Period:Period, periodNavHtml:periodNavHtml, bindPeriodNav:bindPeriodNav,
   T:T, lang:lang, setLang:setLang, applyI18n:applyI18n, I18N:BASE_I18N,
   toast:toast, gasPost:gasPost, cloudPush:cloudPush, cloudPull:cloudPull,

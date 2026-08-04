@@ -298,7 +298,7 @@ load();
 SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: pushSummary });
 SEC.bindPeriodNav('pnav', PER, renderAll);
 document.getElementById('tabs').addEventListener('click', function (e) {
-  var b = e.target.closest('.tab'); if (!b) return;
+  var b = SEC.closest(e.target, '.tab'); if (!b) return;
   document.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('on'); });
   b.classList.add('on');
   document.querySelectorAll('.page').forEach(function (p) { p.style.display = 'none'; });
