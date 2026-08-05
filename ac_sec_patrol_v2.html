@@ -298,7 +298,7 @@ load();
 SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: pushSummary });
 SEC.bindPeriodNav('pnav', PER, renderAll);
 document.getElementById('tabs').addEventListener('click', function (e) {
-  var b = SEC.closest(e.target, '.tab'); if (!b) return;
+  var b = e.target.closest('.tab'); if (!b) return;
   document.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('on'); });
   b.classList.add('on');
   document.querySelectorAll('.page').forEach(function (p) { p.style.display = 'none'; });
@@ -593,8 +593,7 @@ function renderHeat(list) {
   el.innerHTML = head + body;
 }
 function chart(id, type, labels, ds) {
- var el = document.getElementById(id); if (!el) return;
-  if (typeof Chart === 'undefined') { el.parentNode.innerHTML = '<div class="empty" style="padding:30px">📊 圖表元件未載入，表格功能仍可使用；請重新整理後再試。</div>'; return; }
+  var el = document.getElementById(id); if (!el) return;
   if (CH[id]) CH[id].destroy();
   CH[id] = new Chart(el, { type: type, data: { labels: labels, datasets: ds },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
@@ -739,7 +738,7 @@ function saveNew(notify) {
     SEC.tgSummary('🚨 <b>巡邏記錄</b>\n─────────────\n📅 ' + r.date + ' ' + r.time +
       '\n🕐 ' + (r.shift === 'N' ? '夜班' : '日班') + '\n👮 ' + r.guard + '\n📍 ' + r.location + '\n' +
       (r.status === 'issue' ? '⚠️ <b>異常</b>\n' : '✅ 正常\n') + (r.note ? '📝 ' + r.note + '\n' : ''),
-      'patrol', r.photos[0] || '');
+      'patrol', r.photos[0] || '', PER);
   }
 }
 function delMan(id) {
@@ -810,7 +809,7 @@ function pushNight() {
   } else { txt += '\n✅ 全數達標。'; }
   var badTotal = ks.reduce(function (s, k) { return s + byN[k].bad; }, 0);
   if (badTotal) txt += '\n\n⚠️ 另有 <b>' + badTotal + '</b> 圈未走完全部 ' + TC + ' 個巡邏點。';
-  SEC.tgSummary(txt, 'patrol');
+  SEC.tgSummary(txt, 'patrol', '', PER);
 }
 function pushSummary() {
   var list = inPeriodR(), TC = totalCp();
@@ -818,7 +817,7 @@ function pushSummary() {
   var night = list.filter(function (r) { return r.night; }).length;
   var byG = {};
   list.forEach(function (r) { byG[r.g] = (byG[r.g] || 0) + 1; });
-  var txt = '🚨 <b>巡邏摘要</b> · ' + PER.label() + '\n─────────────\n' +
+  var txt = SEC.sumHeader('🚨','巡邏摘要','Patrol Summary','សង្ខេបល្បាត',PER) +
     '🔄 巡邏圈數：<b>' + list.length + '</b>\n' +
     '✅ 完整圈：<b>' + full + '</b>（' + (list.length ? Math.round(full / list.length * 100) : 0) + '%）\n' +
     '⛔ 漏點圈：<b>' + (list.length - full) + '</b>\n' +
@@ -826,7 +825,7 @@ function pushSummary() {
     '📍 巡邏點：' + TC + ' 個\n';
   var gk = Object.keys(byG).sort(function (a, b) { return byG[b] - byG[a]; });
   if (gk.length) { txt += '\n<b>👮 巡邏員</b>\n'; gk.slice(0, 12).forEach(function (k) { txt += '· ' + k + '：' + byG[k] + ' 圈\n'; }); }
-  SEC.tgSummary(txt, 'patrol');
+  SEC.tgSummary(txt, 'patrol', '', PER);
 }
 
 /* ═══════════ 匯出 / 雲端 ═══════════ */
@@ -877,15 +876,14 @@ async function doUpload() {
   await SEC.cloudPush(TOOL, recs, { rounds: ROUNDS.length, scans: SCAN.length, checkpoints: TC });
 }
 async function doDownload() {
-  if (!confirm('⬇️☁ 下載會與本機人工巡邏合併；相同日期／時間／人員更新，較多資料保留。繼續？')) return;
+  if (!confirm('⬇️☁ 下載會覆蓋本機人工登錄資料（巡更棒原始打點不受影響），確定？')) return;
   var recs = await SEC.cloudPull(TOOL);
   if (!recs) return;
-  var remote = recs.filter(function (r) { return r.manual; }).map(function (r) {
-    return { id: 'CL-' + [r.date, r.time, r.guard, r.location].join('|'), date: r.date, time: r.time,
+  MAN = recs.filter(function (r) { return r.manual; }).map(function (r) {
+    return { id: 'D' + Math.random().toString(36).slice(2, 9), date: r.date, time: r.time,
       shift: r.shift === 'C' ? 'N' : 'D', guard: r.guard, location: r.location, status: r.status, photos: [] };
   });
-  var m = SEC.mergeRecords('patrol-man', MAN, remote); MAN = m.records;
-  saveMan(); renderAll(); SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，共 ' + MAN.length + ' 筆人工紀錄', 'ok', 5000);
+  saveMan(); renderAll(); SEC.toast('⬇️☁ 已下載 ' + recs.length + ' 筆', 'ok');
 }
 </script>
 </body>

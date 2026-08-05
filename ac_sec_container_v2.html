@@ -347,7 +347,7 @@ SEC.bindPeriodNav('pnav', PER, renderAll);
 
 /* 子模組切換 */
 document.getElementById('subnav').addEventListener('click', function (e) {
-  var b = SEC.closest(e.target, '.sb'); if (!b) return;
+  var b = e.target.closest('.sb'); if (!b) return;
   MOD = b.dataset.m;
   document.querySelectorAll('.sb').forEach(function (x) { x.classList.toggle('on', x === b); });
   ['truck','insp','gate'].forEach(function (m) {
@@ -359,7 +359,7 @@ document.getElementById('subnav').addEventListener('click', function (e) {
 /* 各模組分頁 */
 document.querySelectorAll('.tabs').forEach(function (bar) {
   bar.addEventListener('click', function (e) {
-    var b = SEC.closest(e.target, '.tab'); if (!b) return;
+    var b = e.target.closest('.tab'); if (!b) return;
     bar.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('on'); });
     b.classList.add('on');
     /* 該模組下所有 page 藏起，顯示目標 */
@@ -600,7 +600,7 @@ function ciSave(notify) {
     if (fails.length) { txt += '\n<b>⛔ 不合格項目</b>\n'; fails.forEach(function (f) { txt += '· ' + f + '\n'; }); }
     else txt += '\n✅ 全部合格。';
     if (items.length) { txt += '\n📦 裝載：' + items.map(function (it) { return it.name + '×' + (it.qty || '-'); }).join('、'); }
-    SEC.tgSummary(txt, 'container');
+    SEC.tgSummary(txt, 'container', '', PER);
   }
 }
 function renderCi() {
@@ -706,7 +706,7 @@ function gdSave(notify) {
       (rN.length ? '📋 事由：' + rN.join('、') + '\n' : '') +
       '📦 品項：\n' + items.map(function (it, i) { return '  ' + (i + 1) + '. ' + it.name + ' × ' + (it.qty || '-') + ' ' + (it.unit || ''); }).join('\n') +
       (rec.note ? '\n📝 ' + rec.note : '');
-    SEC.tgSummary(txt, 'container');
+    SEC.tgSummary(txt, 'container', '', PER);
   }
 }
 function renderGd() {
@@ -759,8 +759,7 @@ function gdExp() {
 
 /* ═══════════════════ 共用 ═══════════════════ */
 function chart(id, type, labels, ds, legend) {
- var el = document.getElementById(id); if (!el) return;
-  if (typeof Chart === 'undefined') { el.parentNode.innerHTML = '<div class="empty" style="padding:30px">📊 圖表元件未載入，表格功能仍可使用；請重新整理後再試。</div>'; return; }
+  var el = document.getElementById(id); if (!el) return;
   if (CH[id]) CH[id].destroy();
   CH[id] = new Chart(el, { type: type, data: { labels: labels, datasets: ds },
     options: { responsive: true, maintainAspectRatio: false,
@@ -783,22 +782,18 @@ async function doUpload() {
   await SEC.cloudPush(TOOL, all, { truck: TK.length, inspection: CI.length, gate: GD.length });
 }
 async function doDownload() {
-  if (!confirm('⬇️☁ 下載會與本機三類貨櫃資料合併；相同紀錄更新，較多資料保留。繼續？')) return;
+  if (!confirm('⬇️☁ 下載會覆蓋本機三類貨櫃資料，確定？')) return;
   var recs = await SEC.cloudPull(TOOL);
   if (!recs) return;
-  var local = TK.map(function (r) { return Object.assign({_k:'truck'}, r); })
-    .concat(CI.map(function (r) { return Object.assign({_k:'insp'}, r); }))
-    .concat(GD.map(function (r) { return Object.assign({_k:'gate'}, r); }));
-  var m = SEC.mergeRecords(TOOL, local, recs);
-  TK = m.records.filter(function (r) { return r._k === 'truck'; });
-  CI = m.records.filter(function (r) { return r._k === 'insp'; });
-  GD = m.records.filter(function (r) { return r._k === 'gate'; });
+  TK = recs.filter(function (r) { return r._k === 'truck'; });
+  CI = recs.filter(function (r) { return r._k === 'insp'; });
+  GD = recs.filter(function (r) { return r._k === 'gate'; });
   saveTk(); saveCi(); saveGd(); renderAll();
-  SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，共 ' + m.records.length + ' 筆', 'ok', 5000);
+  SEC.toast('⬇️☁ 已下載 ' + recs.length + ' 筆', 'ok');
 }
 function pushSummary() {
   var tk = inPer(TK), ci = CI.filter(function (r) { return PER.has(r.date); }), gd = GD.filter(function (r) { return PER.has(r.date); });
-  var txt = '🚛 <b>貨櫃出入摘要</b> · ' + PER.label() + '\n─────────────\n' +
+  var txt = SEC.sumHeader('🚛','貨櫃出入摘要','Container Summary','សង្ខេបកុងតឺន័រ',PER) +
     '🚛 貨櫃車進出：<b>' + tk.length + '</b>（🟢進 ' + tk.filter(function (r) { return r.isImport; }).length +
     ' · 🔴出 ' + tk.filter(function (r) { return r.isExport; }).length + '）\n' +
     '🔍 貨櫃檢查：<b>' + ci.length + '</b>（合格 ' + ci.filter(function (r) { return r.result === 'pass'; }).length + '）\n' +
@@ -808,7 +803,7 @@ function pushSummary() {
   tk.forEach(function (r) { if (r.company) co[r.company] = (co[r.company] || 0) + 1; });
   var ck = Object.keys(co).sort(function (a, b) { return co[b] - co[a]; });
   if (ck.length) { txt += '\n<b>🏢 貨櫃車公司</b>\n'; ck.slice(0, 8).forEach(function (k) { txt += '· ' + k + '：' + co[k] + ' 趟\n'; }); }
-  SEC.tgSummary(txt, 'container');
+  SEC.tgSummary(txt, 'container', '', PER);
 }
 </script>
 </body>

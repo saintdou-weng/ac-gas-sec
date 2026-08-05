@@ -509,7 +509,7 @@ function impExcel() {
         各有 name / location / per month / total wk day / total wk hr / total hour / one hour / total pay */
 function impFee() {
   SEC.pickExcel(function (sheets) {
-    var added = 0, log = [];
+    var added = 0, log = [], lastPer = '';
     sheets.forEach(function (sh) {
       var rows = sh.rows;
       var company = '', month = '', days = 0;
@@ -521,11 +521,29 @@ function impFee() {
           if (a === 'day' && !days)        days    = SEC.num(rows[r][c + 1]);
         }
       }
-      /* 期間：從表頭月份名推年月，取不到就用目前期間 */
-      var per = PER.key();
-      if (month) {
-        var mi = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec']
-                 .indexOf(String(month).slice(0, 3).toLowerCase());
+      /* 期間判定（依可靠度排序）：
+         ① 表尾註記 "On 2026- July Security…" ② 表頭 MONTH 欄 ③ 目前畫面期間
+         ⚠ 實務上表頭 MONTH 常忘了改（July 的檔寫著 June），所以註記優先。 */
+      var per = PER.key(), MN = ['january','february','march','april','may','june',
+                                 'july','august','september','october','november','december'];
+      function monIdx(t) {
+        var v = String(t || '').toLowerCase().replace(/[^a-z]/g, '');
+        if (!v) return -1;
+        for (var i = 0; i < MN.length; i++) { if (v === MN[i] || v === MN[i].slice(0, 3)) return i; }
+        for (var j = 0; j < MN.length; j++) { if (v.indexOf(MN[j]) === 0) return j; }
+        return -1;
+      }
+      var noteYm = null;
+      rows.forEach(function (R) {
+        (R || []).forEach(function (cell) {
+          var t = String(cell == null ? '' : cell);
+          var m = t.match(/(20\d{2})\s*-?\s*([A-Za-z]{3,9})/);
+          if (m && !noteYm) { var mi2 = monIdx(m[2]); if (mi2 >= 0) noteYm = m[1] + '-' + SEC.p2(mi2 + 1); }
+        });
+      });
+      if (noteYm) per = noteYm;
+      else if (month) {
+        var mi = monIdx(month);
         if (mi >= 0) per = (new Date().getFullYear()) + '-' + SEC.p2(mi + 1);
       }
       var shift = '', n = 0;
@@ -553,13 +571,21 @@ function impFee() {
         });
         n++; added++;
       }
-      log.push('· <b>' + SEC.esc(sh.name) + '</b>：匯入 <b>' + n + '</b> 筆' +
+      if (n) lastPer = per;
+      log.push('· <b>' + SEC.esc(sh.name) + '</b> → <b>' + per + '</b>：匯入 <b>' + n + '</b> 筆' +
                (company ? '（' + SEC.esc(company) + '）' : '') + (month ? ' · ' + SEC.esc(month) : '') +
                (days ? ' · ' + days + ' 天' : ''));
     });
+    /* 跳到匯入的期間，避免「匯了看不到」 */
+    if (lastPer) {
+      var pp = lastPer.split('-');
+      PER.setMode('month'); PER.at = new Date(+pp[0], +pp[1] - 1, 1);
+      SEC.bindPeriodNav('pnav', PER, renderAll);
+    }
     save(); renderAll();
-    document.getElementById('impLog').innerHTML = '<b>匯入結果</b><br>' + log.join('<br>');
-    SEC.toast(added ? '✅ 保安服務費匯入 ' + added + ' 筆' : '⚠ 未匯入，格式可能不符', added ? 'ok' : 'warn', 5000);
+    document.getElementById('impLog').innerHTML = '<b>匯入結果</b><br>' + log.join('<br>') +
+      (lastPer ? '<br>📅 已切換到 <b>' + lastPer + '</b> 顯示' : '');
+    SEC.toast(added ? '✅ 服務費匯入 ' + added + ' 筆' + (lastPer ? '，已跳到 ' + lastPer : '') : '⚠ 未匯入，格式可能不符', added ? 'ok' : 'warn', 6000);
   });
 }
 
@@ -612,7 +638,7 @@ function pushSummary() {
     txt += '\n<b>🏷 分類明細</b>\n';
     ks.slice(0, 10).forEach(function (k) { txt += '· ' + k + '：' + byC[k].n + ' 筆 · <b>' + money(byC[k].a) + '</b>\n'; });
   }
-  SEC.tgSummary(txt, 'expense');
+  SEC.tgSummary(txt, 'expense', '', PER);
 }
 </script>
 </body>
