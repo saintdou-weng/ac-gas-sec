@@ -18,6 +18,11 @@ var DEFAULTS = {
 };
 var MEM_CFG = null;
 var STORAGE_WARNED = false;
+var DATA_DB_NAME = 'ac_sec_data_v1';
+var DATA_DB_STORE = 'records';
+var DATA_DB = null;
+var DATA_READY = null;
+var DATA_QUEUE = {};
 
 /* localStorage 滿時不能讓初始化中斷。只整理同步時間標記，絕不刪除業務資料。 */
 function storageQuota(e) {
@@ -73,6 +78,101 @@ function normalizeCfg(c) {
     lang: ['zh','en','km'].indexOf(c.lang) >= 0 ? c.lang : DEFAULTS.lang,
     route: c.route === 'direct' ? 'direct' : 'review',
   };
+}
+
+/* ───────── 大量業務資料：IndexedDB（瀏覽器資料庫） ─────────
+   localStorage 只保留設定；巡邏、CCTV、出勤原始明細等改存 IndexedDB，
+   第一次開啟時自動搬移舊 ac_sec_* JSON，成功後移除舊副本。 */
+function openDataDb() {
+  if (!G.indexedDB) return Promise.reject(new Error('IndexedDB unavailable'));
+  if (DATA_DB) return Promise.resolve(DATA_DB);
+  return new Promise(function (resolve, reject) {
+    var req;
+    try { req = G.indexedDB.open(DATA_DB_NAME, 1); }
+    catch (e) { reject(e); return; }
+    req.onupgradeneeded = function () {
+      var db = req.result;
+      if (!db.objectStoreNames.contains(DATA_DB_STORE)) db.createObjectStore(DATA_DB_STORE);
+    };
+    req.onsuccess = function () {
+      DATA_DB = req.result;
+      DATA_DB.onversionchange = function () { DATA_DB.close(); DATA_DB = null; };
+      resolve(DATA_DB);
+    };
+    req.onerror = function () { reject(req.error || new Error('IndexedDB open failed')); };
+  });
+}
+function idbGet(db, key) {
+  return new Promise(function (resolve, reject) {
+    var tx = db.transaction([DATA_DB_STORE], 'readonly'), req = tx.objectStore(DATA_DB_STORE).get(key);
+    req.onsuccess = function () { resolve(req.result); };
+    req.onerror = function () { reject(req.error || new Error('IndexedDB read failed')); };
+  });
+}
+function idbPut(db, key, value) {
+  return new Promise(function (resolve, reject) {
+    var tx = db.transaction([DATA_DB_STORE], 'readwrite'), req = tx.objectStore(DATA_DB_STORE).put(value, key), done = false;
+    function fail(e) { if (!done) { done = true; reject(e || new Error('IndexedDB write failed')); } }
+    tx.oncomplete = function () { if (!done) { done = true; resolve(true); } };
+    tx.onerror = function () { fail(tx.error); };
+    tx.onabort = function () { fail(tx.error || new Error('IndexedDB write aborted')); };
+    req.onerror = function () { fail(req.error); };
+  });
+}
+function migrateLegacyData() {
+  return openDataDb().then(function (db) {
+    var keys = [];
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && (/^ac_sec_/.test(k) || /^(vrt_truck_v2|vr-container-inspections|vrt_v2)$/.test(k)) && k !== CFG_KEY && !/^ac_sec_sync_/.test(k)) keys.push(k);
+      }
+    } catch (_) { return true; }
+    return keys.reduce(function (p, key) {
+      return p.then(function () {
+        var raw = safeStorageGet(key), value;
+        if (!raw) return null;
+        try { value = JSON.parse(raw); } catch (_) { return null; }
+        return idbPut(db, key, value).then(function () {
+          try { localStorage.removeItem(key); } catch (_) {}
+          return null;
+        });
+      });
+    }, Promise.resolve()).then(function () { return true; });
+  }).catch(function () { return false; });
+}
+function dataReady() {
+  if (!DATA_READY) DATA_READY = migrateLegacyData();
+  return DATA_READY;
+}
+function legacyValue(key, fallback) {
+  var raw = safeStorageGet(key);
+  if (!raw) return fallback;
+  try { return JSON.parse(raw); } catch (_) { return fallback; }
+}
+function dbGet(key, fallback) {
+  return dataReady().then(function () {
+    return openDataDb().then(function (db) { return idbGet(db, key); }).then(function (v) {
+      return v === undefined ? legacyValue(key, fallback) : v;
+    });
+  }).catch(function () { return legacyValue(key, fallback); });
+}
+function dbPut(key, value) {
+  var q = DATA_QUEUE[key] || Promise.resolve();
+  DATA_QUEUE[key] = q.then(function () {
+    return openDataDb().then(function (db) { return idbPut(db, key, value); });
+  }).catch(function () {
+    safeStorageSet(key, JSON.stringify(value));
+    return false;
+  });
+  return DATA_QUEUE[key];
+}
+function storageEstimate() {
+  try {
+    if (G.navigator && G.navigator.storage && G.navigator.storage.estimate)
+      return G.navigator.storage.estimate();
+  } catch (_) {}
+  return Promise.resolve({ usage: 0, quota: 0 });
 }
 function getCfg() {
   var raw = safeStorageGet(CFG_KEY), saved = {};
@@ -690,7 +790,7 @@ function bindHeader(tool, handlers) {
   bindAction('btnDown', handlers.onDownload);
   bindAction('btnTg', handlers.onTelegram);
   var cf = document.getElementById('btnCfg');  if (cf)   cf.onclick   = openSettings;
-  setLang(getCfg().lang || 'zh');
+  dataReady().then(function () { setLang(getCfg().lang || 'zh'); }).catch(function (e) { bootError(e); });
 }
 
 /* 如果頁面初始化或按鈕事件出錯，直接在畫面顯示原因，避免「完全沒反應」。 */
@@ -734,6 +834,7 @@ function openSettings() {
       '<button class="btn gh sm" onclick="SEC.tgTest()">✈️ 測試 Telegram</button>' +
       '<button class="btn gh sm" onclick="SEC.sendMenu()">📱 推送模組選單</button></div>' +
       '<p class="hint" style="margin-top:9px">設定儲存在本機瀏覽器。GAS URL 已預先填好，通常不需修改。</p>' +
+      '<p class="hint" id="cfgStorage" style="margin-top:6px">正在檢查本機資料儲存空間…</p>' +
       '</div><div class="mf"><button class="btn gray" onclick="SEC.closeSettings()">取消</button>' +
       '<button class="btn" onclick="SEC.saveSettings()">儲存</button></div></div>';
     document.body.appendChild(m);
@@ -744,6 +845,11 @@ function openSettings() {
   document.getElementById('cfgOp').value   = c.operator;
   document.getElementById('cfgRoute').value= c.route || 'review';
   m.classList.add('on');
+  storageEstimate().then(function (s) {
+    var el = document.getElementById('cfgStorage'); if (!el) return;
+    var u = Number(s.usage || 0), q = Number(s.quota || 0);
+    el.textContent = q ? '本機資料用量 / Site data: ' + (u / 1048576).toFixed(1) + ' MB / ' + (q / 1048576).toFixed(1) + ' MB；大量資料已使用 IndexedDB。' : '本機資料已改用 IndexedDB 儲存。';
+  }).catch(function () {});
 }
 function closeSettings() { var m = document.getElementById('secCfgMask'); if (m) m.classList.remove('on'); }
 function saveSettings() {
@@ -779,6 +885,7 @@ G.SEC = {
   CFG_KEY:CFG_KEY, getCfg:getCfg, setCfg:setCfg,
   p2:p2, ymd:ymd, hm:hm, nowStr:nowStr, parseD:parseD, num:num, str:str, esc:esc,
   closest:closest, bootError:bootError, safeStorageGet:safeStorageGet, safeStorageSet:safeStorageSet,
+  dataReady:dataReady, dbGet:dbGet, dbPut:dbPut, storageEstimate:storageEstimate,
   Period:Period, periodNavHtml:periodNavHtml, bindPeriodNav:bindPeriodNav,
   T:T, lang:lang, setLang:setLang, applyI18n:applyI18n, I18N:BASE_I18N,
   toast:toast, gasPost:gasPost, cloudPush:cloudPush, cloudPull:cloudPull,

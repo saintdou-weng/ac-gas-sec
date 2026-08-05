@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="stylesheet" href="./shared/sec.css?v=20260805c">
+<link rel="stylesheet" href="./shared/sec.css?v=20260805e">
 <style>
 #gridT{border-collapse:separate;border-spacing:0;font-size:11px;white-space:nowrap}
 #gridT th,#gridT td{padding:0;border:none}
@@ -200,7 +200,7 @@
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260805c"></script>
+<script src="./shared/sec-core.js?v=20260805e"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -231,18 +231,16 @@ var CODE = {
   H: { zh:'國定假',en:'Holiday', hr:0 },
 };
 
-function load() {
-  try { ATT = JSON.parse(localStorage.getItem(LS) || '{}'); } catch (e) { ATT = {}; }
-  try { ATT_LOG = JSON.parse(localStorage.getItem(LS_RAW) || '[]'); } catch (e) { ATT_LOG = []; }
-  loadStaff();
+async function load() {
+  ATT = await SEC.dbGet(LS, {});
+  ATT_LOG = await SEC.dbGet(LS_RAW, []);
+  await loadStaff();
 }
-function loadStaff() {
-  try {
-    var s = JSON.parse(localStorage.getItem(LS_STAFF) || '[]');
-    STAFF = s.filter(function (r) { return r.status !== 'resigned'; });
-  } catch (e) { STAFF = []; }
+async function loadStaff() {
+  var s = await SEC.dbGet(LS_STAFF, []);
+  STAFF = (Array.isArray(s) ? s : []).filter(function (r) { return r.status !== 'resigned'; });
 }
-function save() { SEC.safeStorageSet(LS, JSON.stringify(ATT)); SEC.safeStorageSet(LS_RAW, JSON.stringify(ATT_LOG)); }
+function save() { SEC.dbPut(LS, ATT); SEC.dbPut(LS_RAW, ATT_LOG); }
 function key(r) { return String(r.empId || r.name || r.id); }
 function ym() { return PER.key().slice(0, 7); }
 function monthMap() { if (!ATT[ym()]) ATT[ym()] = {}; return ATT[ym()]; }
@@ -254,7 +252,6 @@ function hrDay() { return Number(document.getElementById('hrDay').value) || 12; 
 
 document.getElementById('hdr').innerHTML = SEC.headerHtml('🕐', '保安出勤 Attendance', 'AC SECURITY · ATTENDANCE');
 document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
-load();
 SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: pushSummary });
 PER.setMode('month');
 SEC.bindPeriodNav('pnav', PER, function () { renderAll(); });
@@ -269,28 +266,27 @@ document.getElementById('tabs').addEventListener('click', function (e) {
 });
 window.onmouseup = function () { DRAGGING = false; };
 window.onLangChange = renderAll;
-renderAll();
+SEC.dataReady().then(load).then(function () { renderAll(); }).catch(SEC.bootError);
 
-function addOnePerson() {
+async function addOnePerson() {
   var nm = prompt('輸入保安姓名：'); if (!nm) return;
   var sh = prompt('班別（A 早班 / B 中班 / C 夜班，可留空）：') || '';
   STAFF.push({ id: 'A' + Date.now().toString(36), empId: '', name: nm.trim(),
     shift: sh.trim().toUpperCase().replace(/[^ABC]/g, '').slice(0, 1), post: '', status: 'active', _fromAtt: true });
-  try {
-    var full = JSON.parse(localStorage.getItem(LS_STAFF) || '[]');
-    full.push({ id: 'A' + Date.now().toString(36), name: nm.trim(),
-      shift: sh.trim().toUpperCase().replace(/[^ABC]/g, '').slice(0, 1),
-      position: '保安員 Security Guard', status: 'active', remark: '（由出勤表建立）' });
-    SEC.safeStorageSet(LS_STAFF, JSON.stringify(full));
-  } catch (e) {}
+  var full = await SEC.dbGet(LS_STAFF, []);
+  full = Array.isArray(full) ? full : [];
+  full.push({ id: 'A' + Date.now().toString(36), name: nm.trim(),
+    shift: sh.trim().toUpperCase().replace(/[^ABC]/g, '').slice(0, 1),
+    position: '保安員 Security Guard', status: 'active', remark: '（由出勤表建立）' });
+  await SEC.dbPut(LS_STAFF, full);
   renderAll(); SEC.toast('✅ 已新增 ' + nm, 'ok');
 }
 function setBrush(s) {
   BRUSH = s;
   document.querySelectorAll('.pb').forEach(function (b) { b.classList.toggle('on', b.dataset.s === s); });
 }
-function syncStaff() {
-  loadStaff(); renderAll();
+async function syncStaff() {
+  await loadStaff(); renderAll();
   SEC.toast(STAFF.length ? '🔄 已同步 ' + STAFF.length + ' 位在職保安' : '⚠ 人員名冊是空的，請先到「保安人員」模組匯入', STAFF.length ? 'ok' : 'warn', 5000);
 }
 
@@ -673,16 +669,16 @@ function impExcel() {
     });
     /* 匯入時自動建立的人員寫回名冊，讓下次不用重建 */
     if (newStaff) {
-      try {
-        var full = JSON.parse(localStorage.getItem(LS_STAFF) || '[]');
+      SEC.dbGet(LS_STAFF, []).then(function (full) {
+        full = Array.isArray(full) ? full : [];
         STAFF.filter(function (x) { return x._fromAtt; }).forEach(function (x) {
           if (!full.some(function (y) { return y.name === x.name; })) {
             full.push({ id: x.id, empId: x.empId, name: x.name, shift: x.shift, post: x.post,
               position: '保安員 Security Guard', status: 'active', remark: '（由出勤表自動建立）' });
           }
         });
-        SEC.safeStorageSet(LS_STAFF, JSON.stringify(full));
-      } catch (e) {}
+        return SEC.dbPut(LS_STAFF, full);
+      }).catch(function () {});
     }
     ATT_LOG.sort(function (a, b) { return String(b.date + b.inTime).localeCompare(String(a.date + a.inTime)); });
     save(); renderAll();

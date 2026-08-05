@@ -147,14 +147,14 @@ body::before{
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260805c"></script>
+<script src="./shared/sec-core.js?v=20260805e"></script>
 <script>
 /* ═══ 模組定義（含本機筆數） ═══ */
 var MODS = [
   { id:'patrol',    u:'ac_sec_patrol_v2.html',    ic:'🚨', zh:'保安巡邏', en:'Patrol',     km:'ល្បាត',
-    sub:'PATROL',    keys:['ac_sec_patrol_db','ac_sec_patrol_scan'] },
+    sub:'PATROL',    keys:['ac_sec_patrol_db','ac_sec_patrol_scan','ac_sec_chipmap'] },
   { id:'cctv',      u:'ac_sec_cctv_v2.html',         ic:'📷', zh:'CCTV 監控', en:'CCTV',      km:'កាមេរ៉ា',
-    sub:'CCTV',      keys:['ac_sec_cctv_db'] },
+    sub:'CCTV',      keys:['ac_sec_cctv_db','ac_sec_cctv_log'] },
   { id:'container', u:'ac_sec_container_v2.html',    ic:'🚛', zh:'貨櫃出入', en:'Container',  km:'កុងតឺន័រ',
     sub:'CONTAINER', keys:['vrt_truck_v2','vr-container-inspections','vrt_v2'] },
   { id:'expense',   u:'ac_sec_expense_v1.html',   ic:'💰', zh:'保安費用', en:'Expense',    km:'ចំណាយ',
@@ -169,24 +169,22 @@ var MODS = [
     sub:'PERSONNEL', keys:['ac_sec_personnel_db'] },
 ];
 
-function cnt(keys) {
+async function cnt(keys) {
   var n = 0;
-  keys.forEach(function (k) {
-    try {
-      var raw = localStorage.getItem(k); if (!raw) return;
-      var d = JSON.parse(raw);
-      if (Array.isArray(d)) n += d.length;
-      else if (d && Array.isArray(d.records)) n += d.records.length;
-      else if (d && typeof d === 'object') n += Object.keys(d).length;
-    } catch (e) {}
+  var vals = await Promise.all(keys.map(function (k) { return SEC.dbGet(k, null); }));
+  vals.forEach(function (d) {
+    if (Array.isArray(d)) n += d.length;
+    else if (d && Array.isArray(d.records)) n += d.records.length;
+    else if (d && typeof d === 'object') n += Object.keys(d).length;
   });
   return n;
 }
 
-function renderGrid() {
+async function renderGrid() {
   var L = SEC.lang();
-  document.getElementById('grid').innerHTML = MODS.map(function (m) {
-    var n = cnt(m.keys);
+  var counts = await Promise.all(MODS.map(function (m) { return cnt(m.keys); }));
+  document.getElementById('grid').innerHTML = MODS.map(function (m, i) {
+    var n = counts[i];
     return '<a class="mod-btn" href="' + m.u + '">' +
       (n ? '<span class="mb-n">' + (n > 9999 ? '9k+' : n) + '</span>' : '') +
       '<span class="mb-ic">' + m.ic + '</span>' +
@@ -212,9 +210,9 @@ function applyLang() {
   renderGrid();
 }
 document.querySelectorAll('.lb').forEach(function (b) {
-  b.onclick = function () { SEC.setLang(b.dataset.l); applyLang(); };
+  b.onclick = function () { SEC.dataReady().then(function () { SEC.setLang(b.dataset.l); applyLang(); }).catch(SEC.bootError); };
 });
-applyLang();
+SEC.dataReady().then(applyLang).catch(SEC.bootError);
 
 /* ═══ 雲端狀態 ═══ */
 var lastTs = '';
