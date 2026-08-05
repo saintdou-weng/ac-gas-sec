@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="stylesheet" href="./shared/sec.css">
+<link rel="stylesheet" href="./shared/sec.css?v=20260805">
 </head>
 <body>
 <div id="hdr"></div>
@@ -194,7 +194,7 @@
 <button class="btn" onclick="saveAdd()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js"></script>
+<script src="./shared/sec-core.js?v=20260805"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -232,7 +232,7 @@ load();
 SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: pushSummary });
 SEC.bindPeriodNav('pnav', PER, renderAll);
 document.getElementById('tabs').addEventListener('click', function (e) {
-  var b = e.target.closest('.tab'); if (!b) return;
+  var b = SEC.closest(e.target, '.tab'); if (!b) return;
   document.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('on'); });
   b.classList.add('on');
   document.querySelectorAll('.page').forEach(function (p) { p.style.display = 'none'; });
@@ -458,7 +458,8 @@ function renderAna() {
   chart('ch4', 'bar', dk, [{ label: '遲到人次', data: dk.map(function (k) { return d[k]; }), backgroundColor: '#fbbf24' }]);
 }
 function chart(id, type, labels, ds) {
-  var el = document.getElementById(id); if (!el) return;
+ var el = document.getElementById(id); if (!el) return;
+  if (typeof Chart === 'undefined') { el.parentNode.innerHTML = '<div class="empty" style="padding:30px">📊 圖表元件未載入，表格功能仍可使用；請重新整理後再試。</div>'; return; }
   if (CH[id]) CH[id].destroy();
   CH[id] = new Chart(el, { type: type, data: { labels: labels, datasets: ds },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
@@ -724,14 +725,19 @@ async function doUpload() {
   await SEC.cloudPush(TOOL, all, { car: CAR.length, bike: BIKE.length, gate: GATE.length, late: LATE.length });
 }
 async function doDownload() {
-  if (!confirm('⬇️☁ 下載會覆蓋本機通勤資料，確定？')) return;
+  if (!confirm('⬇️☁ 下載會與本機通勤資料合併；相同紀錄更新，較多資料保留。繼續？')) return;
   var recs = await SEC.cloudPull(TOOL);
   if (!recs) return;
-  CAR = recs.filter(function (r) { return r._k === 'car'; });
-  BIKE = recs.filter(function (r) { return r._k === 'bike'; });
-  GATE = recs.filter(function (r) { return r._k === 'gate'; });
-  LATE = recs.filter(function (r) { return r._k === 'late'; });
-  save(); renderAll(); SEC.toast('⬇️☁ 已下載 ' + recs.length + ' 筆', 'ok');
+  var local = CAR.map(function (r) { return Object.assign({_k:'car'}, r); })
+    .concat(BIKE.map(function (r) { return Object.assign({_k:'bike'}, r); }))
+    .concat(GATE.map(function (r) { return Object.assign({_k:'gate'}, r); }))
+    .concat(LATE.map(function (r) { return Object.assign({_k:'late'}, r); }));
+  var m = SEC.mergeRecords(TOOL, local, recs);
+  CAR = m.records.filter(function (r) { return r._k === 'car'; });
+  BIKE = m.records.filter(function (r) { return r._k === 'bike'; });
+  GATE = m.records.filter(function (r) { return r._k === 'gate'; });
+  LATE = m.records.filter(function (r) { return r._k === 'late'; });
+  save(); renderAll(); SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，共 ' + m.records.length + ' 筆', 'ok', 5000);
 }
 function pushSummary() {
   var c = inP(CAR), b = inP(BIKE), l = inP(LATE);
@@ -740,7 +746,7 @@ function pushSummary() {
   var rep = Object.keys(uniq).filter(function (k) { return uniq[k] >= 3; });
   var avgB = b.length ? Math.round(b.reduce(function (s, r) { return s + (+r.total || 0); }, 0) / b.length) : 0;
   var g = inP(GATE);
-  var txt = SEC.sumHeader('🏍','通勤交通摘要','Commute Summary','សង្ខេបដំណើរ',PER) +
+  var txt = '🏍 <b>通勤交通摘要</b> · ' + PER.label() + '\n─────────────\n' +
     '🚐 車輛派遣：<b>' + c.length + '</b> 趟 · <b>' + Math.round(km).toLocaleString() + '</b> KM\n' +
     '🚛 車輛出入閘：<b>' + g.length + '</b> 次 · 乘客 ' + g.reduce(function (s2, r) { return s2 + (+r.pax || 0); }, 0) + ' 人次\n' +
     '🏍 摩托車平均每日：<b>' + avgB + '</b> 台\n' +
@@ -750,7 +756,7 @@ function pushSummary() {
     txt += '\n<b>重複遲到名單</b>\n';
     rep.slice(0, 10).forEach(function (k) { txt += '· ' + k + '：' + uniq[k] + ' 次\n'; });
   }
-  SEC.tgSummary(txt, 'commute', '', PER);
+  SEC.tgSummary(txt, 'commute');
 }
 </script>
 </body>

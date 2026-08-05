@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="stylesheet" href="./shared/sec.css">
+<link rel="stylesheet" href="./shared/sec.css?v=20260805">
 <style>
 #gridT{border-collapse:separate;border-spacing:0;font-size:11px;white-space:nowrap}
 #gridT th,#gridT td{padding:0;border:none}
@@ -174,8 +174,7 @@
     <div class="card">
       <h3>💾 <span data-zh="資料工具" data-en="Data Tools" data-km="ឧបករណ៍">資料工具</span></h3>
       <div class="row">
-        <button class="btn" onclick="impExcel()">🕐 <span data-zh="匯入實際打卡出勤表" data-en="Import attendance" data-km="នាំចូលវត្តមាន">匯入實際打卡出勤表</span></button>
-        <button class="btn" onclick="impRoster()">🗓 <span data-zh="匯入 Security Roaster 排班表" data-en="Import roster" data-km="នាំចូលតារាងវេន">匯入 Security Roaster 排班表</span></button>
+        <button class="btn" onclick="impExcel()">📥 <span data-zh="匯入出勤 Excel" data-en="Import attendance" data-km="នាំចូល">匯入出勤 Excel</span></button>
         <button class="btn gh" onclick="expGrid()">📊 <span data-zh="匯出排班表" data-en="Export roster" data-km="នាំចេញ">匯出排班表</span></button>
         <button class="btn gh" onclick="doBackup()">💾 <span data-t="backup">備份 JSON</span></button>
         <button class="btn gh" onclick="restore()">📂 <span data-t="restore">還原 JSON</span></button>
@@ -183,12 +182,6 @@
       </div>
       <div class="sep"></div>
       <p class="hint">
-        <b>🕐 實際打卡出勤表</b>：讀 Attendance_for_Night_shift / Attendance_fo_Day_Shift 那種格式 —
-        標題列有 No / ID / NAME / LOCATION / COMPANY，後面每欄一天，格內是<b>實際打卡時間</b>（如 <code>17:47PM</code>、
-        <code>06:56AM 16:29PM</code>）或 <code>DayOff</code>。有打卡＝出勤，DayOff＝例休，SL/AL/PL/ML/BT/FL＝請假。
-        <b>每個分頁是一個月，會自動分別寫入對應月份</b>，匯入完自動跳到資料最多的月份。<br><br>
-        <b>🗓 Security Roaster 排班表</b>：讀 NO./Name/ID NO/Schedule/Company/Sex/Post + 每日 D（日班）/ N（夜班）。
-        會一併建立人員、班別、崗位、保安公司。<br><br>
         <b>匯入格式</b>：第一欄姓名（或工號），其後每欄一天（1、2、3… 或日期），格內填 W/O/R/L/A/H 或 ✓/○/×。
         也接受「姓名 / 日期 / 狀態」三欄的長格式，會自動判斷。<br>
         <b>人員來源</b>：出勤表的人員直接讀「保安人員」模組的名冊（<code>ac_sec_personnel_db</code>），
@@ -207,7 +200,7 @@
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js"></script>
+<script src="./shared/sec-core.js?v=20260805"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -534,7 +527,7 @@ function pushFee() {
       txt += '· ' + x.n + '：' + x.hrs + ' hr（' + (x.dHr > 0 ? '+' : '') + x.dHr + '）\n';
     });
   } else { txt += '\n✅ 全員工時與合約相符。'; }
-  SEC.tgSummary(txt, 'attendance', '', PER);
+  SEC.tgSummary(txt, 'attendance');
 }
 
 /* ═══ 統計 ═══ */
@@ -584,44 +577,14 @@ function normalizeShift(v, fileName) {
   if (/day|早班|日班|daytime/.test(s)) return 'A';
   return '';
 }
-/* 判斷這個工作表屬於哪個年月。
-   ⚠ 先用「分頁名稱」比對整個詞，再找獨立的月份標籤儲存格；
-   絕不掃整片文字，否則 "Remark" 會被當成 March、"Manual" 會被當成…等等。 */
-var MON_ABBR = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
-function monthFromText(t) {
-  var v = String(t || '').toLowerCase().replace(/[^a-z]/g, '');
-  if (!v) return -1;
-  for (var i = 0; i < MONTHS.length; i++) {
-    if (v === MONTHS[i] || v === MON_ABBR[i]) return i;             /* 完全等於 */
-  }
-  for (var j = 0; j < MONTHS.length; j++) {
-    if (v.indexOf(MONTHS[j]) === 0) return j;                        /* 開頭是完整月名 */
-  }
-  for (var k = 0; k < MONTHS.length; k++) {
-    if (v === MON_ABBR[k] + 'uary' || v === MON_ABBR[k] + 'ch' ||
-        v === MON_ABBR[k] + 'e' || v === MON_ABBR[k] + 'y') return k;
-  }
-  return -1;
-}
 function sheetPeriod(sh) {
-  var rows = sh.rows || [];
-  var mon = monthFromText(sh.name);                                  /* ① 分頁名稱優先 */
-  var yr = '';
-  /* ② 掃前 10 列，找「單獨一格就是月份」的儲存格（如 "July"、"January,2026"） */
-  for (var r = 0; r < Math.min(rows.length, 10); r++) {
-    var R = rows[r] || [];
-    for (var c = 0; c < R.length; c++) {
-      var cell = String(R[c] == null ? '' : R[c]).trim();
-      if (!cell) continue;
-      var ym = cell.match(/20\d{2}/);
-      if (ym && !yr) yr = ym[0];
-      if (mon >= 0) continue;
-      var m2 = monthFromText(cell.split(/[,，\s]/)[0]);
-      if (m2 >= 0) mon = m2;
-    }
-  }
+  var text = (sh.rows || []).slice(0, 8).map(function (r) { return (r || []).join(' '); }).join(' ');
+  var all = String(sh.name || '') + ' ' + text;
+  var mon = -1, low = all.toLowerCase();
+  MONTHS.some(function (m, i) { if (low.indexOf(m) >= 0 || low.indexOf(m.slice(0, 3)) >= 0) { mon = i; return true; } return false; });
   if (mon < 0) mon = PER.at.getMonth();
-  if (!yr) yr = String(PER.at.getFullYear());
+  var yrm = all.match(/20\d{2}/);
+  var yr = yrm ? yrm[0] : String(PER.at.getFullYear());
   return yr + '-' + SEC.p2(mon + 1);
 }
 function normalizePunch(v) {
@@ -665,13 +628,12 @@ function findAttendanceHeader(rows) {
 }
 function impExcel() {
   SEC.pickExcel(function (sheets) {
-    var added = 0, rawAdded = 0, newStaff = 0, log = [], monthHits = {};
+    var added = 0, rawAdded = 0, newStaff = 0, log = [];
     sheets.forEach(function (sh) {
       var rows = sh.rows;
       var h = findAttendanceHeader(rows), targetYm = sheetPeriod(sh);
       if (!h) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：非月曆式出勤表，略過'); return; }
       var M = ATT[targetYm] || (ATT[targetYm] = {}), n = 0, rn = 0;
-      monthHits[targetYm] = monthHits[targetYm] || 0;
       var shift = normalizeShift(rows.slice(0, 8).map(function (r) { return (r || []).join(' '); }).join(' '), sh.fileName || '');
       for (var i = h.row + 1; i < rows.length; i++) {
         var R2 = rows[i] || [];
@@ -707,8 +669,7 @@ function impExcel() {
         });
         added++;
       }
-      monthHits[targetYm] += n;
-      log.push('· <b>' + SEC.esc(sh.name) + '</b> → 寫入 <b>' + targetYm + '</b>，' + n + ' 格（標題第 ' + (h.row + 1) + ' 列）');
+      log.push('· <b>' + SEC.esc(sh.name) + '</b>：寫入 <b>' + targetYm + '</b>、' + n + ' 格、' + rawAdded + ' 筆原始打卡（標題第 ' + (h.row + 1) + ' 列）');
     });
     /* 匯入時自動建立的人員寫回名冊，讓下次不用重建 */
     if (newStaff) {
@@ -724,119 +685,12 @@ function impExcel() {
       } catch (e) {}
     }
     ATT_LOG.sort(function (a, b) { return String(b.date + b.inTime).localeCompare(String(a.date + a.inTime)); });
-    /* 自動跳到寫入資料最多的月份，避免「匯入了卻看不到」 */
-    var best = '', bestN = 0;
-    Object.keys(monthHits).forEach(function (m) { if (monthHits[m] > bestN) { bestN = monthHits[m]; best = m; } });
-    if (best) {
-      var pm = best.split('-');
-      PER.setMode('month');
-      PER.at = new Date(+pm[0], +pm[1] - 1, 1);
-      var nav = document.getElementById('pnav');
-      if (nav) SEC.bindPeriodNav('pnav', PER, renderAll);
-    }
     save(); renderAll();
-    var mList = Object.keys(monthHits).filter(function (m) { return monthHits[m]; }).sort();
-    document.getElementById('impLog').innerHTML =
-      '<b>匯入結果</b>：共寫入 <b>' + mList.length + '</b> 個月份 — ' +
-      mList.map(function (m) { return m + '(' + monthHits[m] + ')'; }).join('、') +
-      (best ? '<br>📅 已自動切換到 <b>' + best + '</b> 顯示' : '') + '<br>' + log.join('<br>') +
+    document.getElementById('impLog').innerHTML = '<b>匯入結果（寫入 ' + ym() + '）</b><br>' + log.join('<br>') +
       (newStaff ? '<br>➕ 自動建立 <b>' + newStaff + '</b> 位新人員（已寫回名冊）' : '');
-    SEC.toast(added ? '✅ 匯入 ' + mList.length + ' 個月份、' + rawAdded + ' 筆打卡' + (best ? '，已跳到 ' + best : '') : '⚠ 未匯入，請看偵測記錄', added ? 'ok' : 'warn', 6000);
+    SEC.toast(added ? '✅ 匯入 ' + added + ' 人、' + rawAdded + ' 筆原始打卡' + (newStaff ? '（新增 ' + newStaff + ' 人）' : '') : '⚠ 未匯入，請看偵測記錄', added ? 'ok' : 'warn', 5000);
   });
 }
-/* ═══ Security Roaster 排班表匯入（Name/ID NO/Schedule/Company/Sex/Post + 每日 D/N）═══ */
-function impRoster() {
-  SEC.pickExcel(function (sheets) {
-    var newStaff = 0, log = [], monthHits = {}, cells = 0;
-    sheets.forEach(function (sh) {
-      var rows = sh.rows, hr = -1, map = {}, days = {};
-      for (var r = 0; r < Math.min(rows.length, 14); r++) {
-        var R = rows[r] || [], m = {}, d = {};
-        for (var c = 0; c < R.length; c++) {
-          var a = SEC.norm(R[c]);
-          if (m.name === undefined && (a === 'name' || a === '姓名')) m.name = c;
-          if (m.id   === undefined && (a === 'idno' || a === 'id' || a === '工號')) m.id = c;
-          if (m.sched=== undefined && (a === 'schedule' || a === '班別')) m.sched = c;
-          if (m.co   === undefined && (a === 'company' || a === '公司')) m.co = c;
-          if (m.sex  === undefined && (a === 'sex' || a === '性別')) m.sex = c;
-          if (m.post === undefined && (a === 'post' || a === 'location' || a === '崗位')) m.post = c;
-          var t = String(R[c] == null ? '' : R[c]).trim();
-          if (/^\d{1,2}$/.test(t)) { var dn = +t; if (dn >= 1 && dn <= 31) d[c] = SEC.p2(dn); }
-        }
-        if (m.name !== undefined && Object.keys(d).length >= 10) { hr = r; map = m; days = d; break; }
-      }
-      if (hr < 0) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：非排班表格式，略過'); return; }
-      var targetYm = sheetPeriod(sh);
-      var M = ATT[targetYm] || (ATT[targetYm] = {});
-      monthHits[targetYm] = monthHits[targetYm] || 0;
-      var n = 0;
-      for (var i = hr + 1; i < rows.length; i++) {
-        var R2 = rows[i] || [];
-        var nm = SEC.str(R2[map.name]); if (!nm) continue;
-        if (/^(no|name|total|合計)$/i.test(SEC.norm(nm))) continue;
-        var empId = map.id === undefined ? '' : SEC.str(R2[map.id]);
-        var schedRaw = map.sched === undefined ? '' : SEC.str(R2[map.sched]);
-        var shift = /night|夜/i.test(schedRaw) ? 'C' : /day|日/i.test(schedRaw) ? 'A' : '';
-        var post = map.post === undefined ? '' : SEC.str(R2[map.post]);
-        var co   = map.co === undefined ? '' : SEC.str(R2[map.co]);
-        var st = STAFF.filter(function (x) {
-          return (empId && String(x.empId) === empId) || x.name === nm || SEC.norm(x.name) === SEC.norm(nm);
-        })[0];
-        if (!st) {
-          st = { id: 'R' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
-                 empId: empId, name: nm, shift: shift, post: post, status: 'active', _fromAtt: true };
-          STAFF.push(st); newStaff++;
-        } else {
-          if (shift) st.shift = shift;
-          if (post && !st.post) st.post = post;
-        }
-        if (co) st.company = co;
-        var k = key(st);
-        if (!M[k]) M[k] = {};
-        Object.keys(days).forEach(function (c) {
-          var v = SEC.str(R2[c]).toUpperCase();
-          if (!v) return;
-          var code = (v === 'D' || v === 'N') ? 'W'
-                   : /NEW YEAR|HOLIDAY|假/i.test(v) ? 'H'
-                   : /^(SL|AL|PL|ML|BT|FL|L)$/.test(v) ? 'L'
-                   : /^(A|ABSENT)$/.test(v) ? 'A' : '';
-          if (code) { M[k][days[c]] = code; n++; cells++; }
-        });
-      }
-      monthHits[targetYm] += n;
-      log.push('· <b>' + SEC.esc(sh.name) + '</b> → <b>' + targetYm + '</b>，' + n + ' 格（標題第 ' + (hr + 1) + ' 列）');
-    });
-    if (newStaff) {
-      try {
-        var full = JSON.parse(localStorage.getItem(LS_STAFF) || '[]');
-        STAFF.filter(function (x) { return x._fromAtt; }).forEach(function (x) {
-          if (!full.some(function (y) { return y.name === x.name; })) {
-            full.push({ id: x.id, empId: x.empId, name: x.name, shift: x.shift, post: x.post,
-              position: '保安員 Security Guard', status: 'active',
-              remark: (x.company ? '保安公司 ' + x.company + '｜' : '') + '（由排班表建立）' });
-          }
-        });
-        localStorage.setItem(LS_STAFF, JSON.stringify(full));
-      } catch (e) {}
-    }
-    var best = '', bestN = 0;
-    Object.keys(monthHits).forEach(function (m) { if (monthHits[m] > bestN) { bestN = monthHits[m]; best = m; } });
-    if (best) {
-      var pm = best.split('-');
-      PER.setMode('month'); PER.at = new Date(+pm[0], +pm[1] - 1, 1);
-      SEC.bindPeriodNav('pnav', PER, renderAll);
-    }
-    save(); renderAll();
-    var mList = Object.keys(monthHits).filter(function (m) { return monthHits[m]; }).sort();
-    document.getElementById('impLog').innerHTML =
-      '<b>排班表匯入結果</b>：' + mList.length + ' 個月份 — ' +
-      mList.map(function (m) { return m + '(' + monthHits[m] + ')'; }).join('、') +
-      (best ? '<br>📅 已切換到 <b>' + best + '</b>' : '') + '<br>' + log.join('<br>') +
-      (newStaff ? '<br>➕ 自動建立 <b>' + newStaff + '</b> 位人員' : '');
-    SEC.toast(cells ? '✅ 排班匯入 ' + mList.length + ' 個月、' + cells + ' 格' + (best ? '，已跳到 ' + best : '') : '⚠ 未匯入', cells ? 'ok' : 'warn', 6000);
-  });
-}
-
 function expGrid() {
   var nd = daysInMonth(), M = monthMap();
   var head = ['工號','姓名','班別','崗位'];
@@ -888,7 +742,7 @@ async function doDownload() {
 function pushSummary() {
   var tw = 0, thr = 0, ta = 0, tl = 0;
   STAFF.forEach(function (r) { var s = stats(r); tw += s.c.W + s.c.O; thr += s.hrs; ta += s.c.A; tl += s.c.L; });
-  var txt = SEC.sumHeader('🕐','保安出勤摘要','Attendance Summary','សង្ខេបវត្តមាន',PER) +
+  var txt = '🕐 <b>保安出勤摘要</b> · ' + ym() + '\n─────────────\n' +
     '👮 在職人數：<b>' + STAFF.length + '</b>\n' +
     '📅 出勤人日：<b>' + tw + '</b>\n' +
     '⏱ 總工時：<b>' + thr.toLocaleString() + '</b> hr\n' +
@@ -901,7 +755,7 @@ function pushSummary() {
     txt += '\n<b>⚠️ 曠職 2 天以上</b>\n';
     bad.forEach(function (r) { txt += '· ' + r.name + '：' + stats(r).c.A + ' 天\n'; });
   }
-  SEC.tgSummary(txt, 'attendance', '', PER);
+  SEC.tgSummary(txt, 'attendance');
 }
 </script>
 </body>
