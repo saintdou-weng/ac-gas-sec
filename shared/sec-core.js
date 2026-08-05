@@ -16,13 +16,72 @@ var DEFAULTS = {
   lang    : 'zh',
   route   : 'review',
 };
+var MEM_CFG = null;
+var STORAGE_WARNED = false;
+
+/* localStorage 滿時不能讓初始化中斷。只整理同步時間標記，絕不刪除業務資料。 */
+function storageQuota(e) {
+  var s = String(e && (e.name || e.message) || e || '').toLowerCase();
+  return s.indexOf('quota') >= 0 || s.indexOf('storage') >= 0 || s.indexOf('exceed') >= 0;
+}
+function storageWarn() {
+  if (STORAGE_WARNED) return;
+  STORAGE_WARNED = true;
+  try { toast('⚠ 本機儲存空間已滿：設定仍可使用，但新資料暫存於本分頁；請先匯出或下載雲端資料，再清理舊網站資料。', 'warn', 8000); } catch (_) {}
+}
+function clearSyncMarkers() {
+  try {
+    for (var i = localStorage.length - 1; i >= 0; i--) {
+      var k = localStorage.key(i);
+      if (k && /^ac_sec_sync_/.test(k)) localStorage.removeItem(k);
+    }
+  } catch (_) {}
+}
+function safeStorageGet(key) {
+  var v = null;
+  if (key === CFG_KEY) {
+    try { v = sessionStorage.getItem(key); } catch (_) {}
+    if (v) return v;
+  }
+  try { v = localStorage.getItem(key); } catch (_) {}
+  if (v) return v;
+  if (key !== CFG_KEY) {
+    try { v = sessionStorage.getItem(key); } catch (_) {}
+  }
+  return v;
+}
+function safeStorageSet(key, value) {
+  try { localStorage.setItem(key, value); return true; } catch (e) {
+    /* 設定可能是舊版留下的巨大物件；先只移除設定本身再寫入精簡版。 */
+    if (key === CFG_KEY) {
+      try { localStorage.removeItem(CFG_KEY); localStorage.setItem(key, value); return true; } catch (_) {}
+    }
+    if (storageQuota(e)) clearSyncMarkers();
+    try { localStorage.setItem(key, value); return true; } catch (_) {}
+    try { sessionStorage.setItem(key, value); storageWarn(); return true; } catch (_) {}
+    storageWarn();
+    return false;
+  }
+}
+function normalizeCfg(c) {
+  c = c || {};
+  return {
+    gasUrl: c.gasUrl == null ? DEFAULTS.gasUrl : String(c.gasUrl).slice(0, 1000),
+    tgToken: c.tgToken == null ? DEFAULTS.tgToken : String(c.tgToken).slice(0, 500),
+    tgChat: c.tgChat == null ? DEFAULTS.tgChat : String(c.tgChat).slice(0, 120),
+    operator: c.operator == null ? '' : String(c.operator).slice(0, 120),
+    lang: ['zh','en','km'].indexOf(c.lang) >= 0 ? c.lang : DEFAULTS.lang,
+    route: c.route === 'direct' ? 'direct' : 'review',
+  };
+}
 function getCfg() {
-  try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem(CFG_KEY) || '{}')); }
-  catch (e) { return Object.assign({}, DEFAULTS); }
+  var raw = safeStorageGet(CFG_KEY), saved = {};
+  try { saved = raw ? JSON.parse(raw) : {}; } catch (_) { saved = {}; }
+  return normalizeCfg(Object.assign({}, DEFAULTS, saved, MEM_CFG || {}));
 }
 function setCfg(o) {
-  var c = Object.assign(getCfg(), o || {});
-  localStorage.setItem(CFG_KEY, JSON.stringify(c));
+  var c = normalizeCfg(Object.assign({}, getCfg(), o || {}));
+  if (!safeStorageSet(CFG_KEY, JSON.stringify(c))) MEM_CFG = c;
   return c;
 }
 
@@ -302,7 +361,7 @@ async function cloudPull(tool) {
   }
 }
 function markSync(tool) {
-  localStorage.setItem('ac_sec_sync_' + tool, nowStr());
+  safeStorageSet('ac_sec_sync_' + tool, nowStr());
   var ts = document.querySelector('.c-ts'); if (ts) ts.textContent = nowStr();
 }
 function lastSync(tool) { return localStorage.getItem('ac_sec_sync_' + tool) || '—'; }
@@ -719,7 +778,7 @@ function closeModal(id) { var m = document.getElementById(id); if (m) m.classLis
 G.SEC = {
   CFG_KEY:CFG_KEY, getCfg:getCfg, setCfg:setCfg,
   p2:p2, ymd:ymd, hm:hm, nowStr:nowStr, parseD:parseD, num:num, str:str, esc:esc,
-  closest:closest, bootError:bootError,
+  closest:closest, bootError:bootError, safeStorageGet:safeStorageGet, safeStorageSet:safeStorageSet,
   Period:Period, periodNavHtml:periodNavHtml, bindPeriodNav:bindPeriodNav,
   T:T, lang:lang, setLang:setLang, applyI18n:applyI18n, I18N:BASE_I18N,
   toast:toast, gasPost:gasPost, cloudPush:cloudPush, cloudPull:cloudPull,
