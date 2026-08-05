@@ -139,7 +139,7 @@ function bindPeriodNav(id, period, onChange) {
     var lb = el.querySelector('.plabel'); if (lb) lb.textContent = period.label();
   }
   el.addEventListener('click', function (ev) {
-    var b = closest(ev.target, 'button'); if (!b) return;
+    var b = ev.target.closest('button'); if (!b) return;
     if (b.dataset.m)     period.setMode(b.dataset.m);
     else if (b.dataset.n) period.shift(parseInt(b.dataset.n, 10));
     else if (b.dataset.today) period.today();
@@ -148,16 +148,6 @@ function bindPeriodNav(id, period, onChange) {
   });
   paint();
   return paint;
-}
-
-/* 舊版 Android WebView／部分內嵌瀏覽器沒有 Element.closest。 */
-function closest(el, selector) {
-  var n = el;
-  while (n && n !== document) {
-    if (n.matches && n.matches(selector)) return n;
-    n = n.parentElement || n.parentNode;
-  }
-  return null;
 }
 
 /* ───────── 三語 ───────── */
@@ -233,19 +223,12 @@ function esc(s) {
 async function gasPost(payload) {
   var c = getCfg();
   if (!c.gasUrl) { toast('⚠ 請先在 ⚙️ 設定填入 GAS URL', 'warn'); throw new Error('no gas url'); }
-  var res;
-  try {
-    res = await fetch(c.gasUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload),
-    });
-  } catch (e) {
-    throw new Error('GAS 網路連線失敗，請確認 /exec 網址與網路狀態');
-  }
-  var raw = await res.text(), j;
-  try { j = JSON.parse(raw); } catch (e) { throw new Error('GAS 回傳不是 JSON：' + raw.slice(0, 120)); }
-  if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
+  var res = await fetch(c.gasUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload),
+  });
+  var j = await res.json();
   if (j && j.ok === false) throw new Error(j.error || 'GAS error');
   return (j && j.data !== undefined) ? j.data : j;
 }
@@ -260,14 +243,13 @@ async function cloudPush(tool, records, summary, extra) {
       var per = Math.max(1, Math.floor(records.length / Math.ceil(json.length / LIMIT)));
       var total = Math.ceil(records.length / per);
       for (var i = 0; i < total; i++) {
-        await gasPost({ action:'push', tool:tool, chunk:i, totalChunks:total, syncMode:'merge',
+        await gasPost({ action:'push', tool:tool, chunk:i, totalChunks:total,
           records: records.slice(i*per, (i+1)*per),
-          recordCount: records.length, summary: summary || {}, extra: i === total - 1 ? (extra || {}) : {} });
+          recordCount: records.length, summary: summary || {} });
       }
     } else {
-      var result = await gasPost({ action:'push', tool:tool, syncMode:'merge', records: records || [],
+      await gasPost({ action:'push', tool:tool, records: records || [],
         recordCount: (records||[]).length, summary: summary || {}, extra: extra || {} });
-      if (result && result.keptExisting) toast('ℹ️ 雲端原有較完整資料，已合併保留，沒有刪除較多筆數', 'warn', 5000);
     }
     markSync(tool);
     if (dot) dot.className = 'c-dot ok';
@@ -291,8 +273,6 @@ async function cloudPull(tool) {
         recs = recs.concat(c.records || []);
       }
     } else { recs = (r && r.records) || []; }
-    recs._cloudExtra = (r && r.extra) || {};
-    recs._cloudMeta = (r && r.meta) || {};
     if (dot) dot.className = 'c-dot ok';
     return recs;
   } catch (e) {
@@ -307,43 +287,40 @@ function markSync(tool) {
 }
 function lastSync(tool) { return localStorage.getItem('ac_sec_sync_' + tool) || '—'; }
 
-/* 雲端／Excel 合併工具：同一筆更新，新增筆保留，絕不因較少資料而清空本機。 */
-function recordKey(tool, r, i) {
-  r = r || {};
-  if (r.id !== undefined && r.id !== '') return tool + '|id|' + r.id;
-  if (r.code !== undefined && r.code !== '') return tool + '|code|' + r.code;
-  if (r._k !== undefined && r._k !== '') return tool + '|kind|' + r._k + '|' + (r.empId || r.name || r.date || i);
-  if (r.month && (r.empId || r.name)) return tool + '|month|' + r.month + '|' + (r.empId || r.name);
-  if (r.date && (r.empId || r.name)) return tool + '|date|' + r.date + '|' + (r.empId || r.name);
-  if (r.date && r.time && (r.guard || r.person || r.name)) return tool + '|event|' + r.date + '|' + r.time + '|' + (r.guard || r.person || r.name) + '|' + (r.location || r.c || '');
-  if (r.t && (r.c || r.g)) return tool + '|scan|' + r.t + '|' + r.c + '|' + (r.g || '');
-  return tool + '|row|' + i + '|' + JSON.stringify(r);
+/* ───────── Telegram 摘要（自動附平台按鈕，由 GAS 加） ───────── */
+/* ───────── 三語摘要工具 ─────────
+   L3('日期','Date','កាលបរិច្ឆេទ') → 依目前語言取字；
+   L3x(...) → 一行同時輸出三語（推送到群組時三種語言都看得到）。 */
+function L3(zh, en, km) { return _lang === 'en' ? (en || zh) : _lang === 'km' ? (km || en || zh) : zh; }
+function L3x(zh, en, km) {
+  var parts = [zh];
+  if (en && en !== zh) parts.push(en);
+  if (km && km !== en) parts.push(km);
+  return parts.join(' / ');
 }
-function mergeRecords(tool, local, incoming) {
-  var out = Array.isArray(local) ? local.slice() : [], pos = {};
-  out.forEach(function (r, i) { pos[recordKey(tool, r, i)] = i; });
-  var added = 0, updated = 0;
-  (Array.isArray(incoming) ? incoming : []).forEach(function (r, i) {
-    var k = recordKey(tool, r, i);
-    if (pos[k] === undefined) { pos[k] = out.length; out.push(r); added++; }
-    else { out[pos[k]] = Object.assign({}, out[pos[k]], r); updated++; }
-  });
-  return { records: out, added: added, updated: updated, kept: Math.max(0, out.length - (incoming || []).length) };
+/* 期間標籤三語 */
+var PER_LBL = { day:['日','Day','ថ្ងៃ'], week:['週','Week','សប្តាហ៍'],
+                month:['月','Month','ខែ'], year:['年','Year','ឆ្នាំ'] };
+function perLabel3(mode) { var a = PER_LBL[mode] || PER_LBL.month; return L3x(a[0], a[1], a[2]); }
+
+/* 摘要標頭：模組名 + 期間（三語）+ 期間區間 */
+function sumHeader(icon, zh, en, km, period) {
+  var h = icon + ' <b>' + L3x(zh, en, km) + '</b>\n';
+  if (period) {
+    h += '📅 ' + L3x('期間', 'Period', 'រយៈពេល') + '（' + perLabel3(period.mode) + '）：<b>' +
+         period.label() + '</b>\n';
+  }
+  return h + '─────────────\n';
 }
-function mergeObject(local, incoming) {
-  var out = Object.assign({}, local || {});
-  Object.keys(incoming || {}).forEach(function (k) {
-    if (Array.isArray(out[k]) && Array.isArray(incoming[k])) out[k] = mergeRecords('extra-' + k, out[k], incoming[k]).records;
-    else if (incoming[k] && typeof incoming[k] === 'object' && out[k] && typeof out[k] === 'object' && !Array.isArray(incoming[k])) out[k] = mergeObject(out[k], incoming[k]);
-    else if (incoming[k] !== undefined) out[k] = incoming[k];
-  });
-  return out;
+/* 三語條目：· 標籤 zh / en / km：值 */
+function sumLine(icon, zh, en, km, val) {
+  return (icon ? icon + ' ' : '') + L3x(zh, en, km) + '：<b>' + val + '</b>\n';
 }
 
-/* ───────── Telegram 摘要（自動附平台按鈕，由 GAS 加） ───────── */
-async function tgSummary(text, module, photo) {
+async function tgSummary(text, module, photo, period) {
   try {
-    await gasPost({ action:'telegram', text:text, module:module||'', lang:_lang, photo:photo||'' });
+    await gasPost({ action:'telegram', text:text, module:module||'', lang:_lang,
+                    photo:photo||'', periodMode:(period && period.mode) || 'month' });
     toast('✈️ Telegram 已送出', 'ok'); return true;
   } catch (e) { toast('❌ Telegram 失敗：' + e.message, 'err'); return false; }
 }
@@ -361,7 +338,7 @@ function routePickerHtml(id) {
 function bindRoutePicker(id) {
   var el = document.getElementById(id); if (!el) return;
   el.addEventListener('click', function (ev) {
-    var o = closest(ev.target, '.route-opt'); if (!o) return;
+    var o = ev.target.closest('.route-opt'); if (!o) return;
     el.querySelectorAll('.route-opt').forEach(function (x) { x.classList.remove('on'); });
     o.classList.add('on');
     setCfg({ route: o.dataset.r });
@@ -448,16 +425,11 @@ function viewPhoto(i, el) {
 function readWorkbook(file, cb) {
   var fr = new FileReader();
   fr.onload = function (e) {
-    try {
-      if (typeof XLSX === 'undefined') throw new Error('Excel 元件尚未載入');
-      var wb = XLSX.read(new Uint8Array(e.target.result), { type:'array', cellDates:false, raw:true });
-      var sheets = wb.SheetNames.map(function (n) {
-        return { name:n, fileName:file.name || '', rows: XLSX.utils.sheet_to_json(wb.Sheets[n], { header:1, defval:'', raw:true, blankrows:false }) };
-      });
-      cb(sheets, wb);
-    } catch (err) {
-      toast('❌ Excel 讀取失敗：' + err.message + '。請重新整理後再試。', 'err', 7000);
-    }
+    var wb = XLSX.read(new Uint8Array(e.target.result), { type:'array', cellDates:false, raw:true });
+    var sheets = wb.SheetNames.map(function (n) {
+      return { name:n, rows: XLSX.utils.sheet_to_json(wb.Sheets[n], { header:1, defval:'', raw:true, blankrows:false }) };
+    });
+    cb(sheets, wb);
   };
   fr.readAsArrayBuffer(file);
 }
@@ -543,7 +515,6 @@ function str(v) { var s = String(v == null ? '' : v).trim(); return (s === '_' |
 
 /* ── 匯出 Excel（多工作表） ── */
 function exportExcel(sheets, filename) {
-  if (typeof XLSX === 'undefined') { toast('❌ Excel 元件未載入，請重新整理後再試', 'err', 6000); return; }
   var wb = XLSX.utils.book_new();
   sheets.forEach(function (s) {
     var ws = Array.isArray(s.rows[0]) ? XLSX.utils.aoa_to_sheet(s.rows)
@@ -579,11 +550,7 @@ function restoreJson(cb) {
 function pickExcel(cb) {
   var inp = document.createElement('input');
   inp.type = 'file'; inp.accept = '.xlsx,.xls,.csv';
-  inp.onchange = function () {
-    if (!inp.files[0]) return;
-    if (typeof XLSX === 'undefined') { toast('❌ Excel 元件未載入，請重新整理後再試', 'err', 6000); return; }
-    readWorkbook(inp.files[0], cb);
-  };
+  inp.onchange = function () { if (inp.files[0]) readWorkbook(inp.files[0], cb); };
   inp.click();
 }
 
@@ -618,38 +585,12 @@ function bindHeader(tool, handlers) {
     b.onclick = function () { setLang(b.dataset.l); };
   });
   var ts = document.querySelector('.c-ts'); if (ts) ts.textContent = lastSync(tool);
-  function bindAction(id, fn) {
-    var el = document.getElementById(id); if (!el || typeof fn !== 'function') return;
-    el.onclick = function (ev) {
-      try {
-        var out = fn(ev);
-        if (out && typeof out.catch === 'function') out.catch(function (e) { bootError(e); });
-      } catch (e) { bootError(e); }
-    };
-  }
-  bindAction('btnUp', handlers.onUpload);
-  bindAction('btnDown', handlers.onDownload);
-  bindAction('btnTg', handlers.onTelegram);
+  var up = document.getElementById('btnUp');   if (up)   up.onclick   = handlers.onUpload;
+  var dn = document.getElementById('btnDown'); if (dn)   dn.onclick   = handlers.onDownload;
+  var tg = document.getElementById('btnTg');   if (tg)   tg.onclick   = handlers.onTelegram;
   var cf = document.getElementById('btnCfg');  if (cf)   cf.onclick   = openSettings;
   setLang(getCfg().lang || 'zh');
 }
-
-/* 如果頁面初始化或按鈕事件出錯，直接在畫面顯示原因，避免「完全沒反應」。 */
-function bootError(e) {
-  var msg = String(e && e.message || e || 'Unknown JavaScript error');
-  try { console.error('[AC SEC]', e); } catch (_) {}
-  var b = document.getElementById('secBootError');
-  if (!b) {
-    b = document.createElement('div'); b.id = 'secBootError';
-    b.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:99998;background:#991b1b;color:#fff;padding:11px 14px;border-radius:10px;font:600 12px/1.5 system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.28)';
-    document.body.appendChild(b);
-  }
-  b.innerHTML = '⚠️ JavaScript / JavaScript 錯誤：' + esc(msg) + '<br><small>請重新整理；若仍存在，請把這行錯誤文字回傳。</small>';
-}
-try {
-  G.addEventListener('error', function (ev) { if (ev && ev.error) bootError(ev.error); });
-  G.addEventListener('unhandledrejection', function (ev) { if (ev && ev.reason) bootError(ev.reason); });
-} catch (_) {}
 
 /* ───────── 設定 Modal ───────── */
 function openSettings() {
@@ -719,12 +660,11 @@ function closeModal(id) { var m = document.getElementById(id); if (m) m.classLis
 G.SEC = {
   CFG_KEY:CFG_KEY, getCfg:getCfg, setCfg:setCfg,
   p2:p2, ymd:ymd, hm:hm, nowStr:nowStr, parseD:parseD, num:num, str:str, esc:esc,
-  closest:closest, bootError:bootError,
+  L3:L3, L3x:L3x, perLabel3:perLabel3, sumHeader:sumHeader, sumLine:sumLine,
   Period:Period, periodNavHtml:periodNavHtml, bindPeriodNav:bindPeriodNav,
   T:T, lang:lang, setLang:setLang, applyI18n:applyI18n, I18N:BASE_I18N,
   toast:toast, gasPost:gasPost, cloudPush:cloudPush, cloudPull:cloudPull,
   markSync:markSync, lastSync:lastSync, tgSummary:tgSummary,
-  recordKey:recordKey, mergeRecords:mergeRecords, mergeObject:mergeObject,
   routePickerHtml:routePickerHtml, bindRoutePicker:bindRoutePicker, pickedRoute:pickedRoute,
   sendApproval:sendApproval,
   pickPhoto:pickPhoto, compressImage:compressImage, photoListHtml:photoListHtml, viewPhoto:viewPhoto,
