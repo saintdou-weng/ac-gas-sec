@@ -537,7 +537,7 @@ function tgOpen(opt) {
             '<option value="day">日 Day</option><option value="week">週 Week</option>' +
             '<option value="month" selected>月 Month</option><option value="year">年 Year</option>' +
           '</select></div>' +
-          '<div class="f"><label>選擇期間 Select period</label><select id="tgPeriod"></select></div>' +
+          '<div class="f"><label>選擇期間 Select period</label><input id="tgAnchor" list="tgKnown" type="date"><datalist id="tgKnown"></datalist></div>' +
         '</div>' +
         '<div class="f" style="margin-top:10px"><label>訊息語言 Language</label><select id="tgLang">' +
           '<option value="zh">繁體中文</option><option value="en">English</option><option value="km">ខ្មែរ</option>' +
@@ -557,24 +557,48 @@ function tgOpen(opt) {
   q('#tgType').value = firstType;
   q('#tgLang').value = st.lang;
 
-  function fillPeriods() {
-    var list = [];
-    try { list = opt.periods ? (opt.periods(st.ptype) || []) : []; } catch (e) { list = []; }
-    list = Array.from(new Set(list.map(String))).filter(Boolean).sort().reverse();
-    var current = opt.currentPeriod ? opt.currentPeriod(st.ptype) : new Period(st.ptype).key();
-    if (current && list.indexOf(String(current)) < 0) list.unshift(String(current));
-    if (!list.length) list = [String(current || new Period(st.ptype).key())];
-    var sel = q('#tgPeriod');
-    sel.innerHTML = list.map(function (k) {
-      return '<option value="' + esc(k) + '">' + esc(tgPeriodLabel(k, st.ptype)) + '</option>';
-    }).join('');
-    st.period = st.period && list.indexOf(String(st.period)) >= 0 ? String(st.period) : list[0];
-    sel.value = st.period;
+  function currentKey() {
+    return opt.currentPeriod ? opt.currentPeriod(st.ptype) : new Period(st.ptype).key();
+  }
+  function anchorValue(key, type) {
+    var a = tgAnchor(key, type), p = new Period(type, a), r = p.range();
+    if (type === 'month') return a.getFullYear() + '-' + p2(a.getMonth() + 1);
+    if (type === 'year') return String(a.getFullYear());
+    return r.from;
+  }
+  function fillPeriods(reset) {
+    var current = String(currentKey() || new Period(st.ptype).key());
+    if (reset || !st.period || (st.ptype === 'month' && !/^\d{4}-\d{2}$/.test(st.period)) ||
+        (st.ptype === 'year' && !/^\d{4}$/.test(st.period)) ||
+        (st.ptype !== 'month' && st.ptype !== 'year' && !/^\d{4}-\d{2}-\d{2}$/.test(st.period))) st.period = current;
+    var inp = q('#tgAnchor');
+    inp.type = st.ptype === 'month' ? 'month' : st.ptype === 'year' ? 'number' : 'date';
+    if (st.ptype === 'year') { inp.min = '2000'; inp.max = '2100'; inp.step = '1'; }
+    else { inp.removeAttribute('min'); inp.removeAttribute('max'); inp.removeAttribute('step'); }
+    inp.value = anchorValue(st.period, st.ptype);
+    try {
+      var list = opt.periods ? (opt.periods(st.ptype) || []) : [];
+      q('#tgKnown').innerHTML = Array.from(new Set(list.map(String))).filter(Boolean).sort().reverse().map(function (k) {
+        return '<option value="' + esc(anchorValue(k, st.ptype)) + '" label="' + esc(tgPeriodLabel(k, st.ptype)) + '">';
+      }).join('');
+    } catch (e) { q('#tgKnown').innerHTML = ''; }
+  }
+  function readAnchor() {
+    var v = q('#tgAnchor').value;
+    if (st.ptype === 'year') return String(parseInt(v, 10) || new Date().getFullYear());
+    if (st.ptype === 'month') return /^\d{4}-\d{2}$/.test(v) ? v : currentKey();
+    var d = parseD(v) || new Date();
+    return new Period(st.ptype, d).key();
   }
   function note() {
     q('#tgNote').textContent = st.mode === 'approval'
       ? '只會送出尚未送核的 Security Fee；Telegram 群組會顯示逐筆核可／退件、翻頁、全部核可及關閉批次按鈕。'
       : '摘要是通知用途，可重複傳送，不會建立核可批次，也不會改變資料狀態。';
+  }
+  function summaryPages() {
+    var v = opt.summaryPages ? opt.summaryPages(st) : (opt.summary ? opt.summary(st) : '（沒有摘要內容）');
+    if (Array.isArray(v)) return v.map(String).filter(Boolean);
+    return [String(v || '（本期間沒有資料）')];
   }
   function preview() {
     var text = '';
@@ -590,14 +614,15 @@ function tgOpen(opt) {
           }).join('\n') + (items.length > 10 ? '\n… 另有 ' + (items.length - 10) + ' 筆' : '');
         q('#tgSend').disabled = !items.length;
       } else {
-        text = opt.summary ? (opt.summary(st) || '（本期間沒有資料）') : '（沒有摘要內容）';
+        var pages = summaryPages();
+        text = pages.length > 1 ? pages.map(function (x, i) { return '【' + (i + 1) + '/' + pages.length + '】\n' + x; }).join('\n\n') : pages[0];
         q('#tgSend').disabled = false;
       }
     } catch (e) { text = '⚠️ ' + e.message; q('#tgSend').disabled = true; }
     q('#tgPreview').textContent = text;
   }
-  q('#tgType').onchange = function () { st.ptype = this.value; fillPeriods(); preview(); };
-  q('#tgPeriod').onchange = function () { st.period = this.value; preview(); };
+  q('#tgType').onchange = function () { st.ptype = this.value; fillPeriods(true); preview(); };
+  q('#tgAnchor').onchange = function () { st.period = readAnchor(); preview(); };
   q('#tgLang').onchange = function () { st.lang = this.value; preview(); };
   mask.querySelectorAll('[data-tg-mode]').forEach(function (b) {
     b.onclick = function () {
@@ -611,8 +636,12 @@ function tgOpen(opt) {
     var btn = this; btn.disabled = true; btn.textContent = '⏳ 傳送中…';
     try {
       if (st.mode === 'summary') {
-        await gasPost({ action:'telegram', text:q('#tgPreview').textContent, module:opt.module||'', lang:st.lang });
-        toast('✈️ Telegram 摘要已送出', 'ok');
+        var pages = summaryPages();
+        for (var pi = 0; pi < pages.length; pi++) {
+          var pageText = pages.length > 1 ? '【' + (pi + 1) + '/' + pages.length + '】\n' + pages[pi] : pages[pi];
+          await gasPost({ action:'telegram', text:pageText, module:opt.module||'', lang:st.lang });
+        }
+        toast('✈️ Telegram 摘要已送出' + (pages.length > 1 ? '（' + pages.length + ' 頁）' : ''), 'ok');
       } else {
         var items = opt.approvalItems ? (opt.approvalItems(st) || []) : [];
         var result = await sendApproval({ module:opt.module, period:st.period, title:opt.approvalTitle || '', route:opt.route, lang:st.lang, items:items });
@@ -625,6 +654,7 @@ function tgOpen(opt) {
       btn.disabled = false; btn.textContent = '✈️ 確認傳送 Send';
     }
   };
+  q('#tgType').value = firstType;
   fillPeriods(); note(); preview();
   return { close:close };
 }

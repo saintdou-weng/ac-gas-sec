@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="stylesheet" href="./shared/sec.css?v=20260806a">
+<link rel="stylesheet" href="./shared/sec.css?v=20260807a">
 </head>
 <body>
 <div id="hdr"></div>
@@ -116,6 +116,7 @@
         <button class="btn ok" onclick="doSend()">📤 <span data-zh="送出核可請求" data-en="Send Approval Request" data-km="ផ្ញើសំណើ">送出核可請求</span></button>
         <button class="btn gh" onclick="openExpenseTelegram()">✈️ Telegram 摘要／保安費核可</button>
         <button class="btn gh" onclick="checkStatus()">🔍 <span data-zh="查詢批次狀態" data-en="Check Status" data-km="ពិនិត្យស្ថានភាព">查詢批次狀態</span></button>
+        <button class="btn gh" onclick="syncBatches()">☁️ <span data-zh="從雲端找回舊批次" data-en="Find cloud batches" data-km="ស្វែងរកបាច់លើពពក">從雲端找回舊批次</span></button>
       </div>
     </div>
     <div class="card">
@@ -176,7 +177,7 @@
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260806a"></script>
+<script src="./shared/sec-core.js?v=20260807a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -406,6 +407,33 @@ async function checkStatus() {
   }
   save(); renderAll(); SEC.toast('✅ 狀態已更新', 'ok');
 }
+async function syncBatches() {
+  SEC.toast('<span class="spin">⏳</span> 從雲端找回批次…');
+  try {
+    var remote = await SEC.gasPost({ action:'approvalList', module:'expense' });
+    (Array.isArray(remote) ? remote : []).forEach(function (r) {
+      var b = BATCH.filter(function (x) { return x.batchId === r.batchId; })[0];
+      if (!b) { b = { batchId:r.batchId }; BATCH.push(b); }
+      Object.keys(r).forEach(function (k) { b[k] = r[k]; });
+      b.at = b.at || r.at || r.updatedAt || '';
+    });
+    BATCH.sort(function (a, b) { return String(b.at || '').localeCompare(String(a.at || '')); });
+    save(); renderAll();
+    SEC.toast('✅ 已找回 ' + (Array.isArray(remote) ? remote.length : 0) + ' 個雲端批次；未關閉批次可按「重送／更新」', 'ok', 6000);
+  } catch (e) { SEC.toast('❌ 找回批次失敗：' + e.message, 'err', 6000); }
+}
+async function resendBatch(batchId) {
+  if (!batchId) return;
+  if (!confirm('重新整理或重送此 Telegram 核可訊息？不會新增費用項目。')) return;
+  try {
+    var r = await SEC.gasPost({ action:'approvalResend', batchId:batchId });
+    var b = BATCH.filter(function (x) { return x.batchId === batchId; })[0] || { batchId:batchId };
+    Object.keys(r || {}).forEach(function (k) { b[k] = r[k]; });
+    if (!BATCH.some(function (x) { return x.batchId === batchId; })) BATCH.unshift(b);
+    save(); renderAll();
+    SEC.toast(r && r.refreshed ? '✅ Telegram 舊訊息已更新，按鈕已恢復' : '✅ Telegram 核可訊息已重送', 'ok', 6000);
+  } catch (e) { SEC.toast('❌ 重送失敗：' + e.message, 'err', 7000); }
+}
 function renderBatch() {
   var tb = document.getElementById('tbBatch');
   if (!BATCH.length) { tb.innerHTML = '<tr><td colspan="6" class="empty">尚無送出記錄</td></tr>'; return; }
@@ -415,9 +443,10 @@ function renderBatch() {
            : b.stage === 'review' ? '<span class="tag info">🔍 待審查</span>'
            : '<span class="tag warn">⏳ 待核可</span>';
     if (c.approved !== undefined) st += ' <span class="hint">✅' + c.approved + ' ✕' + c.rejected + ' ⏳' + c.pending + '</span>';
+    var act = b.status === 'closed' ? '' : '<button class="btn sm gh" onclick="resendBatch(\'' + SEC.esc(b.batchId) + '\')">🔄 重送／更新</button>';
     return '<tr><td><code>' + SEC.esc(b.batchId) + '</code></td><td>' + SEC.esc(b.at) + '</td>' +
       '<td>' + (b.route === 'direct' ? '🚀 直送' : '👥 群組審查') + '</td>' +
-      '<td class="num">' + b.n + '</td><td class="num">' + money(b.amount) + '</td><td>' + st + '</td></tr>';
+      '<td class="num">' + (b.n || 0) + '</td><td class="num">' + money(b.amount) + '</td><td>' + st + (act ? '<br>' + act : '') + '</td></tr>';
   }).join('');
 }
 

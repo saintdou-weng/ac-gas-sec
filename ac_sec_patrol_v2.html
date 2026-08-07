@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="stylesheet" href="./shared/sec.css?v=20260806a">
+<link rel="stylesheet" href="./shared/sec.css?v=20260807a">
 <style>
 .rd-bar{display:flex;gap:2px;align-items:center}
 .rd-dot{width:11px;height:11px;border-radius:3px;background:#e2e8f0;flex-shrink:0}
@@ -58,6 +58,7 @@
             <option value="">全部班別</option><option value="N">🌙 夜班</option><option value="D">☀️ 日班</option></select>
           <label style="font-size:11px;color:var(--ink2)">只看漏點</label>
           <input type="checkbox" id="onlyBad" style="width:auto" onchange="renderRounds()">
+          <button class="btn sm gh" onclick="openPatrolTelegram()">✈️ Telegram 摘要</button>
           <button class="btn sm gh" onclick="expRounds()">📊 Excel</button>
         </span></h3>
       <p class="hint" style="margin-bottom:9px">
@@ -253,7 +254,7 @@
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260806a"></script>
+<script src="./shared/sec-core.js?v=20260807a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -297,7 +298,7 @@ function saveChip() { SEC.dbPut(LS_CHIP, CHIP); }
 /* ═══════════ 初始化 ═══════════ */
 document.getElementById('hdr').innerHTML = SEC.headerHtml('🚨', '保安巡邏 Patrol', 'AC SECURITY · PATROL v2');
 document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
-SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: pushSummary });
+SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: openPatrolTelegram });
 SEC.bindPeriodNav('pnav', PER, renderAll);
 document.getElementById('tabs').addEventListener('click', function (e) {
   var b = SEC.closest(e.target, '.tab'); if (!b) return;
@@ -786,10 +787,10 @@ async function closeIssue(id) {
 }
 
 /* ═══════════ 推送 ═══════════ */
-function pushNight() {
-  var min = parseInt(document.getElementById('nightMin').value, 10) || 12;
+function patrolNightSummary(st) {
+  var p = patrolSummaryPeriod(st), min = parseInt(document.getElementById('nightMin').value, 10) || 12;
   var TC = totalCp();
-  var list = inPeriodR().filter(function (r) { return r.night; });
+  var list = ROUNDS.filter(function (r) { return p.has(r.date) && r.night; });
   var byN = {};
   list.forEach(function (r) {
     var d = r.date;
@@ -800,7 +801,7 @@ function pushNight() {
   });
   var ks = Object.keys(byN).sort().reverse();
   var short = ks.filter(function (k) { return byN[k].n < min; });
-  var txt = '🌙 <b>夜間巡邏檢查</b>\n' + PER.label() + '\n─────────────\n' +
+  var txt = '🌙 <b>夜間巡邏檢查</b>\n' + SEC.esc(p.label()) + '\n─────────────\n' +
     '標準：每晚至少 <b>' + min + '</b> 圈（每圈 ' + TC + ' 點）\n' +
     '夜巡總圈數：<b>' + list.length + '</b>\n達標：' + (ks.length - short.length) + ' / ' + ks.length + ' 夜\n';
   if (short.length) {
@@ -812,24 +813,61 @@ function pushNight() {
   } else { txt += '\n✅ 全數達標。'; }
   var badTotal = ks.reduce(function (s, k) { return s + byN[k].bad; }, 0);
   if (badTotal) txt += '\n\n⚠️ 另有 <b>' + badTotal + '</b> 圈未走完全部 ' + TC + ' 個巡邏點。';
-  SEC.tgSummary(txt, 'patrol');
+  return txt;
 }
-function pushSummary() {
-  var list = inPeriodR(), TC = totalCp();
-  var full = list.filter(function (r) { return r.chips.length >= TC; }).length;
-  var night = list.filter(function (r) { return r.night; }).length;
-  var byG = {};
-  list.forEach(function (r) { byG[r.g] = (byG[r.g] || 0) + 1; });
-  var txt = '🚨 <b>巡邏摘要</b> · ' + PER.label() + '\n─────────────\n' +
-    '🔄 巡邏圈數：<b>' + list.length + '</b>\n' +
-    '✅ 完整圈：<b>' + full + '</b>（' + (list.length ? Math.round(full / list.length * 100) : 0) + '%）\n' +
-    '⛔ 漏點圈：<b>' + (list.length - full) + '</b>\n' +
-    '🌙 夜巡圈：<b>' + night + '</b>\n' +
-    '📍 巡邏點：' + TC + ' 個\n';
+function openPatrolNightTelegram() {
+  return SEC.tgOpen({ module:'patrol', defaultType:PER.mode, defaultPeriod:PER.key(),
+    periods:patrolPeriods, currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); },
+    summary:patrolNightSummary });
+}
+function pushNight() {
+  return openPatrolNightTelegram();
+}
+function patrolSummaryPeriod(st) {
+  var a = SEC.parseD(st.period) || new Date();
+  if (st.ptype === 'month' && /^\d{4}-\d{2}$/.test(st.period)) a = new Date(+st.period.slice(0,4), +st.period.slice(5,7)-1, 1);
+  if (st.ptype === 'year' && /^\d{4}$/.test(st.period)) a = new Date(+st.period, 0, 1);
+  return new SEC.Period(st.ptype, a);
+}
+function patrolPeriods(type) {
+  var seen = {};
+  ROUNDS.forEach(function (r) { if (r.date) seen[new SEC.Period(type, SEC.parseD(r.date)).key()] = 1; });
+  MAN.forEach(function (r) { if (r.date) seen[new SEC.Period(type, SEC.parseD(r.date)).key()] = 1; });
+  return Object.keys(seen);
+}
+function ptt(lang, zh, en, km) { return lang === 'en' ? en : lang === 'km' ? km : zh; }
+function patrolSummary(st) {
+  var p = patrolSummaryPeriod(st), list = ROUNDS.filter(function (r) { return p.has(r.date); }), manual = MAN.filter(function (r) { return p.has(r.date); });
+  var TC = totalCp(), full = list.filter(function (r) { return r.chips.length >= TC; }).length;
+  var night = list.filter(function (r) { return r.night; }).length, issues = manual.filter(function (r) { return r.status === 'issue'; });
+  var byG = {}, byD = {};
+  list.forEach(function (r) { byG[r.g] = (byG[r.g] || 0) + 1; byD[r.date] = (byD[r.date] || 0) + 1; });
+  var txt = '🚨 <b>' + ptt(st.lang, '巡邏摘要', 'Patrol Summary', 'សេចក្តីសង្ខេបល្បាត') + '</b> · ' + SEC.esc(p.label()) + '\n' +
+    '🛡️ AC Security · VRT Sihanoukville\n━━━━━━━━━━━━━━━━\n' +
+    '🔄 ' + ptt(st.lang, '巡邏圈數', 'Patrol rounds', 'ជុំល្បាត') + '：<b>' + list.length + '</b>\n' +
+    '✅ ' + ptt(st.lang, '完整圈', 'Complete rounds', 'ជុំពេញ') + '：<b>' + full + '</b>（' + (list.length ? Math.round(full / list.length * 100) : 0) + '%）\n' +
+    '⛔ ' + ptt(st.lang, '漏點圈', 'Incomplete rounds', 'ជុំខ្វះ') + '：' + (list.length - full) + '\n' +
+    '🌙 ' + ptt(st.lang, '夜巡圈', 'Night rounds', 'ជុំយប់') + '：' + night + ' · 📍 ' + ptt(st.lang, '巡邏點', 'Checkpoints', 'ចំណុច') + '：' + TC + '\n' +
+    '📝 ' + ptt(st.lang, '人工記錄', 'Manual entries', 'កំណត់ត្រាដោយដៃ') + '：' + manual.length + ' · ⚠️ ' + ptt(st.lang, '異常備註', 'Issue notes', 'កំណត់ចំណាំបញ្ហា') + '：<b>' + issues.length + '</b>\n';
   var gk = Object.keys(byG).sort(function (a, b) { return byG[b] - byG[a]; });
-  if (gk.length) { txt += '\n<b>👮 巡邏員</b>\n'; gk.slice(0, 12).forEach(function (k) { txt += '· ' + k + '：' + byG[k] + ' 圈\n'; }); }
-  SEC.tgSummary(txt, 'patrol');
+  if (gk.length) { txt += '\n<b>👮 ' + ptt(st.lang, '巡邏員統計', 'Guard breakdown', 'តាមអ្នកយាម') + '</b>\n'; gk.slice(0, 15).forEach(function (k) { txt += '· ' + SEC.esc(k || '—') + '：' + byG[k] + '\n'; }); }
+  if (issues.length) {
+    txt += '\n<b>⚠️ ' + ptt(st.lang, '異常／備註', 'Issues / remarks', 'បញ្ហា／កំណត់ចំណាំ') + '</b>\n';
+    issues.slice(0, 12).forEach(function (r) { txt += '· ' + SEC.esc(r.date + ' ' + (r.time || '')) + ' · ' + SEC.esc(r.guard || '—') + ' · ' + SEC.esc(r.location || '—') + (r.note ? '\n   📝 ' + SEC.esc(r.note) : '') + '\n'; });
+  }
+  if (Object.keys(byD).length) {
+    txt += '\n<b>📅 ' + ptt(st.lang, '每日圈數', 'Daily rounds', 'ជុំប្រចាំថ្ងៃ') + '</b>\n';
+    Object.keys(byD).sort().slice(-20).forEach(function (d) { txt += '· ' + SEC.esc(d) + '：' + byD[d] + '\n'; });
+  }
+  txt += '\n<i>' + ptt(st.lang, '摘要可重複發送；人工異常備註會一併列出。', 'Summary can be resent; manual issue remarks are included.', 'អាចផ្ញើសារសង្ខេបម្តងទៀត និងបញ្ចូលកំណត់ចំណាំបញ្ហាដោយដៃ។') + '</i>';
+  return txt;
 }
+function openPatrolTelegram() {
+  return SEC.tgOpen({ module:'patrol', defaultType:PER.mode, defaultPeriod:PER.key(),
+    periods:patrolPeriods, currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); },
+    summary:patrolSummary });
+}
+function pushSummary() { return openPatrolTelegram(); }
 
 /* ═══════════ 匯出 / 雲端 ═══════════ */
 function expRounds() {
