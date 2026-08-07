@@ -10,7 +10,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<link rel="stylesheet" href="./shared/sec.css?v=20260805e">
+<link rel="stylesheet" href="./shared/sec.css?v=20260806a">
 <style>
 .avt{width:38px;height:38px;border-radius:9px;object-fit:cover;border:1px solid var(--line);background:#eef2f6;display:block}
 .avt-ph{width:38px;height:38px;border-radius:9px;background:#eef2f6;display:flex;align-items:center;
@@ -128,6 +128,12 @@
       <h3>⚠️ <span data-zh="配置缺口檢查" data-en="Coverage Gaps" data-km="ចន្លោះប្រហោង">配置缺口檢查</span></h3>
       <div id="gapBox"></div>
     </div>
+    <div class="card">
+      <h3>📋 <span data-zh="每月 Security Roaster 排班明細" data-en="Monthly Security Roaster" data-km="តារាងវេនប្រចាំខែ">每月 Security Roaster 排班明細</span>
+        <span class="sp"><select id="rosterMonth" onchange="renderRosterSchedule()" style="width:auto"></select></span></h3>
+      <p class="hint">匯入 Security Roaster 後，這裡會顯示每人每日 D（日班）／N（夜班）排班。資料會按月份保存，不會被較少月份的檔案覆蓋。</p>
+      <div class="tw"><table id="tblRosterSchedule"></table></div>
+    </div>
   </div>
 
   <!-- ═══ 統計 ═══ -->
@@ -150,9 +156,10 @@
       <h3>💾 <span data-zh="資料工具" data-en="Data Tools" data-km="ឧបករណ៍">資料工具</span></h3>
       <div class="row">
         <button class="btn" onclick="impCards()">📇 <span data-zh="匯入保安資料卡（含照片）" data-en="Import ID Cards (with photos)" data-km="នាំចូលកាត">匯入保安資料卡（含照片）</span></button>
+        <button class="btn" onclick="impRoster()">📋 <span data-zh="匯入 Security Roaster" data-en="Import Security Roaster" data-km="នាំចូលតារាងវេន">匯入 Security Roaster</span></button>
         <button class="btn gh" onclick="impExcel()">📥 <span data-zh="匯入一般名冊 Excel" data-en="Import Roster" data-km="នាំចូល">匯入一般名冊 Excel</span></button>
         <button class="btn gh" onclick="expExcel()">📊 <span data-t="expExcel">匯出 Excel</span></button>
-        <button class="btn gh" onclick="SEC.backupJson({staff:DB,changes:CHG},'personnel_backup_'+SEC.ymd()+'.json')">💾 <span data-t="backup">備份 JSON</span></button>
+        <button class="btn gh" onclick="SEC.backupJson({staff:DB,changes:CHG,roster:ROSTER},'personnel_backup_'+SEC.ymd()+'.json')">💾 <span data-t="backup">備份 JSON</span></button>
         <button class="btn gh" onclick="restore()">📂 <span data-t="restore">還原 JSON</span></button>
         <button class="btn err" onclick="clearAll()">🗑 <span data-zh="清空" data-en="Clear" data-km="សម្អាត">清空</span></button>
       </div>
@@ -163,6 +170,7 @@
         Security company / Family / Address / Contact number / Crime record，
         <b>並從 .xlsx 裡取出每個人的照片</b>，壓縮後存進名冊。崗位與班別由卡片標題（Night Shift-Building A 等）自動判讀。<br>
         ⚠️ 照片只有 <b>.xlsx</b> 讀得到；若是舊的 .xls，請先在 Excel 另存成 .xlsx。<br><br>
+        <b>📋 Security Roaster</b>：可讀取每月 Jan–Dec 工作表，使用真正的 <b>ID NO</b>（不會把 NO. 流水號當成工號），並保存每天 D/N 排班；匯入後會更新人員名冊的班別與崗位。<br>
         <b>📥 一般名冊</b>：可辨識 工號 ID / 姓名 Name / 職稱 Position / 班別 Shift / 崗位 Post / 到職日 Join Date / 電話 Phone / 狀態 Status，標題列可在任何位置、可跨兩列。</p>
       <div id="impLog" class="hint" style="margin-top:8px"></div>
     </div>
@@ -198,7 +206,7 @@
 <button class="btn" onclick="saveEdit()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260805e"></script>
+<script src="./shared/sec-core.js?v=20260806a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -214,16 +222,18 @@ if (typeof SEC === 'undefined') {
   throw new Error('sec-core.js not loaded');
 }
 
-var LS = 'ac_sec_personnel_db', LSC = 'ac_sec_personnel_chg', PER = new SEC.Period('month');
-var DB = [], CHG = [], CH = {}, TOOL = 'personnel', EDIT_ID = '';
+var LS = 'ac_sec_personnel_db', LSC = 'ac_sec_personnel_chg', LS_ROSTER = 'ac_sec_roster_schedule', PER = new SEC.Period('month');
+var DB = [], CHG = [], ROSTER = {}, CH = {}, TOOL = 'personnel', EDIT_ID = '';
 
 async function load() {
   DB = await SEC.dbGet(LS, []);
   CHG = await SEC.dbGet(LSC, []);
+  ROSTER = await SEC.dbGet(LS_ROSTER, {});
   if (!Array.isArray(DB)) DB = [];
   if (!Array.isArray(CHG)) CHG = [];
+  if (!ROSTER || typeof ROSTER !== 'object' || Array.isArray(ROSTER)) ROSTER = {};
 }
-function save() { SEC.dbPut(LS, DB); SEC.dbPut(LSC, CHG); }
+function save() { SEC.dbPut(LS, DB); SEC.dbPut(LSC, CHG); SEC.dbPut(LS_ROSTER, ROSTER); }
 
 document.getElementById('hdr').innerHTML = SEC.headerHtml('👮', '保安人員 Personnel', 'AC SECURITY · PERSONNEL');
 document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
@@ -251,7 +261,7 @@ var KIND = {
   update : { icon:'✏️', zh:'資料更新', en:'Update' },
 };
 
-function renderAll() { renderRos(); renderChg(); renderShift(); renderAna(); fillSelects(); }
+function renderAll() { renderRos(); renderChg(); renderShift(); renderRosterSchedule(); renderAna(); fillSelects(); }
 
 /* ═══ 名冊 ═══ */
 function active() { return DB.filter(function (r) { return r.status !== 'resigned'; }); }
@@ -513,6 +523,36 @@ function renderShift() {
       (noShift.length > 12 ? ' …' : '') + '</p>';
   }
   box.innerHTML = h;
+}
+function renderRosterSchedule() {
+  var sel = document.getElementById('rosterMonth'), tbl = document.getElementById('tblRosterSchedule');
+  if (!sel || !tbl) return;
+  var months = Object.keys(ROSTER || {}).filter(function (m) { return ROSTER[m] && typeof ROSTER[m] === 'object'; }).sort().reverse();
+  var cur = sel.value;
+  sel.innerHTML = months.length ? months.map(function (m) { return '<option value="' + m + '">' + m + '</option>'; }).join('') : '<option value="">尚無 Roaster</option>';
+  if (months.indexOf(cur) >= 0) sel.value = cur; else if (months.length) sel.value = months[0];
+  var month = sel.value;
+  if (!month || !ROSTER[month]) {
+    tbl.innerHTML = '<tbody><tr><td class="empty" style="padding:18px">尚未匯入 Security Roaster。請在「資料管理」按「匯入 Security Roaster」。</td></tr></tbody>';
+    return;
+  }
+  var mm = month.match(/^(\d{4})-(\d{2})$/), nd = mm ? new Date(+mm[1], +mm[2], 0).getDate() : 31;
+  var list = Object.keys(ROSTER[month]).map(function (k) { return ROSTER[month][k]; }).filter(Boolean).sort(function (a, b) {
+    return String(a.shift || '').localeCompare(String(b.shift || '')) || String(a.name || '').localeCompare(String(b.name || ''));
+  });
+  var head = '<thead><tr><th>工號 ID</th><th>姓名 Name</th><th>班別 Shift</th><th>崗位 Post</th>';
+  for (var d = 1; d <= nd; d++) head += '<th style="min-width:24px;text-align:center">' + d + '</th>';
+  head += '</tr></thead>';
+  var body = list.map(function (r) {
+    var h = '<tr><td><code>' + SEC.esc(r.empId || '') + '</code></td><td><b>' + SEC.esc(r.name || '') + '</b></td>' +
+      '<td>' + SEC.esc(r.shift || '—') + '</td><td>' + SEC.esc(r.post || '') + '</td>';
+    for (var d = 1; d <= nd; d++) {
+      var v = r.days && r.days[SEC.p2(d)] || '';
+      h += '<td style="text-align:center;font-weight:800;color:' + (v === 'N' ? '#0f2b46' : v === 'D' ? '#166534' : '#94a3b8') + '">' + SEC.esc(v) + '</td>';
+    }
+    return h + '</tr>';
+  }).join('');
+  tbl.innerHTML = head + '<tbody>' + (body || '<tr><td colspan="' + (nd + 4) + '" class="empty">本月沒有可顯示的人員</td></tr>') + '</tbody>';
 }
 function pushRoster() {
   var a = active();
@@ -813,11 +853,13 @@ function shrink(dataUrl, maxW) {
 
 /* ═══ Excel ═══ */
 var SPEC = {
-  empId   : ['工號','工号','id','code','編號','អត្តលេខ','vrtcode','factoryid','employeeid','no'],
+  /* 不把 No. 流水號當成真正工號；Security Roaster 的實際 ID 在 ID NO 欄。 */
+  empId   : ['工號','工号','idno','id number','idnumber','employeeid','id','code','編號','អត្តលេខ','vrtcode','factoryid'],
   name    : ['姓名','name','ឈ្មោះ','fullname','surenamename','englishname','員工姓名'],
   position: ['職稱','职称','position','តំណែង','title','job','崗位職稱','rank'],
   shift   : ['班別','班别','shift','schedule','វេន','班','group','組別'],
   post    : ['崗位','岗位','post','ប៉ុស្តិ៍','location','地點','區域','zone','duty','責任區'],
+  company : ['company','公司','保安公司','securitycompany','ក្រុមហ៊ុន'],
   joinDate: ['到職日','到职日','joindate','ថ្ងៃចូល','startdate','入職','hiredate','entrydate'],
   phone   : ['電話','电话','phone','ទូរស័ព្ទ','tel','mobile','聯絡'],
   status  : ['狀態','状态','status','ស្ថានភាព','在職'],
@@ -830,10 +872,103 @@ function rosterShift(v) {
   if (/day|早班|日班|ព្រឹក/.test(s) || /^a$/.test(s)) return 'A';
   return String(v || '').toUpperCase().replace(/[^ABC]/g, '').slice(0, 1);
 }
-function impExcel() {
+var ROSTER_MONTHS = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+function rosterSheetPeriod(sh) {
+  var text = (sh.rows || []).slice(0, 10).map(function (r) { return (r || []).join(' '); }).join(' ');
+  function monthIndex(v) {
+    var s = String(v || '');
+    for (var i = 0; i < ROSTER_MONTHS.length; i++) {
+      var m = ROSTER_MONTHS[i], re = new RegExp('(?:^|[^A-Za-z])(?:' + m + '|' + m.slice(0, 3) + ')(?:[^A-Za-z]|$)', 'i');
+      if (re.test(s)) return i;
+    }
+    return -1;
+  }
+  var mi = monthIndex(sh.name);
+  if (mi < 0) mi = monthIndex(text);
+  if (mi < 0) mi = monthIndex(sh.fileName);
+  if (mi < 0) mi = PER.at.getMonth();
+  var ym = (String(sh.name || '') + ' ' + text + ' ' + String(sh.fileName || '')).match(/20\d{2}/);
+  return (ym ? ym[0] : String(PER.at.getFullYear())) + '-' + String(mi + 1).padStart(2, '0');
+}
+function findRosterScheduleHeader(rows) {
+  var best = null;
+  for (var r = 0; r < Math.min(rows.length, 20); r++) {
+    var R = rows[r] || [], map = {}, days = {};
+    R.forEach(function (v, c) {
+      var n = SEC.norm(v), d = /^\d{1,2}$/.test(String(v).trim()) ? +String(v).trim() : 0;
+      if (map.name === undefined && /^(name|姓名|ឈ្មោះ)$/.test(n)) map.name = c;
+      if (map.id === undefined && /^(id|idno|idnumber|工號|工号|編號|លេខ)$/.test(n)) map.id = c;
+      if (map.schedule === undefined && /^(schedule|shift|班別|班别|វេន)$/.test(n)) map.schedule = c;
+      if (map.company === undefined && /^(company|公司|保安公司|ក្រុមហ៊ុន)$/.test(n)) map.company = c;
+      if (map.post === undefined && /^(post|崗位|岗位|ប៉ុស្តិ៍|location|地點|區域)$/.test(n)) map.post = c;
+      if (d >= 1 && d <= 31) days[c] = SEC.p2(d);
+    });
+    if (map.name !== undefined && map.id !== undefined && map.schedule !== undefined && Object.keys(days).length >= 10) {
+      var score = Object.keys(map).length * 10 + Object.keys(days).length;
+      if (!best || score > best.score) best = { row: r, map: map, days: days, score: score };
+    }
+  }
+  return best;
+}
+function normEmpId(v) {
+  var s = String(v == null ? '' : v).trim().toUpperCase();
+  if (/^A?\d+$/.test(s)) return s.replace(/^A/, '').replace(/^0+(?=\d)/, '');
+  return SEC.norm(s);
+}
+function staffKey(r) { return String(r && (r.empId || SEC.norm(r.name) || r.id) || ''); }
+function upsertStaff(row) {
+  var old = DB.filter(function (x) {
+    return (row.empId && normEmpId(x.empId) === normEmpId(row.empId)) || SEC.norm(x.name) === SEC.norm(row.name);
+  })[0];
+  if (old) {
+    var oid = old.id, photo = old.photo || '';
+    Object.assign(old, row, { id: oid, photo: photo });
+    return old;
+  }
+  row.id = row.id || ('X' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
+  DB.push(row);
+  return row;
+}
+function saveRosterSheet(sh, h, log) {
+  var targetYm = rosterSheetPeriod(sh), month = ROSTER[targetYm] || (ROSTER[targetYm] = {}), n = 0;
+  for (var i = h.row + 1; i < sh.rows.length; i++) {
+    var R = sh.rows[i] || [], name = SEC.str(R[h.map.name]);
+    if (!name || /^total|合計|小計$/i.test(SEC.norm(name)) || /^(red|green)\s*=|dayoff|take\s+leave/i.test(name)) continue;
+    var empId = SEC.str(R[h.map.id]);
+    var shift = rosterShift(R[h.map.schedule]);
+    var post = h.map.post === undefined ? '' : SEC.str(R[h.map.post]);
+    var company = h.map.company === undefined ? '' : SEC.str(R[h.map.company]);
+    var row = upsertStaff({
+      empId: empId, name: name, position: '保安員 Security Guard', shift: shift, post: post,
+      company: company, joinDate: '', phone: '', status: 'active',
+      remark: company ? '保安公司 ' + company : '', src: sh.name, createdAt: SEC.nowStr(),
+    });
+    var days = {};
+    Object.keys(h.days).forEach(function (c) {
+      var v = SEC.str(R[c]); if (!v) return;
+      if (/^d(?:ay)?$/i.test(v)) days[h.days[c]] = 'D';
+      else if (/^n(?:ight)?$/i.test(v)) days[h.days[c]] = 'N';
+      else if (/off|rest|休/i.test(v)) days[h.days[c]] = 'R';
+      else days[h.days[c]] = v.slice(0, 8);
+    });
+    month[staffKey(row)] = { id: row.id, empId: row.empId, name: row.name, shift: row.shift,
+      post: row.post, company: row.company || '', days: days, source: sh.fileName || sh.name };
+    n++;
+  }
+  log.push('· <b>' + SEC.esc(sh.name) + '</b>：Security Roaster 讀取 <b>' + n + '</b> 人，月份 <b>' + targetYm + '</b>，已保存每日 D/N 排班');
+  return n;
+}
+function importRosterFile(forceRoster) {
   SEC.pickExcel(function (sheets) {
-    var added = 0, log = [];
+    var added = 0, log = [], rosterSheets = 0;
     sheets.forEach(function (sh) {
+      var rh = findRosterScheduleHeader(sh.rows);
+      if (rh) {
+        added += saveRosterSheet({ name: sh.name, fileName: sh.fileName, rows: sh.rows }, rh, log);
+        rosterSheets++;
+        return;
+      }
+      if (forceRoster) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：找不到 Security Roaster 標題列，略過'); return; }
       var res = SEC.parseSheet(sh.rows, SPEC, { minScore: 2 });
       if (!res.rows.length) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：未偵測到人員資料（分數 ' + res.header.score + '）'); return; }
       var n = 0;
@@ -845,23 +980,33 @@ function impExcel() {
           id: 'X' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
           empId: SEC.str(o.empId), name: name, position: SEC.str(o.position),
           shift: sf, post: SEC.str(o.post), joinDate: jd ? SEC.ymd(jd) : '',
-          phone: SEC.str(o.phone),
+          phone: SEC.str(o.phone), company: SEC.str(o.company),
           status: /離職|resign|離|inactive/i.test(SEC.str(o.status)) ? 'resigned' : 'active',
           remark: SEC.str(o.remark), src: sh.name, createdAt: SEC.nowStr(),
         };
-        var old = DB.filter(function (x) { return (row.empId && String(x.empId) === String(row.empId)) || SEC.norm(x.name) === SEC.norm(row.name); })[0];
-        if (old) { row.id = old.id; row.photo = old.photo || ''; Object.assign(old, row); }
-        else DB.push(row);
+        upsertStaff(row);
         n++; added++;
       });
       log.push('· <b>' + SEC.esc(sh.name) + '</b>：匯入 <b>' + n + '</b> 筆（標題第 ' + (res.header.row + 1) + ' 列，比對 ' + res.header.score + ' 欄）');
     });
     save(); renderAll();
-    document.getElementById('impLog').innerHTML = '<b>匯入結果</b><br>' + log.join('<br>');
-    SEC.toast(added ? '✅ ' + SEC.T().imported + ' ' + added + ' ' + SEC.T().records : '⚠ 未匯入，請看偵測記錄', added ? 'ok' : 'warn', 5000);
+    document.getElementById('impLog').innerHTML = '<b>匯入結果</b><br>' + log.join('<br>') +
+      (rosterSheets ? '<br>✅ 請到「🕐 班別崗位」查看每月 Security Roaster 排班明細。' : '');
+    SEC.toast(added ? '✅ 匯入 ' + added + ' 人' + (rosterSheets ? '，已保存 Security Roaster 每日排班' : '') : '⚠ 未匯入，請看偵測記錄', added ? 'ok' : 'warn', 6000);
   });
 }
+function impRoster() { importRosterFile(true); }
+function impExcel() { importRosterFile(false); }
 function expExcel() {
+  var rosterRows = [];
+  Object.keys(ROSTER || {}).sort().forEach(function (month) {
+    Object.keys(ROSTER[month] || {}).forEach(function (k) {
+      var r = ROSTER[month][k] || {}, row = { Month: month, '工號 ID': r.empId, '姓名 Name': r.name,
+        '班別 Shift': r.shift, '崗位 Post': r.post, '公司 Company': r.company };
+      Object.keys(r.days || {}).sort().forEach(function (d) { row['Day ' + d] = r.days[d]; });
+      rosterRows.push(row);
+    });
+  });
   SEC.exportExcel([
     { name: 'Roster', rows: DB.map(function (r, i) {
         return { '#': i + 1, '工號 ID': r.empId, '姓名 Name': r.name, '職稱 Position': r.position,
@@ -872,25 +1017,27 @@ function expExcel() {
         return { '生效日': r.date, '類型': (KIND[r.kind] || {}).zh || r.kind, '工號': r.empId, '姓名': r.name,
           '原班別': r.fromShift, '新班別': r.toShift, '原崗位': r.fromPost, '新崗位': r.toPost,
           '原因': r.reason, '經辦': r.by }; }) },
+    { name: 'Security_Roaster', rows: rosterRows },
   ], 'AC_SEC_Personnel_' + SEC.ymd() + '.xlsx');
 }
 function restore() {
   SEC.restoreJson(function (o) {
     if (o.staff) DB = o.staff;
     if (o.changes) CHG = o.changes;
+    if (o.roster) ROSTER = o.roster;
     save(); renderAll();
   });
 }
 function clearAll() {
   if (!confirm('確定清空人員名冊與異動記錄？')) return;
-  DB = []; CHG = []; save(); renderAll();
+  DB = []; CHG = []; ROSTER = {}; save(); renderAll();
 }
 
 /* ═══ 雲端 ═══ */
 async function doUpload() {
   var all = DB.map(function (r) { var o = Object.assign({ _k: 'staff' }, r); o.photo = r.photo ? 1 : 0; return o; })
     .concat(CHG.map(function (r) { return Object.assign({ _k: 'chg' }, r); }));
-  await SEC.cloudPush(TOOL, all, { staff: DB.length, active: active().length, changes: CHG.length });
+  await SEC.cloudPush(TOOL, all, { staff: DB.length, active: active().length, changes: CHG.length }, { roster: ROSTER });
 }
 async function doDownload() {
   if (!confirm('⬇️☁ 下載會與本機人員資料合併；相同工號更新，較多資料保留。繼續？')) return;
@@ -906,6 +1053,8 @@ async function doDownload() {
   DB = sm.records;
   var cm = SEC.mergeRecords('personnel-chg', CHG, recs.filter(function (r) { return r._k === 'chg'; }));
   CHG = cm.records;
+  var ex = recs._cloudExtra || {};
+  if (ex.roster && typeof ex.roster === 'object') ROSTER = SEC.mergeObject(ROSTER, ex.roster);
   save(); renderAll(); SEC.toast('⬇️☁ 已合併人員 ' + sm.added + ' 新增／' + sm.updated + ' 更新，保留 ' + DB.length + ' 人', 'ok', 5000);
 }
 function pushSummary() {

@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="stylesheet" href="./shared/sec.css?v=20260805e">
+<link rel="stylesheet" href="./shared/sec.css?v=20260806a">
 <style>
 .subnav{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
 .subnav .sb{flex:1;min-width:96px;padding:11px 8px;border-radius:11px;border:1px solid var(--line);
@@ -74,6 +74,7 @@
             <select id="tkFie" style="width:auto" onchange="renderTk()"><option value="">全部</option><option value="imp">🟢 進口</option><option value="exp">🔴 出口</option></select>
             <input id="tkQ" placeholder="搜尋貨櫃號/司機…" style="width:150px" oninput="renderTk()">
             <button class="btn sm" onclick="tkAdd()">➕ <span data-t="add">新增</span></button>
+            <button class="btn sm gh" onclick="openContainerTelegram()">✈️ Telegram 摘要</button>
             <button class="btn sm gh" onclick="tkExp()">📊 Excel</button>
           </span></h3>
         <div class="tw"><table><thead><tr>
@@ -288,7 +289,7 @@
 <button class="btn" onclick="tkSaveEdit()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260805e"></script>
+<script src="./shared/sec-core.js?v=20260806a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -344,7 +345,7 @@ function saveGd() { SEC.dbPut(LS_GD, GD); }
 /* ═══════════ 初始化 ═══════════ */
 document.getElementById('hdr').innerHTML = SEC.headerHtml('🚛', '貨櫃出入 Container', 'AC SECURITY · CONTAINER');
 document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
-SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: pushSummary });
+SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: openContainerTelegram });
 SEC.bindPeriodNav('pnav', PER, renderAll);
 
 /* 子模組切換 */
@@ -798,19 +799,57 @@ async function doDownload() {
   saveTk(); saveCi(); saveGd(); renderAll();
   SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，共 ' + m.records.length + ' 筆', 'ok', 5000);
 }
-function pushSummary() {
-  var tk = inPer(TK), ci = CI.filter(function (r) { return PER.has(r.date); }), gd = GD.filter(function (r) { return PER.has(r.date); });
-  var txt = '🚛 <b>貨櫃出入摘要</b> · ' + PER.label() + '\n─────────────\n' +
-    '🚛 貨櫃車進出：<b>' + tk.length + '</b>（🟢進 ' + tk.filter(function (r) { return r.isImport; }).length +
-    ' · 🔴出 ' + tk.filter(function (r) { return r.isExport; }).length + '）\n' +
-    '🔍 貨櫃檢查：<b>' + ci.length + '</b>（合格 ' + ci.filter(function (r) { return r.result === 'pass'; }).length + '）\n' +
-    '📤 出廠/出貨單：<b>' + gd.length + '</b>（🚪 ' + gd.filter(function (r) { return r.type === 'gp'; }).length +
-    ' · 📤 ' + gd.filter(function (r) { return r.type === 'dn'; }).length + '）\n';
+function summaryPeriod(st) {
+  var a = SEC.parseD(st.period) || new Date();
+  if (st.ptype === 'month' && /^\d{4}-\d{2}$/.test(st.period)) a = new Date(+st.period.slice(0,4), +st.period.slice(5,7)-1, 1);
+  if (st.ptype === 'year' && /^\d{4}$/.test(st.period)) a = new Date(+st.period, 0, 1);
+  return new SEC.Period(st.ptype, a);
+}
+function containerDates() {
+  return TK.concat(CI, GD).map(function (r) { return r.date; }).filter(Boolean);
+}
+function containerPeriods(type) {
+  var seen = {};
+  containerDates().forEach(function (d) { var p = new SEC.Period(type, SEC.parseD(d)); seen[p.key()] = 1; });
+  return Object.keys(seen);
+}
+function ctt(lang, zh, en, km) { return lang === 'en' ? en : lang === 'km' ? km : zh; }
+function containerSummary(st) {
+  var p = summaryPeriod(st), label = p.label(), has = function (r) { return p.has(r.date); };
+  var tk = TK.filter(has), ci = CI.filter(has), gd = GD.filter(has);
+  var imp = tk.filter(function (r) { return r.isImport; }).length;
+  var exp = tk.filter(function (r) { return r.isExport; }).length;
+  var pass = ci.filter(function (r) { return r.result === 'pass'; }).length;
+  var fail = ci.length - pass;
+  var gp = gd.filter(function (r) { return r.type === 'gp'; }).length;
+  var dn = gd.filter(function (r) { return r.type === 'dn'; }).length;
+  var pct = ci.length ? Math.round(pass / ci.length * 100) : 0;
   var co = {};
-  tk.forEach(function (r) { if (r.company) co[r.company] = (co[r.company] || 0) + 1; });
+  tk.forEach(function (r) { var k = r.company || ctt(st.lang, '未填公司', 'Unspecified company', 'មិនបានបញ្ជាក់'); co[k] = (co[k] || 0) + 1; });
   var ck = Object.keys(co).sort(function (a, b) { return co[b] - co[a]; });
-  if (ck.length) { txt += '\n<b>🏢 貨櫃車公司</b>\n'; ck.slice(0, 8).forEach(function (k) { txt += '· ' + k + '：' + co[k] + ' 趟\n'; }); }
-  SEC.tgSummary(txt, 'container');
+  var txt = '🚛 <b>' + ctt(st.lang, '貨櫃出入摘要', 'Container In/Out Summary', 'សេចក្តីសង្ខេបកុងតឺន័រ') + '</b> · ' + SEC.esc(label) + '\n' +
+    '🛡️ AC Security · VRT Sihanoukville\n━━━━━━━━━━━━━━━━\n' +
+    '🚛 ' + ctt(st.lang, '貨櫃車進出', 'Truck movements', 'ចលនារថយន្ត') + '：<b>' + tk.length + '</b>\n' +
+    '   🟢 ' + ctt(st.lang, '進口', 'Import', 'នាំចូល') + '：' + imp + '　🔴 ' + ctt(st.lang, '出口', 'Export', 'នាំចេញ') + '：' + exp + '\n' +
+    '🔍 ' + ctt(st.lang, '貨櫃檢查', 'Inspections', 'ការត្រួតពិនិត្យ') + '：<b>' + ci.length + '</b>\n' +
+    '   ✅ ' + ctt(st.lang, '合格', 'Pass', 'ជាប់') + '：' + pass + '　⛔ ' + ctt(st.lang, '不合格', 'Fail', 'ធ្លាក់') + '：' + fail + '　(' + pct + '%)\n' +
+    '📤 ' + ctt(st.lang, '出廠／出貨單', 'Gate / delivery passes', 'ប័ណ្ណចេញ／ដឹកជញ្ជូន') + '：<b>' + gd.length + '</b>\n' +
+    '   🚪 ' + ctt(st.lang, '出廠單', 'Gate pass', 'ប័ណ្ណចេញ') + '：' + gp + '　📦 ' + ctt(st.lang, '出貨單', 'Delivery note', 'ប័ណ្ណដឹកជញ្ជូន') + '：' + dn + '\n';
+  txt += '━━━━━━━━━━━━━━━━\n';
+  if (ck.length) {
+    txt += '🏢 <b>' + ctt(st.lang, '貨櫃車公司明細', 'Company breakdown', 'តាមក្រុមហ៊ុន') + '</b>\n';
+    ck.slice(0, 10).forEach(function (k) { txt += '· ' + SEC.esc(k) + '：' + co[k] + ' ' + ctt(st.lang, '趟', 'trip(s)', 'ជើង') + '\n'; });
+    if (ck.length > 10) txt += '· … +' + (ck.length - 10) + '\n';
+  } else {
+    txt += 'ℹ️ ' + ctt(st.lang, '本期間沒有貨櫃資料', 'No container records in this period', 'គ្មានទិន្នន័យកុងតឺន័រក្នុងរយៈពេលនេះ') + '\n';
+  }
+  txt += '\n<i>' + ctt(st.lang, '摘要可重複發送；不會改變資料或核可狀態。', 'Summary only; resending does not change records or approval status.', 'សេចក្តីសង្ខេបប៉ុណ្ណោះ មិនផ្លាស់ប្តូរទិន្នន័យ ឬស្ថានភាពអនុម័តទេ។') + '</i>';
+  return txt;
+}
+function openContainerTelegram() {
+  return SEC.tgOpen({ module:'container', defaultType:PER.mode, defaultPeriod:PER.key(),
+    periods:containerPeriods, currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); },
+    summary:containerSummary });
 }
 </script>
 </body>

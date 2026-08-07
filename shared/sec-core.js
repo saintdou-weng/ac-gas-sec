@@ -507,6 +507,128 @@ async function tgSummary(text, module, photo) {
   } catch (e) { toast('❌ Telegram 失敗：' + e.message, 'err'); return false; }
 }
 
+/* ───────── Telegram 摘要／核可選擇器（Security 版 GA exp TG.open） ─────────
+   讓每個模組都能先選：摘要或核可、日／週／月／年、期間、語言，再送出。
+   核可項目由頁面自行提供，後端仍會再次限制只有保安服務費可送核可。 */
+function tgAnchor(key, type) {
+  var s = String(key || '');
+  if (type === 'year' && /^\d{4}$/.test(s)) return new Date(+s, 0, 1);
+  if (type === 'month' && /^\d{4}-\d{2}$/.test(s)) return new Date(+s.slice(0,4), +s.slice(5,7)-1, 1);
+  return parseD(s) || new Date();
+}
+function tgPeriodLabel(key, type) { return new Period(type, tgAnchor(key, type)).label(); }
+function tgOpen(opt) {
+  opt = opt || {};
+  var firstType = opt.defaultType || 'month';
+  var st = { mode:'summary', ptype:firstType, period:opt.defaultPeriod || '', lang:opt.defaultLang || _lang };
+  var mask = document.createElement('div');
+  mask.className = 'mask on';
+  mask.innerHTML =
+    '<div class="modal" style="max-width:560px">' +
+      '<div class="mh"><span>✈️</span><b>Telegram 摘要／核可</b>' +
+        '<button class="x" data-tg-close>×</button></div>' +
+      '<div class="mb">' +
+        '<div class="f"><label>傳送模式 Mode</label><div class="row" id="tgMode">' +
+          '<button class="btn sm" data-tg-mode="summary">📄 摘要 Summary</button>' +
+          (opt.canApprove ? '<button class="btn sm gh" data-tg-mode="approval">✅ 保安費核可 Approval</button>' : '') +
+        '</div></div>' +
+        '<div class="grid g2" style="margin-top:10px">' +
+          '<div class="f"><label>期間類型 Period</label><select id="tgType">' +
+            '<option value="day">日 Day</option><option value="week">週 Week</option>' +
+            '<option value="month" selected>月 Month</option><option value="year">年 Year</option>' +
+          '</select></div>' +
+          '<div class="f"><label>選擇期間 Select period</label><select id="tgPeriod"></select></div>' +
+        '</div>' +
+        '<div class="f" style="margin-top:10px"><label>訊息語言 Language</label><select id="tgLang">' +
+          '<option value="zh">繁體中文</option><option value="en">English</option><option value="km">ខ្មែរ</option>' +
+        '</select></div>' +
+        '<div class="f" style="margin-top:10px"><label>訊息預覽 Preview</label>' +
+          '<pre id="tgPreview" style="white-space:pre-wrap;max-height:330px;overflow:auto;background:#f6f8fb;border:1px solid var(--line);border-radius:9px;padding:11px;font:12px/1.55 system-ui,sans-serif"></pre></div>' +
+        '<p id="tgNote" class="hint" style="margin-top:8px">摘要只是通知，不會改變資料狀態。</p>' +
+      '</div>' +
+      '<div class="mf"><button class="btn gray" data-tg-close>取消 Cancel</button>' +
+        '<button class="btn" id="tgSend">✈️ 確認傳送 Send</button></div>' +
+    '</div>';
+  document.body.appendChild(mask);
+  var q = function (s) { return mask.querySelector(s); };
+  var close = function () { mask.remove(); };
+  mask.querySelectorAll('[data-tg-close]').forEach(function (b) { b.onclick = close; });
+  mask.onclick = function (e) { if (e.target === mask) close(); };
+  q('#tgType').value = firstType;
+  q('#tgLang').value = st.lang;
+
+  function fillPeriods() {
+    var list = [];
+    try { list = opt.periods ? (opt.periods(st.ptype) || []) : []; } catch (e) { list = []; }
+    list = Array.from(new Set(list.map(String))).filter(Boolean).sort().reverse();
+    var current = opt.currentPeriod ? opt.currentPeriod(st.ptype) : new Period(st.ptype).key();
+    if (current && list.indexOf(String(current)) < 0) list.unshift(String(current));
+    if (!list.length) list = [String(current || new Period(st.ptype).key())];
+    var sel = q('#tgPeriod');
+    sel.innerHTML = list.map(function (k) {
+      return '<option value="' + esc(k) + '">' + esc(tgPeriodLabel(k, st.ptype)) + '</option>';
+    }).join('');
+    st.period = st.period && list.indexOf(String(st.period)) >= 0 ? String(st.period) : list[0];
+    sel.value = st.period;
+  }
+  function note() {
+    q('#tgNote').textContent = st.mode === 'approval'
+      ? '只會送出尚未送核的 Security Fee；Telegram 群組會顯示逐筆核可／退件、翻頁、全部核可及關閉批次按鈕。'
+      : '摘要是通知用途，可重複傳送，不會建立核可批次，也不會改變資料狀態。';
+  }
+  function preview() {
+    var text = '';
+    try {
+      if (st.mode === 'approval') {
+        var items = opt.approvalItems ? (opt.approvalItems(st) || []) : [];
+        var amt = items.reduce(function (a, r) { return a + (Number(r.amount) || 0); }, 0);
+        text = '💰 保安費核可請求\n期間：' + tgPeriodLabel(st.period, st.ptype) +
+          '\n─────────────\n筆數：' + items.length + '　合計：$' + amt.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) +
+          '\n\n' + items.slice(0, 10).map(function (r, i) {
+            return (i + 1) + '. ' + (r.name || r.item || '—') + ' · $' + Number(r.amount || 0).toFixed(2) +
+              (r.reason ? '\n   ' + r.reason : '');
+          }).join('\n') + (items.length > 10 ? '\n… 另有 ' + (items.length - 10) + ' 筆' : '');
+        q('#tgSend').disabled = !items.length;
+      } else {
+        text = opt.summary ? (opt.summary(st) || '（本期間沒有資料）') : '（沒有摘要內容）';
+        q('#tgSend').disabled = false;
+      }
+    } catch (e) { text = '⚠️ ' + e.message; q('#tgSend').disabled = true; }
+    q('#tgPreview').textContent = text;
+  }
+  q('#tgType').onchange = function () { st.ptype = this.value; fillPeriods(); preview(); };
+  q('#tgPeriod').onchange = function () { st.period = this.value; preview(); };
+  q('#tgLang').onchange = function () { st.lang = this.value; preview(); };
+  mask.querySelectorAll('[data-tg-mode]').forEach(function (b) {
+    b.onclick = function () {
+      st.mode = b.dataset.tgMode;
+      mask.querySelectorAll('[data-tg-mode]').forEach(function (x) { x.classList.toggle('on', x === b); });
+      note(); preview();
+    };
+  });
+  q('[data-tg-mode="summary"]').classList.add('on');
+  q('#tgSend').onclick = async function () {
+    var btn = this; btn.disabled = true; btn.textContent = '⏳ 傳送中…';
+    try {
+      if (st.mode === 'summary') {
+        await gasPost({ action:'telegram', text:q('#tgPreview').textContent, module:opt.module||'', lang:st.lang });
+        toast('✈️ Telegram 摘要已送出', 'ok');
+      } else {
+        var items = opt.approvalItems ? (opt.approvalItems(st) || []) : [];
+        var result = await sendApproval({ module:opt.module, period:st.period, title:opt.approvalTitle || '', route:opt.route, lang:st.lang, items:items });
+        if (!result) throw new Error('核可請求未送出');
+        if (opt.onApprovalSent) opt.onApprovalSent(result, st, items);
+      }
+      close();
+    } catch (e) {
+      toast('❌ ' + e.message, 'err', 6000);
+      btn.disabled = false; btn.textContent = '✈️ 確認傳送 Send';
+    }
+  };
+  fillPeriods(); note(); preview();
+  return { close:close };
+}
+
 /* ───────── 核可送出（兩種路徑） ───────── */
 function routePickerHtml(id) {
   var L = T(), c = getCfg();
@@ -538,7 +660,7 @@ async function sendApproval(opt) {
     module : opt.module,
     period : opt.period || '',
     title  : opt.title || '',
-    lang   : _lang,
+    lang   : opt.lang || _lang,
     route  : opt.route || c.route || 'review',
     requestedBy : c.operator || 'web',
     items  : opt.items || [],
@@ -889,7 +1011,7 @@ G.SEC = {
   Period:Period, periodNavHtml:periodNavHtml, bindPeriodNav:bindPeriodNav,
   T:T, lang:lang, setLang:setLang, applyI18n:applyI18n, I18N:BASE_I18N,
   toast:toast, gasPost:gasPost, cloudPush:cloudPush, cloudPull:cloudPull,
-  markSync:markSync, lastSync:lastSync, tgSummary:tgSummary,
+  markSync:markSync, lastSync:lastSync, tgSummary:tgSummary, tgOpen:tgOpen,
   recordKey:recordKey, mergeRecords:mergeRecords, mergeObject:mergeObject,
   routePickerHtml:routePickerHtml, bindRoutePicker:bindRoutePicker, pickedRoute:pickedRoute,
   sendApproval:sendApproval,
