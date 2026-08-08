@@ -699,7 +699,8 @@ function tgOpen(opt) {
         q('#tgSend').disabled = false;
       }
     } catch (e) { text = '⚠️ ' + e.message; q('#tgSend').disabled = true; }
-    q('#tgPreview').textContent = text;
+    /* Telegram uses HTML markup; render the same markup in the preview so tags such as <b> do not appear as raw text. */
+    q('#tgPreview').innerHTML = text;
   }
   q('#tgType').onchange = function () { st.ptype = this.value; fillPeriods(true); preview(); };
   q('#tgAnchor').onchange = function () { st.period = readAnchor(); preview(); };

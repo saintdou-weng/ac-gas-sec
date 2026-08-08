@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="stylesheet" href="./shared/sec.css?v=20260808d">
+<link rel="stylesheet" href="./shared/sec.css?v=20260808e">
 <style>
 .mapwrap{position:relative;background:#f7fafc;border:1px solid var(--line);border-radius:12px;overflow:hidden}
 #plan{display:block;width:100%;height:auto;touch-action:manipulation}
@@ -36,6 +36,21 @@
 .det .kv span:first-child{color:var(--ink2)}
 @media(max-width:720px){.det{position:static;width:auto;margin-top:10px}}
 .due-row td{font-size:12px}
+.fire-filters{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;align-items:end}
+.fire-filters .f{min-width:0}
+.insp-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.insp-card{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff;box-shadow:0 1px 2px rgba(15,43,70,.04)}
+.insp-head{display:flex;justify-content:space-between;gap:8px;align-items:center;border-bottom:1px solid #edf2f6;padding-bottom:8px;margin-bottom:8px}
+.insp-head code{font-weight:800;color:var(--n1)}
+.insp-meta{font-size:12px;color:var(--ink2);line-height:1.5;margin-bottom:9px}
+.insp-actions{display:flex;gap:8px;margin:8px 0}
+.insp-choice{flex:1;min-height:40px;border:1px solid var(--line);border-radius:9px;background:#f8fafc;color:var(--ink2);font-weight:700;cursor:pointer}
+.insp-choice.on.ok{background:#dcfce7;border-color:#16a34a;color:#166534}
+.insp-choice.on.fault{background:#fee2e2;border-color:#dc2626;color:#991b1b}
+.insp-note{width:100%;box-sizing:border-box}
+.factory-pill{display:inline-flex;align-items:center;border-radius:999px;padding:2px 8px;background:#e8f2f7;color:#1e6f8e;font-size:11px;font-weight:800}
+@media(max-width:900px){.fire-filters{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:600px){.fire-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.insp-cards{grid-template-columns:1fr}.insp-card{padding:10px}}
 </style>
 </head>
 <body>
@@ -115,7 +130,9 @@
     <div class="card">
       <h3>🧯 <span data-zh="消防設備清單" data-en="Equipment List" data-km="បញ្ជីឧបករណ៍">消防設備清單</span>
         <span class="sp">
+          <select id="fFactory" style="width:auto" onchange="renderList()"><option value="">全部廠別</option></select>
           <select id="fZone" style="width:auto" onchange="renderList()"><option value="">全部區域</option></select>
+          <select id="fTypeList" style="width:auto" onchange="renderList()"><option value="">全部類型</option></select>
           <input id="q" placeholder="搜尋編號/位置…" style="width:150px" oninput="renderList()">
           <button class="btn sm" onclick="openEdit()">➕ <span data-t="add">新增</span></button>
           <button class="btn sm gh" onclick="expExcel()">📊 Excel</button>
@@ -123,6 +140,7 @@
       <div class="tw"><table><thead><tr>
         <th data-zh="編號" data-en="Code" data-km="លេខ">編號</th>
         <th data-zh="設備類型" data-en="Type" data-km="ប្រភេទ">設備類型</th>
+        <th data-zh="廠別" data-en="Factory" data-km="រោងចក្រ">廠別</th>
         <th data-zh="區域" data-en="Zone" data-km="តំបន់">區域</th>
         <th data-zh="詳細位置" data-en="Location" data-km="ទីតាំង">詳細位置</th>
         <th data-zh="上次巡檢" data-en="Last" data-km="ចុងក្រោយ">上次巡檢</th>
@@ -136,26 +154,25 @@
   <!-- ═══ 巡檢登錄 ═══ -->
   <div class="page" id="p-insp" style="display:none">
     <div class="card">
-      <h3>✅ <span data-zh="消防設備巡檢（免核可，可批次登錄）" data-en="Fire Inspection (no approval, batch)" data-km="ត្រួតពិនិត្យ">✅ 消防設備巡檢（免核可，可批次登錄）</span></h3>
-      <div class="grid g3">
+      <h3>✅ <span data-zh="消防設備巡檢（免核可，可批次登錄）" data-en="Fire Inspection (no approval, batch)" data-km="ត្រួតពិនិត្យ">✅ 消防設備巡檢（免核可，可批次登錄）</span>
+        <span class="sp"><button class="btn sm gh" onclick="openFireInspectionTelegram()">✈️ <span data-zh="巡檢摘要" data-en="Inspection summary" data-km="សង្ខេបការត្រួតពិនិត្យ">巡檢摘要</span></button></span></h3>
+      <div class="fire-filters">
         <div class="f"><label data-zh="巡檢日期" data-en="Date" data-km="កាល">巡檢日期</label><input type="date" id="cDate"></div>
         <div class="f"><label data-zh="巡檢人" data-en="Inspector" data-km="អ្នកត្រួតពិនិត្យ">巡檢人</label><input id="cBy"></div>
+        <div class="f"><label data-zh="廠別" data-en="Factory" data-km="រោងចក្រ">廠別</label><select id="cFactory" onchange="renderInsp()"><option value="">全部廠別</option></select></div>
         <div class="f"><label data-zh="區域篩選" data-en="Zone" data-km="តំបន់">區域篩選</label>
           <select id="cZone" onchange="renderInsp()"><option value="">全部區域</option></select></div>
+        <div class="f"><label data-zh="設備類型" data-en="Equipment type" data-km="ប្រភេទឧបករណ៍">設備類型</label><select id="cType" onchange="renderInsp()"><option value="">全部類型</option></select></div>
       </div>
       <div class="sep"></div>
       <div class="row" style="margin-bottom:9px">
         <button class="btn sm ok" onclick="markAll('ok')">✅ <span data-zh="全部標記正常" data-en="All OK" data-km="ធម្មតាទាំងអស់">全部標記正常</span></button>
         <button class="btn sm gh" onclick="markAll('')">↩️ <span data-zh="清除" data-en="Clear" data-km="សម្អាត">清除</span></button>
         <button class="btn" style="margin-left:auto" onclick="saveInsp()">💾 <span data-zh="儲存巡檢結果" data-en="Save inspection" data-km="រក្សាទុក">儲存巡檢結果</span></button>
-        <button class="btn gh" onclick="saveInsp(true)">💾✈️ <span data-zh="儲存並推送" data-en="Save & push" data-km="រក្សាទុក និងផ្ញើ">儲存並推送</span></button>
+        <button class="btn gh" onclick="saveInsp(true)">💾✈️ <span data-zh="儲存並選擇摘要" data-en="Save & choose summary" data-km="រក្សាទុក និងជ្រើសសង្ខេប">儲存並選擇摘要</span></button>
       </div>
-      <div class="tw"><table><thead><tr>
-        <th data-zh="編號" data-en="Code" data-km="លេខ">編號</th><th data-zh="設備" data-en="Type" data-km="ប្រភេទ">設備</th>
-        <th data-zh="位置" data-en="Location" data-km="ទីតាំង">位置</th>
-        <th data-zh="判定" data-en="Result" data-km="លទ្ធផល">判定</th>
-        <th data-zh="備註" data-en="Note" data-km="កំណត់">備註</th></tr></thead>
-        <tbody id="tbInsp"></tbody></table></div>
+      <p class="hint">請先選廠別／區域／設備類型，每項設備會以卡片顯示；直接按「正常」或「異常」，不需要左右拖動表格。</p>
+      <div id="tbInsp" class="insp-cards"></div>
     </div>
     <div class="card">
       <h3>📜 <span data-zh="巡檢歷史" data-en="Inspection History" data-km="ប្រវត្តិ">巡檢歷史</span></h3>
@@ -221,6 +238,7 @@
     <option value="alarm">🔔 警報器 Alarm</option><option value="exit">🚪 逃生出口 Exit</option>
     <option value="light">💡 緊急照明 Emergency Light</option><option value="kit">🩹 急救箱 First Aid</option>
     <option value="cctv">📷 攝影機 Camera</option><option value="other">📦 其他 Other</option></select></div>
+  <div class="f"><label>廠別 Factory</label><select id="e_factory"></select></div>
   <div class="f"><label>區域 Zone</label><select id="e_zone"></select></div>
   <div class="f"><label>詳細位置 Location</label><input id="e_loc" placeholder="例：一樓東側走道"></div>
   <div class="f"><label>上次巡檢 Last Check</label><input type="date" id="e_last"></div>
@@ -235,7 +253,7 @@
 <button class="btn" onclick="saveEdit()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260808d"></script>
+<script src="./shared/sec-core.js?v=20260808e"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -267,16 +285,21 @@ var ZONES = [
   { id:'yard',  x:270, y:490, w:640, h:110, zh:'廠區空地／通道', en:'Yard / Driveway' },
 ];
 var TYPES = {
-  ext  : { icon:'🧯', zh:'滅火器',   en:'Extinguisher',   color:'#dc2626' },
-  hyd  : { icon:'🚰', zh:'消防栓',   en:'Hydrant',        color:'#2563eb' },
-  alarm: { icon:'🔔', zh:'警報器',   en:'Alarm',          color:'#f59e0b' },
-  exit : { icon:'🚪', zh:'逃生出口', en:'Exit',           color:'#16a34a' },
-  light: { icon:'💡', zh:'緊急照明', en:'Emergency Light',color:'#eab308' },
-  kit  : { icon:'🩹', zh:'急救箱',   en:'First Aid',      color:'#ec4899' },
-  cctv : { icon:'📷', zh:'攝影機',   en:'Camera',         color:'#7c3aed' },
-  other: { icon:'📦', zh:'其他',     en:'Other',          color:'#64748b' },
+  ext  : { icon:'🧯', zh:'滅火器',   en:'Extinguisher',   km:'ឧបករណ៍ពន្លត់អគ្គិភ័យ', color:'#dc2626' },
+  hyd  : { icon:'🚰', zh:'消防栓',   en:'Hydrant',        km:'បំពង់ពន្លត់អគ្គិភ័យ', color:'#2563eb' },
+  alarm: { icon:'🔔', zh:'警報器',   en:'Alarm',          km:'សំឡេងរោទិ៍', color:'#f59e0b' },
+  exit : { icon:'🚪', zh:'逃生出口', en:'Exit',           km:'ច្រកចេញ', color:'#16a34a' },
+  light: { icon:'💡', zh:'緊急照明', en:'Emergency Light',km:'ភ្លើងបន្ទាន់', color:'#eab308' },
+  kit  : { icon:'🩹', zh:'急救箱',   en:'First Aid',      km:'ប្រអប់សង្គ្រោះបឋម', color:'#ec4899' },
+  cctv : { icon:'📷', zh:'攝影機',   en:'Camera',         km:'កាមេរ៉ា', color:'#7c3aed' },
+  other: { icon:'📦', zh:'其他',     en:'Other',          km:'ផ្សេងទៀត', color:'#64748b' },
 };
 var ST = { ok:'#16a34a', soon:'#f59e0b', over:'#dc2626', off:'#94a3b8' };
+var FACTORIES = {
+  a: { zh:'A 廠', en:'A Factory', km:'រោងចក្រ A' },
+  b: { zh:'B 廠', en:'B Factory', km:'រោងចក្រ B' },
+  common: { zh:'公共區域', en:'Common Area', km:'តំបន់រួម' }
+};
 
 async function load() {
   DB = await SEC.dbGet(LS, []);
@@ -315,6 +338,28 @@ function stLabel(s) {
        : '<span class="tag gray">⚪ 停用/未設</span>';
 }
 function zoneName(id) { var z = ZONES.filter(function (x) { return x.id === id; })[0]; return z ? z.zh : (id || '—'); }
+function factoryOf(e) {
+  var raw = String(e && (e.factory || e.plant || e.site) || '').toLowerCase();
+  if (/^b$|b廠|b棟|b factory|building b|b building|plant b/.test(raw)) return 'b';
+  if (/^a$|a廠|a棟|a factory|building a|a building|plant a/.test(raw)) return 'a';
+  if (e && (e.zone === 'bldB' || e.zone === 'back')) return 'b';
+  if (e && (e.zone === 'bldA' || e.zone === 'fwh')) return 'a';
+  return 'common';
+}
+function factoryName(id) { return (FACTORIES[id] || FACTORIES.common).zh; }
+function factoryNameEn(id) { return (FACTORIES[id] || FACTORIES.common).en; }
+function factoryOptions(withAll) {
+  return (withAll ? '<option value="">全部廠別 / All factories</option>' : '') +
+    Object.keys(FACTORIES).map(function (k) { return '<option value="' + k + '">' + FACTORIES[k].zh + ' / ' + FACTORIES[k].en + ' / ' + FACTORIES[k].km + '</option>'; }).join('');
+}
+function typeOptions(withAll) {
+  return (withAll ? '<option value="">全部類型 / All types</option>' : '') +
+    Object.keys(TYPES).map(function (k) { var t = TYPES[k]; return '<option value="' + k + '">' + t.icon + ' ' + t.zh + ' / ' + t.en + ' / ' + t.km + '</option>'; }).join('');
+}
+function fireStatusText(s) {
+  return s === 'ok' ? '✅ 正常 / Normal' : s === 'soon' ? '⏰ 即將到期 / Due soon' :
+    s === 'over' ? '⛔ 逾期／故障 / Overdue or fault' : '⚪ 停用／未設 / Disabled or not set';
+}
 
 /* ═══════════ 初始化 ═══════════ */
 document.getElementById('hdr').innerHTML = SEC.headerHtml('🧯', '消防設施與地圖 Fire & Map', 'AC SECURITY · FIRE');
@@ -337,7 +382,16 @@ window.onLangChange = renderAll;
 
 function fillZoneSelects() {
   var opts = ZONES.map(function (z) { return '<option value="' + z.id + '">' + z.zh + ' ' + z.en + '</option>'; }).join('');
+  document.getElementById('e_factory').innerHTML = factoryOptions(false);
   document.getElementById('e_zone').innerHTML = opts;
+  ['fFactory','cFactory'].forEach(function (id) {
+    var el = document.getElementById(id), cur = el.value;
+    el.innerHTML = factoryOptions(true); el.value = cur;
+  });
+  ['fTypeList','cType'].forEach(function (id) {
+    var el = document.getElementById(id), cur = el.value;
+    el.innerHTML = typeOptions(true); el.value = cur;
+  });
   ['fZone','cZone'].forEach(function (id) {
     var el = document.getElementById(id), cur = el.value;
     el.innerHTML = '<option value="">全部區域</option>' + opts;
@@ -508,25 +562,30 @@ function renderDue() {
 }
 function renderList() {
   var list = DB.slice();
+  var f = document.getElementById('fFactory').value;
   var z = document.getElementById('fZone').value;
+  var t = document.getElementById('fTypeList').value;
   var q = (document.getElementById('q').value || '').toLowerCase();
+  if (f) list = list.filter(function (e) { return factoryOf(e) === f; });
   if (z) list = list.filter(function (e) { return e.zone === z; });
+  if (t) list = list.filter(function (e) { return e.type === t; });
   if (q) list = list.filter(function (e) {
     return String(e.code || '').toLowerCase().indexOf(q) >= 0 || String(e.loc || '').toLowerCase().indexOf(q) >= 0;
   });
   var tb = document.getElementById('tbList');
   tb.innerHTML = list.length ? list.map(function (e) {
     var T = TYPES[e.type] || TYPES.other;
-    return '<tr><td><code>' + SEC.esc(e.code || '') + '</code></td><td>' + T.icon + ' ' + T.zh + '</td>' +
+    return '<tr><td><code>' + SEC.esc(e.code || '') + '</code></td><td>' + T.icon + ' ' + T.zh + ' / ' + T.en + '</td>' +
+      '<td><span class="factory-pill">' + SEC.esc(factoryName(factoryOf(e))) + '</span></td>' +
       '<td>' + SEC.esc(zoneName(e.zone)) + '</td><td>' + SEC.esc(e.loc || '') + '</td>' +
       '<td>' + SEC.esc(e.last || '') + '</td><td class="num">' + (e.cycle || '') + '</td>' +
       '<td>' + (dueDate(e) || '') + '</td><td>' + stLabel(statusOf(e)) + '</td>' +
       '<td><button class="btn sm gh" onclick="openEdit(\'' + e.id + '\')">✏️</button></td></tr>';
-  }).join('') : '<tr><td colspan="9" class="empty">' + SEC.T().noData + '</td></tr>';
+  }).join('') : '<tr><td colspan="10" class="empty">' + SEC.T().noData + '</td></tr>';
 }
 
 /* ═══════════ 編輯 ═══════════ */
-var EF = ['code','type','zone','loc','last','cycle','status','remark'];
+var EF = ['code','type','factory','zone','loc','last','cycle','status','remark'];
 var EDIT_ID = '', NEWXY = null;
 function openEdit(id, x, y) {
   EDIT_ID = id || ''; NEWXY = (x != null) ? { x: x, y: y } : null;
@@ -535,7 +594,8 @@ function openEdit(id, x, y) {
   document.getElementById('mTitle').textContent = id ? '編輯設備' : '新增設備';
   EF.forEach(function (f) {
     var el = document.getElementById('e_' + f);
-    el.value = e[f] != null && e[f] !== '' ? e[f] : (f === 'cycle' ? 30 : f === 'status' ? 'ok' : f === 'type' ? 'ext' : '');
+    var value = f === 'factory' ? factoryOf(e) : e[f];
+    el.value = value != null && value !== '' ? value : (f === 'cycle' ? 30 : f === 'status' ? 'ok' : f === 'type' ? 'ext' : f === 'factory' ? 'common' : '');
   });
   if (!id) {
     document.getElementById('e_last').value = SEC.ymd();
@@ -567,30 +627,38 @@ function delEquip() {
 
 /* ═══════════ 巡檢 ═══════════ */
 function renderInsp() {
+  var f = document.getElementById('cFactory').value;
   var z = document.getElementById('cZone').value;
-  var list = DB.filter(function (e) { return (!z || e.zone === z) && e.status !== 'off'; });
+  var t = document.getElementById('cType').value;
+  var list = DB.filter(function (e) { return (!f || factoryOf(e) === f) && (!z || e.zone === z) && (!t || e.type === t) && e.status !== 'off'; });
   var tb = document.getElementById('tbInsp');
   tb.innerHTML = list.length ? list.map(function (e) {
     var T = TYPES[e.type] || TYPES.other;
     var v = INSP[e.id] || {};
-    return '<tr><td><code>' + SEC.esc(e.code || '') + '</code></td><td>' + T.icon + ' ' + T.zh + '</td>' +
-      '<td>' + SEC.esc(zoneName(e.zone)) + (e.loc ? ' · ' + SEC.esc(e.loc) : '') + '</td>' +
-      '<td><select data-i="' + e.id + '" class="ir" style="width:110px">' +
-        '<option value=""' + (!v.r ? ' selected' : '') + '>—</option>' +
-        '<option value="ok"' + (v.r === 'ok' ? ' selected' : '') + '>✅ 正常</option>' +
-        '<option value="fault"' + (v.r === 'fault' ? ' selected' : '') + '>⛔ 異常</option></select></td>' +
-      '<td><input data-i="' + e.id + '" class="in" value="' + SEC.esc(v.n || '') + '" placeholder="異常說明…"></td></tr>';
-  }).join('') : '<tr><td colspan="5" class="empty">此區域無設備。請先在地圖或設備清單新增。</td></tr>';
-  tb.querySelectorAll('.ir').forEach(function (s) {
-    s.onchange = function () { INSP[s.dataset.i] = INSP[s.dataset.i] || {}; INSP[s.dataset.i].r = s.value; };
+    return '<div class="insp-card"><div class="insp-head"><code>' + SEC.esc(e.code || '') + '</code>' +
+      '<span class="factory-pill">' + SEC.esc(factoryName(factoryOf(e))) + '</span></div>' +
+      '<div class="insp-meta">' + T.icon + ' <b>' + SEC.esc(T.zh) + ' / ' + SEC.esc(T.en) + '</b><br>' +
+        SEC.esc(zoneName(e.zone)) + (e.loc ? ' · ' + SEC.esc(e.loc) : '') + '</div>' +
+      '<div class="insp-actions"><button type="button" data-i="' + e.id + '" data-r="ok" class="insp-choice ok' + (v.r === 'ok' ? ' on' : '') + '">✅ 正常 / OK</button>' +
+        '<button type="button" data-i="' + e.id + '" data-r="fault" class="insp-choice fault' + (v.r === 'fault' ? ' on' : '') + '">⛔ 異常 / Fault</button></div>' +
+      '<input data-i="' + e.id + '" class="insp-note" value="' + SEC.esc(v.n || '') + '" placeholder="異常說明／備註 Remark…"></div>';
+  }).join('') : '<div class="empty" style="grid-column:1/-1;padding:30px">此篩選沒有設備。請先在設備清單匯入或新增。</div>';
+  tb.querySelectorAll('.insp-choice').forEach(function (b) {
+    b.onclick = function () {
+      INSP[b.dataset.i] = INSP[b.dataset.i] || {};
+      INSP[b.dataset.i].r = b.dataset.r;
+      b.parentNode.querySelectorAll('.insp-choice').forEach(function (x) { x.classList.toggle('on', x === b); });
+    };
   });
-  tb.querySelectorAll('.in').forEach(function (s) {
-    s.onchange = function () { INSP[s.dataset.i] = INSP[s.dataset.i] || {}; INSP[s.dataset.i].n = s.value; };
+  tb.querySelectorAll('.insp-note').forEach(function (s) {
+    s.oninput = function () { INSP[s.dataset.i] = INSP[s.dataset.i] || {}; INSP[s.dataset.i].n = s.value; };
   });
 }
 function markAll(v) {
+  var f = document.getElementById('cFactory').value;
   var z = document.getElementById('cZone').value;
-  DB.filter(function (e) { return (!z || e.zone === z) && e.status !== 'off'; })
+  var t = document.getElementById('cType').value;
+  DB.filter(function (e) { return (!f || factoryOf(e) === f) && (!z || e.zone === z) && (!t || e.type === t) && e.status !== 'off'; })
     .forEach(function (e) { INSP[e.id] = INSP[e.id] || {}; INSP[e.id].r = v; });
   renderInsp();
 }
@@ -599,25 +667,22 @@ function saveInsp(push) {
   if (!ids.length) { SEC.toast('⚠ 尚未勾選任何判定', 'warn'); return; }
   var date = document.getElementById('cDate').value || SEC.ymd();
   var by = document.getElementById('cBy').value.trim() || SEC.getCfg().operator;
-  var bad = [];
+  var bad = [], items = [];
   ids.forEach(function (id) {
     var e = DB.filter(function (x) { return x.id === id; })[0]; if (!e) return;
+    var result = INSP[id].r;
+    items.push({ id:id, code:e.code || '', type:e.type || 'other', factory:factoryOf(e), zone:e.zone || '', loc:e.loc || '', result:result, note:INSP[id].n || '' });
     e.last = date;
-    e.status = INSP[id].r === 'fault' ? 'fault' : 'ok';
+    e.status = result === 'fault' ? 'fault' : 'ok';
     if (INSP[id].n) e.remark = INSP[id].n;
-    if (INSP[id].r === 'fault') bad.push((e.code || '') + ' ' + zoneName(e.zone) + (INSP[id].n ? '（' + INSP[id].n + '）' : ''));
+    if (result === 'fault') bad.push((e.code || '') + ' ' + zoneName(e.zone) + (INSP[id].n ? '（' + INSP[id].n + '）' : ''));
   });
   HIST.unshift({ id: 'H' + Date.now().toString(36), date: date, by: by,
-    n: ids.length, ok: ids.length - bad.length, bad: bad.length, badList: bad });
+    n: items.length, ok: items.length - bad.length, bad: bad.length, badList: bad, items: items });
   if (HIST.length > 300) HIST.length = 300;
   INSP = {}; save(); renderAll();
   SEC.toast('✅ 已登錄 ' + ids.length + ' 項巡檢' + (bad.length ? '，異常 ' + bad.length + ' 項' : ''), bad.length ? 'warn' : 'ok', 5000);
-  if (push) {
-    var txt = '🧯 <b>消防設備巡檢</b>\n📅 ' + date + '　👤 ' + by + '\n─────────────\n' +
-      '受檢：<b>' + ids.length + '</b> 項\n✅ 正常：' + (ids.length - bad.length) + '\n⛔ 異常：<b>' + bad.length + '</b>\n';
-    if (bad.length) { txt += '\n<b>異常項目</b>\n'; bad.slice(0, 15).forEach(function (b) { txt += '· ' + b + '\n'; }); }
-    SEC.tgSummary(txt, 'fire');
-  }
+  if (push) openFireInspectionTelegram();
 }
 function renderHist() {
   var tb = document.getElementById('tbHist');
@@ -675,6 +740,7 @@ function chart(id, type, labels, ds) {
 var SPEC = {
   code  : ['編號','编号','code','no','id','លេខ'],
   type  : ['類型','类型','type','設備','equipment','ប្រភេទ'],
+  factory: ['廠別','厂别','factory','plant','site','រោងចក្រ'],
   zone  : ['區域','区域','zone','building','棟','តំបន់'],
   loc   : ['位置','location','place','ទីតាំង','詳細位置'],
   last  : ['上次巡檢','上次检查','lastcheck','date','日期','檢查日'],
@@ -699,12 +765,17 @@ function impExcel() {
                  : /攝影|camera|cctv|监控/.test(tRaw) ? 'cctv' : 'other';
         var zRaw = SEC.str(o.zone).toLowerCase();
         var zone = /宿舍|house|dorm/.test(zRaw) ? 'house' : /成品|finish|warehouse|倉/.test(zRaw) ? 'fwh'
-                 : /後門|back/.test(zRaw) ? 'back' : /大門|front ?gate|門崗/.test(zRaw) ? 'gate'
-                 : /b/.test(zRaw) ? 'bldB' : /a/.test(zRaw) ? 'bldA' : 'yard';
+                 : /後門|back/.test(zRaw) ? 'back' : /大門|front\s*gate|門崗/.test(zRaw) ? 'gate'
+                 : /b\s*棟|building\s*b|b\s*factory|b廠/.test(zRaw) ? 'bldB'
+                 : /a\s*棟|building\s*a|a\s*factory|a廠/.test(zRaw) ? 'bldA' : 'yard';
+        var fRaw = SEC.str(o.factory).toLowerCase();
+        var factory = /(^|\s)b(\s|$)|b廠|b棟|b\s*factory|plant\s*b/.test(fRaw) ? 'b'
+                    : /(^|\s)a(\s|$)|a廠|a棟|a\s*factory|plant\s*a/.test(fRaw) ? 'a'
+                    : (zone === 'bldB' || zone === 'back') ? 'b' : (zone === 'bldA' || zone === 'fwh') ? 'a' : 'common';
         var d = SEC.parseD(o.last);
         var z = ZONES.filter(function (x) { return x.id === zone; })[0] || ZONES[6];
         var row = { id: 'X' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-          code: code || ('IMP-' + (DB.length + 1)), type: type, zone: zone, loc: loc,
+          code: code || ('IMP-' + (DB.length + 1)), type: type, factory: factory, zone: zone, loc: loc,
           last: d ? SEC.ymd(d) : '', cycle: SEC.num(o.cycle) || 30,
           status: /故障|fault|異常|壞/.test(SEC.str(o.status)) ? 'fault' : /停用|off|disabled/.test(SEC.str(o.status)) ? 'off' : 'ok',
           remark: SEC.str(o.remark),
@@ -725,7 +796,7 @@ function expExcel() {
     { name: 'Equipment', rows: DB.map(function (e, i) {
         var s = statusOf(e);
         return { '#': i + 1, '編號 Code': e.code, '類型 Type': (TYPES[e.type] || TYPES.other).zh,
-          '區域 Zone': zoneName(e.zone), '位置 Location': e.loc, '上次巡檢 Last': e.last,
+          '廠別 Factory': factoryName(factoryOf(e)), '區域 Zone': zoneName(e.zone), '位置 Location': e.loc, '上次巡檢 Last': e.last,
           '週期 Cycle': e.cycle, '到期日 Due': dueDate(e),
           '狀態 Status': s === 'ok' ? '正常' : s === 'soon' ? '即將到期' : s === 'over' ? '逾期/故障' : '停用',
           '備註 Remark': e.remark }; }) },
@@ -799,43 +870,132 @@ function firePeriods(type) {
   if (!Object.keys(seen).length) seen[new SEC.Period(type).key()] = 1;
   return Object.keys(seen);
 }
+function fireT(lang, zh, en, km) { return lang === 'en' ? en : lang === 'km' ? km : zh; }
+function fireStatusLang(s, lang) {
+  return s === 'ok' ? fireT(lang, '正常', 'Normal', 'ធម្មតា') :
+    s === 'soon' ? fireT(lang, '即將到期', 'Due soon', 'ជិតផុតកំណត់') :
+    s === 'over' ? fireT(lang, '逾期／故障', 'Overdue / Fault', 'ហួសកំណត់ / ខូច') :
+    fireT(lang, '停用／未設檢期', 'Disabled / No inspection date', 'បិទប្រើ / មិនទាន់កំណត់ថ្ងៃត្រួតពិនិត្យ');
+}
+function fireFactoryLang(id, lang) {
+  var f = FACTORIES[id] || FACTORIES.common;
+  return fireT(lang, f.zh, f.en, f.km);
+}
+function fireScopeOptions() {
+  var a = [{value:'all',label:'全部設備 / All equipment / ឧបករណ៍ទាំងអស់'},
+    {value:'factory:a',label:'A廠設備 / A Factory equipment / ឧបករណ៍រោងចក្រ A'},
+    {value:'factory:b',label:'B廠設備 / B Factory equipment / ឧបករណ៍រោងចក្រ B'},
+    {value:'factory:common',label:'公共區域 / Common area / តំបន់រួម'}];
+  Object.keys(TYPES).forEach(function (k) {
+    var t = TYPES[k]; a.push({ value:'type:' + k, label:t.icon + ' ' + t.zh + ' / ' + t.en + ' / ' + t.km });
+  });
+  return a;
+}
+function fireScopeMatch(st, e) {
+  var s = st.scope || 'all';
+  if (!s || s === 'all') return true;
+  if (s.indexOf('factory:') === 0) return factoryOf(e) === s.slice(8);
+  if (s.indexOf('type:') === 0) return e.type === s.slice(5);
+  return true;
+}
+function fireScopedEquipment(st) { return DB.filter(function (e) { return fireScopeMatch(st, e); }); }
+function fireHistoryStats(st) {
+  var p = fireSummaryPeriod(st), checked = 0, bad = 0;
+  HIST.filter(function (h) { return p.has(h.date); }).forEach(function (h) {
+    if (Array.isArray(h.items) && h.items.length) {
+      h.items.filter(function (x) { return fireScopeMatch(st, x); }).forEach(function (x) {
+        checked++; if (x.result === 'fault') bad++;
+      });
+    } else if (!st.scope || st.scope === 'all') {
+      checked += +h.n || 0; bad += +h.bad || 0;
+    }
+  });
+  return { checked:checked, bad:bad };
+}
+function fireEquipmentLine(e, lang) {
+  var t = TYPES[e.type] || TYPES.other, s = statusOf(e);
+    return '· <b>' + SEC.esc(e.code || '—') + '</b> · ' + t.icon + ' ' + SEC.esc(lang === 'en' ? t.en : lang === 'km' ? t.km : t.zh) +
+    ' · ' + SEC.esc(zoneName(e.zone)) + (e.loc ? ' · ' + SEC.esc(e.loc) : '') +
+    ' · ' + SEC.esc(fireStatusLang(s, lang)) + (dueDate(e) ? ' · ' + SEC.esc(dueDate(e)) : '');
+}
 function fireSummary(st) {
-  var p = fireSummaryPeriod(st), over = DB.filter(function (e) { return statusOf(e) === 'over'; }), soon = DB.filter(function (e) { return statusOf(e) === 'soon'; });
-  var hist = HIST.filter(function (r) { return p.has(r.date); }), checked = hist.reduce(function (s, r) { return s + (+r.n || 0); }, 0), bad = hist.reduce(function (s, r) { return s + (+r.bad || 0); }, 0);
-  var txt = '🧯 <b>Fire Equipment Summary / 消防設備摘要</b> · ' + SEC.esc(p.label()) + '\n─────────────\n' +
-    'Equipment / 設備總數：<b>' + DB.length + '</b> · Checked / 已檢查 ' + checked + '\n' +
-    '⛔ Overdue or fault / 逾期／故障：<b>' + over.length + '</b>\n⏰ Due within 30 days / 30天內到期：<b>' + soon.length + '</b>\n' +
-    '🧾 Inspection anomalies / 巡檢異常：<b>' + bad + '</b>\n';
-  if (over.length) {
-    txt += '\n<b>⛔ 逾期／故障</b>\n';
-    over.slice(0, 15).forEach(function (e) {
-      var dl = daysLeft(e);
-      txt += '· ' + (e.code || '') + ' ' + (TYPES[e.type] || TYPES.other).zh + ' · ' + zoneName(e.zone) +
-        (e.loc ? ' ' + e.loc : '') + (dl < 0 ? ' · 逾期 ' + (-dl) + ' 天' : ' · 故障') + '\n';
-    });
-  }
-  if (soon.length) {
-    txt += '\n<b>⏰ 即將到期</b>\n';
-    soon.slice(0, 12).forEach(function (e) {
-      txt += '· ' + (e.code || '') + ' ' + zoneName(e.zone) + ' · 剩 ' + daysLeft(e) + ' 天（' + dueDate(e) + '）\n';
-    });
-  }
-  if (!over.length && !soon.length) txt += '\n✅ All equipment within validity / 全部設備在有效期內。';
+  var lang = st.lang || 'zh', p = fireSummaryPeriod(st), list = fireScopedEquipment(st),
+    over = list.filter(function (e) { return statusOf(e) === 'over'; }),
+    soon = list.filter(function (e) { return statusOf(e) === 'soon'; }),
+    hs = fireHistoryStats(st), txt = '🧯 <b>' + fireT(lang, '消防設備摘要', 'Fire Equipment Summary', 'សង្ខេបឧបករណ៍ពន្លត់អគ្គិភ័យ') + '</b> · ' + SEC.esc(p.label()) + '\n─────────────\n' +
+    fireT(lang, '設備總數', 'Equipment', 'ឧបករណ៍') + '：<b>' + list.length + '</b> · ' + fireT(lang, '已檢查', 'Checked', 'បានត្រួតពិនិត្យ') + ' ' + hs.checked + '\n' +
+    '⛔ ' + fireT(lang, '逾期／故障', 'Overdue / Fault', 'ហួសកំណត់ / ខូច') + '：<b>' + over.length + '</b>\n⏰ ' + fireT(lang, '30天內到期', 'Due within 30 days', 'ជិតផុតកំណត់ក្នុង 30 ថ្ងៃ') + '：<b>' + soon.length + '</b>\n' +
+    '🧾 ' + fireT(lang, '巡檢異常', 'Inspection anomalies', 'បញ្ហាការត្រួតពិនិត្យ') + '：<b>' + hs.bad + '</b>\n';
+  ['a','b','common'].forEach(function (fk) {
+    var group = list.filter(function (e) { return factoryOf(e) === fk; });
+    if (!group.length) return;
+    var byType = {};
+    group.forEach(function (e) { byType[e.type] = (byType[e.type] || 0) + 1; });
+    txt += '\n<b>🏭 ' + fireFactoryLang(fk, lang) + '：' + group.length + '</b>\n';
+    Object.keys(byType).forEach(function (tk) { var t = TYPES[tk] || TYPES.other; txt += '· ' + t.icon + ' ' + SEC.esc(lang === 'en' ? t.en : lang === 'km' ? t.km : t.zh) + '：' + byType[tk] + '\n'; });
+    group.slice(0, 8).forEach(function (e) { txt += fireEquipmentLine(e, lang) + '\n'; });
+    if (group.length > 8) txt += '· … ' + fireT(lang, '其餘請看後續明細頁', 'remaining items are on the detail pages', 'ធាតុដែលនៅសល់នៅទំព័រលម្អិត') + '\n';
+  });
+  if (!list.length) txt += '\n⚠️ ' + fireT(lang, '所選分類沒有設備資料', 'No equipment in the selected category', 'គ្មានឧបករណ៍ក្នុងប្រភេទដែលបានជ្រើស') + '\n';
+  if (over.length) { txt += '\n<b>⛔ ' + fireT(lang, '逾期／故障明細', 'Overdue / Fault details', 'ព័ត៌មានលម្អិតហួសកំណត់ / ខូច') + '</b>\n'; over.slice(0, 15).forEach(function (e) { txt += fireEquipmentLine(e, lang) + '\n'; }); }
+  if (soon.length) { txt += '\n<b>⏰ ' + fireT(lang, '即將到期明細', 'Due soon details', 'ព័ត៌មានលម្អិតជិតផុតកំណត់') + '</b>\n'; soon.slice(0, 12).forEach(function (e) { txt += fireEquipmentLine(e, lang) + '\n'; }); }
+  if (!over.length && !soon.length) txt += '\n✅ ' + fireT(lang, '目前沒有逾期或故障設備。', 'No overdue or faulty equipment.', 'គ្មានឧបករណ៍ហួសកំណត់ ឬខូចទេ។');
   return txt;
 }
 function fireSummaryPages(st) {
-  var p = fireSummaryPeriod(st), pages = [fireSummary(st)], over = DB.filter(function (e) { return statusOf(e) === 'over'; }), soon = DB.filter(function (e) { return statusOf(e) === 'soon'; }), lines = [];
-  over.concat(soon).forEach(function (e) {
-    var dl = daysLeft(e), label = statusOf(e) === 'over' ? 'Overdue/Fault 逾期／故障' : 'Due soon 即將到期';
-    lines.push('🧯 ' + SEC.esc(e.code || '—') + ' · ' + SEC.esc((TYPES[e.type] || TYPES.other).en || (TYPES[e.type] || TYPES.other).zh) +
-      ' · Zone/區域 ' + SEC.esc(zoneName(e.zone)) + (e.loc ? ' · ' + SEC.esc(e.loc) : '') + ' · ' + label + ' · ' + (dl < 0 ? 'overdue ' + (-dl) + 'd' : dl + 'd left'));
-  });
-  for (var i = 0; i < lines.length; i += 20) pages.push('<b>🧯 Fire equipment details / 消防設備明細</b>\n' + lines.slice(i, i + 20).join('\n'));
+  var lang = st.lang || 'zh', list = fireScopedEquipment(st), pages = [fireSummary(st)], lines = [];
+  list.forEach(function (e) { lines.push(fireEquipmentLine(e, lang)); });
+  for (var i = 0; i < lines.length; i += 18) pages.push('<b>🧯 ' + fireT(lang, '消防設備明細', 'Fire equipment details', 'ព័ត៌មានលម្អិតឧបករណ៍ពន្លត់អគ្គិភ័យ') + '</b>\n' + lines.slice(i, i + 18).join('\n'));
   return pages;
 }
 function openFireTelegram() {
   return SEC.tgOpen({ module:'fire', defaultType:PER.mode, defaultPeriod:PER.key(), periods:firePeriods,
-    currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); }, summaryPages:fireSummaryPages });
+    currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); }, scopeOptions:fireScopeOptions(), defaultScope:'all', summaryPages:fireSummaryPages });
+}
+function fireInspectionRows(st) {
+  var p = fireSummaryPeriod(st), rows = [];
+  HIST.filter(function (h) { return p.has(h.date); }).forEach(function (h) {
+    if (Array.isArray(h.items) && h.items.length) {
+      h.items.filter(function (x) { return fireScopeMatch(st, x); }).forEach(function (x) {
+        rows.push({ date:h.date, by:h.by, code:x.code, type:x.type, factory:x.factory || factoryOf(x), zone:x.zone, loc:x.loc, result:x.result, note:x.note || '' });
+      });
+    } else if (!st.scope || st.scope === 'all') {
+      rows.push({ date:h.date, by:h.by, aggregate:true, n:h.n, ok:h.ok, bad:h.bad, badList:h.badList || [] });
+    }
+  });
+  return rows;
+}
+function fireInspectionSummary(st) {
+  var lang = st.lang || 'zh', rows = fireInspectionRows(st), detail = rows.filter(function (r) { return !r.aggregate; }), checked = 0, ok = 0, bad = 0;
+  rows.forEach(function (r) { if (r.aggregate) { checked += +r.n || 0; ok += +r.ok || 0; bad += +r.bad || 0; } else { checked++; if (r.result === 'fault') bad++; else ok++; } });
+  var txt = '✅ <b>' + fireT(lang, '消防巡檢摘要', 'Fire Inspection Summary', 'សង្ខេបការត្រួតពិនិត្យអគ្គិភ័យ') + '</b> · ' + SEC.esc(fireSummaryPeriod(st).label()) + '\n─────────────\n' +
+    '📋 ' + fireT(lang, '受檢項目', 'Checked items', 'ធាតុបានត្រួតពិនិត្យ') + '：<b>' + checked + '</b>\n✅ ' + fireT(lang, '正常', 'Normal', 'ធម្មតា') + '：' + ok + '\n⛔ ' + fireT(lang, '異常', 'Abnormal', 'មិនប្រក្រតី') + '：<b>' + bad + '</b>\n';
+  ['a','b','common'].forEach(function (fk) {
+    var n = detail.filter(function (r) { return r.factory === fk; }).length;
+    if (n) txt += '🏭 ' + fireFactoryLang(fk, lang) + '：' + n + '\n';
+  });
+  if (!rows.length) txt += '\nℹ️ ' + fireT(lang, '所選期間沒有巡檢記錄。', 'No inspection records in the selected period.', 'គ្មានកំណត់ត្រាត្រួតពិនិត្យក្នុងរយៈពេលនេះទេ។');
+  if (bad) {
+    txt += '\n<b>⚠️ ' + fireT(lang, '異常項目', 'Abnormal items', 'ធាតុមិនប្រក្រតី') + '</b>\n';
+    rows.filter(function (r) { return r.aggregate ? r.bad : r.result === 'fault'; }).slice(0, 18).forEach(function (r) {
+      txt += r.aggregate ? '· ' + SEC.esc(r.date) + ' · ' + SEC.esc(r.by || '—') + ' · ' + r.bad + '\n' :
+        '· ' + SEC.esc(r.date) + ' · ' + SEC.esc(r.code || '—') + ' · ' + SEC.esc(r.note || fireStatusLang('over', lang)) + '\n';
+    });
+  } else if (checked) txt += '\n✅ ' + fireT(lang, '本期間已登錄的設備全部正常。', 'All inspected equipment in this period is normal.', 'ឧបករណ៍ដែលបានត្រួតពិនិត្យក្នុងរយៈពេលនេះទាំងអស់ធម្មតា។');
+  return txt;
+}
+function fireInspectionSummaryPages(st) {
+  var lang = st.lang || 'zh', rows = fireInspectionRows(st), pages = [fireInspectionSummary(st)], lines = [];
+  rows.forEach(function (r) {
+    if (r.aggregate) lines.push('· ' + SEC.esc(r.date) + ' · ' + SEC.esc(r.by || '—') + ' · ' + r.n + ' checked · ' + r.ok + ' OK · ' + r.bad + ' abnormal');
+    else lines.push('· ' + SEC.esc(r.date) + ' · ' + SEC.esc(r.code || '—') + ' · ' + SEC.esc(factoryName(r.factory)) + ' · ' + SEC.esc(zoneName(r.zone)) + ' · ' + SEC.esc(fireStatusLang(r.result === 'fault' ? 'over' : 'ok', lang)) + (r.note ? ' · ' + SEC.esc(r.note) : ''));
+  });
+  for (var i = 0; i < lines.length; i += 20) pages.push('<b>✅ ' + fireT(lang, '巡檢明細', 'Inspection details', 'ព័ត៌មានលម្អិតការត្រួតពិនិត្យ') + '</b>\n' + lines.slice(i, i + 20).join('\n'));
+  return pages;
+}
+function openFireInspectionTelegram() {
+  return SEC.tgOpen({ module:'fire', defaultType:PER.mode, defaultPeriod:PER.key(), periods:firePeriods,
+    currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); }, scopeOptions:fireScopeOptions(), defaultScope:'all', summaryPages:fireInspectionSummaryPages });
 }
 function pushDue() { return openFireTelegram(); }
 function pushSummary() { return openFireTelegram(); }
