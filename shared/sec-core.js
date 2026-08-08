@@ -413,6 +413,16 @@ async function gasPost(payload) {
 async function cloudPush(tool, records, summary, extra) {
   var dot = document.querySelector('.c-dot'); if (dot) dot.className = 'c-dot syncing';
   try {
+    /* 每次成功上傳都留下版本時間，下載時才能判斷哪一筆較新，不能再用筆數大小猜測。 */
+    var syncAt = new Date().toISOString();
+    (Array.isArray(records) ? records : []).forEach(function (r) {
+      if (r && typeof r === 'object' && !r.updatedAt) r.updatedAt = syncAt;
+    });
+    Object.keys(extra || {}).forEach(function (k) {
+      if (Array.isArray(extra[k])) extra[k].forEach(function (r) {
+        if (r && typeof r === 'object' && !r.updatedAt) r.updatedAt = syncAt;
+      });
+    });
     var json = JSON.stringify(records || []);
     var LIMIT = 300000;
     if (json.length > LIMIT) {
@@ -469,6 +479,10 @@ function lastSync(tool) { return localStorage.getItem('ac_sec_sync_' + tool) || 
 /* 雲端／Excel 合併工具：同一筆更新，新增筆保留，絕不因較少資料而清空本機。 */
 function recordKey(tool, r, i) {
   r = r || {};
+  /* CCTV 的穩定識別碼是攝影機編號，不是每次匯入產生的隨機 id；
+     舊版本曾因 id 不同，把同一支攝影機重複加入。 */
+  if (tool === 'cctv' && r.code !== undefined && String(r.code).trim() !== '')
+    return tool + '|code|' + String(r.code).trim().toLowerCase();
   if (r.id !== undefined && r.id !== '') return tool + '|id|' + r.id;
   if (r.code !== undefined && r.code !== '') return tool + '|code|' + r.code;
   if (r._k !== undefined && r._k !== '') return tool + '|kind|' + r._k + '|' + (r.empId || r.name || r.date || i);
@@ -478,25 +492,73 @@ function recordKey(tool, r, i) {
   if (r.t && (r.c || r.g)) return tool + '|scan|' + r.t + '|' + r.c + '|' + (r.g || '');
   return tool + '|row|' + i + '|' + JSON.stringify(r);
 }
-function mergeRecords(tool, local, incoming) {
-  var out = Array.isArray(local) ? local.slice() : [], pos = {};
-  out.forEach(function (r, i) { pos[recordKey(tool, r, i)] = i; });
-  var added = 0, updated = 0;
-  (Array.isArray(incoming) ? incoming : []).forEach(function (r, i) {
-    var k = recordKey(tool, r, i);
-    if (pos[k] === undefined) { pos[k] = out.length; out.push(r); added++; }
-    else { out[pos[k]] = Object.assign({}, out[pos[k]], r); updated++; }
+function blankValue(v) { return v === undefined || v === null || String(v).trim() === ''; }
+function recordStamp(r) {
+  r = r || {};
+  var vals = [r.updatedAt, r.modifiedAt, r.lastUpdated, r.createdAt, r.timestamp, r.lastCheck];
+  for (var i = 0; i < vals.length; i++) if (!blankValue(vals[i])) {
+    var d = Date.parse(String(vals[i]).replace(' ', 'T'));
+    if (!isNaN(d)) return d;
+  }
+  var ds = !blankValue(r.date) ? String(r.date) : (!blankValue(r.month) ? String(r.month) : '');
+  if (!blankValue(r.time)) ds += ' ' + String(r.time);
+  var dt = ds ? Date.parse(ds.replace(/-/g, '/')) : NaN;
+  return isNaN(dt) ? 0 : dt;
+}
+function mergeLatestRow(oldRow, newRow) {
+  var oldStamp = recordStamp(oldRow), newStamp = recordStamp(newRow);
+  /* 沒有時間戳時，下載／匯入的 incoming 視為目前要套用的版本；
+     但 incoming 空白欄位一律保留舊的非空內容。 */
+  var newWins = oldStamp === 0 ? true : (newStamp === 0 ? false : newStamp >= oldStamp);
+  var winner = newWins ? newRow : oldRow, other = newWins ? oldRow : newRow;
+  var merged = Object.assign({}, other || {}, winner || {}), blanks = [];
+  Object.keys(winner || {}).forEach(function (k) {
+    if (blankValue(winner[k]) && !blankValue(other && other[k])) {
+      merged[k] = other[k]; blanks.push(k);
+    }
   });
-  return { records: out, added: added, updated: updated, kept: Math.max(0, out.length - (incoming || []).length) };
+  return { row:merged, blanks:blanks, incomingWins:newWins };
+}
+function mergeRecords(tool, local, incoming) {
+  var out = [], pos = {}, blankConflicts = [], added = 0, updated = 0;
+  function apply(r, i, isIncoming) {
+    var k = recordKey(tool, r, i);
+    if (pos[k] === undefined) { pos[k] = out.length; out.push(r); if (isIncoming) added++; }
+    else {
+      var m = mergeLatestRow(out[pos[k]], r); out[pos[k]] = m.row;
+      if (isIncoming) { updated++; if (m.blanks.length) blankConflicts.push({ key:k, fields:m.blanks }); }
+    }
+  }
+  (Array.isArray(local) ? local : []).forEach(function (r, i) { apply(r, i, false); });
+  (Array.isArray(incoming) ? incoming : []).forEach(function (r, i) { apply(r, i, true); });
+  return { records: out, added: added, updated: updated,
+    kept: Math.max(0, out.length - (incoming || []).length), blankConflicts:blankConflicts };
 }
 function mergeObject(local, incoming) {
   var out = Object.assign({}, local || {});
   Object.keys(incoming || {}).forEach(function (k) {
     if (Array.isArray(out[k]) && Array.isArray(incoming[k])) out[k] = mergeRecords('extra-' + k, out[k], incoming[k]).records;
     else if (incoming[k] && typeof incoming[k] === 'object' && out[k] && typeof out[k] === 'object' && !Array.isArray(incoming[k])) out[k] = mergeObject(out[k], incoming[k]);
-    else if (incoming[k] !== undefined) out[k] = incoming[k];
+    else if (incoming[k] !== undefined && !(blankValue(incoming[k]) && !blankValue(out[k]))) out[k] = incoming[k];
   });
   return out;
+}
+function blankConflictsObject(local, incoming, path, out) {
+  path = path || ''; out = out || [];
+  if (!incoming || typeof incoming !== 'object') return out;
+  Object.keys(incoming).forEach(function (k) {
+    var p = path ? path + '.' + k : k, nv = incoming[k], ov = local && local[k];
+    if (nv && typeof nv === 'object' && !Array.isArray(nv)) blankConflictsObject(ov || {}, nv, p, out);
+    else if (blankValue(nv) && !blankValue(ov)) out.push(p);
+  });
+  return out;
+}
+function confirmBlankMerge(conflicts, title) {
+  if (!conflicts || !conflicts.length) return true;
+  var sample = conflicts.slice(0, 12).map(function (x) { return typeof x === 'string' ? x : (x.key || ''); }).filter(Boolean).join('\n· ');
+  return typeof G.confirm !== 'function' || G.confirm((title || '下載資料') + '\n\n' +
+    '發現 ' + conflicts.length + ' 個空白欄位。按「確定」會保留原本非空資料並略過空白，不會清除內容。\n' +
+    'Blank fields found. Confirm to keep existing non-blank values and skip blanks.\n\n· ' + sample);
 }
 
 /* ───────── Telegram 摘要（自動附平台按鈕，由 GAS 加） ───────── */
@@ -933,6 +995,7 @@ function headerHtml(icon, title, sub) {
         '</div>' +
         '<button class="ic-btn" id="btnUp"   title="' + L.upload   + '">⬆️☁</button>' +
         '<button class="ic-btn" id="btnDown" title="' + L.download + '">⬇️☁</button>' +
+        '<button class="ic-btn" id="btnSmart" title="智慧匯入 Smart Import">📥</button>' +
         '<button class="ic-btn" id="btnTg"   title="Telegram">✈️</button>' +
         '<button class="ic-btn" id="btnCfg"  title="' + L.settings + '">⚙️</button>' +
         '<a class="ic-btn" href="index.html" title="Portal">🏠</a>' +
@@ -960,6 +1023,15 @@ function bindHeader(tool, handlers) {
   }
   bindAction('btnUp', handlers.onUpload);
   bindAction('btnDown', handlers.onDownload);
+  var si = document.getElementById('btnSmart');
+  if (si && typeof handlers.onSmartImport === 'function') {
+    si.onclick = function (ev) {
+      try {
+        var out = handlers.onSmartImport(ev);
+        if (out && typeof out.catch === 'function') out.catch(function (e) { bootError(e); });
+      } catch (e) { bootError(e); }
+    };
+  } else if (si) si.style.display = 'none';
   bindAction('btnTg', handlers.onTelegram);
   var cf = document.getElementById('btnCfg');  if (cf)   cf.onclick   = openSettings;
   dataReady().then(function () { setLang(getCfg().lang || 'zh'); }).catch(function (e) { bootError(e); });
@@ -1063,6 +1135,7 @@ G.SEC = {
   toast:toast, gasPost:gasPost, cloudPush:cloudPush, cloudPull:cloudPull,
   markSync:markSync, lastSync:lastSync, tgSummary:tgSummary, tgOpen:tgOpen,
   recordKey:recordKey, mergeRecords:mergeRecords, mergeObject:mergeObject,
+  blankConflictsObject:blankConflictsObject, confirmBlankMerge:confirmBlankMerge,
   routePickerHtml:routePickerHtml, bindRoutePicker:bindRoutePicker, pickedRoute:pickedRoute,
   sendApproval:sendApproval,
   pickPhoto:pickPhoto, compressImage:compressImage, photoListHtml:photoListHtml, viewPhoto:viewPhoto,

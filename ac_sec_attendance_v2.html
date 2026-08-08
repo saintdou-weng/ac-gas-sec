@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="stylesheet" href="./shared/sec.css?v=20260808b">
+<link rel="stylesheet" href="./shared/sec.css?v=20260808d">
 <style>
 #gridT{border-collapse:separate;border-spacing:0;font-size:11px;white-space:nowrap}
 #gridT th,#gridT td{padding:0;border:none}
@@ -108,6 +108,7 @@
         <th class="num" data-zh="請假" data-en="Leave" data-km="ឈប់">請假</th>
         <th class="num" data-zh="曠職" data-en="Absent" data-km="អវត្តមាន">曠職</th>
         <th class="num" data-zh="總工時" data-en="Hours" data-km="ម៉ោង">總工時</th>
+        <th data-zh="實際出勤日期" data-en="Actual work dates" data-km="កាលបរិច្ឆេទធ្វើការ">實際出勤日期</th>
         <th data-zh="出勤率" data-en="Rate" data-km="អត្រា">出勤率</th></tr></thead>
         <tbody id="tbSum"></tbody></table></div>
     </div>
@@ -200,7 +201,7 @@
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260808b"></script>
+<script src="./shared/sec-core.js?v=20260808d"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -257,7 +258,7 @@ function hrDay() { return Number(document.getElementById('hrDay').value) || 12; 
 
 document.getElementById('hdr').innerHTML = SEC.headerHtml('🕐', '保安出勤 Attendance', 'AC SECURITY · ATTENDANCE');
 document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
-SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: openAttendanceTelegram });
+SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: openAttendanceTelegram, onSmartImport: impExcel });
 PER.setMode('month');
 var paintPeriodNav = SEC.bindPeriodNav('pnav', PER, function () { renderAll(); });
 document.getElementById('tabs').addEventListener('click', function (e) {
@@ -368,12 +369,13 @@ function fillMonth() {
 }
 function stats(r) {
   var M = monthMap(), row = M[key(r)] || {};
-  var c = { W:0, O:0, R:0, L:0, A:0, H:0 }, hrs = 0;
+  var c = { W:0, O:0, R:0, L:0, A:0, H:0 }, hrs = 0, dates = [];
   Object.keys(row).forEach(function (d) {
     var v = row[d]; if (!CODE[v]) return;
     c[v]++; hrs += CODE[v].hr * hrDay();
+    if (v === 'W' || v === 'O') dates.push(ym() + '-' + SEC.p2(parseInt(d, 10)));
   });
-  return { c: c, hrs: hrs };
+  return { c: c, hrs: hrs, dates: dates.sort() };
 }
 function renderKpi() {
   var tw = 0, thr = 0, ta = 0;
@@ -402,10 +404,11 @@ function renderSum() {
       '<td class="num">' + (c.R || '') + '</td><td class="num">' + (c.L || '') + '</td>' +
       '<td class="num">' + (c.A ? '<span class="tag err">' + c.A + '</span>' : '') + '</td>' +
       '<td class="num"><b>' + s.hrs + '</b></td>' +
+      '<td class="hint">' + (s.dates.length ? s.dates.join('、') : '—') + '</td>' +
       '<td><div class="bar" style="width:80px;display:inline-block;vertical-align:middle"><i style="width:' +
         Math.min(100, rate) + '%' + (rate < 90 ? ';background:linear-gradient(90deg,#dc2626,#f87171)' : '') +
         '"></i></div> ' + rate + '%</td></tr>';
-  }).join('') : '<tr><td colspan="11" class="empty">' + SEC.T().noData + '</td></tr>';
+  }).join('') : '<tr><td colspan="12" class="empty">' + SEC.T().noData + '</td></tr>';
 
   /* 異常提醒 */
   var al = [];
@@ -450,9 +453,11 @@ function expRaw() {
 function expSum() {
   SEC.exportExcel([{ name: 'Summary_' + ym(), rows: STAFF.map(function (r) {
     var s = stats(r);
-    return { '工號 ID': r.empId, '姓名 Name': r.name, '班別 Shift': r.shift, '崗位 Post': r.post,
+    var row = { '工號 ID': r.empId, '姓名 Name': r.name, '班別 Shift': r.shift, '崗位 Post': r.post,
       '出勤 Work': s.c.W, '加班 OT': s.c.O, '例休 Rest': s.c.R, '請假 Leave': s.c.L,
       '曠職 Absent': s.c.A, '國定假 Holiday': s.c.H, '總工時 Hours': s.hrs };
+    row['實際出勤日期 Actual work dates'] = s.dates.join(', ');
+    return row;
   }) }], 'AC_SEC_Attendance_Summary_' + ym() + '.xlsx');
 }
 
@@ -765,17 +770,24 @@ async function doUpload() {
     hours: recs.reduce(function (a, x) { return a + x.hours; }, 0) }, { attendance: ATT, raw: ATT_LOG });
 }
 async function doDownload() {
-  if (!confirm('⬇️☁ 下載會與本機出勤資料合併；相同月份／人員更新，較多資料保留。繼續？')) return;
+  if (!confirm('⬇️☁ 下載會與本機出勤資料合併；相同月份／人員以最新資料更新，空白欄位會先確認並保留舊值。繼續？')) return;
   var recs = await SEC.cloudPull(TOOL);
   if (!recs) return;
+  var cloudAttendance = {};
   recs.forEach(function (r) {
     if (!r.month) return;
-    var M = ATT[r.month] || (ATT[r.month] = {}), k = r.empId || r.name;
-    M[k] = Object.assign({}, M[k] || {}, r.detail || {});
+    var M = cloudAttendance[r.month] || (cloudAttendance[r.month] = {}), k = r.empId || r.name;
+    M[k] = r.detail || {};
   });
   var ex = recs._cloudExtra || {};
+  var conflicts = SEC.blankConflictsObject(ATT, cloudAttendance);
+  if (ex.attendance) conflicts = conflicts.concat(SEC.blankConflictsObject(ATT, ex.attendance));
+  var rawMerge = Array.isArray(ex.raw) ? SEC.mergeRecords('attendance-raw', ATT_LOG, ex.raw) : null;
+  if (rawMerge && rawMerge.blankConflicts.length) conflicts = conflicts.concat(rawMerge.blankConflicts);
+  if (!SEC.confirmBlankMerge(conflicts, '出勤雲端下載確認')) return;
+  ATT = SEC.mergeObject(ATT, cloudAttendance);
   if (ex.attendance) ATT = SEC.mergeObject(ATT, ex.attendance);
-  if (Array.isArray(ex.raw)) ATT_LOG = SEC.mergeRecords('attendance-raw', ATT_LOG, ex.raw).records;
+  if (rawMerge) ATT_LOG = rawMerge.records;
   save(); renderAll(); SEC.toast('⬇️☁ 已合併雲端出勤與原始打卡資料，共 ' + ATT_LOG.length + ' 筆明細', 'ok', 5000);
 }
 function attSummaryPeriod(st) {
@@ -797,7 +809,7 @@ function attRowFor(r, month) {
   return {};
 }
 function attendanceStatsFor(r, p) {
-  var c = { W:0, O:0, R:0, L:0, A:0, H:0 }, hrs = 0, range = p.range();
+  var c = { W:0, O:0, R:0, L:0, A:0, H:0 }, hrs = 0, dates = {}, range = p.range();
   Object.keys(ATT || {}).forEach(function (m) {
     if (!/^\d{4}-\d{2}$/.test(m)) return;
     var mm = m.match(/^(\d{4})-(\d{2})$/), first = new Date(+mm[1], +mm[2]-1, 1), last = new Date(+mm[1], +mm[2], 0);
@@ -808,9 +820,17 @@ function attendanceStatsFor(r, p) {
       var date = m + '-' + SEC.p2(day); if (!p.has(date)) return;
       var v = row[d]; if (!CODE[v]) return;
       c[v]++; hrs += CODE[v].hr * hrDay();
+      if (v === 'W' || v === 'O') dates[date] = true;
     });
   });
-  return { c:c, hrs:hrs };
+  /* Day / Night 原始表有時只有上下班時間，沒有先建立月曆格；也納入實際日期。 */
+  var rid = normEmpId(r.empId), rname = SEC.norm(r.name);
+  ATT_LOG.forEach(function (x) {
+    if (!x.date || !p.has(x.date)) return;
+    var same = (rid && normEmpId(x.empId) === rid) || (rname && SEC.norm(x.name) === rname);
+    if (same && (x.status === 'W' || x.status === 'O' || x.inTime || x.outTime)) dates[x.date] = true;
+  });
+  return { c:c, hrs:hrs, workDates:Object.keys(dates).sort() };
 }
 function attendanceSummary(st) {
   var p = attSummaryPeriod(st), raw = ATT_LOG.filter(function (r) { return p.has(r.date); });
@@ -838,10 +858,26 @@ function attendanceSummary(st) {
   txt += '\n<i>' + attT(st.lang, '摘要可重複發送；所選期間以出勤表與 Day／Night 原始打卡資料合計。', 'Summary can be resent; selected period combines the roster and Day/Night raw punch records.', 'អាចផ្ញើសារសង្ខេបម្តងទៀត；រយៈពេលជ្រើសរើសរួមបញ្ចូលតារាងវត្តមាន និងទិន្នន័យវេនថ្ងៃ／យប់។') + '</i>';
   return txt;
 }
+function attendanceSummaryPages(st) {
+  var p = attSummaryPeriod(st), lines = [];
+  STAFF.slice().sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || '')); }).forEach(function (r) {
+    var s = attendanceStatsFor(r, p), dates = s.workDates || [];
+    lines.push('👮 <b>' + SEC.esc(r.name || r.empId || '—') + '</b> · ID ' + SEC.esc(r.empId || '—') + '\n' +
+      '   ' + attT(st.lang, '班別／崗位', 'Shift / Post', 'វេន／ប៉ុស្តិ៍') + '：' + SEC.esc(r.shift || '—') + ' / ' + SEC.esc(r.post || '—') + '\n' +
+      '   ' + attT(st.lang, '實際出勤天數', 'Actual work days', 'ចំនួនថ្ងៃធ្វើការពិត') + '：<b>' + dates.length + '</b> · W ' + s.c.W + ' · O ' + s.c.O + ' · ' +
+      attT(st.lang, '日期', 'Dates', 'កាលបរិច្ឆេទ') + '：' + (dates.length ? dates.join(', ') : '—'));
+  });
+  var pages = [attendanceSummary(st)];
+  for (var i = 0; i < lines.length; i += 12) {
+    pages.push('👮 <b>' + attT(st.lang, '逐人實際出勤明細', 'Per-person actual attendance', 'វត្តមានពិតតាមបុគ្គល') + '</b> · ' + SEC.esc(p.label()) + '\n━━━━━━━━━━━━━━━━\n' + lines.slice(i, i + 12).join('\n\n'));
+  }
+  if (!lines.length) pages.push('ℹ️ ' + attT(st.lang, '所選期間沒有保安人員資料。', 'No staff data for the selected period.', 'គ្មានទិន្នន័យបុគ្គលិកក្នុងរយៈពេលនេះទេ។'));
+  return pages;
+}
 function openAttendanceTelegram() {
   return SEC.tgOpen({ module:'attendance', defaultType:PER.mode, defaultPeriod:PER.key(),
     periods:attendancePeriods, currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); },
-    summary:attendanceSummary });
+    summaryPages:attendanceSummaryPages });
 }
 function pushSummary() { return openAttendanceTelegram(); }
 </script>
