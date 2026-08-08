@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="stylesheet" href="./shared/sec.css?v=20260808e">
+<link rel="stylesheet" href="./shared/sec.css?v=20260808g">
 <style>
 .cams{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:5px}
 .cam{border-radius:9px;padding:7px 3px;text-align:center;cursor:pointer;border:2px solid transparent;
@@ -68,6 +68,7 @@
         <span class="sp">
           <input type="date" id="cDate" style="width:auto" onchange="loadDay()">
           <input id="cBy" placeholder="巡檢人" style="width:110px">
+          <input id="cNote" placeholder="巡檢備註／通知事項" style="width:200px">
         </span></h3>
 
       <div class="brush">
@@ -113,6 +114,7 @@
     <div class="card">
       <h3>📷 <span data-zh="攝影機清單" data-en="Camera List" data-km="បញ្ជីកាមេរ៉ា">攝影機清單</span>
         <span class="sp">
+          <select id="fFactory" style="width:auto" onchange="renderList()"><option value="">全部廠區</option></select>
           <select id="fZone" style="width:auto" onchange="renderList()"><option value="">全部區域</option></select>
           <input id="q" placeholder="搜尋編號/位置…" style="width:150px" oninput="renderList()">
           <button class="btn sm" onclick="openEdit()">➕ <span data-t="add">新增</span></button>
@@ -121,6 +123,7 @@
       <div class="tw"><table><thead><tr>
         <th data-zh="編號" data-en="Code" data-km="លេខ">編號</th>
         <th data-zh="名稱／位置" data-en="Name / Location" data-km="ឈ្មោះ">名稱／位置</th>
+        <th data-zh="廠區" data-en="Factory" data-km="រោងចក្រ">廠區</th>
         <th data-zh="區域" data-en="Zone" data-km="តំបន់">區域</th>
         <th data-zh="類型" data-en="Type" data-km="ប្រភេទ">類型</th>
         <th>NVR</th><th data-zh="通道" data-en="CH" data-km="ឆាណែល">通道</th>
@@ -183,7 +186,7 @@
         <button class="btn err" onclick="clearAll()">🗑 <span data-zh="清空" data-en="Clear" data-km="សម្អាត">清空</span></button>
       </div>
       <div class="sep"></div>
-      <p class="hint">可辨識欄位：編號 Code/No/CH、名稱 Name、位置 Location、區域 Zone/Building、類型 Type、NVR、通道 Channel/CH、IP、狀態 Status、備註 Remark。標題列可在任何位置。</p>
+      <p class="hint">可辨識欄位：編號 Code/No/CH、名稱 Name、廠區 Factory/Plant、位置 Location、區域 Zone/Building、類型 Type、NVR、通道 Channel/CH、IP、狀態 Status、備註 Remark。標題列可在任何位置。</p>
       <div id="impLog" class="hint" style="margin-top:8px"></div>
       <div class="sep"></div>
       <p class="hint">💡 你上傳的 <code>vrt_cameras.json</code>（41 支：A 棟 25、B 棟 16，其中 8 支標記「No Video Available」）可直接用「🎥 匯入相機清單 JSON」載入。標記無畫面的會自動設為 🔴 離線狀態。</p>
@@ -212,6 +215,9 @@
 <div class="mb"><div class="grid g2">
   <div class="f"><label>編號 Code</label><input id="e_code"></div>
   <div class="f"><label>名稱／位置 Name</label><input id="e_name"></div>
+  <div class="f"><label>廠區 Factory</label><select id="e_factory">
+    <option value="a">A 廠 A Factory</option><option value="b">B 廠 B Factory</option>
+    <option value="common">公共／未指定 Common / Unassigned</option></select></div>
   <div class="f"><label>區域 Zone</label><select id="e_zone"></select></div>
   <div class="f"><label>類型 Type</label><select id="e_type">
     <option value="dome">半球 Dome</option><option value="bullet">槍型 Bullet</option>
@@ -231,7 +237,7 @@
 <button class="btn" onclick="saveEdit()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260808e"></script>
+<script src="./shared/sec-core.js?v=20260808g"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -263,6 +269,11 @@ var ZONES = [
   { id:'yard',  zh:'廠區空地／通道', en:'Yard / Driveway' },
   { id:'office',zh:'辦公區',        en:'Office' },
 ];
+var CCTV_FACTORIES = {
+  a: { zh:'A 廠', en:'A Factory' },
+  b: { zh:'B 廠', en:'B Factory' },
+  common: { zh:'公共／未指定', en:'Common / Unassigned' }
+};
 var STAT = {
   ok   : { zh:'正常',     en:'Online',  icon:'✅' },
   off  : { zh:'離線',     en:'Offline', icon:'🔴' },
@@ -271,6 +282,17 @@ var STAT = {
   dis  : { zh:'停用',     en:'Disabled',icon:'⚪' },
 };
 function zn(id) { var z = ZONES.filter(function (x) { return x.id === id; })[0]; return z ? z.zh : (id || '未分區'); }
+function znLang(id, lang) { var z = ZONES.filter(function (x) { return x.id === id; })[0]; return z ? (lang === 'en' ? z.en : z.zh) : (id || (lang === 'en' ? 'Unassigned' : '未分區')); }
+function factoryOf(c) {
+  var raw = SEC.str(c && (c.factory || c.plant || c.bldg || '')).toLowerCase();
+  if (/factory\s*b|plant\s*b|building\s*b|\bb\b|b棟|棟b|b廠|廠b/.test(raw)) return 'b';
+  if (/factory\s*a|plant\s*a|building\s*a|\ba\b|a棟|棟a|a廠|廠a/.test(raw)) return 'a';
+  if (c && c.zone === 'bldB' || c && c.zone === 'back') return 'b';
+  if (c && c.zone === 'bldA' || c && c.zone === 'fwh') return 'a';
+  return 'common';
+}
+function factoryLabel(k, lang) { var f = CCTV_FACTORIES[k] || CCTV_FACTORIES.common; return lang === 'en' ? f.en : f.zh; }
+function factoryOptionsHtml() { return Object.keys(CCTV_FACTORIES).map(function (k) { return '<option value="' + k + '">' + CCTV_FACTORIES[k].zh + ' ' + CCTV_FACTORIES[k].en + '</option>'; }).join(''); }
 function isBad(s) { return s === 'off' || s === 'fault' || s === 'blur'; }
 
 async function load() {
@@ -298,6 +320,7 @@ document.getElementById('tabs').addEventListener('click', function (e) {
 });
 document.getElementById('cDate').value = SEC.ymd();
 document.getElementById('cBy').value = SEC.getCfg().operator || '';
+document.getElementById('cNote').value = '';
 fillZones();
 window.onLangChange = renderAll;
 SEC.dataReady().then(load).then(function () { loadDay(); renderAll(); }).catch(SEC.bootError);
@@ -305,6 +328,10 @@ SEC.dataReady().then(load).then(function () { loadDay(); renderAll(); }).catch(S
 function fillZones() {
   var o = ZONES.map(function (z) { return '<option value="' + z.id + '">' + z.zh + ' ' + z.en + '</option>'; }).join('');
   document.getElementById('e_zone').innerHTML = o;
+  document.getElementById('e_factory').innerHTML = factoryOptionsHtml();
+  var fs = document.getElementById('fFactory'), fcur = fs.value;
+  fs.innerHTML = '<option value="">全部廠區 / All factories</option>' + factoryOptionsHtml();
+  fs.value = fcur;
   var s = document.getElementById('fZone'), cur = s.value;
   s.innerHTML = '<option value="">全部區域</option>' + o;
   s.value = cur;
@@ -321,6 +348,7 @@ function loadDay() {
   var rec = LOG.filter(function (l) { return l.date === d; })[0];
   TODAY = rec ? Object.assign({}, rec.st) : {};
   if (rec && rec.by) document.getElementById('cBy').value = rec.by;
+  document.getElementById('cNote').value = rec ? (rec.note || '') : '';
   renderBoard(); renderKpi(); renderFault();
 }
 function loadPrev() {
@@ -328,6 +356,7 @@ function loadPrev() {
   var prev = LOG.filter(function (l) { return l.date < d; }).sort(function (a, b) { return b.date.localeCompare(a.date); })[0];
   if (!prev) { SEC.toast('⚠ 找不到更早的巡檢紀錄', 'warn'); return; }
   TODAY = Object.assign({}, prev.st);
+  document.getElementById('cNote').value = prev.note || '';
   renderBoard(); renderKpi(); renderFault();
   SEC.toast('📋 已沿用 ' + prev.date 
     + ' 的狀態，請只改有變動的', 'ok', 4000);
@@ -410,6 +439,7 @@ function renderFault() {
 function saveDay(push) {
   var d = document.getElementById('cDate').value;
   var by = document.getElementById('cBy').value.trim() || SEC.getCfg().operator;
+  var note = document.getElementById('cNote').value.trim();
   if (!Object.keys(TODAY).length) { SEC.toast('⚠ 尚未標記任何攝影機', 'warn'); return; }
   var c = { ok:0, off:0, blur:0, fault:0, dis:0 };
   var badList = [];
@@ -422,7 +452,7 @@ function saveDay(push) {
   });
   var n = c.ok + c.off + c.blur + c.fault + c.dis;
   var live = n - c.dis;
-  var rec = { id: 'L' + d, date: d, by: by, n: n, ok: c.ok, off: c.off, blur: c.blur, fault: c.fault, dis: c.dis,
+  var rec = { id: 'L' + d, date: d, by: by, note: note, n: n, ok: c.ok, off: c.off, blur: c.blur, fault: c.fault, dis: c.dis,
               uptime: live ? Math.round(c.ok / live * 100) : 0, badList: badList, st: Object.assign({}, TODAY) };
   LOG = LOG.filter(function (l) { return l.date !== d; });
   LOG.unshift(rec);
@@ -432,16 +462,42 @@ function saveDay(push) {
   SEC.toast('✅ 已儲存 ' + d + ' 巡檢（可用率 ' + rec.uptime + '%）', badList.length ? 'warn' : 'ok', 5000);
   if (push) pushDay(rec);
 }
-function cctvAudit() {
+function cctvScopeOptions() {
+  var a = [
+    { value:'all', label:'全部攝影機 / All cameras' },
+    { value:'factory:a', label:'A 廠 / A Factory' },
+    { value:'factory:b', label:'B 廠 / B Factory' },
+    { value:'factory:common', label:'公共／未指定 / Common / Unassigned' }
+  ];
+  ZONES.forEach(function (z) { a.push({ value:'zone:' + z.id, label:z.zh + ' / ' + z.en }); });
+  return a;
+}
+function cctvScopeMatch(st, c) {
+  var s = st.scope || 'all';
+  if (!s || s === 'all') return true;
+  if (s.indexOf('factory:') === 0) return factoryOf(c) === s.slice(8);
+  if (s.indexOf('zone:') === 0) return (c.zone || 'yard') === s.slice(5);
+  return true;
+}
+function cctvScopedCameras(st) { return DB.filter(function (c) { return cctvScopeMatch(st, c); }); }
+function cctvScopeLabel(st, lang) {
+  var s = st.scope || 'all';
+  if (s === 'all') return cctvText(lang, '全部攝影機', 'All cameras');
+  if (s.indexOf('factory:') === 0) return factoryLabel(s.slice(8), lang);
+  if (s.indexOf('zone:') === 0) return znLang(s.slice(5), lang);
+  return cctvText(lang, '所選範圍', 'Selected scope');
+}
+function cctvAudit(cameras) {
+  var list = Array.isArray(cameras) ? cameras : DB;
   var by = {}, duplicate = [];
-  DB.forEach(function (c) {
+  list.forEach(function (c) {
     var k = String(c.code || c.name || c.id || '').trim().toLowerCase() || ('row-' + c.id);
     if (by[k]) { if (duplicate.indexOf(k) < 0) duplicate.push(k); by[k]++; } else by[k] = 1;
   });
   var unique = Object.keys(by).length;
-  return { raw:DB.length, unique:unique, duplicate:duplicate,
-    over:DB.length > CCTV_EXPECTED || unique > CCTV_EXPECTED,
-    nonstandard:DB.length > 0 && CCTV_ALLOWED_COUNTS.indexOf(unique) < 0 };
+  return { raw:list.length, unique:unique, duplicate:duplicate,
+    over:list.length > CCTV_EXPECTED || unique > CCTV_EXPECTED,
+    nonstandard:list.length > 0 && CCTV_ALLOWED_COUNTS.indexOf(unique) < 0 };
 }
 function cctvSummaryPeriod(st) {
   var a = SEC.parseD(st.period) || new Date();
@@ -464,46 +520,79 @@ function cctvCurrentRecord(p) {
     var c = { ok:0, off:0, blur:0, fault:0, dis:0 }, badList = [];
     DB.forEach(function (cam) { var s = TODAY[cam.id] || cam.status || 'ok'; c[s] = (c[s] || 0) + 1; if (isBad(s)) badList.push((cam.code || '') + ' ' + (cam.name || '') + ' (' + STAT[s].zh + ')'); });
     var live = DB.length - c.dis;
-    return { date:today, by:SEC.getCfg().operator || '', n:DB.length, ok:c.ok, off:c.off, blur:c.blur, fault:c.fault, dis:c.dis,
+    return { date:today, by:SEC.getCfg().operator || '', note:document.getElementById('cNote').value.trim(), n:DB.length, ok:c.ok, off:c.off, blur:c.blur, fault:c.fault, dis:c.dis,
       uptime:live ? Math.round(c.ok / live * 100) : 0, badList:badList, st:Object.assign({}, TODAY) };
   }
   return null;
 }
+function cctvUniqueCameras(list) {
+  var seen = {}, out = [];
+  (list || []).forEach(function (c) {
+    var k = String(c.code || c.name || c.id || '').trim().toLowerCase() || String(c.id || '');
+    if (seen[k]) return;
+    seen[k] = 1; out.push(c);
+  });
+  return out;
+}
+function cctvStats(list, rec) {
+  var s = { ok:0, off:0, blur:0, fault:0, dis:0 };
+  (list || []).forEach(function (c) {
+    var v = (rec && rec.st && rec.st[c.id]) || c.status || 'ok';
+    if (!Object.prototype.hasOwnProperty.call(s, v)) v = 'ok';
+    s[v]++;
+  });
+  return s;
+}
+function cctvStatusLine(s, lang) {
+  return '✅ ' + cctvText(lang, '正常', 'Normal') + ' <b>' + s.ok + '</b> · 🔴 ' + cctvText(lang, '離線', 'Offline') + ' <b>' + s.off + '</b> · 🟡 ' + cctvText(lang, '模糊', 'Blurry') + ' <b>' + s.blur + '</b> · ⛔ ' + cctvText(lang, '故障', 'Fault') + ' <b>' + s.fault + '</b> · ⚪ ' + cctvText(lang, '停用', 'Disabled') + ' <b>' + s.dis + '</b>';
+}
 function cctvSummary(st) {
-  var p = cctvSummaryPeriod(st), a = cctvAudit(), rec = cctvCurrentRecord(p), bad = rec ? DB.filter(function (c) { return isBad((rec.st && rec.st[c.id]) || c.status || 'ok'); }) : [];
-  var logs = LOG.filter(function (r) { return p.has(r.date); }), txt = '📷 <b>' + cctvText(st.lang, 'CCTV 監控摘要', 'CCTV Monitoring Summary') + '</b> · ' + SEC.esc(p.label()) + '\n' +
-    '📊 Camera inventory / 攝影機清單：<b>' + a.raw + '</b> raw · <b>' + a.unique + '</b> unique · allowed / 合法配置 35 or 41 · limit / 基準上限 ' + CCTV_EXPECTED + '\n' +
-    '🗓 Checked days / 已檢查日數：<b>' + logs.length + '</b>\n';
-  if (a.duplicate.length) txt += '⚠️ Duplicate codes / 重複編號：<b>' + a.duplicate.length + '</b> · ' + a.duplicate.slice(0, 12).map(SEC.esc).join(', ') + '\n';
-  if (a.over) txt += '⛔ 發送前確認 / Confirm before sending：清單超過 ' + CCTV_EXPECTED + ' 台，請先核對是否重複。\n';
-  else if (a.nonstandard) txt += '⚠️ 發送前確認 / Confirm before sending：去重後為 ' + a.unique + ' 台，不是合法配置 35 或 41，請先核對。\n';
-  else txt += '✅ Count check / 數量檢查：合法配置 35／41，未超過上限。\n';
-  if (!rec) {
-    txt += '⚪ No inspection record / 本期間沒有巡檢紀錄。\n';
+  var p = cctvSummaryPeriod(st), rawList = cctvScopedCameras(st), list = cctvUniqueCameras(rawList),
+    a = cctvAudit(rawList), rec = cctvCurrentRecord(p), logs = LOG.filter(function (r) { return p.has(r.date); }),
+    bad = rec ? list.filter(function (c) { return isBad((rec.st && rec.st[c.id]) || c.status || 'ok'); }) : [],
+    overall = cctvStats(list, rec),
+    uptime = overall.ok + overall.off + overall.blur + overall.fault ? Math.round(overall.ok / Math.max(1, overall.ok + overall.off + overall.blur + overall.fault) * 100) : 0,
+    lang = st.lang || 'zh', txt = '📷 <b>' + cctvText(lang, 'CCTV 監控摘要', 'CCTV Monitoring Summary') + '</b> · ' + SEC.esc(p.label()) + '\n' +
+      cctvText(lang, '範圍', 'Scope') + '：' + SEC.esc(cctvScopeLabel(st, lang)) + '\n─────────────\n' +
+      '📊 ' + cctvText(lang, '攝影機總數', 'Camera total') + '：<b>' + list.length + '</b> · ' + cctvText(lang, '已檢查日數', 'Checked days') + '：<b>' + logs.length + '</b>\n';
+  if (a.duplicate.length) txt += '⚠️ ' + cctvText(lang, '重複編號需確認', 'Duplicate camera codes need confirmation') + '：<b>' + a.duplicate.length + '</b> · ' + a.duplicate.slice(0, 10).map(SEC.esc).join(', ') + '\n';
+  if (a.over) txt += '⚠️ ' + cctvText(lang, '清單數量需確認是否有重複', 'Please confirm whether the camera list contains duplicates') + '\n';
+  if (rec) {
+    txt += '📅 ' + cctvText(lang, '最新巡檢', 'Latest check') + '：' + SEC.esc(rec.date) + ' · ' + cctvText(lang, '檢查人', 'Inspector') + '：' + SEC.esc(rec.by || '—') + '\n' +
+      cctvStatusLine(overall, lang) + '\n' +
+      '📊 ' + cctvText(lang, '可用率', 'Uptime') + '：<b>' + uptime + '%</b> · ⚠️ ' + cctvText(lang, '異常', 'Anomalies') + '：<b>' + bad.length + '</b>\n';
   } else {
-    txt += '📅 Latest check / 最新巡檢：' + SEC.esc(rec.date) + ' · By/巡檢人 ' + SEC.esc(rec.by || '—') + '\n' +
-      '✅ Normal / 正常：' + rec.ok + ' · 🔴 Offline / 離線：' + rec.off + ' · 🟡 Blurry / 模糊：' + rec.blur +
-      ' · ⛔ Fault / 故障：' + rec.fault + ' · ⚪ Disabled / 停用：' + rec.dis + '\n' +
-      '📊 Uptime / 可用率：<b>' + rec.uptime + '%</b> · ⚠️ Anomalies / 異常：<b>' + bad.length + '</b>\n';
-    txt += bad.length ? '⚠️ 當日有異常，下一頁列出機號、名稱、區域、NVR/CH及連續異常日數。\n' : '✅ 當日全部正常 / All cameras normal for the checked day.\n';
+    txt += '⚪ ' + cctvText(lang, '本期間沒有巡檢紀錄，以下為目前清單狀態。', 'No inspection record in this period; counts below use the current inventory status.') + '\n' + cctvStatusLine(overall, lang) + '\n';
   }
-  txt += '\n<i>發送前會顯示數量、重複及正常／異常狀態；如有通知事項可在巡檢備註後一併發送。 / The preview shows count, duplicates and normal/anomaly status before sending.</i>';
+  ['a','b','common'].forEach(function (fk) {
+    var group = list.filter(function (c) { return factoryOf(c) === fk; });
+    if (!group.length) return;
+    txt += '\n<b>🏭 ' + SEC.esc(factoryLabel(fk, lang)) + ' · ' + group.length + '</b>\n';
+    ZONES.forEach(function (z) {
+      var zoneList = group.filter(function (c) { return (c.zone || 'yard') === z.id; });
+      if (!zoneList.length) return;
+      txt += '· 📍 ' + SEC.esc(znLang(z.id, lang)) + ' · ' + cctvText(lang, '總數', 'Total') + ' <b>' + zoneList.length + '</b> · ' + cctvStatusLine(cctvStats(zoneList, rec), lang) + '\n';
+    });
+  });
+  if (rec && rec.note) txt += '\n📝 <b>' + cctvText(lang, '巡檢備註／通知', 'Inspection note / Notice') + '</b>：' + SEC.esc(rec.note) + '\n';
+  if (bad.length) txt += '\n⚠️ ' + cctvText(lang, '有異常攝影機，下一頁列出編號、廠區、區域、NVR／通道及備註。', 'Abnormal cameras are listed on the next page with code, factory, zone, NVR/channel and notes.') + '\n';
+  else if (rec) txt += '\n✅ ' + cctvText(lang, '本次檢查全部正常。', 'All cameras were normal in this inspection.') + '\n';
   return txt;
 }
 function cctvSummaryPages(st) {
-  var p = cctvSummaryPeriod(st), rec = cctvCurrentRecord(p), pages = [cctvSummary(st)], lines = [];
-  if (rec) DB.filter(function (c) { return isBad((rec.st && rec.st[c.id]) || c.status || 'ok'); }).forEach(function (c) {
+  var p = cctvSummaryPeriod(st), rec = cctvCurrentRecord(p), list = cctvUniqueCameras(cctvScopedCameras(st)), pages = [cctvSummary(st)], lines = [];
+  if (rec) list.filter(function (c) { return isBad((rec.st && rec.st[c.id]) || c.status || 'ok'); }).forEach(function (c) {
     var s = (rec.st && rec.st[c.id]) || c.status || 'ok';
-    lines.push('📷 ' + SEC.esc(c.code || '—') + ' · ' + SEC.esc(c.name || '—') + ' · Zone/區域 ' + SEC.esc(zn(c.zone)) +
+    lines.push('📷 ' + SEC.esc(c.code || '—') + ' · ' + SEC.esc(c.name || '—') + ' · Factory/廠區 ' + SEC.esc(factoryLabel(factoryOf(c), 'en')) + ' · Zone/區域 ' + SEC.esc(zn(c.zone)) +
       ' · NVR ' + SEC.esc(c.nvr || '—') + ' / CH ' + SEC.esc(c.ch || '—') + ' · ' + STAT[s].icon + ' ' + SEC.esc(STAT[s].en || STAT[s].zh) +
-      ' · Consecutive/連續 ' + consecBad(c.id) + ' days');
+      ' · Consecutive/連續 ' + consecBad(c.id) + ' days' + (c.remark ? ' · Note/備註 ' + SEC.esc(c.remark) : ''));
   });
   if (lines.length) for (var i = 0; i < lines.length; i += 18) pages.push('<b>⚠️ CCTV anomaly details / CCTV 異常明細</b>\n' + lines.slice(i, i + 18).join('\n'));
   return pages;
 }
 function openCctvTelegram(defaultType, defaultPeriod) {
-  return SEC.tgOpen({ module:'cctv', defaultType:defaultType || PER.mode, defaultPeriod:defaultPeriod || PER.key(), periods:cctvPeriods,
-    currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); }, summaryPages:cctvSummaryPages });
+  return SEC.tgOpen({ module:'cctv', forceBilingual:true, defaultType:defaultType || PER.mode, defaultPeriod:defaultPeriod || PER.key(), periods:cctvPeriods,
+    currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); }, scopeOptions:cctvScopeOptions(), defaultScope:'all', summaryPages:cctvSummaryPages });
 }
 function pushDay(rec) { return openCctvTelegram('day', rec && rec.date ? rec.date : SEC.ymd()); }
 function pushFault() { return openCctvTelegram(); }
@@ -511,8 +600,10 @@ function pushFault() { return openCctvTelegram(); }
 /* ═══ 清單 / 編輯 ═══ */
 function renderList() {
   var list = DB.slice();
+  var f = document.getElementById('fFactory').value;
   var z = document.getElementById('fZone').value;
   var q = (document.getElementById('q').value || '').toLowerCase();
+  if (f) list = list.filter(function (c) { return factoryOf(c) === f; });
   if (z) list = list.filter(function (c) { return c.zone === z; });
   if (q) list = list.filter(function (c) {
     return String(c.code || '').toLowerCase().indexOf(q) >= 0 || String(c.name || '').toLowerCase().indexOf(q) >= 0;
@@ -521,13 +612,13 @@ function renderList() {
   document.getElementById('tbList').innerHTML = list.length ? list.map(function (c) {
     var s = c.status || 'ok';
     return '<tr><td><code>' + SEC.esc(c.code || '') + '</code></td><td><b>' + SEC.esc(c.name || '') + '</b></td>' +
-      '<td>' + SEC.esc(zn(c.zone)) + '</td><td>' + (TY[c.type] || '') + '</td>' +
+      '<td>' + SEC.esc(factoryLabel(factoryOf(c), 'zh')) + '</td><td>' + SEC.esc(zn(c.zone)) + '</td><td>' + (TY[c.type] || '') + '</td>' +
       '<td>' + SEC.esc(c.nvr || '') + '</td><td>' + SEC.esc(c.ch || '') + '</td><td>' + SEC.esc(c.ip || '') + '</td>' +
       '<td>' + STAT[s].icon + ' ' + STAT[s].zh + '</td><td>' + SEC.esc(c.lastCheck || '') + '</td>' +
       '<td><button class="btn sm gh" onclick="openEdit(\'' + c.id + '\')">✏️</button></td></tr>';
-  }).join('') : '<tr><td colspan="10" class="empty">' + SEC.T().noData + '</td></tr>';
+  }).join('') : '<tr><td colspan="11" class="empty">' + SEC.T().noData + '</td></tr>';
 }
-var EF = ['code','name','zone','type','nvr','ch','ip','status','remark'];
+var EF = ['code','name','factory','zone','type','nvr','ch','ip','status','remark'];
 function openEdit(id) {
   EDIT_ID = id || '';
   var c = id ? DB.filter(function (x) { return x.id === id; })[0] : {};
@@ -535,7 +626,7 @@ function openEdit(id) {
   document.getElementById('mTitle').textContent = id ? '編輯攝影機' : '新增攝影機';
   EF.forEach(function (f) {
     document.getElementById('e_' + f).value = c[f] != null && c[f] !== ''
-      ? c[f] : (f === 'status' ? 'ok' : f === 'type' ? 'dome' : f === 'zone' ? 'yard' : '');
+      ? c[f] : (f === 'status' ? 'ok' : f === 'type' ? 'dome' : f === 'factory' ? factoryOf(c) : f === 'zone' ? 'yard' : '');
   });
   if (!id) document.getElementById('e_code').value = 'CAM-' + String(DB.length + 1).padStart(3, '0');
   SEC.openModal('mEdit');
@@ -623,6 +714,7 @@ function chart(id, type, labels, ds, max) {
 var SPEC = {
   code  : ['編號','编号','code','no','camera','攝影機','ch','channel','lightbox'],
   name  : ['名稱','名称','name','位置','location','安裝位置','description','place'],
+  factory: ['廠區','厂区','factory','plant','廠別','厂别'],
   zone  : ['區域','区域','zone','building','棟','area','樓層'],
   type  : ['類型','类型','type','機型','model'],
   nvr   : ['nvr','主機','錄影主機','dvr'],
@@ -657,7 +749,7 @@ function impExcel() {
                : /模糊|blur/.test(sRaw) ? 'blur' : /停用|disable/.test(sRaw) ? 'dis' : 'ok';
         var row = { id: 'X' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
           code: code || ('CAM-' + String(DB.length + 1).padStart(3, '0')),
-          name: name, zone: zone, type: type, nvr: SEC.str(o.nvr), ch: SEC.str(o.ch),
+          name: name, factory: factoryOf({ factory: SEC.str(o.factory), zone: zone, name: name }), zone: zone, type: type, nvr: SEC.str(o.nvr), ch: SEC.str(o.ch),
           ip: SEC.str(o.ip), status: st, remark: SEC.str(o.remark), src: sh.name };
         var old = DB.filter(function (x) { return x.code === row.code; })[0];
         if (old) { row.id = old.id; Object.assign(old, row); } else DB.push(row);
@@ -704,7 +796,7 @@ function loadCamArray(arr) {
              : String(c.bldg).toUpperCase() === 'A' ? 'bldA' : 'yard';
     /* 已存在同 code → 更新 */
     var old = DB.filter(function (x) { return x.code === code; })[0];
-    var rec = { code: code, name: loc, zone: zone, type: 'dome',
+    var rec = { code: code, name: loc, factory: factoryOf({ factory:c.factory || c.plant || '', bldg:c.bldg, zone:zone }), zone: zone, type: 'dome',
       nvr: '', ch: '', ip: '', bldg: c.bldg || '',
       status: c.noVideo ? 'off' : 'ok',
       remark: c.noVideo ? 'No Video Available（原標記無畫面）' : '' };
@@ -765,7 +857,7 @@ function genCams() {
   for (var i = 0; i < n; i++) {
     DB.push({ id: 'G' + Date.now().toString(36) + i,
       code: 'CAM-' + String(base + i + 1).padStart(3, '0'),
-      name: '', zone: zs[i % zs.length], type: 'dome',
+      name: '', factory: factoryOf({ zone:zs[i % zs.length] }), zone: zs[i % zs.length], type: 'dome',
       nvr: 'NVR-' + (Math.floor(i / 32) + 1), ch: String((i % 32) + 1), ip: '', status: 'ok', remark: '' });
   }
   save(); renderAll(); SEC.toast('🏭 已產生 ' + n + ' 支，請逐支補上名稱與區域', 'ok', 5000);
@@ -773,7 +865,7 @@ function genCams() {
 function expExcel() {
   var TY = { dome:'半球', bullet:'槍型', ptz:'球機', fisheye:'魚眼', other:'其他' };
   SEC.exportExcel([{ name: 'Cameras', rows: DB.map(function (c, i) {
-    return { '#': i + 1, '編號 Code': c.code, '名稱 Name': c.name, '區域 Zone': zn(c.zone),
+    return { '#': i + 1, '編號 Code': c.code, '名稱 Name': c.name, '廠區 Factory': factoryLabel(factoryOf(c), 'zh'), '區域 Zone': zn(c.zone),
       '類型 Type': TY[c.type] || '', 'NVR': c.nvr, '通道 CH': c.ch, 'IP': c.ip,
       '狀態 Status': STAT[c.status || 'ok'].zh, '上次檢查 Last': c.lastCheck || '', '備註 Remark': c.remark };
   }) }], 'AC_SEC_CCTV_' + SEC.ymd() + '.xlsx');
@@ -782,7 +874,7 @@ function expLog() {
   SEC.exportExcel([{ name: 'CheckLog', rows: LOG.filter(function (l) { return PER.has(l.date); }).map(function (l) {
     return { '日期 Date': l.date, '巡檢人 By': l.by, '受檢 Checked': l.n, '正常 OK': l.ok,
       '離線 Offline': l.off, '模糊 Blurry': l.blur, '故障 Fault': l.fault, '停用 Disabled': l.dis,
-      '可用率 Uptime%': l.uptime, '異常機號': (l.badList || []).join('；') };
+      '可用率 Uptime%': l.uptime, '巡檢備註 Note': l.note || '', '異常機號': (l.badList || []).join('；') };
   }) }], 'AC_SEC_CCTV_Log_' + PER.key() + '.xlsx');
 }
 function doBackup() { SEC.backupJson({ cameras: DB, log: LOG }, 'cctv_backup_' + SEC.ymd() + '.json'); }

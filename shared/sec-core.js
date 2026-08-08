@@ -590,6 +590,8 @@ function tgOpen(opt) {
     '<div class="f"><label>資料範圍 Scope</label><select id="tgScope">' + opt.scopeOptions.map(function (x) {
       return '<option value="' + esc(x.value) + '">' + esc(x.label) + '</option>';
     }).join('') + '</select></div>' : '';
+  var langHtml = opt.forceBilingual ? '<option value="both">繁中 + English</option>' :
+    '<option value="both">繁中 + English</option><option value="zh">繁體中文</option><option value="en">English</option><option value="km">ខ្មែរ</option>';
   mask.innerHTML =
     '<div class="modal" style="max-width:560px">' +
       '<div class="mh"><span>✈️</span><b>Telegram 摘要／核可</b>' +
@@ -607,8 +609,7 @@ function tgOpen(opt) {
           '<div class="f"><label>選擇期間 Select period</label><input id="tgAnchor" list="tgKnown" type="date"><datalist id="tgKnown"></datalist></div>' +
           scopeHtml +
         '</div>' +
-        '<div class="f" style="margin-top:10px"><label>訊息語言 Language</label><select id="tgLang">' +
-          '<option value="both">繁中 + English</option><option value="zh">繁體中文</option><option value="en">English</option><option value="km">ខ្មែរ</option>' +
+        '<div class="f" style="margin-top:10px"><label>訊息語言 Language</label><select id="tgLang">' + langHtml +
         '</select></div>' +
         '<div class="f" style="margin-top:10px"><label>訊息預覽 Preview</label>' +
           '<pre id="tgPreview" style="white-space:pre-wrap;max-height:330px;overflow:auto;background:#f6f8fb;border:1px solid var(--line);border-radius:9px;padding:11px;font:12px/1.55 system-ui,sans-serif"></pre></div>' +
