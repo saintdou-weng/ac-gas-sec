@@ -520,9 +520,14 @@ function tgPeriodLabel(key, type) { return new Period(type, tgAnchor(key, type))
 function tgOpen(opt) {
   opt = opt || {};
   var firstType = opt.defaultType || 'month';
-  var st = { mode:'summary', ptype:firstType, period:opt.defaultPeriod || '', lang:opt.defaultLang || _lang };
+  var st = { mode:'summary', ptype:firstType, period:opt.defaultPeriod || '',
+    lang:opt.defaultLang || 'both', scope:opt.defaultScope || (opt.scopeOptions && opt.scopeOptions[0] ? opt.scopeOptions[0].value : '') };
   var mask = document.createElement('div');
   mask.className = 'mask on';
+  var scopeHtml = opt.scopeOptions && opt.scopeOptions.length ?
+    '<div class="f"><label>資料範圍 Scope</label><select id="tgScope">' + opt.scopeOptions.map(function (x) {
+      return '<option value="' + esc(x.value) + '">' + esc(x.label) + '</option>';
+    }).join('') + '</select></div>' : '';
   mask.innerHTML =
     '<div class="modal" style="max-width:560px">' +
       '<div class="mh"><span>✈️</span><b>Telegram 摘要／核可</b>' +
@@ -532,15 +537,16 @@ function tgOpen(opt) {
           '<button class="btn sm" data-tg-mode="summary">📄 摘要 Summary</button>' +
           (opt.canApprove ? '<button class="btn sm gh" data-tg-mode="approval">✅ 保安費核可 Approval</button>' : '') +
         '</div></div>' +
-        '<div class="grid g2" style="margin-top:10px">' +
+        '<div class="grid ' + (scopeHtml ? 'g3' : 'g2') + '" style="margin-top:10px">' +
           '<div class="f"><label>期間類型 Period</label><select id="tgType">' +
             '<option value="day">日 Day</option><option value="week">週 Week</option>' +
             '<option value="month" selected>月 Month</option><option value="year">年 Year</option>' +
           '</select></div>' +
           '<div class="f"><label>選擇期間 Select period</label><input id="tgAnchor" list="tgKnown" type="date"><datalist id="tgKnown"></datalist></div>' +
+          scopeHtml +
         '</div>' +
         '<div class="f" style="margin-top:10px"><label>訊息語言 Language</label><select id="tgLang">' +
-          '<option value="zh">繁體中文</option><option value="en">English</option><option value="km">ខ្មែរ</option>' +
+          '<option value="both">繁中 + English</option><option value="zh">繁體中文</option><option value="en">English</option><option value="km">ខ្មែរ</option>' +
         '</select></div>' +
         '<div class="f" style="margin-top:10px"><label>訊息預覽 Preview</label>' +
           '<pre id="tgPreview" style="white-space:pre-wrap;max-height:330px;overflow:auto;background:#f6f8fb;border:1px solid var(--line);border-radius:9px;padding:11px;font:12px/1.55 system-ui,sans-serif"></pre></div>' +
@@ -556,6 +562,7 @@ function tgOpen(opt) {
   mask.onclick = function (e) { if (e.target === mask) close(); };
   q('#tgType').value = firstType;
   q('#tgLang').value = st.lang;
+  if (q('#tgScope')) q('#tgScope').value = st.scope;
 
   function currentKey() {
     return opt.currentPeriod ? opt.currentPeriod(st.ptype) : new Period(st.ptype).key();
@@ -596,9 +603,20 @@ function tgOpen(opt) {
       : '摘要是通知用途，可重複傳送，不會建立核可批次，也不會改變資料狀態。';
   }
   function summaryPages() {
-    var v = opt.summaryPages ? opt.summaryPages(st) : (opt.summary ? opt.summary(st) : '（沒有摘要內容）');
-    if (Array.isArray(v)) return v.map(String).filter(Boolean);
-    return [String(v || '（本期間沒有資料）')];
+    function one(s) {
+      var v = opt.summaryPages ? opt.summaryPages(s) : (opt.summary ? opt.summary(s) : '（沒有摘要內容）');
+      if (Array.isArray(v)) return v.map(String).filter(Boolean);
+      return [String(v || '（本期間沒有資料）')];
+    }
+    if (st.lang !== 'both') return one(st);
+    var zh = one(Object.assign({}, st, { lang:'zh' }));
+    var en = one(Object.assign({}, st, { lang:'en' }));
+    var n = Math.max(zh.length, en.length), out = [];
+    for (var i = 0; i < n; i++) {
+      out.push((zh[i] || '（本頁沒有中文資料）') + '\n\n──────── English / English ────────\n' +
+        (en[i] || '（No English data on this page）'));
+    }
+    return out;
   }
   function preview() {
     var text = '';
@@ -624,6 +642,7 @@ function tgOpen(opt) {
   q('#tgType').onchange = function () { st.ptype = this.value; fillPeriods(true); preview(); };
   q('#tgAnchor').onchange = function () { st.period = readAnchor(); preview(); };
   q('#tgLang').onchange = function () { st.lang = this.value; preview(); };
+  if (q('#tgScope')) q('#tgScope').onchange = function () { st.scope = this.value; preview(); };
   mask.querySelectorAll('[data-tg-mode]').forEach(function (b) {
     b.onclick = function () {
       st.mode = b.dataset.tgMode;
@@ -644,7 +663,8 @@ function tgOpen(opt) {
         toast('✈️ Telegram 摘要已送出' + (pages.length > 1 ? '（' + pages.length + ' 頁）' : ''), 'ok');
       } else {
         var items = opt.approvalItems ? (opt.approvalItems(st) || []) : [];
-        var result = await sendApproval({ module:opt.module, period:st.period, title:opt.approvalTitle || '', route:opt.route, lang:st.lang, items:items });
+        var result = await sendApproval({ module:opt.module, period:st.period, title:opt.approvalTitle || '', route:opt.route,
+          lang:st.lang === 'both' ? 'zh' : st.lang, items:items });
         if (!result) throw new Error('核可請求未送出');
         if (opt.onApprovalSent) opt.onApprovalSent(result, st, items);
       }
