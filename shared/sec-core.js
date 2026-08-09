@@ -481,8 +481,14 @@ function recordKey(tool, r, i) {
   r = r || {};
   /* CCTV 的穩定識別碼是攝影機編號，不是每次匯入產生的隨機 id；
      舊版本曾因 id 不同，把同一支攝影機重複加入。 */
-  if (tool === 'cctv' && r.code !== undefined && String(r.code).trim() !== '')
-    return tool + '|code|' + String(r.code).trim().toLowerCase();
+  if (tool === 'cctv' && (r.code !== undefined || r.name !== undefined || r.id !== undefined)) {
+    /* CCTV 的識別碼以攝影機編號為準；CAM-036、CAM036、036、36 視為同一支。
+       不同前綴的 A-036／B-036 仍保留為不同編號。 */
+    var rawCctv = String(r.code || r.name || r.id || '').trim().toLowerCase().replace(/\s+/g, '');
+    var cctvNum = rawCctv.match(/^(?:cam(?:era)?[-_]?0*|0*)(\d+)$/);
+    var cctvKey = cctvNum ? String(parseInt(cctvNum[1], 10)) : rawCctv.replace(/[\s_-]+/g, '');
+    if (cctvKey) return tool + '|code|' + cctvKey;
+  }
   if (r.id !== undefined && r.id !== '') return tool + '|id|' + r.id;
   if (r.code !== undefined && r.code !== '') return tool + '|code|' + r.code;
   if (r._k !== undefined && r._k !== '') return tool + '|kind|' + r._k + '|' + (r.empId || r.name || r.date || i);

@@ -53,6 +53,7 @@
 </div>
 
 <div class="wrap">
+  <div id="pnavHost"></div>
 
   <!-- ═══ 狀態盤 ═══ -->
   <div class="page" id="p-board">
@@ -136,7 +137,6 @@
 
   <!-- ═══ 巡檢紀錄 ═══ -->
   <div class="page" id="p-log" style="display:none">
-    <div id="pnavHost"></div>
     <div class="card">
       <h3>📜 <span data-zh="每日巡檢紀錄" data-en="Daily Check History" data-km="ប្រវត្តិ">每日巡檢紀錄</span>
         <span class="sp"><button class="btn sm gh" onclick="expLog()">📊 Excel</button></span></h3>
@@ -255,8 +255,6 @@ if (typeof SEC === 'undefined') {
 
 var LS = 'ac_sec_cctv_db', LSL = 'ac_sec_cctv_log';
 var DB = [], LOG = [], TODAY = {}, BRUSH = 'ok', CH = {}, TOOL = 'cctv';
-var CCTV_ALLOWED_COUNTS = [35, 41]; /* 現場兩種合法配置；其他數量或重複編號先確認 */
-var CCTV_EXPECTED = 41; /* 硬上限 */
 var PER = new SEC.Period('month'), EDIT_ID = '';
 
 var ZONES = [
@@ -294,15 +292,44 @@ function factoryOf(c) {
 function factoryLabel(k, lang) { var f = CCTV_FACTORIES[k] || CCTV_FACTORIES.common; return lang === 'en' ? f.en : f.zh; }
 function factoryOptionsHtml() { return Object.keys(CCTV_FACTORIES).map(function (k) { return '<option value="' + k + '">' + CCTV_FACTORIES[k].zh + ' ' + CCTV_FACTORIES[k].en + '</option>'; }).join(''); }
 function isBad(s) { return s === 'off' || s === 'fault' || s === 'blur'; }
+function cctvBlank(v) { return v === undefined || v === null || String(v).trim() === ''; }
+function cctvIdentity(c) {
+  var raw = SEC.str(c && (c.code || c.name || c.id)).toLowerCase().replace(/\s+/g, '');
+  /* CAM-036、CAM036、036、36 視為同一支；A-036 與 B-036 則保留為不同編號。 */
+  var m = raw.match(/^(?:cam(?:era)?[-_]?0*|0*)(\d+)$/);
+  return m ? 'number:' + String(parseInt(m[1], 10)) : 'text:' + raw.replace(/[\s_-]+/g, '');
+}
+function cctvStamp(c) {
+  var v = c && (c.updatedAt || c.modifiedAt || c.lastUpdated || c.createdAt || c.lastCheck);
+  var d = v ? Date.parse(String(v).replace(' ', 'T')) : NaN;
+  return isNaN(d) ? 0 : d;
+}
+function cctvDeduplicate(list) {
+  var out = [], pos = {}, removed = 0;
+  (Array.isArray(list) ? list : []).forEach(function (r) {
+    var k = cctvIdentity(r);
+    if (pos[k] === undefined) { pos[k] = out.length; out.push(r); return; }
+    var old = out[pos[k]], oldStamp = cctvStamp(old), newStamp = cctvStamp(r);
+    var newer = newStamp >= oldStamp ? r : old, older = newer === r ? old : r;
+    var merged = Object.assign({}, older || {}, newer || {});
+    Object.keys(newer || {}).forEach(function (f) {
+      if (cctvBlank(newer[f]) && !cctvBlank(older && older[f])) merged[f] = older[f];
+    });
+    /* 保留最早資料的 id，避免既有巡檢紀錄失去對應。 */
+    merged.id = old.id || newer.id;
+    out[pos[k]] = merged; removed++;
+  });
+  return { records:out, removed:removed };
+}
 
 async function load() {
   DB = await SEC.dbGet(LS, []);
   LOG = await SEC.dbGet(LSL, []);
   if (!Array.isArray(DB)) DB = [];
   if (!Array.isArray(LOG)) LOG = [];
-  /* 舊版本用隨機 id，重複下載後同一支相機會變成兩筆；開頁即按穩定機號去重。 */
-  var clean = SEC.mergeRecords(TOOL, [], DB);
-  if (clean.records.length !== DB.length) { DB = clean.records; save(); }
+  /* 舊版本用隨機 id，重複下載後同一支相機會變成兩筆；開頁即按機號去重。 */
+  var clean = cctvDeduplicate(SEC.mergeRecords(TOOL, [], DB).records);
+  if (clean.removed) { DB = clean.records; save(); SEC.toast('✅ 已自動移除 ' + clean.removed + ' 支重複攝影機', 'warn', 6000); }
 }
 function save() { SEC.dbPut(LS, DB); SEC.dbPut(LSL, LOG); }
 
@@ -491,13 +518,11 @@ function cctvAudit(cameras) {
   var list = Array.isArray(cameras) ? cameras : DB;
   var by = {}, duplicate = [];
   list.forEach(function (c) {
-    var k = String(c.code || c.name || c.id || '').trim().toLowerCase() || ('row-' + c.id);
+    var k = cctvIdentity(c);
     if (by[k]) { if (duplicate.indexOf(k) < 0) duplicate.push(k); by[k]++; } else by[k] = 1;
   });
   var unique = Object.keys(by).length;
-  return { raw:list.length, unique:unique, duplicate:duplicate,
-    over:list.length > CCTV_EXPECTED || unique > CCTV_EXPECTED,
-    nonstandard:list.length > 0 && CCTV_ALLOWED_COUNTS.indexOf(unique) < 0 };
+  return { raw:list.length, unique:unique, duplicate:duplicate };
 }
 function cctvSummaryPeriod(st) {
   var a = SEC.parseD(st.period) || new Date();
@@ -528,7 +553,7 @@ function cctvCurrentRecord(p) {
 function cctvUniqueCameras(list) {
   var seen = {}, out = [];
   (list || []).forEach(function (c) {
-    var k = String(c.code || c.name || c.id || '').trim().toLowerCase() || String(c.id || '');
+    var k = cctvIdentity(c);
     if (seen[k]) return;
     seen[k] = 1; out.push(c);
   });
@@ -556,7 +581,6 @@ function cctvSummary(st) {
       cctvText(lang, '範圍', 'Scope') + '：' + SEC.esc(cctvScopeLabel(st, lang)) + '\n─────────────\n' +
       '📊 ' + cctvText(lang, '攝影機總數', 'Camera total') + '：<b>' + list.length + '</b> · ' + cctvText(lang, '已檢查日數', 'Checked days') + '：<b>' + logs.length + '</b>\n';
   if (a.duplicate.length) txt += '⚠️ ' + cctvText(lang, '重複編號需確認', 'Duplicate camera codes need confirmation') + '：<b>' + a.duplicate.length + '</b> · ' + a.duplicate.slice(0, 10).map(SEC.esc).join(', ') + '\n';
-  if (a.over) txt += '⚠️ ' + cctvText(lang, '清單數量需確認是否有重複', 'Please confirm whether the camera list contains duplicates') + '\n';
   if (rec) {
     txt += '📅 ' + cctvText(lang, '最新巡檢', 'Latest check') + '：' + SEC.esc(rec.date) + ' · ' + cctvText(lang, '檢查人', 'Inspector') + '：' + SEC.esc(rec.by || '—') + '\n' +
       cctvStatusLine(overall, lang) + '\n' +
@@ -890,7 +914,7 @@ function clearAll() {
   DB = []; LOG = []; TODAY = {}; save(); renderAll();
 }
 async function doUpload() {
-  var clean = SEC.mergeRecords(TOOL, [], DB);
+  var clean = cctvDeduplicate(DB);
   DB = clean.records;
   save();
   var slim = LOG.map(function (l) { var o = Object.assign({}, l); delete o.st; return o; });
@@ -898,19 +922,23 @@ async function doUpload() {
     lastUptime: LOG.length ? LOG[0].uptime : null }, { log: slim });
 }
 async function doDownload() {
-  if (!confirm('⬇️☁ 下載會與本機攝影機清單合併；相同機號以最新資料更新，空白欄位會先確認並保留舊值。繼續？')) return;
+  if (!confirm('⬇️☁ 下載會依唯一攝影機編號更新資料；相同機號只保留一支，空白欄位會先確認並保留舊值。未來新增的攝影機才會增加數量。繼續？')) return;
   var recs = await SEC.cloudPull(TOOL);
   if (recs) {
+    var before = DB.length;
     var m = SEC.mergeRecords(TOOL, DB, recs);
     if (!SEC.confirmBlankMerge(m.blankConflicts, 'CCTV 雲端下載確認')) return;
-    DB = m.records;
+    var clean = cctvDeduplicate(m.records);
+    DB = clean.records;
     var ex = recs._cloudExtra || {};
     if (Array.isArray(ex.log)) {
       var lm = SEC.mergeRecords('cctv-log', LOG, ex.log);
       if (!SEC.confirmBlankMerge(lm.blankConflicts, 'CCTV 巡檢紀錄下載確認')) return;
       LOG = lm.records;
     }
-    save(); renderAll(); SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，保留 ' + DB.length + ' 支', 'ok', 5000);
+    save(); renderAll();
+    var added = Math.max(0, DB.length - before);
+    SEC.toast('⬇️☁ 已更新 ' + m.updated + ' 筆／新增 ' + added + ' 支；自動移除重複 ' + clean.removed + ' 支，目前共 ' + DB.length + ' 支', clean.removed ? 'warn' : 'ok', 7000);
   }
 }
 </script>
