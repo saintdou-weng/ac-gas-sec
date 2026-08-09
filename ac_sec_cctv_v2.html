@@ -272,6 +272,7 @@ var CCTV_FACTORIES = {
   b: { zh:'B 廠', en:'B Factory' },
   common: { zh:'公共／未指定', en:'Common / Unassigned' }
 };
+var CCTV_MAX = 41;
 var STAT = {
   ok   : { zh:'正常',     en:'Online',  icon:'✅' },
   off  : { zh:'離線',     en:'Offline', icon:'🔴' },
@@ -293,11 +294,32 @@ function factoryLabel(k, lang) { var f = CCTV_FACTORIES[k] || CCTV_FACTORIES.com
 function factoryOptionsHtml() { return Object.keys(CCTV_FACTORIES).map(function (k) { return '<option value="' + k + '">' + CCTV_FACTORIES[k].zh + ' ' + CCTV_FACTORIES[k].en + '</option>'; }).join(''); }
 function isBad(s) { return s === 'off' || s === 'fault' || s === 'blur'; }
 function cctvBlank(v) { return v === undefined || v === null || String(v).trim() === ''; }
+/* 只有 CCTV A-01／CCTV B-01 這類正式編號才是攝影機；純數字、CAM-071、摘要文字一律不是。 */
+function cctvCodeParts(c) {
+  var vals = [c && c.code, c && c.name];
+  for (var i = 0; i < vals.length; i++) {
+    var raw = SEC.str(vals[i]).trim().toUpperCase().replace(/[–—]/g, '-').replace(/\s+/g, ' ');
+    var m = raw.match(/^(?:CCTV|CAM(?:ERA)?)?\s*[-_ ]*([AB])\s*[-_ ]*([0-9]{1,3})$/);
+    if (!m) continue;
+    var n = parseInt(m[2], 10);
+    if (!n) continue;
+    return { factory:m[1].toLowerCase(), number:n, key:m[1] + '-' + n,
+      code:'CCTV ' + m[1] + '-' + String(n).padStart(2, '0') };
+  }
+  return null;
+}
+function cctvNormalise(c) {
+  var p = cctvCodeParts(c);
+  if (!p) return null;
+  var o = Object.assign({}, c || {});
+  o.code = p.code;
+  o.factory = p.factory;
+  if (!o.id) o.id = 'CCTV-' + p.key.replace('-', '');
+  return o;
+}
 function cctvIdentity(c) {
-  var raw = SEC.str(c && (c.code || c.name || c.id)).toLowerCase().replace(/\s+/g, '');
-  /* CAM-036、CAM036、036、36 視為同一支；A-036 與 B-036 則保留為不同編號。 */
-  var m = raw.match(/^(?:cam(?:era)?[-_]?0*|0*)(\d+)$/);
-  return m ? 'number:' + String(parseInt(m[1], 10)) : 'text:' + raw.replace(/[\s_-]+/g, '');
+  var p = cctvCodeParts(c);
+  return p ? 'camera:' + p.key : '';
 }
 function cctvStamp(c) {
   var v = c && (c.updatedAt || c.modifiedAt || c.lastUpdated || c.createdAt || c.lastCheck);
@@ -305,9 +327,12 @@ function cctvStamp(c) {
   return isNaN(d) ? 0 : d;
 }
 function cctvDeduplicate(list) {
-  var out = [], pos = {}, removed = 0;
-  (Array.isArray(list) ? list : []).forEach(function (r) {
+  var out = [], pos = {}, removed = 0, ignored = 0, overflow = 0;
+  (Array.isArray(list) ? list : []).forEach(function (raw) {
+    var r = cctvNormalise(raw);
+    if (!r) { ignored++; return; }
     var k = cctvIdentity(r);
+    if (pos[k] === undefined && out.length >= CCTV_MAX) { overflow++; return; }
     if (pos[k] === undefined) { pos[k] = out.length; out.push(r); return; }
     var old = out[pos[k]], oldStamp = cctvStamp(old), newStamp = cctvStamp(r);
     var newer = newStamp >= oldStamp ? r : old, older = newer === r ? old : r;
@@ -319,7 +344,7 @@ function cctvDeduplicate(list) {
     merged.id = old.id || newer.id;
     out[pos[k]] = merged; removed++;
   });
-  return { records:out, removed:removed };
+  return { records:out, removed:removed, ignored:ignored, overflow:overflow };
 }
 
 async function load() {
@@ -327,9 +352,13 @@ async function load() {
   LOG = await SEC.dbGet(LSL, []);
   if (!Array.isArray(DB)) DB = [];
   if (!Array.isArray(LOG)) LOG = [];
-  /* 舊版本用隨機 id，重複下載後同一支相機會變成兩筆；開頁即按機號去重。 */
+  /* 舊版本曾把 Excel 摘要列及隨機 ID 當成攝影機；開頁即只保留正式編號且最多 41 支。 */
   var clean = cctvDeduplicate(SEC.mergeRecords(TOOL, [], DB).records);
-  if (clean.removed) { DB = clean.records; save(); SEC.toast('✅ 已自動移除 ' + clean.removed + ' 支重複攝影機', 'warn', 6000); }
+  DB = clean.records;
+  if (clean.removed || clean.ignored || clean.overflow) {
+    save();
+    SEC.toast('✅ 已整理 CCTV：移除重複 ' + clean.removed + '，忽略非攝影機列 ' + clean.ignored + '，超過 41 支未納入 ' + clean.overflow, 'warn', 8000);
+  }
 }
 function save() { SEC.dbPut(LS, DB); SEC.dbPut(LSL, LOG); }
 
@@ -516,13 +545,14 @@ function cctvScopeLabel(st, lang) {
 }
 function cctvAudit(cameras) {
   var list = Array.isArray(cameras) ? cameras : DB;
-  var by = {}, duplicate = [];
+  var by = {}, duplicate = [], invalid = 0;
   list.forEach(function (c) {
     var k = cctvIdentity(c);
+    if (!k) { invalid++; return; }
     if (by[k]) { if (duplicate.indexOf(k) < 0) duplicate.push(k); by[k]++; } else by[k] = 1;
   });
   var unique = Object.keys(by).length;
-  return { raw:list.length, unique:unique, duplicate:duplicate };
+  return { raw:list.length, unique:unique, duplicate:duplicate, invalid:invalid, over:unique > CCTV_MAX };
 }
 function cctvSummaryPeriod(st) {
   var a = SEC.parseD(st.period) || new Date();
@@ -551,13 +581,7 @@ function cctvCurrentRecord(p) {
   return null;
 }
 function cctvUniqueCameras(list) {
-  var seen = {}, out = [];
-  (list || []).forEach(function (c) {
-    var k = cctvIdentity(c);
-    if (seen[k]) return;
-    seen[k] = 1; out.push(c);
-  });
-  return out;
+  return cctvDeduplicate(list).records;
 }
 function cctvStats(list, rec) {
   var s = { ok:0, off:0, blur:0, fault:0, dis:0 };
@@ -581,6 +605,8 @@ function cctvSummary(st) {
       cctvText(lang, '範圍', 'Scope') + '：' + SEC.esc(cctvScopeLabel(st, lang)) + '\n─────────────\n' +
       '📊 ' + cctvText(lang, '攝影機總數', 'Camera total') + '：<b>' + list.length + '</b> · ' + cctvText(lang, '已檢查日數', 'Checked days') + '：<b>' + logs.length + '</b>\n';
   if (a.duplicate.length) txt += '⚠️ ' + cctvText(lang, '重複編號需確認', 'Duplicate camera codes need confirmation') + '：<b>' + a.duplicate.length + '</b> · ' + a.duplicate.slice(0, 10).map(SEC.esc).join(', ') + '\n';
+  if (a.invalid) txt += 'ℹ️ ' + cctvText(lang, '已忽略非攝影機列', 'Non-camera rows ignored') + '：<b>' + a.invalid + '</b>\n';
+  if (a.over) txt += '⚠️ ' + cctvText(lang, '超過 41 支上限，超出的編號未納入', 'The 41-camera limit was reached; extra codes were excluded') + '\n';
   if (rec) {
     txt += '📅 ' + cctvText(lang, '最新巡檢', 'Latest check') + '：' + SEC.esc(rec.date) + ' · ' + cctvText(lang, '檢查人', 'Inspector') + '：' + SEC.esc(rec.by || '—') + '\n' +
       cctvStatusLine(overall, lang) + '\n' +
@@ -753,10 +779,12 @@ function impExcel() {
     sheets.forEach(function (sh) {
       var res = SEC.parseSheet(sh.rows, SPEC, { minScore: 2 });
       if (!res.rows.length) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：未偵測到資料（分數 ' + res.header.score + '）'); return; }
-      var n = 0;
+      var n = 0, ignored = 0;
       res.rows.forEach(function (o) {
         var code = SEC.str(o.code), name = SEC.str(o.name);
         if (!code && !name) return;
+        var parts = cctvCodeParts({ code:code, name:name });
+        if (!parts) { ignored++; return; }
         var zRaw = (SEC.str(o.zone) + ' ' + name).toLowerCase();
         var zone = /宿舍|house|dorm/.test(zRaw) ? 'house'
                  : /成品|finish|warehouse|倉/.test(zRaw) ? 'fwh'
@@ -772,15 +800,17 @@ function impExcel() {
         var st = /離線|offline|斷/.test(sRaw) ? 'off' : /故障|fault|壞/.test(sRaw) ? 'fault'
                : /模糊|blur/.test(sRaw) ? 'blur' : /停用|disable/.test(sRaw) ? 'dis' : 'ok';
         var row = { id: 'X' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-          code: code || ('CAM-' + String(DB.length + 1).padStart(3, '0')),
-          name: name, factory: factoryOf({ factory: SEC.str(o.factory), zone: zone, name: name }), zone: zone, type: type, nvr: SEC.str(o.nvr), ch: SEC.str(o.ch),
+          code: parts.code,
+          name: name, factory: parts.factory, zone: zone, type: type, nvr: SEC.str(o.nvr), ch: SEC.str(o.ch),
           ip: SEC.str(o.ip), status: st, remark: SEC.str(o.remark), src: sh.name };
-        var old = DB.filter(function (x) { return x.code === row.code; })[0];
+        var old = DB.filter(function (x) { return cctvIdentity(x) === cctvIdentity(row); })[0];
+        if (!old && DB.length >= CCTV_MAX) { ignored++; return; }
         if (old) { row.id = old.id; Object.assign(old, row); } else DB.push(row);
         n++; added++;
       });
-      log.push('· <b>' + SEC.esc(sh.name) + '</b>：匯入 <b>' + n + '</b> 支（標題第 ' + (res.header.row + 1) + ' 列）');
+      log.push('· <b>' + SEC.esc(sh.name) + '</b>：匯入 <b>' + n + '</b> 支，忽略 <b>' + ignored + '</b> 列（標題第 ' + (res.header.row + 1) + ' 列）');
     });
+    var clean = cctvDeduplicate(DB); DB = clean.records;
     save(); renderAll();
     document.getElementById('impLog').innerHTML = '<b>匯入結果</b><br>' + log.join('<br>');
     SEC.toast(added ? '✅ 匯入 ' + added + ' 支攝影機' : '⚠ 未匯入，請看偵測記錄', added ? 'ok' : 'warn', 5000);
@@ -805,10 +835,10 @@ function impCamJson() {
   inp.click();
 }
 function loadCamArray(arr) {
-  var added = 0;
+  var added = 0, ignored = 0;
   arr.forEach(function (c) {
-    var code = SEC.str(c.code || c.name || c.id);
-    if (!code) return;
+    var parts = cctvCodeParts({ code:SEC.str(c.code), name:SEC.str(c.name) });
+    if (!parts) { ignored++; return; }
     /* 大樓 A/B → 區域；location 內含關鍵字再細分 */
     var loc = SEC.str(c.loc || c.location || '');
     var lz = (loc + ' ' + (c.bldg || '')).toLowerCase();
@@ -818,9 +848,10 @@ function loadCamArray(arr) {
              : /container|貨櫃|loading/.test(lz) ? (/\bb\b|building b/.test(lz) ? 'bldB' : 'bldA')
              : String(c.bldg).toUpperCase() === 'B' ? 'bldB'
              : String(c.bldg).toUpperCase() === 'A' ? 'bldA' : 'yard';
-    /* 已存在同 code → 更新 */
-    var old = DB.filter(function (x) { return x.code === code; })[0];
-    var rec = { code: code, name: loc, factory: factoryOf({ factory:c.factory || c.plant || '', bldg:c.bldg, zone:zone }), zone: zone, type: 'dome',
+    /* 已存在同正式編號 → 更新；超過 41 支不納入 */
+    var old = DB.filter(function (x) { return cctvIdentity(x) === 'camera:' + parts.key; })[0];
+    if (!old && DB.length >= CCTV_MAX) { ignored++; return; }
+    var rec = { code: parts.code, name: loc, factory: parts.factory, zone: zone, type: 'dome',
       nvr: '', ch: '', ip: '', bldg: c.bldg || '',
       status: c.noVideo ? 'off' : 'ok',
       remark: c.noVideo ? 'No Video Available（原標記無畫面）' : '' };
@@ -828,10 +859,11 @@ function loadCamArray(arr) {
     else { rec.id = 'J' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); DB.push(rec); }
     added++;
   });
+  var clean = cctvDeduplicate(DB); DB = clean.records; ignored += clean.ignored + clean.overflow;
   save(); renderAll();
   var noVid = DB.filter(function (c) { return c.status === 'off'; }).length;
-  document.getElementById('impLog').innerHTML = '<b>匯入結果</b>：' + added + ' 支相機（其中 ' + noVid + ' 支標記為無畫面 🔴）';
-  SEC.toast('✅ 匯入 ' + added + ' 支相機', 'ok', 5000);
+  document.getElementById('impLog').innerHTML = '<b>匯入結果</b>：' + added + ' 支相機，忽略 ' + ignored + ' 列（其中 ' + noVid + ' 支標記為無畫面 🔴）';
+  SEC.toast('✅ 匯入 ' + added + ' 支相機；忽略 ' + ignored + ' 列', ignored ? 'warn' : 'ok', 6000);
 }
 /* ── 轉入舊 security.html 的 localStorage（vrt_cameras + cctv_YYYY-MM-DD）── */
 function migrateOld() {
@@ -876,12 +908,16 @@ function genCams() {
   var n = parseInt(document.getElementById('genN').value, 10) || 0;
   if (!n) return;
   if (DB.length && !confirm('已有 ' + DB.length + ' 支，會「追加」而非覆蓋。繼續？')) return;
+  n = Math.min(n, Math.max(0, CCTV_MAX - DB.length));
+  if (!n) { SEC.toast('⚠ 已達 CCTV 41 支上限，不能再新增', 'warn'); return; }
   var zs = ['gate','bldA','fwh','bldB','back','house','yard','office'];
-  var base = DB.length;
+  var next = { a:1, b:1 };
+  DB.forEach(function (c) { var p = cctvCodeParts(c); if (p) next[p.factory] = Math.max(next[p.factory], p.number + 1); });
   for (var i = 0; i < n; i++) {
+    var fk = next.a <= next.b ? 'a' : 'b', letter = fk === 'a' ? 'A' : 'B', number = next[fk]++;
     DB.push({ id: 'G' + Date.now().toString(36) + i,
-      code: 'CAM-' + String(base + i + 1).padStart(3, '0'),
-      name: '', factory: factoryOf({ zone:zs[i % zs.length] }), zone: zs[i % zs.length], type: 'dome',
+      code: 'CCTV ' + letter + '-' + String(number).padStart(2, '0'),
+      name: '', factory: fk, zone: zs[i % zs.length], type: 'dome',
       nvr: 'NVR-' + (Math.floor(i / 32) + 1), ch: String((i % 32) + 1), ip: '', status: 'ok', remark: '' });
   }
   save(); renderAll(); SEC.toast('🏭 已產生 ' + n + ' 支，請逐支補上名稱與區域', 'ok', 5000);
@@ -920,9 +956,10 @@ async function doUpload() {
   var slim = LOG.map(function (l) { var o = Object.assign({}, l); delete o.st; return o; });
   await SEC.cloudPush(TOOL, DB, { total: DB.length, logs: LOG.length,
     lastUptime: LOG.length ? LOG[0].uptime : null }, { log: slim });
+  if (clean.ignored || clean.overflow) SEC.toast('☁️ 已上傳正式 CCTV 編號；忽略非攝影機列 ' + clean.ignored + '，超過 41 支未上傳 ' + clean.overflow, 'warn', 7000);
 }
 async function doDownload() {
-  if (!confirm('⬇️☁ 下載會依唯一攝影機編號更新資料；相同機號只保留一支，空白欄位會先確認並保留舊值。未來新增的攝影機才會增加數量。繼續？')) return;
+  if (!confirm('⬇️☁ 下載只接受 CCTV A-01／CCTV B-01 類正式編號，最多 41 支；摘要列及超出上限的資料不會納入。相同機號只保留一支，空白欄位會先確認並保留舊值。繼續？')) return;
   var recs = await SEC.cloudPull(TOOL);
   if (recs) {
     var before = DB.length;
@@ -938,7 +975,7 @@ async function doDownload() {
     }
     save(); renderAll();
     var added = Math.max(0, DB.length - before);
-    SEC.toast('⬇️☁ 已更新 ' + m.updated + ' 筆／新增 ' + added + ' 支；自動移除重複 ' + clean.removed + ' 支，目前共 ' + DB.length + ' 支', clean.removed ? 'warn' : 'ok', 7000);
+    SEC.toast('⬇️☁ 已更新 ' + m.updated + ' 筆／新增 ' + added + ' 支；移除重複 ' + clean.removed + '，忽略非攝影機列 ' + clean.ignored + '，超出 41 支未納入 ' + clean.overflow + '；目前共 ' + DB.length + ' 支', (clean.removed || clean.ignored || clean.overflow) ? 'warn' : 'ok', 9000);
   }
 }
 </script>
