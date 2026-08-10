@@ -500,6 +500,8 @@ function recordKey(tool, r, i) {
   if (r.month && (r.empId || r.name)) return tool + '|month|' + r.month + '|' + (r.empId || r.name);
   if (r.date && (r.empId || r.name)) return tool + '|date|' + r.date + '|' + (r.empId || r.name);
   if (r.date && r.time && (r.guard || r.person || r.name)) return tool + '|event|' + r.date + '|' + r.time + '|' + (r.guard || r.person || r.name) + '|' + (r.location || r.c || '');
+  /* 巡更棒整月表有時沒有 Person、每日表有 Person；同一時間同一 Chip 應視為同一筆打點。 */
+  if (tool === 'patrol' && r.t && r.c) return tool + '|scan|' + r.t + '|' + r.c;
   if (r.t && (r.c || r.g)) return tool + '|scan|' + r.t + '|' + r.c + '|' + (r.g || '');
   return tool + '|row|' + i + '|' + JSON.stringify(r);
 }
@@ -733,7 +735,8 @@ function tgOpen(opt) {
         var pages = summaryPages();
         for (var pi = 0; pi < pages.length; pi++) {
           var pageText = pages.length > 1 ? '【' + (pi + 1) + '/' + pages.length + '】\n' + pages[pi] : pages[pi];
-          await gasPost({ action:'telegram', text:pageText, module:opt.module||'', lang:st.lang });
+          await gasPost({ action:'telegram', text:pageText, module:opt.module||'', lang:st.lang,
+            mode:'summary', period:st.period, periodType:st.ptype });
         }
         toast('✈️ Telegram 摘要已送出' + (pages.length > 1 ? '（' + pages.length + ' 頁）' : ''), 'ok');
       } else {

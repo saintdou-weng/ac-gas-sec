@@ -98,7 +98,7 @@
     <div class="card">
       <h3>🔴 <span data-zh="目前異常清單" data-en="Current Faults" data-km="បញ្ជីខូច">目前異常清單</span>
         <span class="sp"><button class="btn sm" onclick="pushFault()">✈️ <span data-zh="推送異常" data-en="Push" data-km="ផ្ញើ">推送異常</span></button></span></h3>
-      <div class="tw"><table><thead><tr>
+      <div class="tw"><table><thead id="logHead"><tr>
         <th data-zh="編號" data-en="Code" data-km="លេខ">編號</th>
         <th data-zh="位置" data-en="Location" data-km="ទីតាំង">位置</th>
         <th data-zh="區域" data-en="Zone" data-km="តំបន់">區域</th>
@@ -255,7 +255,7 @@ if (typeof SEC === 'undefined') {
 
 var LS = 'ac_sec_cctv_db', LSL = 'ac_sec_cctv_log';
 var DB = [], LOG = [], TODAY = {}, BRUSH = 'ok', CH = {}, TOOL = 'cctv';
-var PER = new SEC.Period('month'), EDIT_ID = '';
+var PER = new SEC.Period('month'), EDIT_ID = '', paintCctvPeriod;
 
 var ZONES = [
   { id:'gate',  zh:'大門崗哨',      en:'Front Gate' },
@@ -365,7 +365,7 @@ function save() { SEC.dbPut(LS, DB); SEC.dbPut(LSL, LOG); }
 document.getElementById('hdr').innerHTML = SEC.headerHtml('📷', 'CCTV 監控', 'AC SECURITY · CCTV');
 document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
 SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: openCctvTelegram, onSmartImport: impExcel });
-SEC.bindPeriodNav('pnav', PER, renderAll);
+paintCctvPeriod = SEC.bindPeriodNav('pnav', PER, renderAll);
 document.getElementById('tabs').addEventListener('click', function (e) {
   var b = SEC.closest(e.target, '.tab'); if (!b) return;
   document.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('on'); });
@@ -697,8 +697,53 @@ function delCam() {
 }
 
 /* ═══ 紀錄 / 統計 ═══ */
+function cctvPeriodDate(type, key) {
+  if (type === 'year' && /^\d{4}$/.test(key)) return new Date(+key, 0, 1);
+  if (type === 'month' && /^\d{4}-\d{2}$/.test(key)) return new Date(+key.slice(0, 4), +key.slice(5, 7) - 1, 1);
+  return SEC.parseD(key) || new Date();
+}
+function cctvPeriodKeys(type) {
+  var seen = {};
+  LOG.forEach(function (r) { if (r.date) seen[new SEC.Period(type, SEC.parseD(r.date)).key()] = 1; });
+  seen[new SEC.Period(type, PER.at).key()] = 1;
+  return Object.keys(seen).sort().reverse();
+}
+function jumpCctvPeriod(key) {
+  PER.at = cctvPeriodDate(PER.mode, key);
+  if (paintCctvPeriod) paintCctvPeriod();
+  renderAll();
+}
+function cctvPeriodSummary(type) {
+  return cctvPeriodKeys(type).map(function (key) {
+    var p = new SEC.Period(type, cctvPeriodDate(type, key)), logs = LOG.filter(function (r) { return p.has(r.date); });
+    var s = { n:0, ok:0, off:0, blur:0, fault:0, dis:0 }, by = {}, notes = {};
+    logs.forEach(function (r) {
+      s.n += +r.n || 0; s.ok += +r.ok || 0; s.off += +r.off || 0; s.blur += +r.blur || 0; s.fault += +r.fault || 0; s.dis += +r.dis || 0;
+      if (r.by) by[r.by] = 1; if (r.note) notes[r.note] = 1;
+    });
+    var live = s.ok + s.off + s.blur + s.fault, rate = live ? Math.round(s.ok / live * 100) : 0;
+    return { key:key, days:logs.length, s:s, rate:rate, inspectors:Object.keys(by), notes:Object.keys(notes) };
+  });
+}
 function renderLog() {
   var list = LOG.filter(function (l) { return PER.has(l.date); });
+  var head = document.getElementById('logHead');
+  if (PER.mode === 'month' || PER.mode === 'year') {
+    head.innerHTML = '<tr><th>期間 Period</th><th class="num">檢查日 Checked days</th><th class="num">受檢 Camera-checks</th>' +
+      '<th class="num">正常 Normal</th><th class="num">離線 Offline</th><th class="num">模糊 Blurry</th><th class="num">故障 Fault</th>' +
+      '<th>可用率 Uptime</th><th>檢查人 Inspectors</th><th>備註 Notes</th></tr>';
+    document.getElementById('tbLog').innerHTML = cctvPeriodSummary(PER.mode).map(function (x) {
+      var active = x.key === PER.key();
+      return '<tr' + (active ? ' style="background:#eef8fc;font-weight:700"' : '') + ' onclick="jumpCctvPeriod(\'' + SEC.esc(x.key) + '\')" title="點選切換期間 / Click to open">' +
+        '<td><b>' + SEC.esc(x.key) + '</b>' + (active ? ' ◀' : '') + '</td><td class="num">' + x.days + '</td><td class="num">' + x.s.n + '</td>' +
+        '<td class="num" style="color:var(--ok)">' + x.s.ok + '</td><td class="num" style="color:' + (x.s.off ? 'var(--err)' : 'inherit') + '">' + x.s.off + '</td>' +
+        '<td class="num" style="color:' + (x.s.blur ? 'var(--warn)' : 'inherit') + '">' + x.s.blur + '</td><td class="num" style="color:' + (x.s.fault ? 'var(--err)' : 'inherit') + '">' + x.s.fault + '</td>' +
+        '<td><span class="tag ' + (x.rate >= 95 ? 'ok' : x.rate >= 85 ? 'warn' : 'err') + '">' + (x.days ? x.rate + '%' : '—') + '</span></td>' +
+        '<td>' + SEC.esc(x.inspectors.join('、') || '—') + '</td><td class="hint">' + SEC.esc(x.notes.join('；') || '—') + '</td></tr>';
+    }).join('') || '<tr><td colspan="10" class="empty">此期間無巡檢紀錄</td></tr>';
+    return;
+  }
+  head.innerHTML = '<tr><th>日期</th><th>巡檢人</th><th class="num">受檢</th><th class="num">正常</th><th class="num">離線</th><th class="num">模糊</th><th class="num">故障</th><th>可用率</th><th>異常機號</th><th></th></tr>';
   document.getElementById('tbLog').innerHTML = list.length ? list.map(function (l) {
     return '<tr><td>' + l.date + '</td><td>' + SEC.esc(l.by || '') + '</td>' +
       '<td class="num">' + l.n + '</td><td class="num">' + l.ok + '</td>' +
@@ -718,8 +763,10 @@ function openDay(d) {
 }
 function renderAna() {
   var list = LOG.filter(function (l) { return PER.has(l.date); }).slice().sort(function (a, b) { return a.date.localeCompare(b.date); });
-  chart('ch1', 'line', list.map(function (l) { return l.date.slice(5); }),
-    [{ label: '可用率 %', data: list.map(function (l) { return l.uptime; }),
+  var trend = list.map(function (l) { return { key:l.date, rate:l.uptime }; });
+  if (PER.mode === 'month' || PER.mode === 'year') trend = cctvPeriodSummary(PER.mode).map(function (x) { return { key:x.key, rate:x.rate }; });
+  chart('ch1', 'line', trend.map(function (l) { return l.key; }),
+    [{ label: '可用率 % / Uptime', data: trend.map(function (l) { return l.rate; }),
        borderColor: '#1e6f8e', backgroundColor: 'rgba(30,111,142,.14)', fill: true, tension: .3 }], 100);
   var byZ = {};
   DB.forEach(function (c) { var k = zn(c.zone); byZ[k] = (byZ[k] || 0) + 1; });

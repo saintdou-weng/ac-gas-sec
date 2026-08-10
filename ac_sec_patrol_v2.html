@@ -65,7 +65,7 @@
         一圈 = 同一人連續打點、間隔不超過 <input type="number" id="gapMin" value="20" min="5" max="90" style="width:56px;display:inline-block;padding:3px 6px" onchange="rebuild()"> 分鐘。
         綠格＝有打到，紅格＝該圈漏掉的巡邏點。
       </p>
-      <div class="tw"><table><thead><tr>
+      <div class="tw"><table><thead id="roundHead"><tr>
         <th data-zh="日期" data-en="Date" data-km="កាល">日期</th>
         <th data-zh="起訖" data-en="Time" data-km="ម៉ោង">起訖</th>
         <th data-zh="班別" data-en="Shift" data-km="វេន">班別</th>
@@ -94,7 +94,7 @@
     </div>
     <div class="card">
       <h3>📊 <span data-zh="各巡邏點漏打統計" data-en="Miss Rate by Checkpoint" data-km="អត្រាខកខាន">各巡邏點漏打統計</span></h3>
-      <div class="tw"><table><thead><tr>
+      <div class="tw"><table><thead id="nightHead"><tr>
         <th>#</th><th data-zh="巡邏點" data-en="Checkpoint" data-km="ចំណុច">巡邏點</th>
         <th class="num" data-zh="應打" data-en="Expected" data-km="គួរ">應打</th>
         <th class="num" data-zh="實打" data-en="Actual" data-km="ពិត">實打</th>
@@ -158,7 +158,7 @@
     </div>
     <div class="card">
       <h3>📋 <span data-zh="人工登錄記錄" data-en="Manual Records" data-km="កំណត់ត្រាដោយដៃ">人工登錄記錄</span></h3>
-      <div class="tw"><table><thead><tr><th>日期</th><th>時間</th><th>班別</th><th>巡邏員</th><th>巡邏點</th><th>狀態</th><th>備註</th><th></th></tr></thead>
+      <div class="tw"><table><thead id="manualHead"><tr><th>日期</th><th>時間</th><th>班別</th><th>巡邏員</th><th>巡邏點</th><th>狀態</th><th>備註</th><th></th></tr></thead>
       <tbody id="tbManual"></tbody></table></div>
     </div>
   </div>
@@ -397,6 +397,45 @@ function rebuild() { inferChips(); buildRounds(); renderAll(); }
 
 function inPeriodR() { return ROUNDS.filter(function (r) { return PER.has(r.date); }); }
 
+/* 月／年列表採用 Sewing 式「每個期間一列」；日／週才顯示逐圈明細。 */
+function patrolPeriodDate(type, key) {
+  if (type === 'year' && /^\d{4}$/.test(key)) return new Date(+key, 0, 1);
+  if (type === 'month' && /^\d{4}-\d{2}$/.test(key)) return new Date(+key.slice(0, 4), +key.slice(5, 7) - 1, 1);
+  return SEC.parseD(key) || new Date();
+}
+function patrolPeriodKeys(type) {
+  var seen = {};
+  ROUNDS.forEach(function (r) { if (r.date) seen[new SEC.Period(type, SEC.parseD(r.date)).key()] = 1; });
+  MAN.forEach(function (r) { if (r.date) seen[new SEC.Period(type, SEC.parseD(r.date)).key()] = 1; });
+  seen[new SEC.Period(type, PER.at).key()] = 1;
+  return Object.keys(seen).sort().reverse();
+}
+function jumpPatrolPeriod(key) {
+  PER.at = patrolPeriodDate(PER.mode, key);
+  if (paintPatrolPeriod) paintPatrolPeriod();
+  renderAll();
+}
+function patrolPeriodSummary(type, guard, shift) {
+  return patrolPeriodKeys(type).map(function (key) {
+    var p = new SEC.Period(type, patrolPeriodDate(type, key));
+    var rounds = ROUNDS.filter(function (r) {
+      return p.has(r.date) && (!guard || r.g === guard) && (!shift || (shift === 'N' ? r.night : !r.night));
+    });
+    var manual = MAN.filter(function (r) {
+      return p.has(r.date) && (!guard || r.guard === guard) && (!shift || (shift === 'N' ? r.shift === 'N' : r.shift !== 'N'));
+    });
+    var full = rounds.filter(function (r) { return r.chips.length >= totalCp(); }).length;
+    var guards = {};
+    rounds.forEach(function (r) { if (r.g) guards[r.g] = 1; });
+    manual.forEach(function (r) { if (r.guard) guards[r.guard] = 1; });
+    return { key:key, rounds:rounds.length, full:full, bad:rounds.length - full,
+      rate:rounds.length ? Math.round(full / rounds.length * 100) : 0,
+      night:rounds.filter(function (r) { return r.night; }).length,
+      guards:Object.keys(guards), manual:manual.length,
+      issues:manual.filter(function (r) { return r.status === 'issue'; }).length };
+  });
+}
+
 /* ═══════════ 渲染 ═══════════ */
 function renderAll() {
   fillGuards(); fillLocs(); renderRounds(); renderCp(); renderNight();
@@ -437,6 +476,26 @@ function renderRounds() {
   document.getElementById('k2').textContent = full.length;
   document.getElementById('k3').textContent = list.length - full.length;
   document.getElementById('k4').textContent = list.length ? Math.round(full.length / list.length * 100) + '%' : '—';
+
+  var head = document.getElementById('roundHead');
+  if (PER.mode === 'month' || PER.mode === 'year') {
+    head.innerHTML = '<tr><th>期間 Period</th><th class="num">巡邏圈 Rounds</th><th class="num">完整 Complete</th>' +
+      '<th class="num">漏點 Incomplete</th><th>完整率 Rate</th><th class="num">夜巡 Night</th>' +
+      '<th>人員 Guards</th><th>人工／異常 Manual / Issues</th></tr>';
+    var sums = patrolPeriodSummary(PER.mode, fg, fs);
+    document.getElementById('tbRound').innerHTML = sums.map(function (s) {
+      var active = s.key === PER.key();
+      return '<tr' + (active ? ' style="background:#eef8fc;font-weight:700"' : '') + ' onclick="jumpPatrolPeriod(\'' + SEC.esc(s.key) + '\')" title="點選切換期間 / Click to open">' +
+        '<td><b>' + SEC.esc(s.key) + '</b>' + (active ? ' ◀' : '') + '</td><td class="num">' + s.rounds + '</td>' +
+        '<td class="num" style="color:var(--ok)">' + s.full + '</td><td class="num" style="color:' + (s.bad ? 'var(--err)' : 'inherit') + '">' + s.bad + '</td>' +
+        '<td><span class="tag ' + (s.rate >= 90 ? 'ok' : s.rate >= 70 ? 'warn' : 'err') + '">' + s.rate + '%</span></td>' +
+        '<td class="num">' + s.night + '</td><td>' + SEC.esc(s.guards.join('、') || '—') + '</td>' +
+        '<td>' + s.manual + (s.issues ? ' · <span class="tag err">⚠ ' + s.issues + '</span>' : '') + '</td></tr>';
+    }).join('') || '<tr><td colspan="8" class="empty">' + SEC.T().noData + '</td></tr>';
+    document.getElementById('roundMore').textContent = '月／年列表顯示各期間合計；點選列可切換到該期間。 / Monthly and yearly totals; click a row to open it.';
+    return;
+  }
+  head.innerHTML = '<tr><th>日期</th><th>起訖</th><th>班別</th><th>巡邏員</th><th class="num">耗時</th><th>打點狀況</th><th>判定</th></tr>';
 
   var show = bad ? list.filter(function (r) { return r.chips.length < TC; }) : list;
   show = show.slice().sort(function (a, b) { return a.start < b.start ? 1 : -1; });
@@ -537,6 +596,30 @@ function renderNight() {
   document.getElementById('nk3').textContent = short.length;
   document.getElementById('nk4').textContent = maxGapInfo;
 
+  var nh = document.getElementById('nightHead');
+  if (PER.mode === 'month' || PER.mode === 'year') {
+    nh.innerHTML = '<tr><th>期間 Period</th><th>夜巡圈 Night rounds</th><th>達標夜數 Compliant</th><th>不足夜數 Short</th><th>最長空檔 Longest gap</th><th>值班人員 Guards</th></tr>';
+    var rows = patrolPeriodKeys(PER.mode).map(function (key) {
+      var p = new SEC.Period(PER.mode, patrolPeriodDate(PER.mode, key)), by = {};
+      ROUNDS.filter(function (r) { return p.has(r.date) && r.night; }).forEach(function (r) {
+        var d = r.date;
+        if (r.hour < 6) { var dd = new Date(d.replace(/-/g, '/')); dd.setDate(dd.getDate() - 1); d = SEC.ymd(dd); }
+        if (!by[d]) by[d] = { n:0, g:{} };
+        by[d].n++;
+        if (r.g) by[d].g[r.g] = 1;
+      });
+      var days = Object.keys(by), shortN = days.filter(function (d) { return by[d].n < min; }), guards = {};
+      days.forEach(function (d) { Object.keys(by[d].g).forEach(function (g) { guards[g] = 1; }); });
+      var total = days.reduce(function (n, d) { return n + by[d].n; }, 0), active = key === PER.key();
+      return '<tr' + (active ? ' style="background:#eef8fc;font-weight:700"' : '') + ' onclick="jumpPatrolPeriod(\'' + SEC.esc(key) + '\')">' +
+        '<td><b>' + SEC.esc(key) + '</b>' + (active ? ' ◀' : '') + '</td><td>' + total + '</td>' +
+        '<td style="color:var(--ok)">' + (days.length - shortN.length) + '</td><td style="color:' + (shortN.length ? 'var(--err)' : 'inherit') + '">' + shortN.length + '</td>' +
+        '<td>—</td><td>' + SEC.esc(Object.keys(guards).join('、') || '—') + '</td></tr>';
+    }).join('');
+    document.getElementById('tbNight').innerHTML = rows || '<tr><td colspan="6" class="empty">' + SEC.T().noData + '</td></tr>';
+    return;
+  }
+  nh.innerHTML = '<tr><th>夜別</th><th>值班人員</th><th class="num">圈數</th><th class="num">門檻</th><th class="num">漏點圈</th><th>最長空檔</th><th>判定</th></tr>';
   var tb = document.getElementById('tbNight');
   tb.innerHTML = ks.length ? ks.map(function (k) {
     var o = byN[k], n = o.rounds.length, ok = n >= min;
@@ -552,6 +635,18 @@ function renderNight() {
 
 function renderManual() {
   var list = MAN.filter(function (r) { return PER.has(r.date); });
+  var mh = document.getElementById('manualHead');
+  if (PER.mode === 'month' || PER.mode === 'year') {
+    mh.innerHTML = '<tr><th>期間 Period</th><th class="num">人工記錄 Manual</th><th class="num">異常 Issues</th><th>人員 Guards</th></tr>';
+    document.getElementById('tbManual').innerHTML = patrolPeriodKeys(PER.mode).map(function (key) {
+      var p = new SEC.Period(PER.mode, patrolPeriodDate(PER.mode, key)), rows = MAN.filter(function (r) { return p.has(r.date); }), guards = {};
+      rows.forEach(function (r) { if (r.guard) guards[r.guard] = 1; });
+      var active = key === PER.key();
+      return '<tr' + (active ? ' style="background:#eef8fc;font-weight:700"' : '') + ' onclick="jumpPatrolPeriod(\'' + SEC.esc(key) + '\')"><td><b>' + SEC.esc(key) + '</b>' + (active ? ' ◀' : '') + '</td><td class="num">' + rows.length + '</td><td class="num">' + rows.filter(function (r) { return r.status === 'issue'; }).length + '</td><td>' + SEC.esc(Object.keys(guards).join('、') || '—') + '</td></tr>';
+    }).join('') || '<tr><td colspan="4" class="empty">' + SEC.T().noData + '</td></tr>';
+    return;
+  }
+  mh.innerHTML = '<tr><th>日期</th><th>時間</th><th>班別</th><th>巡邏員</th><th>巡邏點</th><th>狀態</th><th>備註</th><th></th></tr>';
   var tb = document.getElementById('tbManual');
   tb.innerHTML = list.length ? list.slice().sort(function (a, b) { return (b.date + b.time).localeCompare(a.date + a.time); })
     .map(function (r) {
@@ -629,51 +724,71 @@ function renderDbInfo() {
 }
 
 /* ═══════════ 巡更棒匯入 ═══════════ */
-var WAND_HDR = { time:['巡检时间','巡檢時間','patroltime','時間','time'],
+var WAND_HDR = { time:['巡检时间','巡檢時間','patroltime','patrol time','時間','time'],
                  reader:['巡检器','巡檢器','readernum','reader'],
                  person:['人员','人員','person','guard','姓名'],
                  point:['巡检点','巡檢點','checkpoint','地點'],
                  event:['事件','event','shift','班別'],
                  chip:['编号','編號','chipid','chip','id'] };
+function wandHeaderMap(rows) {
+  var best = { row:-1, map:{}, score:0 };
+  for (var r = 0; r < Math.min(rows.length, 20); r++) {
+    var m = {}, score = 0;
+    for (var c = 0; c < (rows[r] || []).length; c++) {
+      var a = SEC.norm(rows[r][c]); if (!a) continue;
+      Object.keys(WAND_HDR).forEach(function (k) {
+        if (m[k] !== undefined) return;
+        var hit = WAND_HDR[k].some(function (al) {
+          var n = SEC.norm(al); return n && (a === n || a.indexOf(n) >= 0 || n.indexOf(a) >= 0);
+        });
+        if (hit) { m[k] = c; score++; }
+      });
+    }
+    if (score > best.score) best = { row:r, map:m, score:score };
+    if (score >= 5 && m.time !== undefined && m.chip !== undefined) return { row:r, map:m, score:score };
+  }
+  /* 這批巡更棒舊式 .xls 固定為 A:F；標題列辨識不足時仍以資料形狀備援。 */
+  if (best.score < 4 && rows.length > 3 && (rows[0] || []).length >= 6) {
+    for (var rr = 0; rr < Math.min(rows.length, 8); rr++) {
+      var sample = rows[rr] || [];
+      if (sample.length >= 6 && (wandTime(sample[0]) || /patrol|巡检|巡檢/i.test(String(sample[0] || ''))))
+        return { row:Math.max(0, rr - 1), map:{ time:0, reader:1, person:2, point:3, event:4, chip:5 }, score:6, fallback:true };
+    }
+  }
+  return best;
+}
 function impWand() {
   SEC.pickExcel(function (sheets) {
-    var seen = {}, added = 0, dup = 0, log = [];
-    SCAN.forEach(function (s) { seen[s.t + '|' + s.c + '|' + s.g] = 1; });
+    var seen = {}, added = 0, dup = 0, badTime = 0, badChip = 0, log = [];
+    SCAN.forEach(function (s) { seen[s.t + '|' + s.c] = 1; seen[s.t + '|' + s.c + '|' + s.g] = 1; });
     sheets.forEach(function (sh) {
-      var rows = sh.rows, hr = -1, map = {};
-      for (var r = 0; r < Math.min(rows.length, 10); r++) {
-        var m = {}, sc = 0;
-        for (var c = 0; c < (rows[r] || []).length; c++) {
-          var a = SEC.norm(rows[r][c]); if (!a) continue;
-          Object.keys(WAND_HDR).forEach(function (k) {
-            if (m[k] !== undefined) return;
-            if (WAND_HDR[k].some(function (al) { return a === SEC.norm(al); })) { m[k] = c; sc++; }
-          });
-        }
-        if (sc >= 4) { hr = r; map = m; break; }
-      }
-      if (hr < 0) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：非巡更棒格式，略過'); return; }
-      var n = 0, d0 = 0;
+      var rows = sh.rows, hdr = wandHeaderMap(rows), hr = hdr.row, map = hdr.map;
+      if (hr < 0 || map.time === undefined || map.chip === undefined) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：找不到巡檢時間／Chip ID 欄位，略過'); return; }
+      var n = 0, d0 = 0, sheetBadTime = 0, sheetBadChip = 0;
       for (var i = hr + 1; i < rows.length; i++) {
         var R = rows[i] || [];
-        var t = wandTime(R[map.time]); if (!t) continue;
-        var chip = SEC.str(R[map.chip]); if (!chip) continue;
+        var t = wandTime(R[map.time]);
+        if (!t) { sheetBadTime++; badTime++; continue; }
+        var chip = SEC.str(R[map.chip]); if (!chip) { sheetBadChip++; badChip++; continue; }
         var g = SEC.str(R[map.person]);
-        var key = t + '|' + chip + '|' + g;
-        if (seen[key]) { d0++; dup++; continue; }
-        seen[key] = 1;
+        var key = t + '|' + chip, keyWithPerson = key + '|' + g;
+        if (seen[key] || seen[keyWithPerson]) { d0++; dup++; continue; }
+        seen[key] = 1; seen[keyWithPerson] = 1;
         var ev = SEC.str(R[map.event]);
         SCAN.push({ t: t, g: g, c: chip, e: /night|夜/i.test(ev) ? 'N' : 'D',
                     r: SEC.str(R[map.reader]) });
         n++; added++;
       }
-      log.push('· <b>' + SEC.esc(sh.name) + '</b>：新增 <b>' + n + '</b> 筆' + (d0 ? '（重複略過 ' + d0 + '）' : ''));
+      log.push('· <b>' + SEC.esc(sh.name) + '</b>：新增 <b>' + n + '</b> 筆' + (d0 ? '（重複略過 ' + d0 + '）' : '') +
+        (sheetBadTime ? ' · 日期格式略過 ' + sheetBadTime : '') + (sheetBadChip ? ' · 無 Chip ID 略過 ' + sheetBadChip : '') +
+        '（標題第 ' + (hr + 1) + ' 列' + (hdr.fallback ? '，固定欄位備援' : '') + '）');
     });
     saveScan();
     jumpPatrolToLatest();
     rebuild();
     if (paintPatrolPeriod) paintPatrolPeriod();
-    document.getElementById('impLog').innerHTML = '<b>匯入結果</b>：新增 <b>' + added + '</b> 筆，去重略過 ' + dup + ' 筆<br>' + log.join('<br>');
+    document.getElementById('impLog').innerHTML = '<b>匯入結果</b>：新增 <b>' + added + '</b> 筆，去重略過 ' + dup + ' 筆' +
+      (badTime || badChip ? '；日期格式略過 ' + badTime + '，無 Chip ID 略過 ' + badChip : '') + '<br>' + log.join('<br>');
     SEC.toast(added ? '✅ 匯入 ' + added + ' 筆打點（自動去重 ' + dup + '）' : '⚠ 全部重複或格式不符', added ? 'ok' : 'warn', 5500);
     if (added && !Object.keys(CHIP).some(function (c) { return CHIP[c].name; })) {
       setTimeout(function () { SEC.toast('👉 請到「📍 巡邏點」分頁替 ' + Object.keys(CHIP).length + ' 個 Chip ID 命名', 'warn', 7000); }, 900);
@@ -683,14 +798,20 @@ function impWand() {
 /* 巡更棒時間：字串 "2026/05/01 00:19:49" 或 Excel 序號 */
 function wandTime(v) {
   if (v === '' || v == null) return '';
+  if (v instanceof Date && !isNaN(v.getTime())) {
+    return v.getFullYear() + '-' + SEC.p2(v.getMonth() + 1) + '-' + SEC.p2(v.getDate()) + ' ' +
+      SEC.p2(v.getHours()) + ':' + SEC.p2(v.getMinutes()) + ':' + SEC.p2(v.getSeconds());
+  }
   if (typeof v === 'number' && v > 20000 && v < 80000) {
     var ms = Date.UTC(1899, 11, 30) + Math.round(v * 86400) * 1000;
     var d = new Date(ms);
     return d.getUTCFullYear() + '-' + SEC.p2(d.getUTCMonth() + 1) + '-' + SEC.p2(d.getUTCDate()) + ' ' +
            SEC.p2(d.getUTCHours()) + ':' + SEC.p2(d.getUTCMinutes()) + ':' + SEC.p2(d.getUTCSeconds());
   }
-  var s = String(v).trim().replace(/\//g, '-');
-  var m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[\sT]+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  var s = String(v).trim().replace(/[年／]/g, '-').replace(/月/g, '-').replace(/日/g, ' ').replace(/\//g, '-');
+  /* SheetJS／舊版 Excel 有時回傳 Date.toString() 或帶秒的小數；只取可辨識的年月日時分秒。 */
+  var m = s.match(/(?:^|\s)(\d{4})-(\d{1,2})-(\d{1,2})[\sT]+(\d{1,2})[:：](\d{2})(?::(\d{2}))?/);
+  if (!m) m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[\sT]+(\d{1,2})[:：](\d{2})(?::(\d{2}))?/);
   if (!m) return '';
   return m[1] + '-' + SEC.p2(+m[2]) + '-' + SEC.p2(+m[3]) + ' ' +
          SEC.p2(+m[4]) + ':' + m[5] + ':' + (m[6] || '00');
