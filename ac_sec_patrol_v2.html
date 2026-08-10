@@ -254,7 +254,7 @@
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260808g"></script>
+<script src="./shared/sec-core.js?v=20260810b"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -390,6 +390,10 @@ function jumpPatrolToLatest() {
     if (/^\d{4}-\d{2}-\d{2}$/.test(d) && d > latest) latest = d;
   });
   var d = SEC.parseD(latest);
+  if (d) PER.at = d;
+}
+function jumpPatrolToDate(dateLike) {
+  var d = SEC.parseD(dateLike);
   if (d) PER.at = d;
 }
 function totalCp() { return Math.max(1, Object.keys(CHIP).length); }
@@ -724,22 +728,24 @@ function renderDbInfo() {
 }
 
 /* ═══════════ 巡更棒匯入 ═══════════ */
-var WAND_HDR = { time:['巡检时间','巡檢時間','patroltime','patrol time','時間','time'],
-                 reader:['巡检器','巡檢器','readernum','reader'],
-                 person:['人员','人員','person','guard','姓名'],
-                 point:['巡检点','巡檢點','checkpoint','地點'],
-                 event:['事件','event','shift','班別'],
-                 chip:['编号','編號','chipid','chip','id'] };
+var WAND_HDR = { time:['巡检时间','巡檢時間','patroltime','patrol time','patrol date/time','時間','time'],
+                 reader:['巡检器','巡檢器','readernum','reader','reader number'],
+                 person:['人员','人員','person','guard','巡邏員','巡逻员','姓名','name'],
+                 point:['巡检点','巡檢點','checkpoint','地點','location','zone'],
+                 event:['事件','event','shift','班別','班别'],
+                 chip:['编号','編號','chipid','chip id','chip','id'] };
 function wandHeaderMap(rows) {
   var best = { row:-1, map:{}, score:0 };
   for (var r = 0; r < Math.min(rows.length, 20); r++) {
     var m = {}, score = 0;
     for (var c = 0; c < (rows[r] || []).length; c++) {
-      var a = SEC.norm(rows[r][c]); if (!a) continue;
+      var a = SEC.norm(rows[r][c]), b = SEC.norm(rows[r + 1] && rows[r + 1][c]);
+      if (!a && !b) continue;
       Object.keys(WAND_HDR).forEach(function (k) {
         if (m[k] !== undefined) return;
         var hit = WAND_HDR[k].some(function (al) {
-          var n = SEC.norm(al); return n && (a === n || a.indexOf(n) >= 0 || n.indexOf(a) >= 0);
+          var n = SEC.norm(al); if (!n) return false;
+          return [a, b].some(function (v) { return v && (v === n || v.indexOf(n) >= 0 || n.indexOf(v) >= 0); });
         });
         if (hit) { m[k] = c; score++; }
       });
@@ -747,20 +753,23 @@ function wandHeaderMap(rows) {
     if (score > best.score) best = { row:r, map:m, score:score };
     if (score >= 5 && m.time !== undefined && m.chip !== undefined) return { row:r, map:m, score:score };
   }
-  /* 這批巡更棒舊式 .xls 固定為 A:F；標題列辨識不足時仍以資料形狀備援。 */
-  if (best.score < 4 && rows.length > 3 && (rows[0] || []).length >= 6) {
-    for (var rr = 0; rr < Math.min(rows.length, 8); rr++) {
+  /* 舊式 .xls 固定為 A:F；即使只辨識到部分標題，也以資料形狀備援。 */
+  if (rows.length > 3) {
+    for (var rr = 0; rr < Math.min(rows.length, 12); rr++) {
       var sample = rows[rr] || [];
-      if (sample.length >= 6 && (wandTime(sample[0]) || /patrol|巡检|巡檢/i.test(String(sample[0] || ''))))
+      if (sample.length >= 6 && wandTime(sample[0]) && SEC.str(sample[5]))
         return { row:Math.max(0, rr - 1), map:{ time:0, reader:1, person:2, point:3, event:4, chip:5 }, score:6, fallback:true };
     }
   }
   return best;
 }
+function wandChip(v) {
+  return SEC.str(v).replace(/[\u3000\s]+/g, '').toUpperCase();
+}
 function impWand() {
   SEC.pickExcel(function (sheets) {
-    var seen = {}, added = 0, dup = 0, badTime = 0, badChip = 0, log = [];
-    SCAN.forEach(function (s) { seen[s.t + '|' + s.c] = 1; seen[s.t + '|' + s.c + '|' + s.g] = 1; });
+    var seen = {}, added = 0, dup = 0, badTime = 0, badChip = 0, log = [], importedDates = {};
+    SCAN.forEach(function (s) { seen[s.t + '|' + wandChip(s.c)] = 1; });
     sheets.forEach(function (sh) {
       var rows = sh.rows, hdr = wandHeaderMap(rows), hr = hdr.row, map = hdr.map;
       if (hr < 0 || map.time === undefined || map.chip === undefined) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：找不到巡檢時間／Chip ID 欄位，略過'); return; }
@@ -769,11 +778,13 @@ function impWand() {
         var R = rows[i] || [];
         var t = wandTime(R[map.time]);
         if (!t) { sheetBadTime++; badTime++; continue; }
-        var chip = SEC.str(R[map.chip]); if (!chip) { sheetBadChip++; badChip++; continue; }
+        var chip = wandChip(R[map.chip]); if (!chip) { sheetBadChip++; badChip++; continue; }
         var g = SEC.str(R[map.person]);
-        var key = t + '|' + chip, keyWithPerson = key + '|' + g;
-        if (seen[key] || seen[keyWithPerson]) { d0++; dup++; continue; }
-        seen[key] = 1; seen[keyWithPerson] = 1;
+        importedDates[t.slice(0, 10)] = (importedDates[t.slice(0, 10)] || 0) + 1;
+        var key = t + '|' + chip;
+        /* 月總表與每日分頁通常包含同一批打點；同一時間＋Chip 只保留一筆。 */
+        if (seen[key]) { d0++; dup++; continue; }
+        seen[key] = 1;
         var ev = SEC.str(R[map.event]);
         SCAN.push({ t: t, g: g, c: chip, e: /night|夜/i.test(ev) ? 'N' : 'D',
                     r: SEC.str(R[map.reader]) });
@@ -784,12 +795,16 @@ function impWand() {
         '（標題第 ' + (hr + 1) + ' 列' + (hdr.fallback ? '，固定欄位備援' : '') + '）');
     });
     saveScan();
-    jumpPatrolToLatest();
+    /* 匯入哪個月份就先顯示哪個月份；不要因本機已有較新的月份而跳走。 */
+    var importedLatest = Object.keys(importedDates).sort().pop();
+    if (importedLatest) jumpPatrolToDate(importedLatest); else jumpPatrolToLatest();
     rebuild();
     if (paintPatrolPeriod) paintPatrolPeriod();
     document.getElementById('impLog').innerHTML = '<b>匯入結果</b>：新增 <b>' + added + '</b> 筆，去重略過 ' + dup + ' 筆' +
       (badTime || badChip ? '；日期格式略過 ' + badTime + '，無 Chip ID 略過 ' + badChip : '') + '<br>' + log.join('<br>');
-    SEC.toast(added ? '✅ 匯入 ' + added + ' 筆打點（自動去重 ' + dup + '）' : '⚠ 全部重複或格式不符', added ? 'ok' : 'warn', 5500);
+    SEC.toast(added ? '✅ 匯入 ' + added + ' 筆打點（自動去重 ' + dup + '）' :
+      (dup ? 'ℹ️ 檔案資料已存在，本次去重略過 ' + dup + ' 筆' : '⚠ 全部重複或格式不符'),
+      added ? 'ok' : (dup ? 'warn' : 'err'), 6500);
     if (added && !Object.keys(CHIP).some(function (c) { return CHIP[c].name; })) {
       setTimeout(function () { SEC.toast('👉 請到「📍 巡邏點」分頁替 ' + Object.keys(CHIP).length + ' 個 Chip ID 命名', 'warn', 7000); }, 900);
     }
@@ -802,8 +817,9 @@ function wandTime(v) {
     return v.getFullYear() + '-' + SEC.p2(v.getMonth() + 1) + '-' + SEC.p2(v.getDate()) + ' ' +
       SEC.p2(v.getHours()) + ':' + SEC.p2(v.getMinutes()) + ':' + SEC.p2(v.getSeconds());
   }
-  if (typeof v === 'number' && v > 20000 && v < 80000) {
-    var ms = Date.UTC(1899, 11, 30) + Math.round(v * 86400) * 1000;
+  var numeric = typeof v === 'number' ? v : (typeof v === 'string' && /^\s*\d+(?:\.\d+)?\s*$/.test(v) ? Number(v) : NaN);
+  if (!isNaN(numeric) && numeric > 20000 && numeric < 80000) {
+    var ms = Date.UTC(1899, 11, 30) + Math.round(numeric * 86400) * 1000;
     var d = new Date(ms);
     return d.getUTCFullYear() + '-' + SEC.p2(d.getUTCMonth() + 1) + '-' + SEC.p2(d.getUTCDate()) + ' ' +
            SEC.p2(d.getUTCHours()) + ':' + SEC.p2(d.getUTCMinutes()) + ':' + SEC.p2(d.getUTCSeconds());
@@ -812,9 +828,16 @@ function wandTime(v) {
   /* SheetJS／舊版 Excel 有時回傳 Date.toString() 或帶秒的小數；只取可辨識的年月日時分秒。 */
   var m = s.match(/(?:^|\s)(\d{4})-(\d{1,2})-(\d{1,2})[\sT]+(\d{1,2})[:：](\d{2})(?::(\d{2}))?/);
   if (!m) m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[\sT]+(\d{1,2})[:：](\d{2})(?::(\d{2}))?/);
+  /* 兼容部分舊版 Excel 依地區設定輸出的 MM/DD/YYYY 或 DD/MM/YYYY。 */
+  if (!m) {
+    var alt = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})[\sT]+(\d{1,2})[:：](\d{2})(?::(\d{2}))?/);
+    if (alt) m = [alt[0], alt[3], alt[1], alt[2], alt[4], alt[5], alt[6]];
+  }
   if (!m) return '';
-  return m[1] + '-' + SEC.p2(+m[2]) + '-' + SEC.p2(+m[3]) + ' ' +
-         SEC.p2(+m[4]) + ':' + m[5] + ':' + (m[6] || '00');
+  var yy = +m[1], mm = +m[2], dd = +m[3], hh = +m[4], mi = +m[5], ss = +(m[6] || 0);
+  if (yy < 2000 || mm < 1 || mm > 12 || dd < 1 || dd > 31 || hh > 23 || mi > 59 || ss > 59) return '';
+  return yy + '-' + SEC.p2(mm) + '-' + SEC.p2(dd) + ' ' +
+         SEC.p2(hh) + ':' + SEC.p2(mi) + ':' + SEC.p2(ss);
 }
 
 /* 一般巡邏表（人工格式） */

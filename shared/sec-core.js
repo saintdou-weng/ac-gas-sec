@@ -859,7 +859,10 @@ function readWorkbook(file, cb) {
   fr.onload = function (e) {
     try {
       if (typeof XLSX === 'undefined') throw new Error('Excel 元件尚未載入');
-      var wb = XLSX.read(new Uint8Array(e.target.result), { type:'array', cellDates:false, raw:true });
+      /* 舊式 .xls 的日期可能回傳 Excel 序號，也可能直接回傳 Date；兩種都保留。 */
+      var wb = XLSX.read(new Uint8Array(e.target.result), {
+        type:'array', cellDates:true, cellNF:true, dateNF:'yyyy-mm-dd hh:mm:ss', raw:true
+      });
       var sheets = wb.SheetNames.map(function (n) {
         return { name:n, fileName:file.name || '', rows: XLSX.utils.sheet_to_json(wb.Sheets[n], { header:1, defval:'', raw:true, blankrows:false }) };
       });
