@@ -603,8 +603,7 @@ function tgOpen(opt) {
     '<div class="f"><label>資料範圍 Scope</label><select id="tgScope">' + opt.scopeOptions.map(function (x) {
       return '<option value="' + esc(x.value) + '">' + esc(x.label) + '</option>';
     }).join('') + '</select></div>' : '';
-  var langHtml = opt.forceBilingual ? '<option value="both">繁中 + English</option>' :
-    '<option value="both">繁中 + English</option><option value="zh">繁體中文</option><option value="en">English</option><option value="km">ខ្មែរ</option>';
+  var langHtml = '<option value="both">繁中 + English</option><option value="zh">繁體中文</option><option value="en">English</option><option value="km">ខ្មែរ</option>';
   mask.innerHTML =
     '<div class="modal" style="max-width:560px">' +
       '<div class="mh"><span>✈️</span><b>Telegram 摘要／核可</b>' +
