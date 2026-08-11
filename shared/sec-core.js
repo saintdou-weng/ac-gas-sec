@@ -867,7 +867,11 @@ function readWorkbook(file, cb) {
       });
       cb(sheets, wb);
     } catch (err) {
-      toast('❌ Excel 讀取失敗：' + err.message + '。請重新整理後再試。', 'err', 7000);
+      var em = String(err && err.message || err);
+      var hint = /zip|central directory|end of central|eof|corrupt|invalid/i.test(em)
+        ? '；檔案可能缺少 Excel ZIP 索引或已損壞，請從原始 Excel 另存新檔後再上傳'
+        : '。請重新整理後再試';
+      toast('❌ Excel 讀取失敗：' + em + hint, 'err', 9000);
     }
   };
   fr.readAsArrayBuffer(file);
