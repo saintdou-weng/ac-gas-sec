@@ -7,8 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
-<script src="./shared/xlsx.full.min.js?v=20260810g"></script>
-<script src="./shared/qrcode-generator.js?v=20260810g"></script>
+<script src="./shared/xlsx.full.min.js?v=20260811h"></script>
+<script src="./shared/qrcode-generator.js?v=20260811h"></script>
+<script src="./shared/fire-seed-data.js?v=20260811h"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="stylesheet" href="./shared/sec.css?v=20260808g">
 <style>
@@ -46,6 +47,18 @@
 .fire-filters{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;align-items:end}
 .fire-filters .f{min-width:0}
 .insp-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.insp-list{width:100%;border-collapse:separate;border-spacing:0;font-size:12px}
+.insp-list th{position:sticky;top:0;background:#eef4f8;color:var(--n1);z-index:1;text-align:left;padding:9px 8px;border-bottom:1px solid var(--line)}
+.insp-list td{padding:7px 8px;border-bottom:1px solid #edf2f6;vertical-align:middle}
+.insp-list tr.zone-row td{background:#e8f2f7;color:var(--n1);font-weight:800;border-top:8px solid var(--bg)}
+.insp-list tr.bad-row td{background:#fff6f6}
+.insp-list .insp-choice{min-height:32px;padding:4px 8px;white-space:nowrap}
+.insp-list .insp-note{min-width:140px}
+.qr-manager{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:10px}
+.qr-manager .qr-option{border:1px solid var(--line);border-radius:12px;background:#f8fbfd;padding:12px;cursor:pointer;text-align:left}
+.qr-manager .qr-option:hover{border-color:var(--n2);box-shadow:var(--shadow2)}
+.qr-manager .qr-option b{display:block;color:var(--n1);margin-bottom:4px}
+@media(max-width:700px){.qr-manager{grid-template-columns:1fr}.insp-list{font-size:11px}.insp-list th,.insp-list td{padding:6px 5px}.insp-list .insp-note{min-width:95px}}
 .insp-card{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff;box-shadow:0 1px 2px rgba(15,43,70,.04)}
 .insp-head{display:flex;justify-content:space-between;gap:8px;align-items:center;border-bottom:1px solid #edf2f6;padding-bottom:8px;margin-bottom:8px}
 .insp-head code{font-weight:800;color:var(--n1)}
@@ -89,6 +102,7 @@
         <button class="btn sm" id="tMove" onclick="setMode('view')">👁 <span data-zh="檢視" data-en="View" data-km="មើល">檢視</span></button>
         <button class="btn sm gh" id="tAdd" onclick="setMode('add')">📍 <span data-zh="點圖新增設備" data-en="Click to add" data-km="ចុចបន្ថែម">點圖新增設備</span></button>
         <button class="btn sm gh" id="tDrag" onclick="setMode('drag')">✋ <span data-zh="拖曳移動" data-en="Drag" data-km="អូស">拖曳移動</span></button>
+        <button class="btn sm gh" onclick="openFireQrManager()">🔳 <span data-zh="生成分區 QR" data-en="Generate zone QR" data-km="បង្កើត QR តំបន់">生成分區 QR</span></button>
         <select id="fType" style="width:auto" onchange="draw()"></select>
         <label style="font-size:11px;color:var(--ink2);display:flex;align-items:center;gap:4px">
           <input type="checkbox" id="showCp" checked onchange="draw()" style="width:auto"> <span data-zh="顯示巡邏點" data-en="Show patrol points" data-km="បង្ហាញចំណុចល្បាត">顯示巡邏點</span></label>
@@ -136,6 +150,7 @@
           <select id="fTypeList" style="width:auto" onchange="renderList()"><option value="">全部類型</option></select>
           <input id="q" placeholder="搜尋編號/位置…" style="width:150px" oninput="renderList()">
           <button class="btn sm" onclick="openEdit()">➕ <span data-t="add">新增</span></button>
+          <button class="btn sm gh" onclick="openFireQrManager()">🔳 <span data-zh="QR 管理" data-en="QR manager" data-km="គ្រប់គ្រង QR">QR 管理</span></button>
           <button class="btn sm gh" onclick="expExcel()">📊 Excel</button>
         </span></h3>
       <div class="tw"><table><thead><tr>
@@ -205,6 +220,7 @@
       <h3>💾 <span data-zh="資料工具" data-en="Data Tools" data-km="ឧបករណ៍">資料工具</span></h3>
       <div class="row">
         <button class="btn" onclick="impExcel()">📥 <span data-zh="匯入設備清單 Excel" data-en="Import equipment" data-km="នាំចូល">匯入設備清單 Excel</span></button>
+        <button class="btn" onclick="applyFireSeed(true)">🔄 <span data-zh="套用附件 Excel 基準" data-en="Apply supplied Excel baseline" data-km="អនុវត្ត Excel">套用附件 Excel 基準</span></button>
         <button class="btn gh" onclick="expExcel()">📊 <span data-t="expExcel">匯出 Excel</span></button>
         <button class="btn gh" onclick="doBackup()">💾 <span data-t="backup">備份 JSON</span></button>
         <button class="btn gh" onclick="restore()">📂 <span data-t="restore">還原 JSON</span></button>
@@ -255,7 +271,7 @@
 <button class="btn" onclick="saveEdit()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260810g"></script>
+<script src="./shared/sec-core.js?v=20260811h"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -294,11 +310,13 @@ var TYPES = {
   light: { icon:'💡', zh:'緊急照明', en:'Emergency Light',km:'ភ្លើងបន្ទាន់', color:'#eab308' },
   kit  : { icon:'🩹', zh:'急救箱',   en:'First Aid',      km:'ប្រអប់សង្គ្រោះបឋម', color:'#ec4899' },
   cctv : { icon:'📷', zh:'攝影機',   en:'Camera',         km:'កាមេរ៉ា', color:'#7c3aed' },
-  hose : { icon:'🧯', zh:'消防水帶', en:'Fire Hose',       km:'ទុយោពន្លត់អគ្គិភ័យ', color:'#0ea5e9' },
+  hose : { icon:'🚰', zh:'消防水帶', en:'Fire Hose',       km:'ទុយោពន្លត់អគ្គិភ័យ', color:'#0ea5e9' },
   smoke: { icon:'🚨', zh:'煙霧探測器', en:'Smoke Detector', km:'ឧបករណ៍ចាប់ផ្សែង', color:'#8b5cf6' },
   other: { icon:'📦', zh:'其他',     en:'Other',          km:'ផ្សេងទៀត', color:'#64748b' },
 };
 var ST = { ok:'#16a34a', soon:'#f59e0b', over:'#dc2626', off:'#94a3b8' };
+var FIRE_SEED_VERSION = window.FIRE_XLS_SEED_VERSION || 'fire-xlsx-2023-04';
+var FIRE_SEED = Array.isArray(window.FIRE_XLS_SEED) ? window.FIRE_XLS_SEED : [];
 var FACTORIES = {
   a: { zh:'A 廠', en:'A Factory', km:'រោងចក្រ A' },
   b: { zh:'B 廠', en:'B Factory', km:'រោងចក្រ B' },
@@ -312,8 +330,60 @@ async function load() {
   if (!Array.isArray(DB)) DB = [];
   if (!Array.isArray(HIST)) HIST = [];
   if (!CHIP || typeof CHIP !== 'object' || Array.isArray(CHIP)) CHIP = {};
+  if (FIRE_SEED.length && (!DB.length || !DB.some(function (e) { return e.seedVersion === FIRE_SEED_VERSION; }))) {
+    /* First launch after this package: replace the old duplicated/Other master list
+       with the supplied Excel baseline, while keeping inspection history. */
+    if (DB.length) DB = [];
+    applyFireSeed(false);
+  }
 }
 function save() { SEC.dbPut(LS, DB); SEC.dbPut(LSH, HIST); }
+
+function fireStableText(v) { return String(v || '').trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, ''); }
+function fireStableId(e) {
+  return 'FIRE-' + fireStableText(e.type || 'other') + '-' + fireStableText(e.factory || factoryOf(e)) + '-' +
+    fireStableText(e.code || 'NO_CODE') + '-' + fireStableText(e.loc || e.zone || 'NO_LOCATION');
+}
+function fireSeedKey(e) {
+  return [e.type || 'other', e.factory || factoryOf(e), String(e.code || '').trim().toUpperCase(), String(e.loc || '').trim().toUpperCase()].join('|');
+}
+function fireSeedPosition(e, n) {
+  var z = ZONES.filter(function (x) { return x.id === e.zone; })[0] || ZONES[6];
+  return { x:z.x + 32 + (n % 8) * 30, y:z.y + 58 + Math.floor(n / 8) * 30 };
+}
+function applyFireSeed(rebuild) {
+  if (!FIRE_SEED.length) { SEC.toast('⚠ Fire Excel baseline is not available / 找不到消防 Excel 基準', 'warn', 6000); return; }
+  if (rebuild && !confirm('以附件 Excel 重建消防設備清單？\n只重建設備主檔，不刪除既有巡檢歷史；原本的 Other 設備會移除。')) return;
+  var old = DB.slice(), oldByKey = {};
+  old.forEach(function (e) { var k = fireSeedKey(e); if (!oldByKey[k] || String(e.updatedAt || '') > String(oldByKey[k].updatedAt || '')) oldByKey[k] = e; });
+  var out = [], added = 0, updated = 0, now = new Date().toISOString();
+  if (!rebuild) {
+    var seen = {};
+    old.forEach(function (e) { var k = fireSeedKey(e); if (!seen[k]) { seen[k] = 1; out.push(e); } });
+  }
+  FIRE_SEED.forEach(function (s, i) {
+    var k = fireSeedKey(s), e = oldByKey[k], pos = fireSeedPosition(s, i), row;
+    if (rebuild || !e) {
+      row = Object.assign({}, s, { id:fireStableId(s), x:pos.x, y:pos.y, updatedAt:now });
+      out.push(row); if (!e || rebuild) added++;
+    } else {
+      row = Object.assign({}, e);
+      if (row.type === 'other' || !row.factory || !row.zone || !row.loc) {
+        row.type = s.type; row.factory = s.factory; row.zone = s.zone; row.loc = s.loc; updated++;
+      }
+      Object.keys(s).forEach(function (key) { if (row[key] === '' || row[key] === null || row[key] === undefined) row[key] = s[key]; });
+      row.id = fireStableId(Object.assign({}, s, row));
+      if (row.x === undefined || row.y === undefined) { row.x = pos.x; row.y = pos.y; }
+      var oi = out.findIndex(function (x) { return fireSeedKey(x) === k; });
+      if (oi >= 0) out[oi] = row; else { out.push(row); added++; }
+    }
+  });
+  DB = out;
+  save();
+  if (typeof fillZoneSelects === 'function') fillZoneSelects();
+  renderAll();
+  SEC.toast('✅ Fire inventory updated / 消防設備已更新：' + DB.length + ' items', 'ok', 7000);
+}
 
 /* ═══════════ 狀態計算 ═══════════ */
 function dueDate(e) {
@@ -762,6 +832,8 @@ function fireCol(rows, aliases) {
 }
 function fireCodeCol(rows, prefix) {
   var best = {col:-1,n:0}, re = new RegExp('^' + prefix + '\\d{1,3}$','i');
+  /* VRT Excel 可能使用 VRT F001、VRT FOO1 或 VRT F45；不要只依賴 FE/FA 前綴。 */
+  if (prefix === 'FE' || prefix === 'FA' || prefix === 'EL' || prefix === 'HR' || prefix === 'F') re = /^VRT\s*F[A-Z0-9]+$/i;
   for (var c = 0; c < 20; c++) {
     var n = 0;
     for (var r = 0; r < rows.length; r++) if (re.test(SEC.str((rows[r] || [])[c]))) n++;
@@ -821,10 +893,12 @@ function impExcel() {
         var code = SEC.str(R[cc]);
         if (!new RegExp('^' + prof.prefix + '\\d{1,3}$','i').test(code)) continue;
         var loc = lc >= 0 ? SEC.str(R[lc]) : '', date = dc >= 0 ? (SEC.parseD(R[dc]) ? SEC.ymd(SEC.parseD(R[dc])) : '') : '';
+        code = code.replace(/FOO/ig, 'F00');
         var combined = joined + ' ' + loc, factory = fireFactoryFromText(combined, section), zone = fireZoneFromText(combined, factory),
           z = ZONES.filter(function (x) { return x.id === zone; })[0] || ZONES[6], by = bc >= 0 ? SEC.str(R[bc]) : '', note = rc >= 0 ? SEC.str(R[rc]) : '',
-          status = fireImportedStatus(joined), old = DB.filter(function (x) { return String(x.code || '').toUpperCase() === code.toUpperCase(); })[0];
-        var row = { id:'X' + Date.now().toString(36) + Math.random().toString(36).slice(2,6), code:code, type:prof.type, factory:factory, zone:zone,
+          status = fireImportedStatus(joined), incomingKey = fireSeedKey({ code:code, type:prof.type, factory:factory, loc:loc }), old = DB.filter(function (x) { return fireSeedKey(x) === incomingKey; })[0];
+        var baseRow = { code:code, type:prof.type, factory:factory, zone:zone, loc:loc };
+        var row = { id:fireStableId(baseRow), code:code, type:prof.type, factory:factory, zone:zone,
           loc:loc, last:date, cycle:30, status:status, remark:note, inspector:by, x:z.x+30+(n%8)*30, y:z.y+60+Math.floor(n/8)*30, src:sh.name, updatedAt:new Date().toISOString() };
         var m = fireMergeImported(row, old); if (m.added) { DB.push(m.row); added++; } else if (m.skipped) skipped++; else updated++;
         var hk = (date || 'no-date') + '|' + (by || '') + '|' + sh.name;
@@ -1118,7 +1192,8 @@ factoryOptions = function (withAll) {
 };
 typeOptions = function (withAll) {
   var l = SEC.lang(), all = withAll ? '<option value="">' + fireT(l,'全部類型','All types','គ្រប់ប្រភេទ') + '</option>' : '';
-  return all + Object.keys(TYPES).map(function (k) { var t=TYPES[k]; return '<option value="' + k + '">' + t.icon + ' ' + SEC.esc(fireTypeLabel(k)) + '</option>'; }).join('');
+  var visible=['ext','alarm','light','hose','smoke'];
+  return all + visible.map(function (k) { var t=TYPES[k]; return '<option value="' + k + '">' + t.icon + ' ' + SEC.esc(fireTypeLabel(k)) + '</option>'; }).join('');
 };
 fillZoneSelects = function () {
   var l=SEC.lang(), opts=ZONES.map(function(z){return '<option value="'+z.id+'">'+SEC.esc(fireUiLabel(z))+'</option>';}).join('');
@@ -1182,13 +1257,47 @@ function showFireZoneQr(zone,title){fireQrPick('zone','',zone,title||zone);}
 var QR_FIRE_DATA=null, QR_FIRE_INFO=fireQrParams();
 function qrFireCardItem(e){return '<div class="qr-eq" data-id="'+SEC.esc(e.id||'')+'" data-code="'+SEC.esc(e.code||'')+'"><div><b>'+SEC.esc(e.code||'—')+'</b> · '+SEC.esc(fireTypeLabel(e.type))+'<br><span class="hint">'+SEC.esc(zoneName(e.zone))+' · '+SEC.esc(e.loc||'')+'</span></div><select class="qr-result"><option value="ok">✅ Normal / 正常</option><option value="fault">⛔ Fault / 異常</option><option value="off">⚪ Disabled / 停用</option></select><input class="qr-note" placeholder="Inspector note / 檢查備註"></div>';}
 function qrFireAllOk(){document.querySelectorAll('#qrFireRoot .qr-result').forEach(function(x){x.value='ok';});SEC.toast('✅ All equipment set to normal / 已全部設為正常','ok',3000);}
-function qrFireRender(data){QR_FIRE_DATA=data||{};var root=document.getElementById('qrFireRoot'),list=data.records||[],hist=(data.extra&&data.extra.history)||[],exp=data.meta&&data.meta.expiresAt,ed=exp?new Date(exp).toLocaleString():'—',label=data.periodType==='day'?'Day / 日':data.periodType==='week'?'Week / 週':data.periodType==='year'?'Year / 年':'Month / 月';root.innerHTML='<div class="qr-card"><h2>🧯 Fire equipment update / 消防設備更新</h2><p class="hint">Scope / 範圍：'+(QR_FIRE_INFO.mode==='zone'?'Zone / 分區':'Equipment / 設備')+' · '+label+'：'+SEC.esc(data.period||'')+' · '+list.length+' item(s) · Expires / 到期：'+SEC.esc(ed)+'</p><div class="row" style="margin:8px 0"><button class="btn sm ok" onclick="qrFireAllOk()">✅ All normal / 全部正常</button><span class="hint">同一區可一次填寫全部設備，最後只按一次上傳。</span></div><div class="qr-grid">'+(list.length?list.map(qrFireCardItem).join(''):'<p>No equipment found for this QR / 找不到此 QR 對應設備。</p>')+'</div><div class="grid g2" style="margin-top:12px"><div class="f"><label>Update date / 更新日期</label><input id="qrFireDate" type="date" value="'+SEC.esc(fireQrDateDefault(data.periodType,data.period))+'"></div><div class="f"><label>Inspector / 檢查人</label><input id="qrFireBy" placeholder="Name / 姓名" value="'+SEC.esc(SEC.getCfg().operator||'')+'"></div></div><div class="f" style="margin-top:10px"><label><input id="qrFireNotify" type="checkbox" checked> Notify security group / 通知保安群組</label></div><div class="row" style="margin-top:12px"><button class="btn" onclick="qrFireSubmit()">💾⬆️ Save & upload / 儲存並上傳</button></div><p class="hint">Upload-only; no download/export. Corrected re-upload keeps the latest timestamp, while blank fields do not erase existing values. / 只能上傳，不能下載／匯出；修正後重傳以最新時間為準，空白不會清除原資料。</p></div>'+(hist.length?'<div class="qr-card" style="margin-top:12px"><b>Records / 紀錄：'+hist.reduce(function(n,h){return n+(h.items||[]).length;},0)+'</b></div>':'');list.forEach(function(e,i){var el=root.querySelectorAll('.qr-eq')[i],s=statusOf(e);if(el){el.querySelector('.qr-result').value=e.status==='fault'?'fault':e.status==='off'?'off':'ok';el.querySelector('.qr-note').value=e.remark||'';}});}
+function qrFireRender(data){QR_FIRE_DATA=data||{};var root=document.getElementById('qrFireRoot'),list=data.records||[],hist=(data.extra&&data.extra.history)||[],exp=data.meta&&data.meta.expiresAt,ed=exp?new Date(exp).toLocaleString():'—',label=data.periodType==='day'?'Day / 日':data.periodType==='week'?'Week / 週':data.periodType==='year'?'Year / 年':'Month / 月',scope=QR_FIRE_INFO.mode==='factory'?'Factory / 廠別':QR_FIRE_INFO.mode==='zone'?'Zone / 分區':'Equipment / 設備';root.innerHTML='<div class="qr-card"><h2>🧯 Fire equipment update / 消防設備更新</h2><p class="hint">Scope / 範圍：'+scope+' · '+label+'：'+SEC.esc(data.period||'')+' · '+list.length+' item(s) · Expires / 到期：'+SEC.esc(ed)+'</p><div class="row" style="margin:8px 0"><button class="btn sm ok" onclick="qrFireAllOk()">✅ All normal / 全部正常</button><span class="hint">One QR scope can update all listed equipment at once. / 同一 QR 範圍可一次更新所有列出的設備。</span></div><div class="qr-grid">'+(list.length?list.map(qrFireCardItem).join(''):'<p>No equipment found for this QR / 找不到此 QR 對應設備。</p>')+'</div><div class="grid g2" style="margin-top:12px"><div class="f"><label>Update date / 更新日期</label><input id="qrFireDate" type="date" value="'+SEC.esc(fireQrDateDefault(data.periodType,data.period))+'"></div><div class="f"><label>Inspector / 檢查人</label><input id="qrFireBy" placeholder="Name / 姓名" value="'+SEC.esc(SEC.getCfg().operator||'')+'"></div></div><div class="f" style="margin-top:10px"><label><input id="qrFireNotify" type="checkbox" checked> Notify security group / 通知保安群組</label></div><div class="row" style="margin-top:12px"><button class="btn" onclick="qrFireSubmit()">💾⬆️ Save & upload / 儲存並上傳</button></div><p class="hint">Upload-only; no download/export. Corrected re-upload keeps the latest timestamp, while blank fields do not erase existing values. / 只能上傳，不能下載／匯出；修正後重傳以最新時間為準，空白不會清除原資料。</p></div>'+(hist.length?'<div class="qr-card" style="margin-top:12px"><b>Records / 紀錄：'+hist.reduce(function(n,h){return n+(h.items||[]).length;},0)+'</b></div>':'');list.forEach(function(e,i){var el=root.querySelectorAll('.qr-eq')[i],s=statusOf(e);if(el){el.querySelector('.qr-result').value=e.status==='fault'?'fault':e.status==='off'?'off':'ok';el.querySelector('.qr-note').value=e.remark||'';}});}
 function fireQrDateDefault(type,period){if(type==='day')return period||SEC.ymd();if(type==='week')return period||SEC.ymd();if(type==='year')return (period||String(new Date().getFullYear()))+'-01-01';return (period||SEC.ymd().slice(0,7))+'-01';}
 async function qrFireSubmit(){var list=QR_FIRE_DATA.records||[],date=(document.getElementById('qrFireDate').value||'').trim(),by=(document.getElementById('qrFireBy').value||'').trim(),out=[],items=[];if(!by){SEC.toast('Inspector name required / 請填寫檢查人','warn');return;}document.querySelectorAll('#qrFireRoot .qr-eq').forEach(function(el,i){var e=list[i],r=el.querySelector('.qr-result').value,n=el.querySelector('.qr-note').value.trim();if(!e)return;var o=Object.assign({},e,{last:date,status:r,remark:n,inspector:by,updatedAt:new Date().toISOString()});out.push(o);items.push({id:e.id,code:e.code,type:e.type,factory:e.factory,zone:e.zone,loc:e.loc,result:r==='fault'?'fault':'ok',note:n});});if(!out.length){SEC.toast('No QR records / 沒有可上傳資料','warn');return;}var h={id:'QH'+Date.now().toString(36),date:date,by:by,n:items.length,ok:items.filter(function(x){return x.result==='ok';}).length,bad:items.filter(function(x){return x.result==='fault';}).length,badList:items.filter(function(x){return x.result==='fault';}).map(function(x){return x.code+' '+x.note;}),items:items,source:'qr'};try{var r=await SEC.gasPost({action:'qrPush',tool:'fire',token:QR_FIRE_INFO.token,mode:QR_FIRE_INFO.mode,id:QR_FIRE_INFO.id,zone:QR_FIRE_INFO.zone,operator:by,notify:document.getElementById('qrFireNotify').checked,records:out,extra:{history:[h]},summary:{qr:true,period:date}});var box=document.getElementById('qrFireRoot');box.insertAdjacentHTML('afterbegin','<div class="qr-card"><b>✅ Upload confirmed / 上傳完成</b><p>By / 更新人：'+SEC.esc(by)+' · Updated / 更新：'+(r.updated||0)+' · Added / 新增：'+(r.added||0)+' · Telegram / 群組通知：'+(r.noticeSent?'sent / 已發送':'not sent / 未發送')+'</p><p class="hint">Supervisor confirmation is done on the full platform. / 主管可在完整平台確認。</p></div>');SEC.toast('✅ Saved & uploaded / 已儲存並上傳','ok',7000);}catch(e){SEC.toast('❌ Upload failed / 上傳失敗：'+e.message,'err',7000);}}
 async function fireQrStart(){if(!QR_FIRE_INFO.mode)return;document.getElementById('tabs').style.display='none';document.getElementById('pnavHost').style.display='none';document.querySelector('.wrap').style.display='none';document.getElementById('hdr').style.display='none';var root=document.createElement('div');root.id='qrFireRoot';document.body.appendChild(root);root.innerHTML='<div class="qr-card">Loading scoped data… / 正在載入受限資料…</div>';if(!QR_FIRE_INFO.token){root.innerHTML='<div class="qr-card"><b>❌ Old or incomplete QR / 舊 QR 或 QR 不完整</b><p>Generate a new QR from the full platform. / 請回完整平台重新產生 QR。</p></div>';return;}var scanner=SEC.getCfg().operator||window.prompt('Scanner name / 掃描人姓名','')||'';try{var d=await SEC.gasPost({action:'qrPull',tool:'fire',token:QR_FIRE_INFO.token,mode:QR_FIRE_INFO.mode,id:QR_FIRE_INFO.id,zone:QR_FIRE_INFO.zone,operator:scanner,scanner:scanner});qrFireRender(d);}catch(e){root.innerHTML='<div class="qr-card"><b>❌ QR data unavailable / 無法讀取 QR 資料</b><p>'+SEC.esc(e.message)+'</p></div>';}}
 function fireDownloadGuard(){if(QR_FIRE_INFO.mode){SEC.toast('QR upload-only page / QR 頁面只允許上傳','warn');return true;}return false;}
 var _fireDoDownload=doDownload;doDownload=function(){if(fireDownloadGuard())return;return _fireDoDownload.apply(this,arguments);};
 var _fireExpExcel=expExcel;expExcel=function(){if(fireDownloadGuard())return;return _fireExpExcel.apply(this,arguments);};
+
+/* ═══ QR 修正版：管理者從 QR 管理入口選分區；固定 QR 預設長期有效 ═══ */
+fireQrParams = function(){var p=new URLSearchParams(location.search);return {mode:p.get('mode')||'',id:p.get('id')||'',zone:p.get('zone')||'',factory:p.get('factory')||'',token:p.get('token')||'',exp:p.get('exp')||'',ptype:p.get('ptype')||'month',period:p.get('period')||''};};
+QR_FIRE_INFO = fireQrParams();
+qrImage = function(url){
+  try { if(typeof qrcode==='function'){var q=qrcode(0,'M');q.addData(url);q.make();return q.createImgTag(5,0);} } catch(e) {}
+  return '<img alt="QR code" style="width:280px;height:280px;display:block" src="https://quickchart.io/qr?text='+encodeURIComponent(url)+'&size=280&margin=2" onerror="this.nextElementSibling.style.display=\'block\'">' +
+    '<div class="hint" style="display:none">QR 圖片服務未載入，請重新整理或確認網路。</div>';
+};
+fireQrPick = function(mode,id,zone,title,factory){
+  var m=document.createElement('div');m.className='mask on';m.style.zIndex=4000;
+  m.innerHTML='<div class="modal" style="max-width:470px"><div class="mh"><b>🔳 QR access / QR 權限</b><button class="x">×</button></div><div class="mb"><p><b>'+SEC.esc(title||'QR')+'</b></p><div class="grid g2"><div class="f"><label>Period / 期間</label><select id="fqrType"><option value="day">Day / 日</option><option value="week">Week / 週</option><option value="month" selected>Month / 月</option><option value="year">Year / 年</option></select></div><div class="f"><label>Date / 期間值</label><input id="fqrPeriod"></div></div><div class="f" style="margin-top:10px"><label><input id="fqrPermanent" type="checkbox" checked> Printed permanent QR / 固定張貼長期 QR</label></div><div class="f" style="margin-top:10px"><label>Valid days / 有效天數</label><input id="fqrTtl" type="number" min="1" max="3650" value="3650"></div><p class="hint">固定 QR 只固定廠別／分區範圍，掃描時自動使用目前期間；不是每台設備自動生成。</p></div><div class="mf"><button class="btn gray">Cancel / 取消</button><button class="btn" id="fqrIssue">Create QR / 產生 QR</button></div></div>';
+  document.body.appendChild(m);var type=m.querySelector('#fqrType'),inp=m.querySelector('#fqrPeriod'),ttl=m.querySelector('#fqrTtl'),perm=m.querySelector('#fqrPermanent');
+  function set(){var t=type.value;inp.type=t==='month'?'month':t==='year'?'number':t==='day'?'date':'date';inp.value=fireQrPeriod(t);} set();type.onchange=set;
+  perm.onchange=function(){ttl.max=perm.checked?'3650':'90';if(perm.checked&&Number(ttl.value)<365)ttl.value='3650';if(!perm.checked&&Number(ttl.value)>90)ttl.value='31';};
+  m.querySelector('.x').onclick=function(){m.remove();};m.querySelector('.gray').onclick=function(){m.remove();};
+  m.querySelector('#fqrIssue').onclick=async function(){var b=this;b.disabled=true;try{var t=type.value,dynamic=perm.checked,v=inp.value||fireQrPeriod(t),r=await SEC.gasPost({action:'qrIssue',tool:'fire',mode:mode,id:id||'',zone:zone||'',factory:factory||'',periodType:t,period:dynamic?'':v,dynamicPeriod:dynamic,ttlDays:parseInt(ttl.value,10)||(dynamic?3650:31),operator:SEC.getCfg().operator||''}),url=qrBaseUrl()+'?qr=fire&mode='+encodeURIComponent(mode)+(id?'&id='+encodeURIComponent(id):'')+(zone?'&zone='+encodeURIComponent(zone):'')+(factory?'&factory='+encodeURIComponent(factory):'')+'&token='+encodeURIComponent(r.token)+'&ptype='+encodeURIComponent(r.periodType)+'&period='+encodeURIComponent(r.period||'')+'&exp='+encodeURIComponent(r.expiresAt);m.remove();showQrBox(title||id||zone||factory,url);}catch(e){SEC.toast('❌ QR issue failed / QR 產生失敗：'+e.message,'err',7000);b.disabled=false;}};
+};
+showFireQr=function(code,title){fireQrPick('equipment',code,'',title||code,'');};
+showFireZoneQr=function(zone,title){fireQrPick('zone','',zone,title||zone,'');};
+showFireFactoryQr=function(factory,title){fireQrPick('factory','','',title||factory,factory);};
+openFireQrManager=function(){var m=document.createElement('div');m.className='mask on';m.style.zIndex=4000;var opts='<option value="factory:a">🏭 A 廠 / A Factory</option><option value="factory:b">🏭 B 廠 / B Factory</option>'+ZONES.map(function(z){return '<option value="zone:'+z.id+'">📍 '+SEC.esc(z.zh)+' / '+SEC.esc(z.en)+'</option>';}).join('');m.innerHTML='<div class="modal" style="max-width:470px"><div class="mh"><b>🔳 Fire QR manager / 消防 QR 管理</b><button class="x">×</button></div><div class="mb"><p class="hint">請從這裡選擇要貼在哪個廠別／區域。建議 A 廠、B 廠或一個工作區一張 QR。</p><div class="f"><label>QR scope / QR 範圍</label><select id="fireQrScope">'+opts+'</select></div><p class="hint">掃描者只看到所選範圍的檢查資料，只能儲存並上傳，不能下載。</p></div><div class="mf"><button class="btn gray">Cancel / 取消</button><button class="btn" id="fireQrGo">Choose period / 選期間並生成</button></div></div>';document.body.appendChild(m);m.querySelector('.x').onclick=function(){m.remove();};m.querySelector('.gray').onclick=function(){m.remove();};m.querySelector('#fireQrGo').onclick=function(){var v=m.querySelector('#fireQrScope').value,p=v.split(':'),label=m.querySelector('#fireQrScope').selectedOptions[0].textContent;m.remove();p[0]==='factory'?showFireFactoryQr(p[1],label):showFireZoneQr(p[1],label);};};
+fireQrStart = async function(){if(!QR_FIRE_INFO.mode)return;document.getElementById('tabs').style.display='none';document.getElementById('pnavHost').style.display='none';document.querySelector('.wrap').style.display='none';document.getElementById('hdr').style.display='none';document.body.classList.add('qr-only');var root=document.createElement('div');root.id='qrFireRoot';document.body.appendChild(root);root.innerHTML='<div class="qr-card">Loading scoped data… / 正在載入受限資料…</div>';if(!QR_FIRE_INFO.token){root.innerHTML='<div class="qr-card"><b>❌ Old or incomplete QR / 舊 QR 或 QR 不完整</b><p>Generate a new QR from the full platform. / 請回完整平台重新產生 QR。</p></div>';return;}var scanner=SEC.getCfg().operator||window.prompt('Scanner name / 掃描人姓名','')||'';try{var d=await SEC.gasPost({action:'qrPull',tool:'fire',token:QR_FIRE_INFO.token,mode:QR_FIRE_INFO.mode,id:QR_FIRE_INFO.id,zone:QR_FIRE_INFO.zone,factory:QR_FIRE_INFO.factory,operator:scanner,scanner:scanner});qrFireRender(d);}catch(e){root.innerHTML='<div class="qr-card"><b>❌ QR data unavailable / 無法讀取 QR 資料</b><p>'+SEC.esc(e.message)+'</p></div>';}};
+/* Final overrides: grouped list inspection and factory-aware QR upload. */
+renderInsp = function () {
+  var l=SEC.lang(),f=document.getElementById('cFactory').value,z=document.getElementById('cZone').value,t=document.getElementById('cType').value;
+  var list=DB.filter(function(e){return(!f||factoryOf(e)===f)&&(!z||e.zone===z)&&(!t||e.type===t)&&e.status!=='off';}).sort(function(a,b){return String(factoryOf(a)).localeCompare(String(factoryOf(b)))||String(a.zone||'').localeCompare(String(b.zone||''))||String(a.code||'').localeCompare(String(b.code||''));});
+  var rows=[],lastGroup='';
+  list.forEach(function(e){var group=factoryOf(e)+'|'+(e.zone||'');if(group!==lastGroup){lastGroup=group;rows.push('<tr class="zone-row"><td colspan="7">🏭 '+SEC.esc(factoryName(factoryOf(e)))+' · 📍 '+SEC.esc(zoneName(e.zone))+'</td></tr>');}var T=TYPES[e.type]||TYPES.other,v=INSP[e.id]||{};rows.push('<tr><td><code>'+SEC.esc(e.code||'—')+'</code></td><td>'+T.icon+' '+SEC.esc(fireTypeLabel(e.type))+'</td><td>'+SEC.esc(e.loc||'—')+'</td><td><button type="button" data-i="'+e.id+'" data-r="ok" class="insp-choice ok'+(v.r==='ok'?' on':'')+'">✅ '+fireT(l,'正常','Normal','ធម្មតា')+'</button> <button type="button" data-i="'+e.id+'" data-r="fault" class="insp-choice fault'+(v.r==='fault'?' on':'')+'">⛔ '+fireT(l,'異常','Fault','មិនប្រក្រតី')+'</button></td><td><input data-i="'+e.id+'" class="insp-note" value="'+SEC.esc(v.n||'')+'" placeholder="'+fireT(l,'備註','Remark','កំណត់ចំណាំ')+'"></td><td>'+SEC.esc(e.last||'—')+'</td><td>'+stLabel(statusOf(e))+'</td></tr>');});
+  document.getElementById('tbInsp').innerHTML=list.length?'<div class="tw"><table class="insp-list"><thead><tr><th>'+fireT(l,'編號','Code','លេខ')+'</th><th>'+fireT(l,'類型','Type','ប្រភេទ')+'</th><th>'+fireT(l,'位置','Location','ទីតាំង')+'</th><th>'+fireT(l,'判定','Result','លទ្ធផល')+'</th><th>'+fireT(l,'備註','Remark','កំណត់ចំណាំ')+'</th><th>'+fireT(l,'上次','Last','ចុងក្រោយ')+'</th><th>'+fireT(l,'目前狀態','Status','ស្ថានភាព')+'</th></tr></thead><tbody>'+rows.join('')+'</tbody></table></div>':'<div class="empty" style="padding:30px">'+fireT(l,'此篩選沒有設備。請先匯入或新增。','No equipment in this filter. Import or add equipment first.','គ្មានឧបករណ៍ក្នុងការជ្រើសនេះទេ')+'</div>';
+  document.querySelectorAll('#tbInsp .insp-choice').forEach(function(b){b.onclick=function(){INSP[b.dataset.i]=INSP[b.dataset.i]||{};INSP[b.dataset.i].r=b.dataset.r;b.parentNode.querySelectorAll('.insp-choice').forEach(function(x){x.classList.toggle('on',x===b);});};});
+  document.querySelectorAll('#tbInsp .insp-note').forEach(function(s){s.oninput=function(){INSP[s.dataset.i]=INSP[s.dataset.i]||{};INSP[s.dataset.i].n=s.value;};});
+};
+qrFireSubmit=async function(){var list=QR_FIRE_DATA.records||[],date=(document.getElementById('qrFireDate').value||'').trim(),by=(document.getElementById('qrFireBy').value||'').trim(),out=[],items=[];if(!by){SEC.toast('Inspector name required / 請填寫檢查人','warn');return;}document.querySelectorAll('#qrFireRoot .qr-eq').forEach(function(el,i){var e=list[i],r=el.querySelector('.qr-result').value,n=el.querySelector('.qr-note').value.trim();if(!e)return;var o=Object.assign({},e,{last:date,status:r,remark:n,inspector:by,updatedAt:new Date().toISOString()});out.push(o);items.push({id:e.id,code:e.code,type:e.type,factory:e.factory,zone:e.zone,loc:e.loc,result:r==='fault'?'fault':'ok',note:n});});if(!out.length){SEC.toast('No QR records / 沒有可上傳資料','warn');return;}var h={id:'QH'+Date.now().toString(36),date:date,by:by,n:items.length,ok:items.filter(function(x){return x.result==='ok';}).length,bad:items.filter(function(x){return x.result==='fault';}).length,badList:items.filter(function(x){return x.result==='fault';}).map(function(x){return x.code+' '+x.note;}),items:items,source:'qr'};try{var r=await SEC.gasPost({action:'qrPush',tool:'fire',token:QR_FIRE_INFO.token,mode:QR_FIRE_INFO.mode,id:QR_FIRE_INFO.id,zone:QR_FIRE_INFO.zone,factory:QR_FIRE_INFO.factory,operator:by,notify:document.getElementById('qrFireNotify').checked,records:out,extra:{history:[h]},summary:{qr:true,period:date}});var box=document.getElementById('qrFireRoot');box.insertAdjacentHTML('afterbegin','<div class="qr-card"><b>✅ Upload confirmed / 上傳完成</b><p>By / 更新人：'+SEC.esc(by)+' · Updated / 更新：'+(r.updated||0)+' · Added / 新增：'+(r.added||0)+' · Telegram / 群組通知：'+(r.noticeSent?'sent / 已發送':'not sent / 未發送')+'</p><p class="hint">Supervisor confirmation is done on the full platform. / 主管可在完整平台確認。</p></div>');SEC.toast('✅ Saved & uploaded / 已儲存並上傳','ok',7000);}catch(e){SEC.toast('❌ Upload failed / 上傳失敗：'+e.message,'err',7000);}};
 setTimeout(function(){applyFireLanguage();fireQrStart();},0);
 </script>
 </body>
