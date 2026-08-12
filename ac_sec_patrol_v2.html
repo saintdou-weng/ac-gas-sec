@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
-<script src="./shared/xlsx.full.min.js?v=20260811j"></script>
+<script src="./shared/xlsx.full.min.js?v=20260812b"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="stylesheet" href="./shared/sec.css?v=20260808g">
 <style>
@@ -86,10 +86,10 @@
           <button class="btn sm" onclick="autoName()">✨ <span data-zh="套用建議名稱" data-en="Apply suggested" data-km="ប្រើឈ្មោះស្នើ">套用建議名稱</span></button>
           <button class="btn sm gh" onclick="saveChips()">💾 <span data-t="save">儲存</span></button>
         </span></h3>
-      <p class="hint" style="margin-bottom:11px">
-        ⚠️ 巡更棒裡的「巡检点」欄位目前是<b>「未设置」</b> — 機器沒設定名稱。這裡用 Chip ID 對照，命名一次以後所有報表都會顯示中文名。
-        <b>順序</b>是依照巡邏員實際打點的先後自動推算的（第 1 點通常最靠近出發崗哨）。
+      <p class="hint" style="margin-bottom:8px" data-zh="系統會優先採用匯入檔的「巡檢點 Checkpoint」名稱，並固定為一個 Chip ID 對應一個工廠巡邏點；若原檔顯示「未设置」才需要人工命名。宿舍點會保留來源紀錄但排除於工廠巡邏及漏點統計。" data-en="The imported Checkpoint field is the source of truth: one Chip ID maps to one factory checkpoint. Only unnamed chips need manual naming. Dormitory points remain in source history but are excluded from factory patrol and miss-rate calculations." data-km="ប្រព័ន្ធប្រើឈ្មោះ Checkpoint ពីឯកសារ។ ចំណុចអន្តេវាសិកដ្ឋានមិនរាប់ក្នុងល្បាតរោងចក្រ។">
+        系統會優先採用匯入檔的「巡檢點 Checkpoint」名稱，並固定為一個 Chip ID 對應一個工廠巡邏點；若原檔顯示「未设置」才需要人工命名。宿舍點會保留來源紀錄但排除於工廠巡邏及漏點統計。
       </p>
+      <div id="cpAudit" class="hint" style="margin-bottom:11px"></div>
       <div class="grid g3" id="cpList"></div>
     </div>
     <div class="card">
@@ -238,11 +238,12 @@
     </div>
     <div class="card">
       <h3>☁ <span data-zh="雲端同步" data-en="Cloud Sync" data-km="សមកាលកម្ម">雲端同步</span></h3>
+      <div id="patrolSyncStatus" class="hint" style="margin-bottom:9px">自動上傳已啟用 / Auto upload enabled</div>
       <div class="row">
         <button class="btn" onclick="doUpload()">⬆️☁ <span data-t="upload">上傳雲端</span></button>
         <button class="btn gh" onclick="doDownload()">⬇️☁ <span data-t="download">下載雲端</span></button>
       </div>
-      <p class="hint" style="margin-top:8px">上傳的是「巡邏圈摘要」（每圈一筆），不是原始 8 千筆打點，避免超量。群組 <code>/patrol</code>、<code>/night</code>、<code>/anomaly</code> 讀的就是這份。</p>
+      <p class="hint" style="margin-top:8px">上傳的是 IndexedDB 產生的「巡邏圈摘要」（每圈一筆）及巡邏點對照，不使用 localStorage 搬運大量資料。資料更新後自動上傳，仍保留手動上傳按鈕供重試。</p>
       <div class="sep"></div>
       <div class="row">
         <button class="btn err" onclick="clearScans()">🗑 <span data-zh="清空巡更棒資料" data-en="Clear wand data" data-km="សម្អាត">清空巡更棒資料</span></button>
@@ -254,7 +255,7 @@
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260811j"></script>
+<script src="./shared/sec-core.js?v=20260812b"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -276,13 +277,35 @@ var LS_MAN  = 'ac_sec_patrol_db';       /* 人工登錄（沿用 v1 key） */
 var LS_CHIP = 'ac_sec_chipmap';         /* Chip ID → 巡邏點名稱 */
 var SCAN = [], MAN = [], CHIP = {}, ROUNDS = [];
 var PH = { n: [], i: [] }, PER = new SEC.Period('month'), CH = {}, TOOL = 'patrol';
-var paintPatrolPeriod;
+var paintPatrolPeriod, PATROL_AUTO_TIMER = 0, PATROL_AUTO_RUNNING = false, PATROL_AUTO_AGAIN = false;
 
-/* 建議名稱（依 VRT 保安崗位清單，可自行改） */
+/* 工廠巡邏建議名稱；宿舍屬另一套巡邏，不能混入工廠路線。 */
 var SUGGEST = ['大門崗哨 Front Gate','A棟前 Front Building A','A棟 Building A',
   'A棟成品倉 Finishing Warehouse','A棟後段 Building A Rear','B棟前 Front Building B',
   'B棟 Building B','B棟後門 Building B + Back Gate','倉庫區 Warehouse',
-  '七層宿舍 7F Staff House','發電機房 Generator Room','圍牆巡線 Perimeter'];
+  '發電機房 Generator Room','圍牆巡線 Perimeter'];
+function checkpointName(v) {
+  var s = SEC.str(v).replace(/[\u3000\s]+/g, ' ').trim();
+  return /^(?:未设置|未設置|not\s*set|unset|none|n\/a|—|-)$/i.test(s) ? '' : s;
+}
+function isDormitoryPoint(v) {
+  return /宿舍|七層|7\s*f|7th\s*floor|dorm(?:itory)?|staff\s*house|hostel|អន្តេវាសិកដ្ឋាន/i.test(checkpointName(v));
+}
+function checkpointScope(c) {
+  var o = CHIP[c] || {};
+  if (o.scope === 'review') return 'review';
+  if (o.scope === 'dormitory' || isDormitoryPoint(o.name) || isDormitoryPoint(o.sourceName)) return 'dormitory';
+  return 'factory';
+}
+function factoryChip(c) { return checkpointScope(c) === 'factory'; }
+function excludedCheckpointChips() { return Object.keys(CHIP).filter(function (c) { return !factoryChip(c); }); }
+function refreshCheckpointScopes() {
+  Object.keys(CHIP).forEach(function (c) {
+    var o = CHIP[c] || (CHIP[c] = {});
+    if (isDormitoryPoint(o.name) || isDormitoryPoint(o.sourceName)) o.scope = 'dormitory';
+    else if (o.scope === 'dormitory' && !isDormitoryPoint(o.name) && !isDormitoryPoint(o.sourceName)) o.scope = 'factory';
+  });
+}
 
 async function load() {
   SCAN = await SEC.dbGet(LS_SCAN, []);
@@ -291,13 +314,32 @@ async function load() {
   if (!Array.isArray(SCAN)) SCAN = [];
   if (!Array.isArray(MAN)) MAN = [];
   if (!CHIP || typeof CHIP !== 'object' || Array.isArray(CHIP)) CHIP = {};
+  refreshCheckpointScopes();
 }
 function saveScan() { SEC.dbPut(LS_SCAN, SCAN); }
 function saveMan()  { SEC.dbPut(LS_MAN, MAN); }
 function saveChip() { SEC.dbPut(LS_CHIP, CHIP); }
+function setPatrolSyncStatus(text, kind) {
+  var el = document.getElementById('patrolSyncStatus'); if (!el) return;
+  el.textContent = text; el.style.color = kind === 'err' ? 'var(--err)' : kind === 'warn' ? 'var(--warn)' : 'var(--ink2)';
+}
+function queuePatrolAutoUpload(reason) {
+  clearTimeout(PATROL_AUTO_TIMER);
+  setPatrolSyncStatus('Auto upload queued / 已排程自動上傳' + (reason ? ' · ' + reason : ''), 'warn');
+  PATROL_AUTO_TIMER = setTimeout(runPatrolAutoUpload, 1400);
+}
+async function runPatrolAutoUpload() {
+  if (PATROL_AUTO_RUNNING) { PATROL_AUTO_AGAIN = true; return; }
+  PATROL_AUTO_RUNNING = true;
+  try { await doUpload(true); }
+  finally {
+    PATROL_AUTO_RUNNING = false;
+    if (PATROL_AUTO_AGAIN) { PATROL_AUTO_AGAIN = false; queuePatrolAutoUpload('latest changes'); }
+  }
+}
 
 /* ═══════════ 初始化 ═══════════ */
-document.getElementById('hdr').innerHTML = SEC.headerHtml('🚨', '保安巡邏 Patrol', 'AC SECURITY · PATROL v2 · 20260811j');
+document.getElementById('hdr').innerHTML = SEC.headerHtml('🚨', '保安巡邏 Patrol', 'AC SECURITY · PATROL v2 · 20260812b');
 document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
 SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: openPatrolTelegram, onSmartImport: impWand });
 paintPatrolPeriod = SEC.bindPeriodNav('pnav', PER, renderAll);
@@ -317,13 +359,14 @@ SEC.dataReady().then(load).then(function () {
   jumpPatrolToLatest();
   rebuild();
   if (paintPatrolPeriod) paintPatrolPeriod();
+  setPatrolSyncStatus('Auto upload enabled / 自動上傳已啟用 · Last sync / 上次同步：' + SEC.lastSync(TOOL), '');
 }).catch(SEC.bootError);
 
 /* ═══════════ 巡邏圈偵測 ═══════════ */
 function chipName(c) { return (CHIP[c] && CHIP[c].name) || ('未命名 ' + String(c).slice(-4)); }
 function chipSeq(c)  { return (CHIP[c] && CHIP[c].seq) || 999; }
 function chipOrder() {
-  return Object.keys(CHIP).sort(function (a, b) { return chipSeq(a) - chipSeq(b); });
+  return Object.keys(CHIP).filter(factoryChip).sort(function (a, b) { return chipSeq(a) - chipSeq(b); });
 }
 
 /* 由打點順序推算巡邏點編號 */
@@ -342,7 +385,7 @@ function inferChips() {
       seq[s.c] = (seq[s.c] || 0) + pos; seqN[s.c] = (seqN[s.c] || 0) + 1;
     });
   });
-  SCAN.forEach(function (s) {
+  SCAN.filter(function (s) { return factoryChip(s.c); }).forEach(function (s) {
     cnt[s.c] = (cnt[s.c] || 0) + 1;
     if (!first[s.c] || s.t < first[s.c]) first[s.c] = s.t;
     if (!last[s.c]  || s.t > last[s.c])  last[s.c]  = s.t;
@@ -359,7 +402,8 @@ function inferChips() {
 
 function buildRounds() {
   var gap = (parseInt(document.getElementById('gapMin').value, 10) || 20) * 60000;
-  var all = SCAN.slice().sort(function (a, b) { return a.g === b.g ? (a.t < b.t ? -1 : 1) : (a.g < b.g ? -1 : 1); });
+  /* 原始打點仍保留，但宿舍／待確認 Chip 不進入工廠巡邏圈與漏點統計。 */
+  var all = SCAN.filter(function (s) { return factoryChip(s.c); }).slice().sort(function (a, b) { return a.g === b.g ? (a.t < b.t ? -1 : 1) : (a.g < b.g ? -1 : 1); });
   var out = [], cur = null;
   all.forEach(function (s) {
     var ts = new Date(s.t.replace(' ', 'T')).getTime();
@@ -385,7 +429,7 @@ function jumpPatrolToLatest() {
     var d = String(s.t || '').slice(0, 10);
     if (/^\d{4}-\d{2}-\d{2}$/.test(d) && d > latest) latest = d;
   });
-  MAN.forEach(function (r) {
+  MAN.filter(function (r) { return !isDormitoryPoint(r.location); }).forEach(function (r) {
     var d = String(r.date || '').slice(0, 10);
     if (/^\d{4}-\d{2}-\d{2}$/.test(d) && d > latest) latest = d;
   });
@@ -396,7 +440,7 @@ function jumpPatrolToDate(dateLike) {
   var d = SEC.parseD(dateLike);
   if (d) PER.at = d;
 }
-function totalCp() { return Math.max(1, Object.keys(CHIP).length); }
+function totalCp() { return chipOrder().length; }
 function rebuild() { inferChips(); buildRounds(); renderAll(); }
 
 function inPeriodR() { return ROUNDS.filter(function (r) { return PER.has(r.date); }); }
@@ -410,7 +454,7 @@ function patrolPeriodDate(type, key) {
 function patrolPeriodKeys(type) {
   var seen = {};
   ROUNDS.forEach(function (r) { if (r.date) seen[new SEC.Period(type, SEC.parseD(r.date)).key()] = 1; });
-  MAN.forEach(function (r) { if (r.date) seen[new SEC.Period(type, SEC.parseD(r.date)).key()] = 1; });
+  MAN.filter(function (r) { return !isDormitoryPoint(r.location); }).forEach(function (r) { if (r.date) seen[new SEC.Period(type, SEC.parseD(r.date)).key()] = 1; });
   seen[new SEC.Period(type, PER.at).key()] = 1;
   return Object.keys(seen).sort().reverse();
 }
@@ -426,7 +470,7 @@ function patrolPeriodSummary(type, guard, shift) {
       return p.has(r.date) && (!guard || r.g === guard) && (!shift || (shift === 'N' ? r.night : !r.night));
     });
     var manual = MAN.filter(function (r) {
-      return p.has(r.date) && (!guard || r.guard === guard) && (!shift || (shift === 'N' ? r.shift === 'N' : r.shift !== 'N'));
+      return !isDormitoryPoint(r.location) && p.has(r.date) && (!guard || r.guard === guard) && (!shift || (shift === 'N' ? r.shift === 'N' : r.shift !== 'N'));
     });
     var full = rounds.filter(function (r) { return r.chips.length >= totalCp(); }).length;
     var guards = {};
@@ -447,8 +491,8 @@ function renderAll() {
 }
 function fillGuards() {
   var g = {};
-  SCAN.forEach(function (s) { g[s.g] = 1; });
-  MAN.forEach(function (r) { if (r.guard) g[r.guard] = 1; });
+  SCAN.filter(function (s) { return factoryChip(s.c); }).forEach(function (s) { g[s.g] = 1; });
+  MAN.filter(function (r) { return !isDormitoryPoint(r.location); }).forEach(function (r) { if (r.guard) g[r.guard] = 1; });
   var ks = Object.keys(g).sort();
   var sel = document.getElementById('fGuard'), cur = sel.value;
   sel.innerHTML = '<option value="">全部人員</option>' + ks.map(function (k) { return '<option>' + SEC.esc(k) + '</option>'; }).join('');
@@ -527,22 +571,32 @@ function renderRounds() {
 
 function renderCp() {
   var order = chipOrder();
+  var excluded = excludedCheckpointChips(), displayOrder = order.concat(excluded), audit = document.getElementById('cpAudit');
+  if (audit) audit.innerHTML = excluded.length
+    ? '🏭 工廠有效巡邏點 <b>' + order.length + '</b> 個；已分離宿舍／待確認 <b>' + excluded.length + '</b> 個：' + excluded.slice(0, 12).map(function (c) { return '<code>' + SEC.esc(c) + '</code> ' + SEC.esc(chipName(c)); }).join('、')
+    : '✅ 工廠巡邏點 <b>' + order.length + '</b> 個；未發現宿舍點混入。';
   var box = document.getElementById('cpList');
-  if (!order.length) { box.innerHTML = '<div class="empty">尚未匯入巡更棒資料。請到「💾 資料管理」匯入。</div>'; return; }
-  box.innerHTML = order.map(function (c) {
+  if (!displayOrder.length) { box.innerHTML = '<div class="empty">尚未匯入巡更棒資料。請到「💾 資料管理」匯入。</div>'; return; }
+  box.innerHTML = displayOrder.map(function (c) {
     var o = CHIP[c];
-    return '<div class="cp-card' + (o.name ? '' : ' unnamed') + '">' +
+    var scope = checkpointScope(c), scopeTag = scope === 'dormitory' ? '<span class="tag gray" style="margin-left:auto">宿舍分離 Dormitory</span>' : scope === 'review' ? '<span class="tag err" style="margin-left:auto">待確認 Review</span>' : '';
+    return '<div class="cp-card' + (o.name && scope === 'factory' ? '' : ' unnamed') + '">' +
       '<div style="display:flex;align-items:center;margin-bottom:7px">' +
         '<span class="cp-seq">' + o.seq + '</span>' +
         '<span class="cp-chip">' + SEC.esc(c) + '</span>' +
-        '<span style="margin-left:auto;font-size:11px;color:var(--ink2)">' + (o.n || 0) + ' 次</span>' +
+        (scopeTag || '<span style="margin-left:auto;font-size:11px;color:var(--ink2)">' + (o.n || 0) + ' 次</span>') +
       '</div>' +
       '<input value="' + SEC.esc(o.name || '') + '" placeholder="輸入巡邏點名稱…" data-c="' + SEC.esc(c) + '" class="cpn">' +
       '<div class="hint" style="margin-top:5px">首見 ' + String(o.first || '').slice(5, 16) + '</div>' +
     '</div>';
   }).join('');
   box.querySelectorAll('.cpn').forEach(function (inp) {
-    inp.onchange = function () { CHIP[inp.dataset.c].name = inp.value.trim(); saveChip(); fillLocs(); };
+    inp.onchange = function () {
+      var o = CHIP[inp.dataset.c], name = checkpointName(inp.value);
+      o.name = name; o.nameSource = 'manual'; o.updatedAt = new Date().toISOString();
+      o.scope = isDormitoryPoint(name) ? 'dormitory' : 'factory';
+      saveChip(); rebuild(); fillLocs(); queuePatrolAutoUpload('checkpoint update');
+    };
   });
   renderCpStat();
 }
@@ -564,11 +618,11 @@ function renderCpStat() {
 }
 function autoName() {
   var order = chipOrder();
-  order.forEach(function (c, i) { if (!CHIP[c].name) CHIP[c].name = SUGGEST[i] || ('巡邏點 ' + (i + 1)); });
-  saveChip(); renderCp(); fillLocs();
+  order.forEach(function (c, i) { if (!CHIP[c].name) { CHIP[c].name = SUGGEST[i] || ('巡邏點 ' + (i + 1)); CHIP[c].nameSource = 'suggested'; CHIP[c].updatedAt = new Date().toISOString(); } });
+  saveChip(); renderCp(); fillLocs(); queuePatrolAutoUpload('checkpoint naming');
   SEC.toast('✨ 已套用建議名稱，可再逐一修改', 'ok');
 }
-function saveChips() { saveChip(); renderAll(); SEC.toast('💾 巡邏點名稱已儲存', 'ok'); }
+function saveChips() { refreshCheckpointScopes(); saveChip(); rebuild(); queuePatrolAutoUpload('checkpoint map'); SEC.toast('💾 巡邏點名稱已儲存，將自動上傳', 'ok'); }
 
 function renderNight() {
   var min = parseInt(document.getElementById('nightMin').value, 10) || 12;
@@ -638,12 +692,12 @@ function renderNight() {
 }
 
 function renderManual() {
-  var list = MAN.filter(function (r) { return PER.has(r.date); });
+  var list = MAN.filter(function (r) { return !isDormitoryPoint(r.location) && PER.has(r.date); });
   var mh = document.getElementById('manualHead');
   if (PER.mode === 'month' || PER.mode === 'year') {
     mh.innerHTML = '<tr><th>期間 Period</th><th class="num">人工記錄 Manual</th><th class="num">異常 Issues</th><th>人員 Guards</th></tr>';
     document.getElementById('tbManual').innerHTML = patrolPeriodKeys(PER.mode).map(function (key) {
-      var p = new SEC.Period(PER.mode, patrolPeriodDate(PER.mode, key)), rows = MAN.filter(function (r) { return p.has(r.date); }), guards = {};
+      var p = new SEC.Period(PER.mode, patrolPeriodDate(PER.mode, key)), rows = MAN.filter(function (r) { return !isDormitoryPoint(r.location) && p.has(r.date); }), guards = {};
       rows.forEach(function (r) { if (r.guard) guards[r.guard] = 1; });
       var active = key === PER.key();
       return '<tr' + (active ? ' style="background:#eef8fc;font-weight:700"' : '') + ' onclick="jumpPatrolPeriod(\'' + SEC.esc(key) + '\')"><td><b>' + SEC.esc(key) + '</b>' + (active ? ' ◀' : '') + '</td><td class="num">' + rows.length + '</td><td class="num">' + rows.filter(function (r) { return r.status === 'issue'; }).length + '</td><td>' + SEC.esc(Object.keys(guards).join('、') || '—') + '</td></tr>';
@@ -723,8 +777,8 @@ function chart(id, type, labels, ds) {
 function renderDbInfo() {
   var kb = Math.round((JSON.stringify(SCAN).length + JSON.stringify(MAN).length) / 1024);
   document.getElementById('dbInfo').innerHTML =
-    '目前本機：巡更棒打點 <b>' + SCAN.length + '</b> 筆 · 巡邏圈 <b>' + ROUNDS.length + '</b> 圈 · 人工登錄 <b>' + MAN.length +
-    '</b> 筆 · 巡邏點 <b>' + Object.keys(CHIP).length + '</b> 個 · 佔用約 <b>' + kb + ' KB</b>';
+    '目前 IndexedDB：巡更棒打點 <b>' + SCAN.length + '</b> 筆 · 工廠巡邏圈 <b>' + ROUNDS.length + '</b> 圈 · 工廠人工登錄 <b>' + MAN.filter(function (r) { return !isDormitoryPoint(r.location); }).length +
+    '</b> 筆 · 工廠巡邏點 <b>' + chipOrder().length + '</b> 個 · 已分離宿舍／待確認 <b>' + excludedCheckpointChips().length + '</b> 個 · IndexedDB 約 <b>' + kb + ' KB</b>';
 }
 
 /* ═══════════ 巡更棒匯入 ═══════════ */
@@ -786,7 +840,7 @@ function wandChip(v) {
 }
 function impWand() {
   SEC.pickExcel(function (sheets) {
-    var seen = {}, added = 0, dup = 0, badTime = 0, badChip = 0, log = [], importedDates = {};
+    var seen = {}, added = 0, dup = 0, badTime = 0, badChip = 0, log = [], importedDates = {}, pointVotes = {};
     SCAN.forEach(function (s) { seen[s.t + '|' + wandChip(s.c)] = 1; });
     sheets.forEach(function (sh) {
       var rows = sh.rows, hdr = wandHeaderMap(rows), hr = hdr.row, map = hdr.map;
@@ -799,6 +853,11 @@ function impWand() {
         if (!t) { sheetBadTime++; badTime++; continue; }
         var chip = wandChip(R[map.chip]); if (!chip) { sheetBadChip++; badChip++; continue; }
         var g = SEC.str(R[map.person]);
+        var point = map.point !== undefined ? checkpointName(R[map.point]) : '';
+        if (point) {
+          if (!pointVotes[chip]) pointVotes[chip] = {};
+          pointVotes[chip][point] = (pointVotes[chip][point] || 0) + 1;
+        }
         importedDates[t.slice(0, 10)] = (importedDates[t.slice(0, 10)] || 0) + 1;
         var key = t + '|' + chip;
         /* 月總表與每日分頁通常包含同一批打點；同一時間＋Chip 只保留一筆。 */
@@ -806,7 +865,7 @@ function impWand() {
         seen[key] = 1;
         var ev = SEC.str(R[map.event]);
         SCAN.push({ t: t, g: g, c: chip, e: /night|夜/i.test(ev) ? 'N' : 'D',
-                    r: SEC.str(R[map.reader]) });
+                    r: SEC.str(R[map.reader]), p:point });
         n++; added++;
       }
       log.push('· <b>' + SEC.esc(sh.name) + '</b>：新增 <b>' + n + '</b> 筆' + (d0 ? '（重複略過 ' + d0 + '）' : '') +
@@ -814,17 +873,38 @@ function impWand() {
         '（標題第 ' + (hr + 1) + (hdr.dualHeader ? '、' + (hr + 2) : '') + ' 列' +
         (hdr.fallback ? '，固定欄位備援' : '') + '）');
     });
-    saveScan();
+    var pointUpdates = 0, dormOnly = 0, pointConflicts = 0;
+    Object.keys(pointVotes).forEach(function (chip) {
+      var names = Object.keys(pointVotes[chip]).sort(function (a, b) { return pointVotes[chip][b] - pointVotes[chip][a] || a.localeCompare(b); });
+      var factoryNames = names.filter(function (n) { return !isDormitoryPoint(n); });
+      var dormNames = names.filter(isDormitoryPoint), o = CHIP[chip] || (CHIP[chip] = { seq:999 });
+      var before = JSON.stringify({name:o.name,scope:o.scope,sourceNames:o.sourceNames});
+      o.sourceNames = names; o.sourceName = factoryNames[0] || dormNames[0] || '';
+      if (dormNames.length && factoryNames.length) {
+        o.scope = 'review'; o.pointConflict = true; pointConflicts++;
+        if (!o.name || o.nameSource !== 'manual') o.name = factoryNames[0];
+      } else if (dormNames.length) {
+        o.scope = 'dormitory'; o.pointConflict = false; dormOnly++;
+        if (!o.name || o.nameSource !== 'manual') { o.name = dormNames[0]; o.nameSource = 'excel'; }
+      } else if (factoryNames.length) {
+        o.scope = 'factory'; o.pointConflict = factoryNames.length > 1; if (o.pointConflict) pointConflicts++;
+        if (!o.name || o.nameSource !== 'manual') { o.name = factoryNames[0]; o.nameSource = 'excel'; }
+      }
+      if (before !== JSON.stringify({name:o.name,scope:o.scope,sourceNames:o.sourceNames})) { o.updatedAt = new Date().toISOString(); pointUpdates++; }
+    });
+    refreshCheckpointScopes(); saveScan(); saveChip();
     /* 匯入哪個月份就先顯示哪個月份；不要因本機已有較新的月份而跳走。 */
     var importedLatest = Object.keys(importedDates).sort().pop();
     if (importedLatest) jumpPatrolToDate(importedLatest); else jumpPatrolToLatest();
     rebuild();
     if (paintPatrolPeriod) paintPatrolPeriod();
-    document.getElementById('impLog').innerHTML = '<b>匯入結果</b>：新增 <b>' + added + '</b> 筆，去重略過 ' + dup + ' 筆' +
+    document.getElementById('impLog').innerHTML = '<b>匯入結果</b>：新增 <b>' + added + '</b> 筆，去重略過 ' + dup + ' 筆；巡邏點對照更新 <b>' + pointUpdates + '</b> 個' +
+      (dormOnly ? '；宿舍點分離 <b>' + dormOnly + '</b> 個' : '') + (pointConflicts ? '；名稱衝突待確認 <b>' + pointConflicts + '</b> 個' : '') +
       (badTime || badChip ? '；日期格式略過 ' + badTime + '，無 Chip ID 略過 ' + badChip : '') + '<br>' + log.join('<br>');
     SEC.toast(added ? '✅ 匯入 ' + added + ' 筆打點（自動去重 ' + dup + '）' :
       (dup ? 'ℹ️ 檔案資料已存在，本次去重略過 ' + dup + ' 筆' : '⚠ 全部重複或格式不符'),
       added ? 'ok' : (dup ? 'warn' : 'err'), 6500);
+    if (added || pointUpdates) queuePatrolAutoUpload('wand import');
     if (added && !Object.keys(CHIP).some(function (c) { return CHIP[c].name; })) {
       setTimeout(function () { SEC.toast('👉 請到「📍 巡邏點」分頁替 ' + Object.keys(CHIP).length + ' 個 Chip ID 命名', 'warn', 7000); }, 900);
     }
@@ -869,7 +949,7 @@ var SPEC = {
 };
 function impGeneric() {
   SEC.pickExcel(function (sheets) {
-    var added = 0, log = [];
+    var added = 0, dormSkipped = 0, log = [];
     sheets.forEach(function (sh) {
       var res = SEC.parseSheet(sh.rows, SPEC, { minScore: 2 });
       if (!res.rows.length) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：未偵測到資料（分數 ' + res.header.score + '）'); return; }
@@ -878,18 +958,20 @@ function impGeneric() {
         var d = SEC.parseD(o.date); if (!d) return;
         var guard = SEC.str(o.guard), loc = SEC.str(o.location);
         if (!guard && !loc) return;
+        if (isDormitoryPoint(loc || sh.name)) { dormSkipped++; return; }
         MAN.push({ id: 'X' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
           date: SEC.ymd(d), time: fmtT(o.time), shift: /夜|night|c/i.test(SEC.str(o.shift)) ? 'N' : 'D',
           guard: guard, location: loc || sh.name,
           status: /異常|abnorm|issue|fail/i.test(SEC.str(o.status)) ? 'issue' : 'ok',
-          note: SEC.str(o.note), photos: [], src: sh.name });
+          note: SEC.str(o.note), photos: [], src: sh.name, updatedAt:new Date().toISOString() });
         n++; added++;
       });
       log.push('· <b>' + SEC.esc(sh.name) + '</b>：匯入 <b>' + n + '</b> 筆（標題第 ' + (res.header.row + 1) + ' 列）');
     });
     saveMan(); renderAll();
-    document.getElementById('impLog').innerHTML = '<b>匯入結果</b><br>' + log.join('<br>');
+    document.getElementById('impLog').innerHTML = '<b>匯入結果</b>' + (dormSkipped ? '；宿舍紀錄已分離略過 <b>' + dormSkipped + '</b> 筆' : '') + '<br>' + log.join('<br>');
     SEC.toast(added ? '✅ 匯入 ' + added + ' 筆' : '⚠ 未匯入', added ? 'ok' : 'warn', 5000);
+    if (added) queuePatrolAutoUpload('patrol sheet import');
   });
 }
 function fmtT(v) {
@@ -913,14 +995,15 @@ function refreshPhotos(w) {
 function saveNew(notify) {
   var loc = document.getElementById('nLoc').value;
   if (loc === '__other') { loc = prompt('請輸入巡邏點名稱：') || ''; }
+  if (isDormitoryPoint(loc)) { SEC.toast('⚠ 宿舍巡邏與工廠巡邏分開，本頁不能登錄宿舍點', 'warn', 6000); return; }
   var r = { id: 'P' + Date.now().toString(36),
     date: document.getElementById('nDate').value, time: document.getElementById('nTime').value,
     shift: document.getElementById('nShift').value, guard: document.getElementById('nGuard').value.trim(),
     location: loc, status: document.getElementById('nStat').value,
     note: document.getElementById('nNote').value.trim(), photos: PH.n.slice(),
-    by: SEC.getCfg().operator || '', createdAt: SEC.nowStr() };
+    by: SEC.getCfg().operator || '', createdAt: SEC.nowStr(), updatedAt:new Date().toISOString() };
   if (!r.date || !r.guard) { SEC.toast('⚠ 請填日期與巡邏員', 'warn'); return; }
-  MAN.push(r); saveMan(); renderAll();
+  MAN.push(r); saveMan(); renderAll(); queuePatrolAutoUpload('manual patrol');
   SEC.toast('✅ 已儲存', 'ok');
   document.getElementById('nNote').value = ''; PH.n = []; document.getElementById('nPhotos').innerHTML = '';
   if (notify) {
@@ -932,7 +1015,7 @@ function saveNew(notify) {
 }
 function delMan(id) {
   if (!confirm(SEC.T().confirmDel)) return;
-  MAN = MAN.filter(function (r) { return r.id !== id; }); saveMan(); renderAll();
+  MAN = MAN.filter(function (r) { return r.id !== id; }); saveMan(); renderAll(); queuePatrolAutoUpload('manual patrol update');
 }
 async function sendIssue() {
   var title = document.getElementById('iTitle').value.trim();
@@ -986,22 +1069,22 @@ function patrolNightSummary(st) {
   });
   var ks = Object.keys(byN).sort().reverse();
   var short = ks.filter(function (k) { return byN[k].n < min; });
-  var txt = '🌙 <b>夜間巡邏檢查</b>\n' + SEC.esc(p.label()) + '\n─────────────\n' +
-    '標準：每晚至少 <b>' + min + '</b> 圈（每圈 ' + TC + ' 點）\n' +
-    '夜巡總圈數：<b>' + list.length + '</b>\n達標：' + (ks.length - short.length) + ' / ' + ks.length + ' 夜\n';
+  var txt = '🌙 <b>' + ptt(st.lang, '夜間巡邏檢查', 'Night Patrol Check', 'ត្រួតពិនិត្យល្បាតយប់') + '</b>\n' + SEC.esc(p.label()) + '\n─────────────\n' +
+    ptt(st.lang, '標準', 'Standard', 'ស្តង់ដារ') + '：' + ptt(st.lang, '每晚至少', 'at least per night', 'យ៉ាងតិចក្នុងមួយយប់') + ' <b>' + min + '</b> ' + ptt(st.lang, '圈', 'rounds', 'ជុំ') + '（' + TC + ' ' + ptt(st.lang, '點', 'checkpoints', 'ចំណុច') + '）\n' +
+    ptt(st.lang, '夜巡總圈數', 'Night rounds', 'ជុំយប់') + '：<b>' + list.length + '</b> · ' + ptt(st.lang, '達標夜數', 'Compliant nights', 'យប់គ្រប់') + '：' + (ks.length - short.length) + '/' + ks.length + '\n';
   if (short.length) {
-    txt += '\n⛔ <b>巡邏不足（' + short.length + ' 夜）</b>\n';
+    txt += '\n⛔ <b>' + ptt(st.lang, '巡邏不足', 'Patrol shortage', 'ល្បាតមិនគ្រប់') + '（' + short.length + '）</b>\n';
     short.slice(0, 12).forEach(function (k) {
-      txt += '· ' + k + ' 夜 · <b>' + byN[k].n + '/' + min + '</b> 圈 · ' + Object.keys(byN[k].g).join('、') + '\n';
+      txt += '· ' + k + ' · <b>' + byN[k].n + '/' + min + '</b> ' + ptt(st.lang, '圈', 'rounds', 'ជុំ') + ' · ' + Object.keys(byN[k].g).join('、') + '\n';
     });
-    txt += '\n👮 請追查當班主管並補正紀錄。';
-  } else { txt += '\n✅ 全數達標。'; }
+    txt += '\n👮 ' + ptt(st.lang, '請追查當班主管並補正紀錄。', 'Please follow up with the shift supervisor.', 'សូមតាមដានអ្នកគ្រប់គ្រងវេន។');
+  } else { txt += '\n✅ ' + ptt(st.lang, '全數達標', 'All nights met the standard', 'គ្រប់យប់តាមស្តង់ដារ') + '。'; }
   var badTotal = ks.reduce(function (s, k) { return s + byN[k].bad; }, 0);
-  if (badTotal) txt += '\n\n⚠️ 另有 <b>' + badTotal + '</b> 圈未走完全部 ' + TC + ' 個巡邏點。';
+  if (badTotal) txt += '\n\n⚠️ <b>' + badTotal + '</b> ' + ptt(st.lang, '圈有漏點；異常摘要只列實際漏掉的巡邏點。', 'rounds had missed checkpoints; only actual misses are listed in the anomaly summary.', 'ជុំមានចំណុចខកខាន។');
   return txt;
 }
 function openPatrolNightTelegram() {
-  return SEC.tgOpen({ module:'patrol', defaultType:PER.mode, defaultPeriod:latestPatrolPeriod(PER.mode),
+  return SEC.tgOpen({ module:'patrol', compactBilingual:true, defaultLang:'both', defaultType:PER.mode, defaultPeriod:latestPatrolPeriod(PER.mode),
     periods:patrolPeriods, currentPeriod:function (type) { return latestPatrolPeriod(type); },
     summary:patrolNightSummary });
 }
@@ -1017,7 +1100,7 @@ function patrolSummaryPeriod(st) {
 function patrolPeriods(type) {
   var seen = {};
   ROUNDS.forEach(function (r) { if (r.date) seen[new SEC.Period(type, SEC.parseD(r.date)).key()] = 1; });
-  MAN.forEach(function (r) { if (r.date) seen[new SEC.Period(type, SEC.parseD(r.date)).key()] = 1; });
+  MAN.filter(function (r) { return !isDormitoryPoint(r.location); }).forEach(function (r) { if (r.date) seen[new SEC.Period(type, SEC.parseD(r.date)).key()] = 1; });
   return Object.keys(seen);
 }
 function latestPatrolPeriod(type) {
@@ -1025,66 +1108,65 @@ function latestPatrolPeriod(type) {
   var known = patrolPeriods(type).filter(Boolean).sort();
   return known.indexOf(current) >= 0 ? current : (known.length ? known[known.length - 1] : current);
 }
-function ptt(lang, zh, en, km) { return lang === 'en' ? en : lang === 'km' ? km : zh; }
+function ptt(lang, zh, en, km) { return lang === 'en' ? en : lang === 'km' ? (km || en || zh) : lang === 'both' ? zh + ' / ' + en : zh; }
 function patrolScopeMatch(st, r, manual) {
+  if (manual && isDormitoryPoint(r.location)) return false;
   if (!st.scope || st.scope === 'all') return true;
   var night = manual ? r.shift === 'N' : !!r.night;
   return st.scope === 'night' ? night : !night;
 }
-function patrolScopeLabel(st) {
-  return st.scope === 'night' ? '🌙 夜班 / Night shift' : st.scope === 'day' ? '☀️ 日班 / Day shift' : '全天 / All day';
+function patrolScopeLabel(st, lang) {
+  return st.scope === 'night' ? '🌙 ' + ptt(lang, '夜班', 'Night shift', 'វេនយប់') : st.scope === 'day' ? '☀️ ' + ptt(lang, '日班', 'Day shift', 'វេនថ្ងៃ') : ptt(lang, '全天', 'All day', 'ពេញមួយថ្ងៃ');
 }
 function patrolSummary(st) {
   var p = patrolSummaryPeriod(st), list = ROUNDS.filter(function (r) { return p.has(r.date) && patrolScopeMatch(st, r, false); }), manual = MAN.filter(function (r) { return p.has(r.date) && patrolScopeMatch(st, r, true); });
-  var TC = totalCp(), full = list.filter(function (r) { return r.chips.length >= TC; }).length;
+  var TC = totalCp(), incomplete = list.filter(function (r) { return r.chips.length < TC; }), full = list.length - incomplete.length;
   var night = list.filter(function (r) { return r.night; }).length, issues = manual.filter(function (r) { return r.status === 'issue'; });
-  var byG = {}, byD = {};
-  list.forEach(function (r) { byG[r.g] = (byG[r.g] || 0) + 1; byD[r.date] = (byD[r.date] || 0) + 1; });
+  var byG = {};
+  list.forEach(function (r) { if (r.g) byG[r.g] = (byG[r.g] || 0) + 1; });
+  manual.forEach(function (r) { if (r.guard) byG[r.guard] = (byG[r.guard] || 0) + 1; });
   var txt = '🚨 <b>' + ptt(st.lang, '巡邏摘要', 'Patrol Summary', 'សេចក្តីសង្ខេបល្បាត') + '</b> · ' + SEC.esc(p.label()) + '\n' +
-    '🕐 ' + patrolScopeLabel(st) + '\n' +
+    '🕐 ' + patrolScopeLabel(st, st.lang) + '\n' +
     '🛡️ AC Security · VRT Sihanoukville\n━━━━━━━━━━━━━━━━\n' +
     '🔄 ' + ptt(st.lang, '巡邏圈數', 'Patrol rounds', 'ជុំល្បាត') + '：<b>' + list.length + '</b>\n' +
-    '✅ ' + ptt(st.lang, '完整圈', 'Complete rounds', 'ជុំពេញ') + '：<b>' + full + '</b>（' + (list.length ? Math.round(full / list.length * 100) : 0) + '%）\n' +
-    '⛔ ' + ptt(st.lang, '漏點圈', 'Incomplete rounds', 'ជុំខ្វះ') + '：' + (list.length - full) + '\n' +
-    '🌙 ' + ptt(st.lang, '夜巡圈', 'Night rounds', 'ជុំយប់') + '：' + night + ' · 📍 ' + ptt(st.lang, '巡邏點', 'Checkpoints', 'ចំណុច') + '：' + TC + '\n' +
-    '📝 ' + ptt(st.lang, '人工記錄', 'Manual entries', 'កំណត់ត្រាដោយដៃ') + '：' + manual.length + ' · ⚠️ ' + ptt(st.lang, '異常備註', 'Issue notes', 'កំណត់ចំណាំបញ្ហា') + '：<b>' + issues.length + '</b>\n';
+    '✅ ' + ptt(st.lang, '完整率', 'Completion rate', 'អត្រាពេញលេញ') + '：<b>' + (list.length ? Math.round(full / list.length * 100) : 0) + '%</b> · ' + ptt(st.lang, '完整圈', 'Complete', 'ពេញ') + ' ' + full + '\n' +
+    '🌙 ' + ptt(st.lang, '夜巡', 'Night rounds', 'ល្បាតយប់') + '：' + night + ' · 📍 ' + ptt(st.lang, '工廠巡邏點', 'Factory checkpoints', 'ចំណុចរោងចក្រ') + '：' + TC + '\n';
   if (!list.length && !manual.length && (ROUNDS.length || MAN.length)) {
     var available = patrolPeriods('month').sort().slice(-6).reverse();
     txt += '\n⚠️ <b>' + ptt(st.lang, '所選期間沒有巡邏資料', 'No patrol data in the selected period', 'គ្មានទិន្នន័យល្បាតក្នុងរយៈពេលដែលបានជ្រើស') + '</b>' +
       (available.length ? '\n' + ptt(st.lang, '已有資料月份', 'Available months', 'ខែដែលមានទិន្នន័យ') + '：' + available.join('、') : '') + '\n';
   }
   var gk = Object.keys(byG).sort(function (a, b) { return byG[b] - byG[a]; });
-  if (gk.length) { txt += '\n<b>👮 ' + ptt(st.lang, '巡邏員統計', 'Guard breakdown', 'តាមអ្នកយាម') + '</b>\n'; gk.slice(0, 15).forEach(function (k) { txt += '· ' + SEC.esc(k || '—') + '：' + byG[k] + '\n'; }); }
+  if (gk.length) txt += '👮 ' + ptt(st.lang, '巡邏員', 'Guards', 'អ្នកយាម') + '：' + gk.slice(0, 10).map(function (k) { return SEC.esc(k) + ' ' + byG[k]; }).join(' · ') + '\n';
+  if (incomplete.length) txt += '\n⛔ <b>' + ptt(st.lang, '漏點圈', 'Incomplete rounds', 'ជុំខ្វះ') + '：' + incomplete.length + '</b>\n' + ptt(st.lang, '只在異常明細列出實際漏掉的巡邏點。', 'Only the actual missed checkpoints are listed in anomaly details.', 'បង្ហាញតែចំណុចដែលខកខាន។') + '\n';
   if (issues.length) {
     txt += '\n<b>⚠️ ' + ptt(st.lang, '異常／備註', 'Issues / remarks', 'បញ្ហា／កំណត់ចំណាំ') + '</b>\n';
     issues.slice(0, 12).forEach(function (r) { txt += '· ' + SEC.esc(r.date + ' ' + (r.time || '')) + ' · ' + SEC.esc(r.guard || '—') + ' · ' + SEC.esc(r.location || '—') + (r.note ? '\n   📝 ' + SEC.esc(r.note) : '') + '\n'; });
   }
-  if (Object.keys(byD).length) {
-    txt += '\n<b>📅 ' + ptt(st.lang, '每日圈數', 'Daily rounds', 'ជុំប្រចាំថ្ងៃ') + '</b>\n';
-    Object.keys(byD).sort().slice(-20).forEach(function (d) { txt += '· ' + SEC.esc(d) + '：' + byD[d] + '\n'; });
-  }
-  txt += '\n<i>' + ptt(st.lang, '摘要可重複發送；人工異常備註會一併列出。', 'Summary can be resent; manual issue remarks are included.', 'អាចផ្ញើសារសង្ខេបម្តងទៀត និងបញ្ចូលកំណត់ចំណាំបញ្ហាដោយដៃ។') + '</i>';
+  if (!incomplete.length && !issues.length && (list.length || manual.length)) txt += '\n✅ ' + ptt(st.lang, '本期間沒有漏點或巡邏異常', 'No missed checkpoints or patrol issues in this period', 'គ្មានចំណុចខកខាន ឬបញ្ហា') + '\n';
   return txt;
 }
 function patrolSummaryPages(st) {
   var p = patrolSummaryPeriod(st), pages = [patrolSummary(st)], lines = [], TC = totalCp();
   ROUNDS.filter(function (r) { return p.has(r.date) && patrolScopeMatch(st, r, false); }).slice().sort(function (a,b) { return b.start.localeCompare(a.start); }).forEach(function (r) {
     var miss = chipOrder().filter(function (c) { return r.chips.indexOf(c) < 0; }).map(chipName);
-    lines.push('🔄 ' + SEC.esc(r.date) + ' · ' + SEC.esc(r.start.slice(11,16)) + '–' + SEC.esc(r.end.slice(11,16)) +
-      ' · ' + (r.night ? 'Night/夜班' : 'Day/日班') + ' · Guard/巡邏員 ' + SEC.esc(r.g || '—') +
-      ' · ' + r.chips.length + '/' + TC + ' checkpoints · ' + r.dur + ' min' +
-      (miss.length ? ' · Miss/漏點 ' + miss.slice(0, 8).map(SEC.esc).join('、') : ' · Complete/完整'));
+    if (!miss.length) return;
+    lines.push('⛔ ' + SEC.esc(r.date) + ' ' + SEC.esc(r.start.slice(11,16)) + ' · ' +
+      (r.night ? ptt(st.lang, '夜班', 'Night', 'យប់') : ptt(st.lang, '日班', 'Day', 'ថ្ងៃ')) + ' · ' +
+      ptt(st.lang, '巡邏員', 'Guard', 'អ្នកយាម') + ' ' + SEC.esc(r.g || '—') + ' · <b>' +
+      ptt(st.lang, '漏點', 'Missed', 'ខកខាន') + '：</b>' + miss.map(SEC.esc).join('、'));
   });
-  MAN.filter(function (r) { return p.has(r.date) && patrolScopeMatch(st, r, true); }).slice().sort(function (a,b) { return (b.date + b.time).localeCompare(a.date + a.time); }).forEach(function (r) {
-    lines.push('📝 ' + SEC.esc(r.date + ' ' + (r.time || '')) + ' · ' + (r.shift === 'N' ? 'Night/夜班' : 'Day/日班') +
-      ' · Guard/巡邏員 ' + SEC.esc(r.guard || '—') + ' · Location/地點 ' + SEC.esc(r.location || '—') +
-      ' · ' + (r.status === 'issue' ? '⚠️ Issue/異常' : '✅ Normal/正常') + (r.note ? ' · Note/備註 ' + SEC.esc(r.note) : ''));
+  MAN.filter(function (r) { return p.has(r.date) && patrolScopeMatch(st, r, true) && r.status === 'issue'; }).slice().sort(function (a,b) { return (b.date + b.time).localeCompare(a.date + a.time); }).forEach(function (r) {
+    lines.push('⚠️ ' + SEC.esc(r.date + ' ' + (r.time || '')) + ' · ' +
+      ptt(st.lang, '巡邏員', 'Guard', 'អ្នកយាម') + ' ' + SEC.esc(r.guard || '—') + ' · ' +
+      ptt(st.lang, '地點', 'Location', 'ទីតាំង') + ' ' + SEC.esc(r.location || '—') +
+      (r.note ? ' · ' + ptt(st.lang, '備註', 'Note', 'កំណត់ចំណាំ') + ' ' + SEC.esc(r.note) : ''));
   });
-  for (var i = 0; i < lines.length; i += 24) pages.push('<b>🚨 Patrol records / 巡邏明細</b> · ' + patrolScopeLabel(st) + '\n' + lines.slice(i, i + 24).join('\n'));
+  for (var i = 0; i < lines.length; i += 24) pages.push('<b>🚨 ' + ptt(st.lang, '巡邏異常明細', 'Patrol anomaly details', 'ព័ត៌មានលម្អិតបញ្ហា') + '</b> · ' + patrolScopeLabel(st, st.lang) + '\n' + lines.slice(i, i + 24).join('\n'));
   return pages;
 }
 function openPatrolTelegram() {
-  return SEC.tgOpen({ module:'patrol', defaultType:PER.mode, defaultPeriod:latestPatrolPeriod(PER.mode),
+  return SEC.tgOpen({ module:'patrol', compactBilingual:true, defaultLang:'both', defaultType:PER.mode, defaultPeriod:latestPatrolPeriod(PER.mode),
     periods:patrolPeriods, currentPeriod:function (type) { return latestPatrolPeriod(type); },
     scopeOptions:[{value:'all',label:'全天 All day'},{value:'day',label:'日班 Day shift'},{value:'night',label:'夜班 Night shift'}],
     defaultScope:'all', summaryPages:patrolSummaryPages });
@@ -1112,7 +1194,7 @@ function restore() {
     if (o.manual) MAN = o.manual;
     if (o.records && !o.manual) MAN = o.records;
     if (o.chip) CHIP = o.chip;
-    saveScan(); saveMan(); saveChip(); rebuild();
+    refreshCheckpointScopes(); saveScan(); saveMan(); saveChip(); rebuild(); queuePatrolAutoUpload('restore');
   });
 }
 function clearScans() {
@@ -1123,33 +1205,49 @@ function clearAll() {
   if (!confirm('確定清空全部巡邏資料（含巡邏點命名）？此動作無法復原。')) return;
   SCAN = []; MAN = []; CHIP = {}; saveScan(); saveMan(); saveChip(); rebuild();
 }
-async function doUpload() {
+async function doUpload(silent) {
   var TC = totalCp();
   var recs = ROUNDS.map(function (r) {
     return { date: r.date, time: r.start.slice(11, 16), endTime: r.end.slice(11, 16),
       guard: r.g, shift: r.night ? 'C' : 'A', location: chipName(r.chips[0]),
       points: r.chips.length, expected: TC, dur: r.dur,
       status: r.chips.length >= TC ? 'ok' : 'issue',
-      missed: chipOrder().filter(function (c) { return r.chips.indexOf(c) < 0; }).map(chipName).join(','),
+      missed: chipOrder().filter(function (c) { return r.chips.indexOf(c) < 0; }).map(chipName).join(','), source:'wand'
     };
-  }).concat(MAN.map(function (r) {
-    return { date: r.date, time: r.time, guard: r.guard, shift: r.shift === 'N' ? 'C' : 'A',
-      location: r.location, points: 1, expected: 1, status: r.status, manual: true };
+  }).concat(MAN.filter(function (r) { return !isDormitoryPoint(r.location); }).map(function (r) {
+    return { id:r.id, date: r.date, time: r.time, guard: r.guard, shift: r.shift === 'N' ? 'C' : 'A',
+      location: r.location, points: 1, expected: 1, status: r.status, manual: true,
+      note:r.note || '', createdAt:r.createdAt || '', updatedAt:r.updatedAt || '', source:'online' };
   }));
-  await SEC.cloudPush(TOOL, recs, { rounds: ROUNDS.length, scans: SCAN.length, checkpoints: TC });
+  setPatrolSyncStatus(silent ? 'Auto uploading… / 自動上傳中…' : 'Uploading… / 上傳中…', 'warn');
+  var ok = await SEC.cloudPush(TOOL, recs, { rounds: ROUNDS.length, scans: SCAN.length, checkpoints: TC,
+    excludedDormitory:excludedCheckpointChips().filter(function (c) { return checkpointScope(c) === 'dormitory'; }).length }, { chip:CHIP }, { silent:!!silent });
+  setPatrolSyncStatus(ok ? (silent ? '✅ Auto upload complete / 自動上傳完成 · ' : '⬆️ Upload complete / 上傳完成 · ') + SEC.lastSync(TOOL) + ' · ' + ROUNDS.length + ' rounds' : '❌ Auto upload failed / 自動上傳失敗（可按手動上傳重試）', ok ? '' : 'err');
+  return ok;
 }
 async function doDownload() {
   if (!confirm('⬇️☁ 下載會與本機人工巡邏合併；相同日期／時間／人員以最新資料更新，空白欄位會先確認並保留舊值。繼續？')) return;
   var recs = await SEC.cloudPull(TOOL);
   if (!recs) return;
-  var remote = recs.filter(function (r) { return r.manual; }).map(function (r) {
-    return { id: 'CL-' + [r.date, r.time, r.guard, r.location].join('|'), date: r.date, time: r.time,
-      shift: r.shift === 'C' ? 'N' : 'D', guard: r.guard, location: r.location, status: r.status, photos: [] };
+  var ex = recs._cloudExtra || {}, remoteChip = ex.chip && typeof ex.chip === 'object' ? ex.chip : {};
+  Object.keys(remoteChip).forEach(function (c) {
+    var local = CHIP[c], incoming = remoteChip[c] || {};
+    if (!local) { CHIP[c] = incoming; return; }
+    var lt = Date.parse(String(local.updatedAt || '').replace(' ', 'T')) || 0, rt = Date.parse(String(incoming.updatedAt || '').replace(' ', 'T')) || 0;
+    if (rt >= lt) CHIP[c] = Object.assign({}, local, incoming);
+    else CHIP[c] = Object.assign({}, incoming, local);
+  });
+  refreshCheckpointScopes();
+  var dormSkipped = 0;
+  var remote = recs.filter(function (r) { if (!r.manual) return false; if (isDormitoryPoint(r.location)) { dormSkipped++; return false; } return true; }).map(function (r) {
+    return { id: r.id || ('CL-' + [r.date, r.time, r.guard, r.location].join('|')), date: r.date, time: r.time,
+      shift: r.shift === 'C' ? 'N' : 'D', guard: r.guard, location: r.location, status: r.status, note:r.note || '', photos: [], updatedAt:r.updatedAt || '' };
   });
   var m = SEC.mergeRecords('patrol-man', MAN, remote);
   if (!SEC.confirmBlankMerge(m.blankConflicts, '巡邏資料雲端下載確認')) return;
   MAN = m.records;
-  saveMan(); renderAll(); SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，共 ' + MAN.length + ' 筆人工紀錄', 'ok', 5000);
+  saveMan(); saveChip(); rebuild(); SEC.markSync(TOOL); setPatrolSyncStatus('⬇️ Download complete / 下載完成 · ' + SEC.lastSync(TOOL), '');
+  SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，共 ' + MAN.length + ' 筆人工紀錄' + (dormSkipped ? '；宿舍紀錄分離略過 ' + dormSkipped + ' 筆' : ''), 'ok', 6000);
 }
 </script>
 </body>

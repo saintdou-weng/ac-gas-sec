@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   AC Security Platform — shared/sec-core.js  v1.0
+   AC Security Platform — shared/sec-core.js  v1.1 · 20260812b
    共用引擎：設定 / 三語 / 雲端同步 / 期間導覽 / 智慧 Excel 匯入匯出 /
              照片上傳 / Telegram / 核可送出（兩關 or 直送）
    ═══════════════════════════════════════════════════════════════════════ */
@@ -23,6 +23,7 @@ var DATA_DB_STORE = 'records';
 var DATA_DB = null;
 var DATA_READY = null;
 var DATA_QUEUE = {};
+var SYNC_MEM = {};
 
 /* localStorage 滿時不能讓初始化中斷。只整理同步時間標記，絕不刪除業務資料。 */
 function storageQuota(e) {
@@ -32,7 +33,7 @@ function storageQuota(e) {
 function storageWarn() {
   if (STORAGE_WARNED) return;
   STORAGE_WARNED = true;
-  try { toast('⚠ 本機儲存空間已滿：設定仍可使用，但新資料暫存於本分頁；請先匯出或下載雲端資料，再清理舊網站資料。', 'warn', 8000); } catch (_) {}
+  try { toast('⚠ 瀏覽器只限制了少量介面設定；CCTV、巡邏等業務資料仍使用 IndexedDB 與雲端，不會改用 localStorage 塞入大量資料。', 'warn', 8000); } catch (_) {}
 }
 function clearSyncMarkers() {
   try {
@@ -278,15 +279,15 @@ function periodNavHtml(id, lang) {
   var L = T(lang);
   return '<div class="pnav" id="' + id + '">' +
     '<div class="pmode">' +
-      '<button data-m="day">'   + L.day   + '</button>' +
-      '<button data-m="week">'  + L.week  + '</button>' +
-      '<button data-m="month" class="on">' + L.month + '</button>' +
-      '<button data-m="year">'  + L.year  + '</button>' +
+      '<button data-m="day" data-zh="日" data-en="Day" data-km="ថ្ងៃ">'   + L.day   + '</button>' +
+      '<button data-m="week" data-zh="週" data-en="Week" data-km="សប្ដាហ៍">'  + L.week  + '</button>' +
+      '<button data-m="month" class="on" data-zh="月" data-en="Month" data-km="ខែ">' + L.month + '</button>' +
+      '<button data-m="year" data-zh="年" data-en="Year" data-km="ឆ្នាំ">'  + L.year  + '</button>' +
     '</div>' +
     '<button class="parrow" data-n="-1">◀</button>' +
     '<span class="plabel"></span>' +
     '<button class="parrow" data-n="1">▶</button>' +
-    '<button class="btn gh sm ptoday" data-today="1">' + L.today + '</button>' +
+    '<button class="btn gh sm ptoday" data-today="1" data-zh="今天" data-en="Today" data-km="ថ្ងៃនេះ">' + L.today + '</button>' +
   '</div>';
 }
 function bindPeriodNav(id, period, onChange) {
@@ -360,6 +361,10 @@ function setLang(l) {
     b.classList.toggle('on', b.dataset.l === _lang);
   });
   applyI18n(document);
+  var up = document.getElementById('btnUp'), down = document.getElementById('btnDown'), cfg = document.getElementById('btnCfg');
+  if (up) up.title = T().upload;
+  if (down) down.title = T().download;
+  if (cfg) cfg.title = T().settings;
   if (G.onLangChange) try { G.onLangChange(_lang); } catch (e) {}
 }
 /* data-i18n="zh|en|km" 或 data-zh / data-en / data-km */
@@ -389,28 +394,120 @@ function esc(s) {
 }
 
 /* ───────── GAS ───────── */
-async function gasPost(payload) {
-  var c = getCfg();
-  if (!c.gasUrl) { toast('⚠ 請先在 ⚙️ 設定填入 GAS URL', 'warn'); throw new Error('no gas url'); }
-  var res;
-  try {
-    res = await fetch(c.gasUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload),
-    });
-  } catch (e) {
-    throw new Error('GAS 網路連線失敗，請確認 /exec 網址與網路狀態');
-  }
-  var raw = await res.text(), j;
-  try { j = JSON.parse(raw); } catch (e) { throw new Error('GAS 回傳不是 JSON：' + raw.slice(0, 120)); }
-  if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
-  if (j && j.ok === false) throw new Error(j.error || 'GAS error');
+function gasError(code, message, cause) {
+  var e = new Error(message); e.code = code; if (cause) e.cause = cause; return e;
+}
+function gasBaseUrl() {
+  var raw = String(getCfg().gasUrl || '').trim();
+  if (!raw) { toast('⚠ 請先在 ⚙️ 設定填入 GAS URL', 'warn'); throw gasError('NO_GAS_URL', 'GAS URL 未設定'); }
+  raw = raw.split('#')[0].split('?')[0].replace(/\/+$/, '');
+  if (/\/dev$/i.test(raw)) throw gasError('GAS_DEV_URL', '請使用 GAS「網頁應用程式」的 /exec 網址，不能使用 /dev');
+  if (!/^https:\/\//i.test(raw) || !/\/exec$/i.test(raw)) throw gasError('BAD_GAS_URL', 'GAS URL 格式不正確：必須是 HTTPS 並以 /exec 結尾');
+  return raw;
+}
+function gasUrl(params) {
+  params = params || {}; var q = [];
+  Object.keys(params).forEach(function (key) {
+    if (params[key] !== undefined && params[key] !== null && params[key] !== '') q.push(encodeURIComponent(key) + '=' + encodeURIComponent(String(params[key])));
+  });
+  q.push('_ac=' + Date.now() + Math.random().toString(36).slice(2, 7));
+  return gasBaseUrl() + '?' + q.join('&');
+}
+function gasRequestId(prefix) { return (prefix || 'WEB') + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10); }
+function gasUnwrap(j, res) {
+  if (res && res.ok === false) throw gasError('GAS_HTTP', (j && j.error) || ('GAS HTTP ' + (res.status || '未知')));
+  if (j && j.ok === false) throw gasError('GAS_ERROR', j.error || 'GAS error');
   return (j && j.data !== undefined) ? j.data : j;
+}
+function gasParse(raw, res) {
+  raw = String(raw == null ? '' : raw).replace(/^\uFEFF/, '').trim();
+  if (!raw) throw gasError('GAS_EMPTY', 'GAS 回傳空白（HTTP ' + (res && res.status || '未知') + '）');
+  if (/^\s*</.test(raw)) throw gasError('GAS_HTML', 'GAS 回傳了登入／HTML 頁面，請確認部署為「以我的身分執行」且存取權限允許所有使用者');
+  var j;
+  try { j = JSON.parse(raw); }
+  catch (e) { throw gasError('GAS_NOT_JSON', 'GAS 回傳不是 JSON：' + raw.slice(0, 160), e); }
+  return gasUnwrap(j, res);
+}
+function gasJsonp(params) {
+  return new Promise(function (resolve, reject) {
+    var cb = '__acGasCb_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), done = false;
+    var s = document.createElement('script'), timer;
+    function finish(err, value) {
+      if (done) return; done = true; clearTimeout(timer);
+      try { delete G[cb]; } catch (_) { G[cb] = undefined; }
+      if (s.parentNode) s.parentNode.removeChild(s);
+      if (err) reject(err); else resolve(value);
+    }
+    G[cb] = function (j) { try { finish(null, gasUnwrap(j)); } catch (e) { finish(e); } };
+    s.async = true; s.src = gasUrl(Object.assign({}, params || {}, { callback:cb }));
+    s.onerror = function () { finish(gasError('GAS_JSONP', 'GAS 備援連線失敗，請確認 /exec 網址與部署存取權限')); };
+    timer = setTimeout(function () { finish(gasError('GAS_TIMEOUT', 'GAS 備援連線逾時')); }, 15000);
+    (document.head || document.documentElement).appendChild(s);
+  });
+}
+async function gasGet(params) {
+  var first;
+  try {
+    var res = await fetch(gasUrl(params), { method:'GET', cache:'no-store', credentials:'omit', redirect:'follow' });
+    return gasParse(await res.text(), res);
+  } catch (e) { first = e; }
+  if (first && (first.code === 'GAS_ERROR' || first.code === 'GAS_HTTP' || first.code === 'GAS_HTML' || first.code === 'BAD_GAS_URL' || first.code === 'GAS_DEV_URL')) throw first;
+  try { return await gasJsonp(params); }
+  catch (e2) { throw gasError('GAS_GET_FAILED', (first && first.message ? first.message + '；' : '') + e2.message, first); }
+}
+function gasDelay(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms); }); }
+async function gasPushAck(requestId) {
+  try { var a = await gasGet({ action:'syncAck', requestId:requestId }); return a && a.found ? a.data : null; }
+  catch (_) { return null; }
+}
+async function gasPost(payload) {
+  var body = Object.assign({}, payload || {}), cloudWrite = body.action === 'push' || body.action === 'pushChunk';
+  if (cloudWrite && !body.requestId) body.requestId = gasRequestId('SYNC');
+  var firstError = null;
+  try {
+    var res = await fetch(gasUrl({ post:1 }), { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+      body:JSON.stringify(body), cache:'no-store', credentials:'omit', redirect:'follow' });
+    return gasParse(await res.text(), res);
+  } catch (e) { firstError = e; }
+
+  /* Apps Script ContentService 會轉址到 googleusercontent.com。若寫入已完成但轉址回應被瀏覽器丟失，
+     先以 requestId 查後端確認；相同 requestId 重試也不會重複寫入。 */
+  if (cloudWrite && body.requestId) {
+    var ack = await gasPushAck(body.requestId);
+    if (ack) return ack;
+    var retryable = !firstError || ['GAS_EMPTY','GAS_NOT_JSON','GAS_JSONP','GAS_GET_FAILED'].indexOf(firstError.code) >= 0 || !firstError.code;
+    if (retryable) {
+      try {
+        await fetch(gasUrl({ post:1, retry:1 }), { method:'POST', mode:'no-cors', headers:{ 'Content-Type':'text/plain' },
+          body:JSON.stringify(body), cache:'no-store', credentials:'omit', redirect:'follow' });
+      } catch (_) {}
+      for (var i = 0; i < 3; i++) {
+        await gasDelay([350, 700, 1200][i]); ack = await gasPushAck(body.requestId); if (ack) return ack;
+      }
+    }
+    throw gasError('GAS_WRITE_UNCONFIRMED', '雲端寫入未取得確認。請更新部署新版 ac_sec.gs，確認使用 /exec 且存取權限為所有使用者。' + (firstError && firstError.message ? '（' + firstError.message + '）' : ''), firstError);
+  }
+  throw firstError || gasError('GAS_POST_FAILED', 'GAS 網路連線失敗，請確認 /exec 網址與網路狀態');
+}
+
+function gasByteLength(s) {
+  try { if (G.TextEncoder) return new G.TextEncoder().encode(s).length; } catch (_) {}
+  try { return unescape(encodeURIComponent(s)).length; } catch (_) { return String(s || '').length * 3; }
+}
+function gasSplitText(text, maxBytes) {
+  var out = [], start = 0;
+  while (start < text.length) {
+    var take = Math.min(text.length - start, maxBytes), part = text.slice(start, start + take), bytes = gasByteLength(part);
+    if (bytes > maxBytes) { take = Math.max(1, Math.floor(take * maxBytes / bytes * 0.94)); part = text.slice(start, start + take); }
+    while (gasByteLength(part) > maxBytes && take > 1) { take = Math.floor(take * 0.9); part = text.slice(start, start + take); }
+    out.push(part); start += take;
+  }
+  return out;
 }
 
 /* 雲端上傳（分塊） */
-async function cloudPush(tool, records, summary, extra) {
+async function cloudPush(tool, records, summary, extra, options) {
+  options = options || {};
   var dot = document.querySelector('.c-dot'); if (dot) dot.className = 'c-dot syncing';
   try {
     /* 每次成功上傳都留下版本時間，下載時才能判斷哪一筆較新，不能再用筆數大小猜測。 */
@@ -423,24 +520,20 @@ async function cloudPush(tool, records, summary, extra) {
         if (r && typeof r === 'object' && !r.updatedAt) r.updatedAt = syncAt;
       });
     });
-    var json = JSON.stringify(records || []);
-    var LIMIT = 300000;
-    if (json.length > LIMIT) {
-      var per = Math.max(1, Math.floor(records.length / Math.ceil(json.length / LIMIT)));
-      var total = Math.ceil(records.length / per);
-      for (var i = 0; i < total; i++) {
-        await gasPost({ action:'push', tool:tool, chunk:i, totalChunks:total, syncMode:'merge',
-          records: records.slice(i*per, (i+1)*per),
-          recordCount: records.length, summary: summary || {}, extra: i === total - 1 ? (extra || {}) : {} });
-      }
-    } else {
-      var result = await gasPost({ action:'push', tool:tool, syncMode:'merge', records: records || [],
-        recordCount: (records||[]).length, summary: summary || {}, extra: extra || {} });
-      if (result && result.keptExisting) toast('ℹ️ 雲端原有較完整資料，已合併保留，沒有刪除較多筆數', 'warn', 5000);
-    }
+    var envelope = { records:records || [], recordCount:(records || []).length,
+      summary:summary || {}, extra:extra || {}, syncMode:'merge' };
+    var json = JSON.stringify(envelope), result;
+    /* 分塊計算包含 extra，避免 Attendance raw、Fire history、Personnel roster 全擠在最後一包。 */
+    if (gasByteLength(json) > 220000) {
+      var chunks = gasSplitText(json, 140000), sessionId = gasRequestId('PKG');
+      for (var i = 0; i < chunks.length; i++) result = await gasPost({ action:'pushChunk', tool:tool,
+        sessionId:sessionId, chunk:i, totalChunks:chunks.length, data:chunks[i] });
+    } else result = await gasPost({ action:'push', tool:tool, syncMode:'merge', records:records || [],
+      recordCount:(records || []).length, summary:summary || {}, extra:extra || {} });
+    if (result && result.keptExisting) toast('ℹ️ 雲端原有較完整資料，已合併保留，沒有刪除較多筆數', 'warn', 5000);
     markSync(tool);
     if (dot) dot.className = 'c-dot ok';
-    toast('⬆️☁ ' + T().cloudOk + '（' + (records||[]).length + ' ' + T().records + '）', 'ok');
+    if (!options.silent) toast('⬆️☁ ' + T().cloudOk + '（' + (records||[]).length + ' ' + T().records + '）', 'ok');
     return true;
   } catch (e) {
     if (dot) dot.className = 'c-dot err';
@@ -452,11 +545,12 @@ async function cloudPush(tool, records, summary, extra) {
 async function cloudPull(tool) {
   var dot = document.querySelector('.c-dot'); if (dot) dot.className = 'c-dot syncing';
   try {
-    var r = await gasPost({ action:'pull', tool:tool });
+    /* 下載是讀取動作，改用 GET；可避開 Apps Script POST 轉址回應偶發空白。 */
+    var r = await gasGet({ action:'pull', tool:tool, compact:1 });
     var recs = [];
     if (r && r.chunked) {
       for (var i = 0; i < r.chunks; i++) {
-        var c = await gasPost({ action:'pull', tool:tool, chunk:i });
+        var c = await gasGet({ action:'pull', tool:tool, chunk:i, compact:1 });
         recs = recs.concat(c.records || []);
       }
     } else { recs = (r && r.records) || []; }
@@ -471,10 +565,22 @@ async function cloudPull(tool) {
   }
 }
 function markSync(tool) {
-  safeStorageSet('ac_sec_sync_' + tool, nowStr());
-  var ts = document.querySelector('.c-ts'); if (ts) ts.textContent = nowStr();
+  /* 同步時間只是介面提示，不是業務資料；放在記憶體／本分頁，避免再占 localStorage 配額。 */
+  var stamp = nowStr();
+  SYNC_MEM[tool] = stamp;
+  try { sessionStorage.setItem('ac_sec_sync_' + tool, stamp); } catch (_) {}
+  try { localStorage.removeItem('ac_sec_sync_' + tool); } catch (_) {}
+  var ts = document.querySelector('.c-ts'); if (ts) ts.textContent = stamp;
 }
-function lastSync(tool) { return localStorage.getItem('ac_sec_sync_' + tool) || '—'; }
+function lastSync(tool) {
+  if (SYNC_MEM[tool]) return SYNC_MEM[tool];
+  var key = 'ac_sec_sync_' + tool, stamp = '';
+  try { stamp = sessionStorage.getItem(key) || ''; } catch (_) {}
+  /* 舊版只讀一次舊標記後移除；新版本不再用 localStorage 記錄上下載狀態。 */
+  if (!stamp) try { stamp = localStorage.getItem(key) || ''; localStorage.removeItem(key); } catch (_) {}
+  if (stamp) SYNC_MEM[tool] = stamp;
+  return stamp || '—';
+}
 
 /* 雲端／Excel 合併工具：同一筆更新，新增筆保留，絕不因較少資料而清空本機。 */
 function businessPart(v) { return String(v || '').trim().toUpperCase().replace(/[–—]/g, '-').replace(/\s+/g, ''); }
@@ -522,6 +628,11 @@ function recordKey(tool, r, i) {
     return tool + '|equipment|' + fireBase.concat(fireCode || ('NO_CODE@' + businessPart(r.loc || r.location || r.zone))).join('|');
   }
   if (tool === 'container') return tool + '|business|' + containerBusinessKey(r);
+  if ((tool === 'patrol' || tool === 'patrol-man') && r.date && r.time && (r.guard || r.person || r.name)) {
+    /* 巡更圈以日期＋開始時間＋人員識別；地點改名不能讓同一圈在雲端變成新紀錄。
+       人工登錄可在同一分鐘有不同地點，因此另外納入地點。 */
+    return tool + '|event|' + r.date + '|' + r.time + '|' + (r.guard || r.person || r.name) + (r.manual || tool === 'patrol-man' ? '|' + (r.location || '') : '');
+  }
   if (r.id !== undefined && r.id !== '') return tool + '|id|' + r.id;
   if (r.code !== undefined && r.code !== '') return tool + '|code|' + r.code;
   if (r._k !== undefined && r._k !== '') return tool + '|kind|' + r._k + '|' + (r.empId || r.name || r.date || i);
@@ -641,7 +752,7 @@ function tgOpen(opt) {
     '<div class="f"><label>資料範圍 Scope</label><select id="tgScope">' + opt.scopeOptions.map(function (x) {
       return '<option value="' + esc(x.value) + '">' + esc(x.label) + '</option>';
     }).join('') + '</select></div>' : '';
-  var langHtml = '<option value="both">繁中 + English</option><option value="zh">繁體中文</option><option value="en">English</option><option value="km">ខ្មែរ</option>';
+  var langHtml = '<option value="both">' + (opt.compactBilingual ? '繁中 + English（合併）' : '繁中 + English') + '</option><option value="zh">繁體中文</option><option value="en">English</option><option value="km">ខ្មែរ</option>';
   mask.innerHTML =
     '<div class="modal" style="max-width:560px">' +
       '<div class="mh"><span>✈️</span><b>Telegram 摘要／核可</b>' +
@@ -742,6 +853,8 @@ function tgOpen(opt) {
       return [String(v || '（本期間沒有資料）')];
     }
     if (st.lang !== 'both') return one(st);
+    /* CCTV／巡邏採逐行中英合併，避免同一份摘要完整重複兩次、占用群組空間。 */
+    if (opt.compactBilingual) return one(Object.assign({}, st, { lang:'both' }));
     var zh = one(Object.assign({}, st, { lang:'zh' }));
     var en = one(Object.assign({}, st, { lang:'en' }));
     var n = Math.max(zh.length, en.length), out = [];
@@ -1188,7 +1301,7 @@ function saveSettings() {
   closeSettings(); toast('✅ 設定已儲存', 'ok');
 }
 async function pingGas() {
-  try { var r = await gasPost({ action:'ping' }); toast('✅ GAS 連線正常 ' + (r.ts||''), 'ok'); }
+  try { var r = await gasGet({ action:'ping' }); toast('✅ GAS 連線正常 ' + (r.version || r.message || '') + ' ' + (r.time || r.ts || ''), 'ok'); }
   catch (e) { toast('❌ 連線失敗：' + e.message, 'err', 5000); }
 }
 async function tgTest() {
