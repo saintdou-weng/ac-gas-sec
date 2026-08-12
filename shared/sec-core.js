@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   AC Security Platform — shared/sec-core.js  v1.1 · 20260812b
+   AC Security Platform — shared/sec-core.js  v1.2 · 20260812c
    共用引擎：設定 / 三語 / 雲端同步 / 期間導覽 / 智慧 Excel 匯入匯出 /
              照片上傳 / Telegram / 核可送出（兩關 or 直送）
    ═══════════════════════════════════════════════════════════════════════ */
@@ -451,7 +451,9 @@ async function gasGet(params) {
     var res = await fetch(gasUrl(params), { method:'GET', cache:'no-store', credentials:'omit', redirect:'follow' });
     return gasParse(await res.text(), res);
   } catch (e) { first = e; }
-  if (first && (first.code === 'GAS_ERROR' || first.code === 'GAS_HTTP' || first.code === 'GAS_HTML' || first.code === 'BAD_GAS_URL' || first.code === 'GAS_DEV_URL')) throw first;
+  /* 手機掃 QR 時，部分瀏覽器會把 Apps Script 的轉址頁當成 HTML；此時仍嘗試 JSONP。
+     若真的是部署權限不足，JSONP 也會失敗並保留原始 HTML／權限訊息。 */
+  if (first && (first.code === 'GAS_ERROR' || first.code === 'GAS_HTTP' || first.code === 'BAD_GAS_URL' || first.code === 'GAS_DEV_URL')) throw first;
   try { return await gasJsonp(params); }
   catch (e2) { throw gasError('GAS_GET_FAILED', (first && first.message ? first.message + '；' : '') + e2.message, first); }
 }
@@ -460,8 +462,16 @@ async function gasPushAck(requestId) {
   try { var a = await gasGet({ action:'syncAck', requestId:requestId }); return a && a.found ? a.data : null; }
   catch (_) { return null; }
 }
+function qrPull(params) {
+  var q = Object.assign({}, params || {}, { action:'qrPull' });
+  if (!q.requestId) q.requestId = gasRequestId('QRREAD');
+  return gasGet(q);
+}
 async function gasPost(payload) {
-  var body = Object.assign({}, payload || {}), cloudWrite = body.action === 'push' || body.action === 'pushChunk';
+  var body = Object.assign({}, payload || {});
+  /* 舊 QR 頁仍呼叫 gasPost(qrPull)；在共用層自動轉成 GET，讓已印出的 QR 不必重印。 */
+  if (body.action === 'qrPull') return qrPull(body);
+  var cloudWrite = ['push','pushChunk','qrIssue','qrPush'].indexOf(body.action) >= 0;
   if (cloudWrite && !body.requestId) body.requestId = gasRequestId('SYNC');
   var firstError = null;
   try {
@@ -475,7 +485,7 @@ async function gasPost(payload) {
   if (cloudWrite && body.requestId) {
     var ack = await gasPushAck(body.requestId);
     if (ack) return ack;
-    var retryable = !firstError || ['GAS_EMPTY','GAS_NOT_JSON','GAS_JSONP','GAS_GET_FAILED'].indexOf(firstError.code) >= 0 || !firstError.code;
+    var retryable = !firstError || ['GAS_EMPTY','GAS_NOT_JSON','GAS_HTML','GAS_JSONP','GAS_GET_FAILED'].indexOf(firstError.code) >= 0 || !firstError.code;
     if (retryable) {
       try {
         await fetch(gasUrl({ post:1, retry:1 }), { method:'POST', mode:'no-cors', headers:{ 'Content-Type':'text/plain' },
@@ -1326,7 +1336,7 @@ G.SEC = {
   dataReady:dataReady, dbGet:dbGet, dbPut:dbPut, storageEstimate:storageEstimate,
   Period:Period, periodNavHtml:periodNavHtml, bindPeriodNav:bindPeriodNav,
   T:T, lang:lang, setLang:setLang, applyI18n:applyI18n, I18N:BASE_I18N,
-  toast:toast, gasPost:gasPost, cloudPush:cloudPush, cloudPull:cloudPull,
+  toast:toast, gasPost:gasPost, qrPull:qrPull, cloudPush:cloudPush, cloudPull:cloudPull,
   markSync:markSync, lastSync:lastSync, tgSummary:tgSummary, tgOpen:tgOpen,
   recordKey:recordKey, mergeRecords:mergeRecords, mergeObject:mergeObject,
   blankConflictsObject:blankConflictsObject, confirmBlankMerge:confirmBlankMerge,
