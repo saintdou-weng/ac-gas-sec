@@ -477,6 +477,28 @@ function markSync(tool) {
 function lastSync(tool) { return localStorage.getItem('ac_sec_sync_' + tool) || '—'; }
 
 /* 雲端／Excel 合併工具：同一筆更新，新增筆保留，絕不因較少資料而清空本機。 */
+function businessPart(v) { return String(v || '').trim().toUpperCase().replace(/[–—]/g, '-').replace(/\s+/g, ''); }
+function containerNoPart(v) { var s=businessPart(v),m=s.match(/[A-Z]{4}\d{7}/);return m?m[0]:s.replace(/[/\\].*$/,''); }
+function containerDirection(r) { return r && r.isImport && r.isExport ? 'BOTH' : r && r.isImport ? 'IMP' : r && r.isExport ? 'EXP' : businessPart(r && r.direction || 'NA'); }
+function containerBusinessKey(r) {
+  r = r || {}; var kind = String(r._k || r.kind || 'truck').toLowerCase(), date = String(r.date || '').slice(0,10);
+  if (kind === 'insp') return 'insp|' + date + '|' + containerNoPart(r.containerNo);
+  if (kind === 'gate') return 'gate|' + date + '|' + businessPart(r.type || 'gp') + '|' + businessPart(r.no);
+  var anchor = businessPart(r.timeIn) ? 'IN@' + businessPart(r.timeIn) : businessPart(r.timeOut) ? 'OUT@' + businessPart(r.timeOut) :
+    businessPart(r.visitorId) ? 'VIS@' + businessPart(r.visitorId) : 'VEH@' + businessPart(r.truckNo || r.name);
+  return 'truck|' + date + '|' + containerNoPart(r.containerNo) + '|' + containerDirection(r) + '|' + anchor;
+}
+function containerSameBusiness(a, b) {
+  a = a || {}; b = b || {}; var ak = String(a._k || 'truck'), bk = String(b._k || 'truck');
+  if (ak !== bk || String(a.date || '').slice(0,10) !== String(b.date || '').slice(0,10)) return false;
+  if (ak === 'insp') return !!containerNoPart(a.containerNo) && containerNoPart(a.containerNo) === containerNoPart(b.containerNo);
+  if (ak === 'gate') return !!businessPart(a.no) && businessPart(a.type || 'gp') === businessPart(b.type || 'gp') && businessPart(a.no) === businessPart(b.no);
+  if (!containerNoPart(a.containerNo) || containerNoPart(a.containerNo) !== containerNoPart(b.containerNo) || containerDirection(a) !== containerDirection(b)) return false;
+  var ai = businessPart(a.timeIn), bi = businessPart(b.timeIn), ao = businessPart(a.timeOut), bo = businessPart(b.timeOut);
+  if (ai && bi) return ai === bi;
+  if (ao && bo) return ao === bo;
+  return businessPart(a.truckNo) === businessPart(b.truckNo) || businessPart(a.name) === businessPart(b.name);
+}
 function recordKey(tool, r, i) {
   r = r || {};
   /* CCTV 的穩定識別碼是攝影機編號，不是每次匯入產生的隨機 id；
@@ -494,6 +516,12 @@ function recordKey(tool, r, i) {
     if (cctvKey) return tool + '|code|' + cctvKey;
     return tool + '|invalid|' + (r.id || i);
   }
+  if (tool === 'fire') {
+    var fireCode = businessPart(String(r.code || '').replace(/FOO/ig, 'F00'));
+    var fireBase = [businessPart(r.type || 'other'), businessPart(r.factory || r.plant || r.site || 'common')];
+    return tool + '|equipment|' + fireBase.concat(fireCode || ('NO_CODE@' + businessPart(r.loc || r.location || r.zone))).join('|');
+  }
+  if (tool === 'container') return tool + '|business|' + containerBusinessKey(r);
   if (r.id !== undefined && r.id !== '') return tool + '|id|' + r.id;
   if (r.code !== undefined && r.code !== '') return tool + '|code|' + r.code;
   if (r._k !== undefined && r._k !== '') return tool + '|kind|' + r._k + '|' + (r.empId || r.name || r.date || i);
@@ -530,15 +558,24 @@ function mergeLatestRow(oldRow, newRow) {
       merged[k] = other[k]; blanks.push(k);
     }
   });
+  var sources = {}, sourceList = [];
+  [oldRow && oldRow.sources, newRow && newRow.sources, oldRow && oldRow.source, newRow && newRow.source].forEach(function (a) {
+    (Array.isArray(a) ? a : [a]).forEach(function (v) { v=String(v||'').trim(); if(v&&!sources[v]){sources[v]=1;sourceList.push(v);} });
+  });
+  if (sourceList.length) merged.sources = sourceList;
   return { row:merged, blanks:blanks, incomingWins:newWins };
 }
 function mergeRecords(tool, local, incoming) {
   var out = [], pos = {}, blankConflicts = [], added = 0, updated = 0;
   function apply(r, i, isIncoming) {
     var k = recordKey(tool, r, i);
+    if (tool === 'container' && pos[k] === undefined) {
+      for (var ci = 0; ci < out.length; ci++) if (containerSameBusiness(out[ci], r)) { pos[k] = ci; break; }
+    }
     if (pos[k] === undefined) { pos[k] = out.length; out.push(r); if (isIncoming) added++; }
     else {
-      var m = mergeLatestRow(out[pos[k]], r); out[pos[k]] = m.row;
+      var oldId = tool === 'container' ? out[pos[k]].id : '', m = mergeLatestRow(out[pos[k]], r); out[pos[k]] = m.row;
+      if (tool === 'container') { if (oldId) out[pos[k]].id = oldId; out[pos[k]].businessKey = containerBusinessKey(out[pos[k]]); }
       if (isIncoming) { updated++; if (m.blanks.length) blankConflicts.push({ key:k, fields:m.blanks }); }
     }
   }
@@ -596,7 +633,8 @@ function tgOpen(opt) {
   opt = opt || {};
   var firstType = opt.defaultType || 'month';
   var st = { mode:'summary', ptype:firstType, period:opt.defaultPeriod || '',
-    lang:opt.defaultLang || 'both', scope:opt.defaultScope || (opt.scopeOptions && opt.scopeOptions[0] ? opt.scopeOptions[0].value : '') };
+    rangeFrom:'', rangeTo:'', lang:opt.defaultLang || 'both', scope:opt.defaultScope || (opt.scopeOptions && opt.scopeOptions[0] ? opt.scopeOptions[0].value : '') };
+  var initialRange = new Period(firstType, tgAnchor(st.period, firstType)).range();
   var mask = document.createElement('div');
   mask.className = 'mask on';
   var scopeHtml = opt.scopeOptions && opt.scopeOptions.length ?
@@ -617,8 +655,10 @@ function tgOpen(opt) {
           '<div class="f"><label>期間類型 Period</label><select id="tgType">' +
             '<option value="day">日 Day</option><option value="week">週 Week</option>' +
             '<option value="month" selected>月 Month</option><option value="year">年 Year</option>' +
+            (opt.allowRange ? '<option value="range">指定期間 Custom range</option>' : '') +
           '</select></div>' +
-          '<div class="f"><label>選擇期間 Select period</label><input id="tgAnchor" list="tgKnown" type="date"><datalist id="tgKnown"></datalist></div>' +
+          '<div class="f" id="tgSinglePeriod"><label>選擇期間 Select period</label><input id="tgAnchor" list="tgKnown" type="date"><datalist id="tgKnown"></datalist></div>' +
+          '<div class="f" id="tgRangePeriod" style="display:none"><label>起訖日期 From / To</label><div class="grid g2"><input id="tgRangeFrom" type="date"><input id="tgRangeTo" type="date"></div></div>' +
           scopeHtml +
         '</div>' +
         '<div class="f" style="margin-top:10px"><label>訊息語言 Language</label><select id="tgLang">' + langHtml +
@@ -640,6 +680,7 @@ function tgOpen(opt) {
   if (q('#tgScope')) q('#tgScope').value = st.scope;
 
   function currentKey() {
+    if (st.ptype === 'range') return st.rangeFrom || initialRange.from;
     return opt.currentPeriod ? opt.currentPeriod(st.ptype) : new Period(st.ptype).key();
   }
   function anchorValue(key, type) {
@@ -649,6 +690,18 @@ function tgOpen(opt) {
     return r.from;
   }
   function fillPeriods(reset) {
+    var isRange = st.ptype === 'range';
+    q('#tgSinglePeriod').style.display = isRange ? 'none' : '';
+    q('#tgRangePeriod').style.display = isRange ? '' : 'none';
+    if (isRange) {
+      if (reset || !/^\d{4}-\d{2}-\d{2}$/.test(st.rangeFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(st.rangeTo)) {
+        st.rangeFrom = initialRange.from; st.rangeTo = initialRange.to;
+      }
+      if (st.rangeFrom > st.rangeTo) { var swap = st.rangeFrom; st.rangeFrom = st.rangeTo; st.rangeTo = swap; }
+      st.period = st.rangeFrom + '~' + st.rangeTo;
+      q('#tgRangeFrom').value = st.rangeFrom; q('#tgRangeTo').value = st.rangeTo; q('#tgKnown').innerHTML = '';
+      return;
+    }
     var current = String(currentKey() || new Period(st.ptype).key());
     if (reset || !st.period || (st.ptype === 'month' && !/^\d{4}-\d{2}$/.test(st.period)) ||
         (st.ptype === 'year' && !/^\d{4}$/.test(st.period)) ||
@@ -666,6 +719,11 @@ function tgOpen(opt) {
     } catch (e) { q('#tgKnown').innerHTML = ''; }
   }
   function readAnchor() {
+    if (st.ptype === 'range') {
+      var from = q('#tgRangeFrom').value || initialRange.from, to = q('#tgRangeTo').value || from;
+      if (from > to) { var swap = from; from = to; to = swap; }
+      st.rangeFrom = from; st.rangeTo = to; return from + '~' + to;
+    }
     var v = q('#tgAnchor').value;
     if (st.ptype === 'year') return String(parseInt(v, 10) || new Date().getFullYear());
     if (st.ptype === 'month') return /^\d{4}-\d{2}$/.test(v) ? v : currentKey();
@@ -699,7 +757,7 @@ function tgOpen(opt) {
       if (st.mode === 'approval') {
         var items = opt.approvalItems ? (opt.approvalItems(st) || []) : [];
         var amt = items.reduce(function (a, r) { return a + (Number(r.amount) || 0); }, 0);
-        text = '💰 保安費核可請求\n期間：' + tgPeriodLabel(st.period, st.ptype) +
+        text = '💰 保安費核可請求\n期間：' + (st.ptype === 'range' ? st.rangeFrom + ' – ' + st.rangeTo : tgPeriodLabel(st.period, st.ptype)) +
           '\n─────────────\n筆數：' + items.length + '　合計：$' + amt.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) +
           '\n\n' + items.slice(0, 10).map(function (r, i) {
             return (i + 1) + '. ' + (r.name || r.item || '—') + ' · $' + Number(r.amount || 0).toFixed(2) +
@@ -717,6 +775,7 @@ function tgOpen(opt) {
   }
   q('#tgType').onchange = function () { st.ptype = this.value; fillPeriods(true); preview(); };
   q('#tgAnchor').onchange = function () { st.period = readAnchor(); preview(); };
+  q('#tgRangeFrom').onchange = q('#tgRangeTo').onchange = function () { st.period = readAnchor(); fillPeriods(false); preview(); };
   q('#tgLang').onchange = function () { st.lang = this.value; preview(); };
   if (q('#tgScope')) q('#tgScope').onchange = function () { st.scope = this.value; preview(); };
   mask.querySelectorAll('[data-tg-mode]').forEach(function (b) {
@@ -735,7 +794,7 @@ function tgOpen(opt) {
         for (var pi = 0; pi < pages.length; pi++) {
           var pageText = pages.length > 1 ? '【' + (pi + 1) + '/' + pages.length + '】\n' + pages[pi] : pages[pi];
           await gasPost({ action:'telegram', text:pageText, module:opt.module||'', lang:st.lang,
-            mode:'summary', period:st.period, periodType:st.ptype });
+            mode:'summary', period:st.period, periodType:st.ptype, rangeFrom:st.rangeFrom, rangeTo:st.rangeTo });
         }
         toast('✈️ Telegram 摘要已送出' + (pages.length > 1 ? '（' + pages.length + ' 頁）' : ''), 'ok');
       } else {

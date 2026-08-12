@@ -7,9 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
-<script src="./shared/xlsx.full.min.js?v=20260811i"></script>
-<script src="./shared/qrcode-generator.js?v=20260811i"></script>
-<script src="./shared/fire-seed-data.js?v=20260811i"></script>
+<script src="./shared/xlsx.full.min.js?v=20260811j"></script>
+<script src="./shared/qrcode-generator.js?v=20260811j"></script>
+<script src="./shared/fire-seed-data.js?v=20260811j"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="stylesheet" href="./shared/sec.css?v=20260808g">
 <style>
@@ -102,7 +102,7 @@
         <button class="btn sm" id="tMove" onclick="setMode('view')">👁 <span data-zh="檢視" data-en="View" data-km="មើល">檢視</span></button>
         <button class="btn sm gh" id="tAdd" onclick="setMode('add')">📍 <span data-zh="點圖新增設備" data-en="Click to add" data-km="ចុចបន្ថែម">點圖新增設備</span></button>
         <button class="btn sm gh" id="tDrag" onclick="setMode('drag')">✋ <span data-zh="拖曳移動" data-en="Drag" data-km="អូស">拖曳移動</span></button>
-        <button class="btn sm gh" onclick="openFireQrManager()">🔳 <span data-zh="生成分區 QR" data-en="Generate zone QR" data-km="បង្កើត QR តំបន់">生成分區 QR</span></button>
+        <button class="btn sm gh" onclick="openFireQrManager()">🔳 <span data-zh="消防 QR 管理" data-en="Fire QR manager" data-km="គ្រប់គ្រង QR អគ្គិភ័យ">消防 QR 管理</span></button>
         <select id="fType" style="width:auto" onchange="draw()"></select>
         <label style="font-size:11px;color:var(--ink2);display:flex;align-items:center;gap:4px">
           <input type="checkbox" id="showCp" checked onchange="draw()" style="width:auto"> <span data-zh="顯示巡邏點" data-en="Show patrol points" data-km="បង្ហាញចំណុចល្បាត">顯示巡邏點</span></label>
@@ -163,6 +163,8 @@
         <th data-zh="週期(天)" data-en="Cycle" data-km="វដ្ត">週期(天)</th>
         <th data-zh="到期日" data-en="Due" data-km="ផុតកំណត់">到期日</th>
         <th data-zh="狀態" data-en="Status" data-km="ស្ថានភាព">狀態</th>
+        <th data-zh="檢查人" data-en="Inspector" data-km="អ្នកត្រួតពិនិត្យ">檢查人</th>
+        <th data-zh="備註" data-en="Remark" data-km="កំណត់ចំណាំ">備註</th>
         <th></th></tr></thead><tbody id="tbList"></tbody></table></div>
     </div>
   </div>
@@ -264,6 +266,7 @@
   <div class="f"><label data-zh="狀態 Status" data-en="Status" data-km="ស្ថានភាព">狀態 Status</label><select id="e_status">
     <option value="ok">✅ 正常 Normal</option><option value="fault">⛔ 故障 Fault</option>
     <option value="off">⚪ 停用 Disabled</option></select></div>
+  <div class="f"><label data-zh="檢查人 Inspector" data-en="Inspector" data-km="អ្នកត្រួតពិនិត្យ">檢查人 Inspector</label><input id="e_inspector"></div>
   <div class="f"><label data-zh="備註 Remark" data-en="Remark" data-km="កំណត់ចំណាំ">備註 Remark</label><input id="e_remark"></div>
 </div></div>
 <div class="mf"><button class="btn err" onclick="delEquip()" data-t="del">刪除</button>
@@ -271,7 +274,7 @@
 <button class="btn" onclick="saveEdit()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260811i"></script>
+<script src="./shared/sec-core.js?v=20260811j"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -336,16 +339,23 @@ async function load() {
     if (DB.length) DB = [];
     applyFireSeed(false);
   }
+  /* QR／線上／Excel／雲端一律以「設備唯一 ID + 檢查日期」合併。
+     舊版留下的重複批次也在載入時整理，避免分析與 Telegram 重複加總。 */
+  HIST = fireDedupeHistory(HIST);
+  save();
 }
 function save() { SEC.dbPut(LS, DB); SEC.dbPut(LSH, HIST); }
 
 function fireStableText(v) { return String(v || '').trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, ''); }
 function fireStableId(e) {
-  return 'FIRE-' + fireStableText(e.type || 'other') + '-' + fireStableText(e.factory || factoryOf(e)) + '-' +
-    fireStableText(e.code || 'NO_CODE') + '-' + fireStableText(e.loc || e.zone || 'NO_LOCATION');
+  if (e && String(e.id || '').trim()) return String(e.id).trim();
+  var type = fireStableText(e && e.type || 'other'), factory = fireStableText(e && (e.factory || factoryOf(e)) || 'common');
+  var code = fireStableText(e && e.code || '');
+  return 'FIRE-' + type + '-' + factory + '-' + (code || ('NO_CODE-' + fireStableText(e && (e.loc || e.zone) || 'NO_LOCATION')));
 }
 function fireSeedKey(e) {
-  return [e.type || 'other', e.factory || factoryOf(e), String(e.code || '').trim().toUpperCase(), String(e.loc || '').trim().toUpperCase()].join('|');
+  var code = String(e && e.code || '').trim().toUpperCase().replace(/FOO/g, 'F00');
+  return [e && e.type || 'other', e && (e.factory || factoryOf(e)) || 'common', code || ('NO_CODE@' + String(e && (e.loc || e.zone) || '').trim().toUpperCase())].join('|');
 }
 function fireSeedPosition(e, n) {
   var z = ZONES.filter(function (x) { return x.id === e.zone; })[0] || ZONES[6];
@@ -364,7 +374,7 @@ function applyFireSeed(rebuild) {
   FIRE_SEED.forEach(function (s, i) {
     var k = fireSeedKey(s), e = oldByKey[k], pos = fireSeedPosition(s, i), row;
     if (rebuild || !e) {
-      row = Object.assign({}, s, { id:fireStableId(s), x:pos.x, y:pos.y, updatedAt:now });
+      row = Object.assign({}, s, { id:fireStableId(s), source:s.source || 'excel', sources:fireArrayUnion(s.sources, s.source, 'excel'), x:pos.x, y:pos.y, updatedAt:now });
       out.push(row); if (!e || rebuild) added++;
     } else {
       row = Object.assign({}, e);
@@ -372,6 +382,7 @@ function applyFireSeed(rebuild) {
         row.type = s.type; row.factory = s.factory; row.zone = s.zone; row.loc = s.loc; updated++;
       }
       Object.keys(s).forEach(function (key) { if (row[key] === '' || row[key] === null || row[key] === undefined) row[key] = s[key]; });
+      row.sources = fireArrayUnion(row.sources, row.source, s.source, 'excel');
       row.id = fireStableId(Object.assign({}, s, row));
       if (row.x === undefined || row.y === undefined) { row.x = pos.x; row.y = pos.y; }
       var oi = out.findIndex(function (x) { return fireSeedKey(x) === k; });
@@ -659,7 +670,7 @@ function renderList() {
 }
 
 /* ═══════════ 編輯 ═══════════ */
-var EF = ['code','type','factory','zone','loc','last','cycle','status','remark'];
+var EF = ['code','type','factory','zone','loc','last','cycle','status','inspector','remark'];
 var EDIT_ID = '', NEWXY = null;
 function openEdit(id, x, y) {
   EDIT_ID = id || ''; NEWXY = (x != null) ? { x: x, y: y } : null;
@@ -736,6 +747,78 @@ function markAll(v) {
     .forEach(function (e) { INSP[e.id] = INSP[e.id] || {}; INSP[e.id].r = v; });
   renderInsp();
 }
+function fireArrayUnion() {
+  var seen = {}, out = [];
+  Array.prototype.slice.call(arguments).forEach(function (a) {
+    (Array.isArray(a) ? a : [a]).forEach(function (v) {
+      v = String(v || '').trim(); if (v && !seen[v]) { seen[v] = 1; out.push(v); }
+    });
+  });
+  return out;
+}
+function fireHistoryStamp(h, it) {
+  var vals = [it && it.updatedAt, h && h.updatedAt, it && it.createdAt, h && h.createdAt];
+  for (var i = 0; i < vals.length; i++) {
+    var n = Date.parse(String(vals[i] || '').replace(' ', 'T')); if (!isNaN(n)) return n;
+  }
+  var d = Date.parse(String(h && h.date || '').replace(/-/g, '/')); return isNaN(d) ? 0 : d;
+}
+function fireEquipmentIdForItem(it) {
+  it = it || {};
+  if (it.id && DB.some(function (e) { return String(e.id) === String(it.id); })) return String(it.id);
+  var key = fireSeedKey(it), hit = DB.filter(function (e) { return fireSeedKey(e) === key; })[0];
+  if (hit) return String(hit.id);
+  return fireStableId(it);
+}
+function fireHash(s) {
+  var h = 2166136261;
+  String(s || '').split('').forEach(function (c) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); });
+  return (h >>> 0).toString(36).toUpperCase();
+}
+function fireDedupeHistory(list) {
+  var events = {}, legacy = {}, source = Array.isArray(list) ? list : [];
+  source.forEach(function (h, hi) {
+    if (!h || typeof h !== 'object') return;
+    if (!Array.isArray(h.items) || !h.items.length) {
+      var lk = String(h.importKey || h.id || ('legacy|' + (h.date || '') + '|' + (h.by || '') + '|' + hi));
+      if (!legacy[lk] || fireHistoryStamp(h) >= fireHistoryStamp(legacy[lk])) legacy[lk] = h;
+      return;
+    }
+    h.items.forEach(function (raw) {
+      var it = Object.assign({}, raw || {}), eid = fireEquipmentIdForItem(it), key = eid + '|' + String(h.date || '');
+      it.id = eid; it.eventKey = key; it.date = h.date || it.date || ''; it.by = h.by || it.by || '';
+      it.updatedAt = it.updatedAt || h.updatedAt || h.createdAt || '';
+      it.source = it.source || h.source || 'online';
+      it.sources = fireArrayUnion(it.sources, h.sources, it.source, h.source);
+      var cur = events[key], stamp = fireHistoryStamp(h, it);
+      if (!cur) events[key] = { item:it, stamp:stamp };
+      else {
+        var winner = stamp >= cur.stamp ? it : cur.item, other = stamp >= cur.stamp ? cur.item : it;
+        var merged = Object.assign({}, other, winner);
+        Object.keys(winner).forEach(function (k) {
+          if ((winner[k] === '' || winner[k] === null || winner[k] === undefined) && other[k] !== '' && other[k] !== null && other[k] !== undefined) merged[k] = other[k];
+        });
+        merged.sources = fireArrayUnion(cur.item.sources, it.sources, cur.item.source, it.source);
+        events[key] = { item:merged, stamp:Math.max(stamp, cur.stamp) };
+      }
+    });
+  });
+  var groups = {};
+  Object.keys(events).forEach(function (k) {
+    var it = events[k].item, gk = (it.date || '') + '|' + (it.by || '');
+    if (!groups[gk]) groups[gk] = { id:'FH-' + fireHash(gk), date:it.date || '', by:it.by || '', source:it.source || 'online', sources:[], updatedAt:it.updatedAt || '', items:[] };
+    groups[gk].items.push(it);
+    groups[gk].sources = fireArrayUnion(groups[gk].sources, it.sources, it.source);
+    if (String(it.updatedAt || '') > String(groups[gk].updatedAt || '')) { groups[gk].updatedAt = it.updatedAt; groups[gk].source = it.source || groups[gk].source; }
+  });
+  var out = Object.keys(groups).map(function (k) {
+    var h = groups[k]; h.items.sort(function (a,b) { return String(a.code || a.id).localeCompare(String(b.code || b.id)); });
+    h.n = h.items.length; h.bad = h.items.filter(function (x) { return x.result === 'fault'; }).length; h.ok = h.n - h.bad;
+    h.badList = h.items.filter(function (x) { return x.result === 'fault'; }).map(function (x) { return (x.code || x.id) + (x.note ? ' ' + x.note : ''); });
+    return h;
+  }).concat(Object.keys(legacy).map(function (k) { return legacy[k]; }));
+  return out.sort(function (a,b) { return String(b.date || '').localeCompare(String(a.date || '')) || String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')); }).slice(0, 500);
+}
 function saveInsp(push) {
   var ids = Object.keys(INSP).filter(function (k) { return INSP[k].r; });
   if (!ids.length) { SEC.toast('⚠ 尚未勾選任何判定', 'warn'); return; }
@@ -749,11 +832,14 @@ function saveInsp(push) {
     e.last = date;
     e.status = result === 'fault' ? 'fault' : 'ok';
     if (INSP[id].n) e.remark = INSP[id].n;
+    e.inspector = by; e.updatedAt = new Date().toISOString(); e.source = 'online';
+    e.sources = fireArrayUnion(e.sources, 'online');
     if (result === 'fault') bad.push((e.code || '') + ' ' + zoneName(e.zone) + (INSP[id].n ? '（' + INSP[id].n + '）' : ''));
   });
-  HIST.unshift({ id: 'H' + Date.now().toString(36), date: date, by: by,
-    n: items.length, ok: items.length - bad.length, bad: bad.length, badList: bad, items: items });
-  if (HIST.length > 300) HIST.length = 300;
+  var now = new Date().toISOString();
+  items.forEach(function (it) { it.updatedAt = now; it.source = 'online'; it.sources = ['online']; it.eventKey = it.id + '|' + date; });
+  HIST = fireDedupeHistory([{ id:'FH-' + fireHash(date + '|' + by), date:date, by:by, updatedAt:now,
+    source:'online', sources:['online'], n:items.length, ok:items.length-bad.length, bad:bad.length, badList:bad, items:items }].concat(HIST));
   INSP = {}; save(); renderAll();
   SEC.toast('✅ 已登錄 ' + ids.length + ' 項巡檢' + (bad.length ? '，異常 ' + bad.length + ' 項' : ''), bad.length ? 'warn' : 'ok', 5000);
   if (push) openFireInspectionTelegram();
@@ -831,9 +917,8 @@ function fireCol(rows, aliases) {
   return -1;
 }
 function fireCodeCol(rows, prefix) {
-  var best = {col:-1,n:0}, re = new RegExp('^' + prefix + '\\d{1,3}$','i');
-  /* VRT Excel 可能使用 VRT F001、VRT FOO1 或 VRT F45；不要只依賴 FE/FA 前綴。 */
-  if (prefix === 'FE' || prefix === 'FA' || prefix === 'EL' || prefix === 'HR' || prefix === 'F') re = /^VRT\s*F[A-Z0-9]+$/i;
+  var best = {col:-1,n:0}, re = new RegExp('^(?:' + prefix + '\\d{1,3}|VRT\\s*F[A-Z0-9]+)$','i');
+  /* 同時接受有效 May-2026 的 FE/FA/EL/HR/F 編號，以及舊表的 VRT F001 類編號。 */
   for (var c = 0; c < 20; c++) {
     var n = 0;
     for (var r = 0; r < rows.length; r++) if (re.test(SEC.str((rows[r] || [])[c]))) n++;
@@ -849,7 +934,7 @@ function fireFactoryFromText(text, fallback) {
 }
 function fireZoneFromText(text, factory) {
   var s = String(text || '').toLowerCase();
-  if (/dorm|staff\s*house|house|宿舍/.test(s)) return 'house';
+  if (/dorm|staff\s*house|\bhouse\b|宿舍/.test(s)) return 'house';
   if (/finishing|finished|fabric|warehouse|倉|成品/.test(s)) return 'fwh';
   if (/back\s*gate|back|後門/.test(s)) return 'back';
   if (/front\s*gate|security|guard|大門|門崗/.test(s)) return 'gate';
@@ -869,15 +954,16 @@ function fireIncomingNewer(old, incoming) {
 }
 function fireMergeImported(row, old) {
   if (!old) return {row:row, added:true, skipped:false};
-  var newer = fireIncomingNewer(old, row), keep = old;
+  var newer = fireIncomingNewer(old, row), keep = old, priorSources = fireArrayUnion(old.sources, old.source);
   row.id = old.id; row.x = old.x; row.y = old.y;
   if (!newer) return {row:old, added:false, skipped:true};
   Object.keys(row).forEach(function (k) { if (row[k] !== '' && row[k] !== null && row[k] !== undefined) keep[k] = row[k]; });
+  keep.sources = fireArrayUnion(priorSources, row.sources, row.source);
   return {row:keep, added:false, skipped:false};
 }
 function impExcel() {
   SEC.pickExcel(function (sheets) {
-    var added = 0, updated = 0, skipped = 0, log = [], ignored = 0, histByKey = {};
+    var added = 0, updated = 0, skipped = 0, log = [], ignored = 0, histByKey = {}, importAt = new Date().toISOString();
     sheets.forEach(function (sh) {
       var prof = fireProfile(sh.name);
       if (!prof) { ignored++; log.push('· <b>' + SEC.esc(sh.name) + '</b>：非消防設備表，已略過（不建立 Other）'); return; }
@@ -885,13 +971,14 @@ function impExcel() {
       if (cc < 0) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：找不到 ' + prof.prefix + ' 編號，略過'); return; }
       var lc = fireCol(rows, ['location','位置','place','area','地點']), dc = fireCol(rows, ['date check','date','日期','檢查日']),
         bc = fireCol(rows, ['checked by','check by','inspector','檢查人','巡檢人']), rc = fireCol(rows, ['remarks','remark','comment','備註','說明']);
-      var section = 'common', n = 0, histItems = {};
+      /* VRT 月表在 BUILDING B 分隔列之前皆為 A 廠；有明示廠別時仍以列內容覆蓋。 */
+      var section = 'a', n = 0, histItems = {};
       for (var i = 0; i < rows.length; i++) {
         var R = rows[i] || [], joined = R.map(SEC.str).join(' ');
         if (/building\s*a|\bsda\b|a\s*factory|a廠|a棟/i.test(joined)) section = 'a';
         if (/building\s*b|\bsdb\b|b\s*factory|b廠|b棟/i.test(joined)) section = 'b';
         var code = SEC.str(R[cc]);
-        if (!new RegExp('^' + prof.prefix + '\\d{1,3}$','i').test(code)) continue;
+        if (!new RegExp('^(?:' + prof.prefix + '\\d{1,3}|VRT\\s*F[A-Z0-9]+)$','i').test(code)) continue;
         var loc = lc >= 0 ? SEC.str(R[lc]) : '', date = dc >= 0 ? (SEC.parseD(R[dc]) ? SEC.ymd(SEC.parseD(R[dc])) : '') : '';
         code = code.replace(/FOO/ig, 'F00');
         var combined = joined + ' ' + loc, factory = fireFactoryFromText(combined, section), zone = fireZoneFromText(combined, factory),
@@ -899,17 +986,19 @@ function impExcel() {
           status = fireImportedStatus(joined), incomingKey = fireSeedKey({ code:code, type:prof.type, factory:factory, loc:loc }), old = DB.filter(function (x) { return fireSeedKey(x) === incomingKey; })[0];
         var baseRow = { code:code, type:prof.type, factory:factory, zone:zone, loc:loc };
         var row = { id:fireStableId(baseRow), code:code, type:prof.type, factory:factory, zone:zone,
-          loc:loc, last:date, cycle:30, status:status, remark:note, inspector:by, x:z.x+30+(n%8)*30, y:z.y+60+Math.floor(n/8)*30, src:sh.name, updatedAt:new Date().toISOString() };
+          loc:loc, last:date, cycle:30, status:status, remark:note, inspector:by, x:z.x+30+(n%8)*30, y:z.y+60+Math.floor(n/8)*30,
+          src:sh.name, source:'excel', sources:['excel'], sourceRow:i+1, updatedAt:importAt };
         var m = fireMergeImported(row, old); if (m.added) { DB.push(m.row); added++; } else if (m.skipped) skipped++; else updated++;
         var hk = (date || 'no-date') + '|' + (by || '') + '|' + sh.name;
-        if (!histByKey[hk]) histByKey[hk] = { id:'HX' + btoa(unescape(encodeURIComponent(hk))).replace(/[^A-Za-z0-9]/g,'').slice(0,24), importKey:hk, date:date, by:by, source:'excel', n:0, ok:0, bad:0, badList:[], items:[] };
-        var h = histByKey[hk], it = { id:m.row.id, code:code, type:prof.type, factory:factory, zone:zone, loc:loc, result:status === 'fault' ? 'fault' : 'ok', note:note };
+        if (!histByKey[hk]) histByKey[hk] = { id:'FH-' + fireHash(hk), importKey:hk, date:date, by:by, source:'excel', sources:['excel'], updatedAt:importAt, n:0, ok:0, bad:0, badList:[], items:[] };
+        var h = histByKey[hk], it = { id:m.row.id, eventKey:m.row.id+'|'+date, code:code, type:prof.type, factory:factory, zone:zone, loc:loc,
+          result:status === 'fault' ? 'fault' : 'ok', note:note, source:'excel', sources:['excel'], updatedAt:importAt };
         h.n++; if (it.result === 'fault') { h.bad++; h.badList.push(code + (note ? ' ' + note : '')); } else h.ok++; h.items.push(it); n++;
       }
       log.push('· <b>' + SEC.esc(sh.name) + '</b>：' + TYPES[prof.type].en + '，更新/新增 <b>' + n + '</b> 筆');
     });
-    Object.keys(histByKey).forEach(function (k) { var h=histByKey[k], pos=HIST.findIndex(function(x){return x.importKey===k;}); if(pos>=0) HIST[pos]=h; else HIST.unshift(h); });
-    if (HIST.length > 500) HIST.length = 500;
+    Object.keys(histByKey).forEach(function (k) { HIST.unshift(histByKey[k]); });
+    HIST = fireDedupeHistory(HIST);
     save(); fillZoneSelects(); renderAll();
     document.getElementById('impLog').innerHTML = '<b>Import result / 匯入結果</b>：新增 ' + added + '，更新 ' + updated + '，舊資料略過 ' + skipped + '<br>' + log.join('<br>');
     SEC.toast(added || updated ? '✅ Fire Excel updated: ' + added + ' new / ' + updated + ' updated' : '⚠ No fire equipment rows imported', added || updated ? 'ok' : 'warn', 6500);
@@ -923,6 +1012,7 @@ function expExcel() {
           '廠別 Factory': factoryName(factoryOf(e)), '區域 Zone': zoneName(e.zone), '位置 Location': e.loc, '上次巡檢 Last': e.last,
           '週期 Cycle': e.cycle, '到期日 Due': dueDate(e),
           '狀態 Status': s === 'ok' ? '正常' : s === 'soon' ? '即將到期' : s === 'over' ? '逾期/故障' : '停用',
+          '檢查人 Inspector': e.inspector,
           '備註 Remark': e.remark }; }) },
     { name: 'History', rows: HIST.map(function (h) {
         return { '日期': h.date, '巡檢人': h.by, '受檢數': h.n, '正常': h.ok, '異常': h.bad,
@@ -978,12 +1068,19 @@ async function doDownload() {
     if (ex.chip && typeof ex.chip === 'object') conflicts = conflicts.concat(SEC.blankConflictsObject(CHIP, ex.chip));
     if (!SEC.confirmBlankMerge(conflicts, '消防資料雲端下載確認')) return;
     DB = m.records;
-    if (hm) HIST = hm.records;
+    if (hm) HIST = fireDedupeHistory(hm.records);
     if (ex.chip && typeof ex.chip === 'object') CHIP = SEC.mergeObject(CHIP, ex.chip);
     save(); saveChipMap(); renderAll(); SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，保留 ' + DB.length + ' 筆', 'ok', 5000);
   }
 }
 function fireSummaryPeriod(st) {
+  if (st.ptype === 'range') {
+    var from = /^\d{4}-\d{2}-\d{2}$/.test(String(st.rangeFrom || '')) ? String(st.rangeFrom) : SEC.ymd();
+    var to = /^\d{4}-\d{2}-\d{2}$/.test(String(st.rangeTo || '')) ? String(st.rangeTo) : from;
+    if (from > to) { var tmp = from; from = to; to = tmp; }
+    return { has:function (date) { date = String(date || '').slice(0,10); return !!date && date >= from && date <= to; },
+      label:function () { return from + ' – ' + to; }, range:function () { return {from:from,to:to}; }, key:function () { return from + '~' + to; } };
+  }
   var a = SEC.parseD(st.period) || new Date();
   if (st.ptype === 'month' && /^\d{4}-\d{2}$/.test(st.period)) a = new Date(+st.period.slice(0,4), +st.period.slice(5,7)-1, 1);
   if (st.ptype === 'year' && /^\d{4}$/.test(st.period)) a = new Date(+st.period, 0, 1);
@@ -1120,7 +1217,7 @@ function fireSummaryPages(st) {
   return [fireSummary(st)];
 }
 function openFireTelegram() {
-  return SEC.tgOpen({ module:'fire', forceBilingual:true, defaultLang:'both', defaultType:PER.mode, defaultPeriod:PER.key(), periods:firePeriods,
+  return SEC.tgOpen({ module:'fire', allowRange:true, defaultLang:'zh', defaultType:PER.mode, defaultPeriod:PER.key(), periods:firePeriods,
     currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); }, scopeOptions:fireScopeOptions(), defaultScope:'all', summaryPages:fireSummaryPages });
 }
 function fireInspectionRows(st) {
@@ -1167,7 +1264,7 @@ function fireInspectionSummaryPages(st) {
   return pages;
 }
 function openFireInspectionTelegram() {
-  return SEC.tgOpen({ module:'fire', forceBilingual:true, defaultLang:'both', defaultType:PER.mode, defaultPeriod:PER.key(), periods:firePeriods,
+  return SEC.tgOpen({ module:'fire', allowRange:true, defaultLang:'zh', defaultType:PER.mode, defaultPeriod:PER.key(), periods:firePeriods,
     currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); }, scopeOptions:fireScopeOptions(), defaultScope:'all', summaryPages:fireInspectionSummaryPages });
 }
 function pushDue() { return openFireTelegram(); }
@@ -1206,7 +1303,7 @@ renderList = function () {
   var list=DB.slice(), f=document.getElementById('fFactory').value,z=document.getElementById('fZone').value,t=document.getElementById('fTypeList').value,q=(document.getElementById('q').value||'').toLowerCase();
   if(f)list=list.filter(function(e){return factoryOf(e)===f;}); if(z)list=list.filter(function(e){return e.zone===z;}); if(t)list=list.filter(function(e){return e.type===t;});
   if(q)list=list.filter(function(e){return String(e.code||'').toLowerCase().indexOf(q)>=0||String(e.loc||'').toLowerCase().indexOf(q)>=0;});
-  document.getElementById('tbList').innerHTML=list.length?list.map(function(e){var t=TYPES[e.type]||TYPES.other;return '<tr><td><code>'+SEC.esc(e.code||'')+'</code></td><td>'+t.icon+' '+SEC.esc(fireTypeLabel(e.type))+'</td><td><span class="factory-pill">'+SEC.esc(factoryName(factoryOf(e)))+'</span></td><td>'+SEC.esc(zoneName(e.zone))+'</td><td>'+SEC.esc(e.loc||'')+'</td><td>'+SEC.esc(e.last||'')+'</td><td class="num">'+(e.cycle||'')+'</td><td>'+(dueDate(e)||'')+'</td><td>'+stLabel(statusOf(e))+'</td><td><button class="btn sm gh" onclick="openEdit(\''+e.id+'\')">✏️</button> <button class="btn sm qr-mini" onclick="showFireQr(\''+e.id+'\',\''+SEC.esc(e.code||'')+'\')">🔳</button></td></tr>';}).join(''):'<tr><td colspan="10" class="empty">'+SEC.T().noData+'</td></tr>';
+  document.getElementById('tbList').innerHTML=list.length?list.map(function(e){var t=TYPES[e.type]||TYPES.other;return '<tr><td><code>'+SEC.esc(e.code||'')+'</code></td><td>'+t.icon+' '+SEC.esc(fireTypeLabel(e.type))+'</td><td><span class="factory-pill">'+SEC.esc(factoryName(factoryOf(e)))+'</span></td><td>'+SEC.esc(zoneName(e.zone))+'</td><td>'+SEC.esc(e.loc||'')+'</td><td>'+SEC.esc(e.last||'')+'</td><td class="num">'+(e.cycle||'')+'</td><td>'+(dueDate(e)||'')+'</td><td>'+stLabel(statusOf(e))+'</td><td>'+SEC.esc(e.inspector||'')+'</td><td>'+SEC.esc(e.remark||'')+'</td><td><button class="btn sm gh" onclick="openEdit(\''+e.id+'\')">✏️</button> <button class="btn sm qr-mini" onclick="showFireQr(\''+e.id+'\',\''+SEC.esc(e.code||'')+'\')">🔳</button></td></tr>';}).join(''):'<tr><td colspan="12" class="empty">'+SEC.T().noData+'</td></tr>';
 };
 renderDue = function () {
   var l=SEC.lang(), list=DB.filter(function(e){var s=statusOf(e);return s==='soon'||s==='over';}).sort(function(a,b){return(daysLeft(a)||0)-(daysLeft(b)||0);});
@@ -1286,6 +1383,20 @@ showFireQr=function(id,title){fireQrPick('equipment',id,'',title||id,'');};
 showFireZoneQr=function(zone,title){fireQrPick('zone','',zone,title||zone,'');};
 showFireFactoryQr=function(factory,title){fireQrPick('factory','','',title||factory,factory);};
 openFireQrManager=function(){var m=document.createElement('div');m.className='mask on';m.style.zIndex=4000;var opts='<option value="factory:a">🏭 A 廠 / A Factory</option><option value="factory:b">🏭 B 廠 / B Factory</option>'+ZONES.map(function(z){return '<option value="zone:'+z.id+'">📍 '+SEC.esc(z.zh)+' / '+SEC.esc(z.en)+'</option>';}).join('');m.innerHTML='<div class="modal" style="max-width:470px"><div class="mh"><b>🔳 Fire QR manager / 消防 QR 管理</b><button class="x">×</button></div><div class="mb"><p class="hint">請從這裡選擇要貼在哪個廠別／區域。建議 A 廠、B 廠或一個工作區一張 QR。</p><div class="f"><label>QR scope / QR 範圍</label><select id="fireQrScope">'+opts+'</select></div><p class="hint">掃描者只看到所選範圍的檢查資料，只能儲存並上傳，不能下載。</p></div><div class="mf"><button class="btn gray">Cancel / 取消</button><button class="btn" id="fireQrGo">Choose period / 選期間並生成</button></div></div>';document.body.appendChild(m);m.querySelector('.x').onclick=function(){m.remove();};m.querySelector('.gray').onclick=function(){m.remove();};m.querySelector('#fireQrGo').onclick=function(){var v=m.querySelector('#fireQrScope').value,p=v.split(':'),label=m.querySelector('#fireQrScope').selectedOptions[0].textContent;m.remove();p[0]==='factory'?showFireFactoryQr(p[1],label):showFireZoneQr(p[1],label);};};
+showFireZoneQr=function(zone,title,factory){fireQrPick('zone','',zone,title||zone,factory||'');};
+openFireQrManager=function(){
+  var m=document.createElement('div');m.className='mask on';m.style.zIndex=4000;
+  var zoneSeen={}, zones=[];
+  DB.forEach(function(e){var f=factoryOf(e),k=f+'|'+(e.zone||'');if(e.zone&&!zoneSeen[k]){zoneSeen[k]=1;zones.push({factory:f,zone:e.zone});}});
+  zones.sort(function(a,b){return a.factory.localeCompare(b.factory)||a.zone.localeCompare(b.zone);});
+  var equipment=DB.slice().sort(function(a,b){return factoryOf(a).localeCompare(factoryOf(b))||String(a.zone||'').localeCompare(String(b.zone||''))||String(a.code||'').localeCompare(String(b.code||''));});
+  var opts='<optgroup label="Factory / 廠別"><option value="factory|a||">🏭 A 廠 / A Factory</option><option value="factory|b||">🏭 B 廠 / B Factory</option></optgroup>'+
+    '<optgroup label="Zone / 分區">'+zones.map(function(x){return '<option value="zone|'+SEC.esc(x.factory)+'|'+SEC.esc(x.zone)+'|">📍 '+SEC.esc(factoryName(x.factory))+' · '+SEC.esc(zoneName(x.zone))+'</option>';}).join('')+'</optgroup>'+
+    '<optgroup label="Single equipment / 單一設備">'+equipment.map(function(e){return '<option value="equipment|||'+SEC.esc(e.id)+'">🧯 '+SEC.esc(factoryName(factoryOf(e)))+' · '+SEC.esc(e.code||'—')+' · '+SEC.esc(fireTypeLabel(e.type))+' · '+SEC.esc(zoneName(e.zone))+'</option>';}).join('')+'</optgroup>';
+  m.innerHTML='<div class="modal" style="max-width:560px"><div class="mh"><b>🔳 Fire QR manager / 消防 QR 管理</b><button class="x">×</button></div><div class="mb"><p class="hint">可選 A 廠、B 廠、廠別內分區或單一設備；單台設備使用唯一 ID，不會因設備編號重複而帶出其他設備。</p><div class="f"><label>QR scope / QR 範圍</label><select id="fireQrScope">'+opts+'</select></div><p class="hint">掃描者只看到所選設備，只能儲存並上傳，不能下載或匯出。</p></div><div class="mf"><button class="btn gray">Cancel / 取消</button><button class="btn" id="fireQrGo">Choose period / 選期間並生成</button></div></div>';
+  document.body.appendChild(m);m.querySelector('.x').onclick=function(){m.remove();};m.querySelector('.gray').onclick=function(){m.remove();};
+  m.querySelector('#fireQrGo').onclick=function(){var sel=m.querySelector('#fireQrScope'),p=sel.value.split('|'),label=sel.selectedOptions[0].textContent;m.remove();if(p[0]==='factory')showFireFactoryQr(p[1],label);else if(p[0]==='zone')showFireZoneQr(p[2],label,p[1]);else showFireQr(p[3],label);};
+};
 fireQrStart = async function(){if(!QR_FIRE_INFO.mode)return;document.getElementById('tabs').style.display='none';document.getElementById('pnavHost').style.display='none';document.querySelector('.wrap').style.display='none';document.getElementById('hdr').style.display='none';document.body.classList.add('qr-only');var root=document.createElement('div');root.id='qrFireRoot';document.body.appendChild(root);root.innerHTML='<div class="qr-card">Loading scoped data… / 正在載入受限資料…</div>';if(!QR_FIRE_INFO.token){root.innerHTML='<div class="qr-card"><b>❌ Old or incomplete QR / 舊 QR 或 QR 不完整</b><p>Generate a new QR from the full platform. / 請回完整平台重新產生 QR。</p></div>';return;}var scanner=SEC.getCfg().operator||window.prompt('Scanner name / 掃描人姓名','')||'';try{var d=await SEC.gasPost({action:'qrPull',tool:'fire',token:QR_FIRE_INFO.token,mode:QR_FIRE_INFO.mode,id:QR_FIRE_INFO.id,zone:QR_FIRE_INFO.zone,factory:QR_FIRE_INFO.factory,operator:scanner,scanner:scanner});qrFireRender(d);}catch(e){root.innerHTML='<div class="qr-card"><b>❌ QR data unavailable / 無法讀取 QR 資料</b><p>'+SEC.esc(e.message)+'</p></div>';}};
 /* Final overrides: grouped list inspection and factory-aware QR upload. */
 renderInsp = function () {
@@ -1298,6 +1409,14 @@ renderInsp = function () {
   document.querySelectorAll('#tbInsp .insp-note').forEach(function(s){s.oninput=function(){INSP[s.dataset.i]=INSP[s.dataset.i]||{};INSP[s.dataset.i].n=s.value;};});
 };
 qrFireSubmit=async function(){var list=QR_FIRE_DATA.records||[],date=(document.getElementById('qrFireDate').value||'').trim(),by=(document.getElementById('qrFireBy').value||'').trim(),out=[],items=[];if(!by){SEC.toast('Inspector name required / 請填寫檢查人','warn');return;}document.querySelectorAll('#qrFireRoot .qr-eq').forEach(function(el,i){var e=list[i],r=el.querySelector('.qr-result').value,n=el.querySelector('.qr-note').value.trim();if(!e)return;var o=Object.assign({},e,{last:date,status:r,remark:n,inspector:by,updatedAt:new Date().toISOString()});out.push(o);items.push({id:e.id,code:e.code,type:e.type,factory:e.factory,zone:e.zone,loc:e.loc,result:r==='fault'?'fault':'ok',note:n});});if(!out.length){SEC.toast('No QR records / 沒有可上傳資料','warn');return;}var h={id:'QH'+Date.now().toString(36),date:date,by:by,n:items.length,ok:items.filter(function(x){return x.result==='ok';}).length,bad:items.filter(function(x){return x.result==='fault';}).length,badList:items.filter(function(x){return x.result==='fault';}).map(function(x){return x.code+' '+x.note;}),items:items,source:'qr'};try{var r=await SEC.gasPost({action:'qrPush',tool:'fire',token:QR_FIRE_INFO.token,mode:QR_FIRE_INFO.mode,id:QR_FIRE_INFO.id,zone:QR_FIRE_INFO.zone,factory:QR_FIRE_INFO.factory,operator:by,notify:document.getElementById('qrFireNotify').checked,records:out,extra:{history:[h]},summary:{qr:true,period:date}});var box=document.getElementById('qrFireRoot');box.insertAdjacentHTML('afterbegin','<div class="qr-card"><b>✅ Upload confirmed / 上傳完成</b><p>By / 更新人：'+SEC.esc(by)+' · Updated / 更新：'+(r.updated||0)+' · Added / 新增：'+(r.added||0)+' · Telegram / 群組通知：'+(r.noticeSent?'sent / 已發送':'not sent / 未發送')+'</p><p class="hint">Supervisor confirmation is done on the full platform. / 主管可在完整平台確認。</p></div>');SEC.toast('✅ Saved & uploaded / 已儲存並上傳','ok',7000);}catch(e){SEC.toast('❌ Upload failed / 上傳失敗：'+e.message,'err',7000);}};
+qrFireSubmit=async function(){
+  var list=QR_FIRE_DATA.records||[],date=(document.getElementById('qrFireDate').value||'').trim(),by=(document.getElementById('qrFireBy').value||'').trim(),out=[],items=[],now=new Date().toISOString();
+  if(!by){SEC.toast('Inspector name required / 請填寫檢查人','warn');return;}
+  document.querySelectorAll('#qrFireRoot .qr-eq').forEach(function(el,i){var e=list[i],result=el.querySelector('.qr-result').value,note=el.querySelector('.qr-note').value.trim();if(!e)return;var sources=fireArrayUnion(e.sources,e.source,e.seedVersion?'excel':'','qr'),row=Object.assign({},e,{last:date,status:result,remark:note,inspector:by,source:'qr',sources:sources,updatedAt:now});out.push(row);items.push({id:e.id,eventKey:e.id+'|'+date,code:e.code,type:e.type,factory:e.factory,zone:e.zone,loc:e.loc,result:result==='fault'?'fault':'ok',note:note,source:'qr',sources:sources,updatedAt:now});});
+  if(!out.length){SEC.toast('No QR records / 沒有可上傳資料','warn');return;}
+  var h={id:'FH-'+fireHash(date+'|'+by),date:date,by:by,updatedAt:now,source:'qr',sources:['qr'],n:items.length,ok:items.filter(function(x){return x.result==='ok';}).length,bad:items.filter(function(x){return x.result==='fault';}).length,badList:items.filter(function(x){return x.result==='fault';}).map(function(x){return x.code+(x.note?' '+x.note:'');}),items:items};
+  try{var r=await SEC.gasPost({action:'qrPush',tool:'fire',token:QR_FIRE_INFO.token,mode:QR_FIRE_INFO.mode,id:QR_FIRE_INFO.id,zone:QR_FIRE_INFO.zone,factory:QR_FIRE_INFO.factory,operator:by,notify:document.getElementById('qrFireNotify').checked,records:out,extra:{history:[h]},summary:{qr:true,period:date}});var box=document.getElementById('qrFireRoot');box.insertAdjacentHTML('afterbegin','<div class="qr-card"><b>✅ Upload confirmed / 上傳完成</b><p>By / 更新人：'+SEC.esc(by)+' · Updated / 更新：'+(r.updated||0)+' · Added / 新增：'+(r.added||0)+' · Telegram / 群組通知：'+(r.noticeSent?'sent / 已發送':'not sent / 未發送')+'</p><p class="hint">同一設備同一檢查日再次上傳會更新原紀錄，不會重複加總。 / Re-upload updates the same equipment/date record without double-counting.</p></div>');SEC.toast('✅ Saved & uploaded / 已儲存並上傳','ok',7000);}catch(e){SEC.toast('❌ Upload failed / 上傳失敗：'+e.message,'err',7000);}
+};
 setTimeout(function(){applyFireLanguage();fireQrStart();},0);
 </script>
 </body>
