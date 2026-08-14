@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   AC Security Platform — shared/sec-core.js  v1.2 · 20260812c
+   AC Security Platform — shared/sec-core.js  v1.0
    共用引擎：設定 / 三語 / 雲端同步 / 期間導覽 / 智慧 Excel 匯入匯出 /
              照片上傳 / Telegram / 核可送出（兩關 or 直送）
    ═══════════════════════════════════════════════════════════════════════ */
@@ -23,7 +23,6 @@ var DATA_DB_STORE = 'records';
 var DATA_DB = null;
 var DATA_READY = null;
 var DATA_QUEUE = {};
-var SYNC_MEM = {};
 
 /* localStorage 滿時不能讓初始化中斷。只整理同步時間標記，絕不刪除業務資料。 */
 function storageQuota(e) {
@@ -33,7 +32,7 @@ function storageQuota(e) {
 function storageWarn() {
   if (STORAGE_WARNED) return;
   STORAGE_WARNED = true;
-  try { toast('⚠ 瀏覽器只限制了少量介面設定；CCTV、巡邏等業務資料仍使用 IndexedDB 與雲端，不會改用 localStorage 塞入大量資料。', 'warn', 8000); } catch (_) {}
+  try { toast('⚠ 本機儲存空間已滿：設定仍可使用，但新資料暫存於本分頁；請先匯出或下載雲端資料，再清理舊網站資料。', 'warn', 8000); } catch (_) {}
 }
 function clearSyncMarkers() {
   try {
@@ -279,15 +278,15 @@ function periodNavHtml(id, lang) {
   var L = T(lang);
   return '<div class="pnav" id="' + id + '">' +
     '<div class="pmode">' +
-      '<button data-m="day" data-zh="日" data-en="Day" data-km="ថ្ងៃ">'   + L.day   + '</button>' +
-      '<button data-m="week" data-zh="週" data-en="Week" data-km="សប្ដាហ៍">'  + L.week  + '</button>' +
-      '<button data-m="month" class="on" data-zh="月" data-en="Month" data-km="ខែ">' + L.month + '</button>' +
-      '<button data-m="year" data-zh="年" data-en="Year" data-km="ឆ្នាំ">'  + L.year  + '</button>' +
+      '<button data-m="day">'   + L.day   + '</button>' +
+      '<button data-m="week">'  + L.week  + '</button>' +
+      '<button data-m="month" class="on">' + L.month + '</button>' +
+      '<button data-m="year">'  + L.year  + '</button>' +
     '</div>' +
     '<button class="parrow" data-n="-1">◀</button>' +
     '<span class="plabel"></span>' +
     '<button class="parrow" data-n="1">▶</button>' +
-    '<button class="btn gh sm ptoday" data-today="1" data-zh="今天" data-en="Today" data-km="ថ្ងៃនេះ">' + L.today + '</button>' +
+    '<button class="btn gh sm ptoday" data-today="1">' + L.today + '</button>' +
   '</div>';
 }
 function bindPeriodNav(id, period, onChange) {
@@ -361,10 +360,6 @@ function setLang(l) {
     b.classList.toggle('on', b.dataset.l === _lang);
   });
   applyI18n(document);
-  var up = document.getElementById('btnUp'), down = document.getElementById('btnDown'), cfg = document.getElementById('btnCfg');
-  if (up) up.title = T().upload;
-  if (down) down.title = T().download;
-  if (cfg) cfg.title = T().settings;
   if (G.onLangChange) try { G.onLangChange(_lang); } catch (e) {}
 }
 /* data-i18n="zh|en|km" 或 data-zh / data-en / data-km */
@@ -394,130 +389,61 @@ function esc(s) {
 }
 
 /* ───────── GAS ───────── */
-function gasError(code, message, cause) {
-  var e = new Error(message); e.code = code; if (cause) e.cause = cause; return e;
-}
-function gasBaseUrl() {
-  var raw = String(getCfg().gasUrl || '').trim();
-  if (!raw) { toast('⚠ 請先在 ⚙️ 設定填入 GAS URL', 'warn'); throw gasError('NO_GAS_URL', 'GAS URL 未設定'); }
-  raw = raw.split('#')[0].split('?')[0].replace(/\/+$/, '');
-  if (/\/dev$/i.test(raw)) throw gasError('GAS_DEV_URL', '請使用 GAS「網頁應用程式」的 /exec 網址，不能使用 /dev');
-  if (!/^https:\/\//i.test(raw) || !/\/exec$/i.test(raw)) throw gasError('BAD_GAS_URL', 'GAS URL 格式不正確：必須是 HTTPS 並以 /exec 結尾');
-  return raw;
-}
-function gasUrl(params) {
-  params = params || {}; var q = [];
-  Object.keys(params).forEach(function (key) {
-    if (params[key] !== undefined && params[key] !== null && params[key] !== '') q.push(encodeURIComponent(key) + '=' + encodeURIComponent(String(params[key])));
-  });
-  q.push('_ac=' + Date.now() + Math.random().toString(36).slice(2, 7));
-  return gasBaseUrl() + '?' + q.join('&');
-}
-function gasRequestId(prefix) { return (prefix || 'WEB') + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10); }
-function gasUnwrap(j, res) {
-  if (res && res.ok === false) throw gasError('GAS_HTTP', (j && j.error) || ('GAS HTTP ' + (res.status || '未知')));
-  if (j && j.ok === false) throw gasError('GAS_ERROR', j.error || 'GAS error');
+async function gasPost(payload) {
+  var c = getCfg();
+  if (!c.gasUrl) { toast('⚠ 請先在 ⚙️ 設定填入 GAS URL', 'warn'); throw new Error('no gas url'); }
+  var res;
+  try {
+    res = await fetch(c.gasUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload),
+    });
+  } catch (e) {
+    throw new Error('GAS 網路連線失敗，請確認 /exec 網址與網路狀態');
+  }
+  var raw = await res.text(), j;
+  try { j = JSON.parse(raw); } catch (e) { throw new Error('GAS 回傳不是 JSON：' + raw.slice(0, 120)); }
+  if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
+  if (j && j.ok === false) throw new Error(j.error || 'GAS error');
   return (j && j.data !== undefined) ? j.data : j;
 }
-function gasParse(raw, res) {
-  raw = String(raw == null ? '' : raw).replace(/^\uFEFF/, '').trim();
-  if (!raw) throw gasError('GAS_EMPTY', 'GAS 回傳空白（HTTP ' + (res && res.status || '未知') + '）');
-  if (/^\s*</.test(raw)) throw gasError('GAS_HTML', 'GAS 回傳了登入／HTML 頁面，請確認部署為「以我的身分執行」且存取權限允許所有使用者');
-  var j;
-  try { j = JSON.parse(raw); }
-  catch (e) { throw gasError('GAS_NOT_JSON', 'GAS 回傳不是 JSON：' + raw.slice(0, 160), e); }
-  return gasUnwrap(j, res);
-}
-function gasJsonp(params) {
-  return new Promise(function (resolve, reject) {
-    var cb = '__acGasCb_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), done = false;
-    var s = document.createElement('script'), timer;
-    function finish(err, value) {
-      if (done) return; done = true; clearTimeout(timer);
-      try { delete G[cb]; } catch (_) { G[cb] = undefined; }
-      if (s.parentNode) s.parentNode.removeChild(s);
-      if (err) reject(err); else resolve(value);
-    }
-    G[cb] = function (j) { try { finish(null, gasUnwrap(j)); } catch (e) { finish(e); } };
-    s.async = true; s.src = gasUrl(Object.assign({}, params || {}, { callback:cb }));
-    s.onerror = function () { finish(gasError('GAS_JSONP', 'GAS 備援連線失敗，請確認 /exec 網址與部署存取權限')); };
-    timer = setTimeout(function () { finish(gasError('GAS_TIMEOUT', 'GAS 備援連線逾時')); }, 15000);
-    (document.head || document.documentElement).appendChild(s);
-  });
-}
-async function gasGet(params) {
-  var first;
-  try {
-    var res = await fetch(gasUrl(params), { method:'GET', cache:'no-store', credentials:'omit', redirect:'follow' });
-    return gasParse(await res.text(), res);
-  } catch (e) { first = e; }
-  /* 手機掃 QR 時，部分瀏覽器會把 Apps Script 的轉址頁當成 HTML；此時仍嘗試 JSONP。
-     若真的是部署權限不足，JSONP 也會失敗並保留原始 HTML／權限訊息。 */
-  if (first && (first.code === 'GAS_ERROR' || first.code === 'GAS_HTTP' || first.code === 'BAD_GAS_URL' || first.code === 'GAS_DEV_URL')) throw first;
-  try { return await gasJsonp(params); }
-  catch (e2) { throw gasError('GAS_GET_FAILED', (first && first.message ? first.message + '；' : '') + e2.message, first); }
-}
-function gasDelay(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms); }); }
-async function gasPushAck(requestId) {
-  try { var a = await gasGet({ action:'syncAck', requestId:requestId }); return a && a.found ? a.data : null; }
-  catch (_) { return null; }
-}
-function qrPull(params) {
-  var q = Object.assign({}, params || {}, { action:'qrPull' });
-  if (!q.requestId) q.requestId = gasRequestId('QRREAD');
-  return gasGet(q);
-}
-async function gasPost(payload) {
-  var body = Object.assign({}, payload || {});
-  /* 舊 QR 頁仍呼叫 gasPost(qrPull)；在共用層自動轉成 GET，讓已印出的 QR 不必重印。 */
-  if (body.action === 'qrPull') return qrPull(body);
-  var cloudWrite = ['push','pushChunk','qrIssue','qrPush'].indexOf(body.action) >= 0;
-  if (cloudWrite && !body.requestId) body.requestId = gasRequestId('SYNC');
-  var firstError = null;
-  try {
-    var res = await fetch(gasUrl({ post:1 }), { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' },
-      body:JSON.stringify(body), cache:'no-store', credentials:'omit', redirect:'follow' });
-    return gasParse(await res.text(), res);
-  } catch (e) { firstError = e; }
 
-  /* Apps Script ContentService 會轉址到 googleusercontent.com。若寫入已完成但轉址回應被瀏覽器丟失，
-     先以 requestId 查後端確認；相同 requestId 重試也不會重複寫入。 */
-  if (cloudWrite && body.requestId) {
-    var ack = await gasPushAck(body.requestId);
-    if (ack) return ack;
-    var retryable = !firstError || ['GAS_EMPTY','GAS_NOT_JSON','GAS_HTML','GAS_JSONP','GAS_GET_FAILED'].indexOf(firstError.code) >= 0 || !firstError.code;
-    if (retryable) {
-      try {
-        await fetch(gasUrl({ post:1, retry:1 }), { method:'POST', mode:'no-cors', headers:{ 'Content-Type':'text/plain' },
-          body:JSON.stringify(body), cache:'no-store', credentials:'omit', redirect:'follow' });
-      } catch (_) {}
-      for (var i = 0; i < 3; i++) {
-        await gasDelay([350, 700, 1200][i]); ack = await gasPushAck(body.requestId); if (ack) return ack;
-      }
-    }
-    throw gasError('GAS_WRITE_UNCONFIRMED', '雲端寫入未取得確認。請更新部署新版 ac_sec.gs，確認使用 /exec 且存取權限為所有使用者。' + (firstError && firstError.message ? '（' + firstError.message + '）' : ''), firstError);
-  }
-  throw firstError || gasError('GAS_POST_FAILED', 'GAS 網路連線失敗，請確認 /exec 網址與網路狀態');
+/* ───────── HRA Pay 同步習慣：摘要／核可後自動上傳及失敗重試 ─────────
+   只在 localStorage 留一個很小的待辦標記；實際資料仍由各模組的
+   doUpload() 讀取，避免把整份資料塞進瀏覽器儲存空間。 */
+var SEC_AUTO_UPLOADERS = {};
+function registerAutoUploader(tool, fn) {
+  if (tool && typeof fn === 'function') SEC_AUTO_UPLOADERS[String(tool)] = fn;
 }
-
-function gasByteLength(s) {
-  try { if (G.TextEncoder) return new G.TextEncoder().encode(s).length; } catch (_) {}
-  try { return unescape(encodeURIComponent(s)).length; } catch (_) { return String(s || '').length * 3; }
+function autoSyncKey(tool) { return 'ac_sec_auto_sync_' + String(tool || ''); }
+function scheduleAutoCloudSync(tool, reason, period) {
+  tool = String(tool || ''); if (!tool) return;
+  var marker = { tool:tool, reason:String(reason || 'event'), period:String(period || ''), at:Date.now() };
+  try { safeStorageSet(autoSyncKey(tool), JSON.stringify(marker)); } catch (e) {}
+  setTimeout(function () {
+    var fn = SEC_AUTO_UPLOADERS[tool];
+    if (typeof fn !== 'function') return;
+    Promise.resolve().then(function () { return fn({ silent:true, auto:true, reason:marker.reason, period:marker.period }); })
+      .then(function (ok) {
+        if (ok !== false) {
+          try { localStorage.removeItem(autoSyncKey(tool)); } catch (e) {}
+          toast('☁️ 自動保存完成 / Auto cloud save complete', 'ok', 3500);
+        }
+      }).catch(function () { /* 保留標記，下一次開頁時重試 */ });
+  }, 20);
 }
-function gasSplitText(text, maxBytes) {
-  var out = [], start = 0;
-  while (start < text.length) {
-    var take = Math.min(text.length - start, maxBytes), part = text.slice(start, start + take), bytes = gasByteLength(part);
-    if (bytes > maxBytes) { take = Math.max(1, Math.floor(take * maxBytes / bytes * 0.94)); part = text.slice(start, start + take); }
-    while (gasByteLength(part) > maxBytes && take > 1) { take = Math.floor(take * 0.9); part = text.slice(start, start + take); }
-    out.push(part); start += take;
-  }
-  return out;
+function retryAutoCloudSync(tool) {
+  tool = String(tool || ''); if (!tool) return;
+  var raw = null;
+  try { raw = localStorage.getItem(autoSyncKey(tool)); } catch (e) {}
+  if (!raw) return;
+  var m = {}; try { m = JSON.parse(raw) || {}; } catch (e) {}
+  scheduleAutoCloudSync(tool, m.reason || 'retry', m.period || '');
 }
 
 /* 雲端上傳（分塊） */
-async function cloudPush(tool, records, summary, extra, options) {
-  options = options || {};
+async function cloudPush(tool, records, summary, extra) {
   var dot = document.querySelector('.c-dot'); if (dot) dot.className = 'c-dot syncing';
   try {
     /* 每次成功上傳都留下版本時間，下載時才能判斷哪一筆較新，不能再用筆數大小猜測。 */
@@ -530,20 +456,24 @@ async function cloudPush(tool, records, summary, extra, options) {
         if (r && typeof r === 'object' && !r.updatedAt) r.updatedAt = syncAt;
       });
     });
-    var envelope = { records:records || [], recordCount:(records || []).length,
-      summary:summary || {}, extra:extra || {}, syncMode:'merge' };
-    var json = JSON.stringify(envelope), result;
-    /* 分塊計算包含 extra，避免 Attendance raw、Fire history、Personnel roster 全擠在最後一包。 */
-    if (gasByteLength(json) > 220000) {
-      var chunks = gasSplitText(json, 140000), sessionId = gasRequestId('PKG');
-      for (var i = 0; i < chunks.length; i++) result = await gasPost({ action:'pushChunk', tool:tool,
-        sessionId:sessionId, chunk:i, totalChunks:chunks.length, data:chunks[i] });
-    } else result = await gasPost({ action:'push', tool:tool, syncMode:'merge', records:records || [],
-      recordCount:(records || []).length, summary:summary || {}, extra:extra || {} });
-    if (result && result.keptExisting) toast('ℹ️ 雲端原有較完整資料，已合併保留，沒有刪除較多筆數', 'warn', 5000);
+    var json = JSON.stringify(records || []);
+    var LIMIT = 300000;
+    if (json.length > LIMIT) {
+      var per = Math.max(1, Math.floor(records.length / Math.ceil(json.length / LIMIT)));
+      var total = Math.ceil(records.length / per);
+      for (var i = 0; i < total; i++) {
+        await gasPost({ action:'push', tool:tool, chunk:i, totalChunks:total, syncMode:'merge',
+          records: records.slice(i*per, (i+1)*per),
+          recordCount: records.length, summary: summary || {}, extra: i === total - 1 ? (extra || {}) : {} });
+      }
+    } else {
+      var result = await gasPost({ action:'push', tool:tool, syncMode:'merge', records: records || [],
+        recordCount: (records||[]).length, summary: summary || {}, extra: extra || {} });
+      if (result && result.keptExisting) toast('ℹ️ 雲端原有較完整資料，已合併保留，沒有刪除較多筆數', 'warn', 5000);
+    }
     markSync(tool);
     if (dot) dot.className = 'c-dot ok';
-    if (!options.silent) toast('⬆️☁ ' + T().cloudOk + '（' + (records||[]).length + ' ' + T().records + '）', 'ok');
+    toast('⬆️☁ ' + T().cloudOk + '（' + (records||[]).length + ' ' + T().records + '）', 'ok');
     return true;
   } catch (e) {
     if (dot) dot.className = 'c-dot err';
@@ -555,12 +485,11 @@ async function cloudPush(tool, records, summary, extra, options) {
 async function cloudPull(tool) {
   var dot = document.querySelector('.c-dot'); if (dot) dot.className = 'c-dot syncing';
   try {
-    /* 下載是讀取動作，改用 GET；可避開 Apps Script POST 轉址回應偶發空白。 */
-    var r = await gasGet({ action:'pull', tool:tool, compact:1 });
+    var r = await gasPost({ action:'pull', tool:tool });
     var recs = [];
     if (r && r.chunked) {
       for (var i = 0; i < r.chunks; i++) {
-        var c = await gasGet({ action:'pull', tool:tool, chunk:i, compact:1 });
+        var c = await gasPost({ action:'pull', tool:tool, chunk:i });
         recs = recs.concat(c.records || []);
       }
     } else { recs = (r && r.records) || []; }
@@ -575,46 +504,12 @@ async function cloudPull(tool) {
   }
 }
 function markSync(tool) {
-  /* 同步時間只是介面提示，不是業務資料；放在記憶體／本分頁，避免再占 localStorage 配額。 */
-  var stamp = nowStr();
-  SYNC_MEM[tool] = stamp;
-  try { sessionStorage.setItem('ac_sec_sync_' + tool, stamp); } catch (_) {}
-  try { localStorage.removeItem('ac_sec_sync_' + tool); } catch (_) {}
-  var ts = document.querySelector('.c-ts'); if (ts) ts.textContent = stamp;
+  safeStorageSet('ac_sec_sync_' + tool, nowStr());
+  var ts = document.querySelector('.c-ts'); if (ts) ts.textContent = nowStr();
 }
-function lastSync(tool) {
-  if (SYNC_MEM[tool]) return SYNC_MEM[tool];
-  var key = 'ac_sec_sync_' + tool, stamp = '';
-  try { stamp = sessionStorage.getItem(key) || ''; } catch (_) {}
-  /* 舊版只讀一次舊標記後移除；新版本不再用 localStorage 記錄上下載狀態。 */
-  if (!stamp) try { stamp = localStorage.getItem(key) || ''; localStorage.removeItem(key); } catch (_) {}
-  if (stamp) SYNC_MEM[tool] = stamp;
-  return stamp || '—';
-}
+function lastSync(tool) { return localStorage.getItem('ac_sec_sync_' + tool) || '—'; }
 
 /* 雲端／Excel 合併工具：同一筆更新，新增筆保留，絕不因較少資料而清空本機。 */
-function businessPart(v) { return String(v || '').trim().toUpperCase().replace(/[–—]/g, '-').replace(/\s+/g, ''); }
-function containerNoPart(v) { var s=businessPart(v),m=s.match(/[A-Z]{4}\d{7}/);return m?m[0]:s.replace(/[/\\].*$/,''); }
-function containerDirection(r) { return r && r.isImport && r.isExport ? 'BOTH' : r && r.isImport ? 'IMP' : r && r.isExport ? 'EXP' : businessPart(r && r.direction || 'NA'); }
-function containerBusinessKey(r) {
-  r = r || {}; var kind = String(r._k || r.kind || 'truck').toLowerCase(), date = String(r.date || '').slice(0,10);
-  if (kind === 'insp') return 'insp|' + date + '|' + containerNoPart(r.containerNo);
-  if (kind === 'gate') return 'gate|' + date + '|' + businessPart(r.type || 'gp') + '|' + businessPart(r.no);
-  var anchor = businessPart(r.timeIn) ? 'IN@' + businessPart(r.timeIn) : businessPart(r.timeOut) ? 'OUT@' + businessPart(r.timeOut) :
-    businessPart(r.visitorId) ? 'VIS@' + businessPart(r.visitorId) : 'VEH@' + businessPart(r.truckNo || r.name);
-  return 'truck|' + date + '|' + containerNoPart(r.containerNo) + '|' + containerDirection(r) + '|' + anchor;
-}
-function containerSameBusiness(a, b) {
-  a = a || {}; b = b || {}; var ak = String(a._k || 'truck'), bk = String(b._k || 'truck');
-  if (ak !== bk || String(a.date || '').slice(0,10) !== String(b.date || '').slice(0,10)) return false;
-  if (ak === 'insp') return !!containerNoPart(a.containerNo) && containerNoPart(a.containerNo) === containerNoPart(b.containerNo);
-  if (ak === 'gate') return !!businessPart(a.no) && businessPart(a.type || 'gp') === businessPart(b.type || 'gp') && businessPart(a.no) === businessPart(b.no);
-  if (!containerNoPart(a.containerNo) || containerNoPart(a.containerNo) !== containerNoPart(b.containerNo) || containerDirection(a) !== containerDirection(b)) return false;
-  var ai = businessPart(a.timeIn), bi = businessPart(b.timeIn), ao = businessPart(a.timeOut), bo = businessPart(b.timeOut);
-  if (ai && bi) return ai === bi;
-  if (ao && bo) return ao === bo;
-  return businessPart(a.truckNo) === businessPart(b.truckNo) || businessPart(a.name) === businessPart(b.name);
-}
 function recordKey(tool, r, i) {
   r = r || {};
   /* CCTV 的穩定識別碼是攝影機編號，不是每次匯入產生的隨機 id；
@@ -631,17 +526,6 @@ function recordKey(tool, r, i) {
     }
     if (cctvKey) return tool + '|code|' + cctvKey;
     return tool + '|invalid|' + (r.id || i);
-  }
-  if (tool === 'fire') {
-    var fireCode = businessPart(String(r.code || '').replace(/FOO/ig, 'F00'));
-    var fireBase = [businessPart(r.type || 'other'), businessPart(r.factory || r.plant || r.site || 'common')];
-    return tool + '|equipment|' + fireBase.concat(fireCode || ('NO_CODE@' + businessPart(r.loc || r.location || r.zone))).join('|');
-  }
-  if (tool === 'container') return tool + '|business|' + containerBusinessKey(r);
-  if ((tool === 'patrol' || tool === 'patrol-man') && r.date && r.time && (r.guard || r.person || r.name)) {
-    /* 巡更圈以日期＋開始時間＋人員識別；地點改名不能讓同一圈在雲端變成新紀錄。
-       人工登錄可在同一分鐘有不同地點，因此另外納入地點。 */
-    return tool + '|event|' + r.date + '|' + r.time + '|' + (r.guard || r.person || r.name) + (r.manual || tool === 'patrol-man' ? '|' + (r.location || '') : '');
   }
   if (r.id !== undefined && r.id !== '') return tool + '|id|' + r.id;
   if (r.code !== undefined && r.code !== '') return tool + '|code|' + r.code;
@@ -679,24 +563,15 @@ function mergeLatestRow(oldRow, newRow) {
       merged[k] = other[k]; blanks.push(k);
     }
   });
-  var sources = {}, sourceList = [];
-  [oldRow && oldRow.sources, newRow && newRow.sources, oldRow && oldRow.source, newRow && newRow.source].forEach(function (a) {
-    (Array.isArray(a) ? a : [a]).forEach(function (v) { v=String(v||'').trim(); if(v&&!sources[v]){sources[v]=1;sourceList.push(v);} });
-  });
-  if (sourceList.length) merged.sources = sourceList;
   return { row:merged, blanks:blanks, incomingWins:newWins };
 }
 function mergeRecords(tool, local, incoming) {
   var out = [], pos = {}, blankConflicts = [], added = 0, updated = 0;
   function apply(r, i, isIncoming) {
     var k = recordKey(tool, r, i);
-    if (tool === 'container' && pos[k] === undefined) {
-      for (var ci = 0; ci < out.length; ci++) if (containerSameBusiness(out[ci], r)) { pos[k] = ci; break; }
-    }
     if (pos[k] === undefined) { pos[k] = out.length; out.push(r); if (isIncoming) added++; }
     else {
-      var oldId = tool === 'container' ? out[pos[k]].id : '', m = mergeLatestRow(out[pos[k]], r); out[pos[k]] = m.row;
-      if (tool === 'container') { if (oldId) out[pos[k]].id = oldId; out[pos[k]].businessKey = containerBusinessKey(out[pos[k]]); }
+      var m = mergeLatestRow(out[pos[k]], r); out[pos[k]] = m.row;
       if (isIncoming) { updated++; if (m.blanks.length) blankConflicts.push({ key:k, fields:m.blanks }); }
     }
   }
@@ -733,9 +608,13 @@ function confirmBlankMerge(conflicts, title) {
 }
 
 /* ───────── Telegram 摘要（自動附平台按鈕，由 GAS 加） ───────── */
-async function tgSummary(text, module, photo) {
+async function tgSummary(text, module, photo, photos) {
   try {
-    await gasPost({ action:'telegram', text:text, module:module||'', lang:_lang, photo:photo||'' });
+    var list = Array.isArray(photos) ? photos.filter(Boolean).slice(0, 4) : [];
+    if (photo && !list.length) list = [photo];
+    await gasPost({ action:'telegram', text:text, module:module||'', lang:_lang,
+      photo:list[0] || '', photos:list });
+    scheduleAutoCloudSync(module || '', 'telegram-summary', '');
     toast('✈️ Telegram 已送出', 'ok'); return true;
   } catch (e) { toast('❌ Telegram 失敗：' + e.message, 'err'); return false; }
 }
@@ -754,15 +633,14 @@ function tgOpen(opt) {
   opt = opt || {};
   var firstType = opt.defaultType || 'month';
   var st = { mode:'summary', ptype:firstType, period:opt.defaultPeriod || '',
-    rangeFrom:'', rangeTo:'', lang:opt.defaultLang || 'both', scope:opt.defaultScope || (opt.scopeOptions && opt.scopeOptions[0] ? opt.scopeOptions[0].value : '') };
-  var initialRange = new Period(firstType, tgAnchor(st.period, firstType)).range();
+    lang:opt.defaultLang || 'both', scope:opt.defaultScope || (opt.scopeOptions && opt.scopeOptions[0] ? opt.scopeOptions[0].value : '') };
   var mask = document.createElement('div');
   mask.className = 'mask on';
   var scopeHtml = opt.scopeOptions && opt.scopeOptions.length ?
     '<div class="f"><label>資料範圍 Scope</label><select id="tgScope">' + opt.scopeOptions.map(function (x) {
       return '<option value="' + esc(x.value) + '">' + esc(x.label) + '</option>';
     }).join('') + '</select></div>' : '';
-  var langHtml = '<option value="both">' + (opt.compactBilingual ? '繁中 + English（合併）' : '繁中 + English') + '</option><option value="zh">繁體中文</option><option value="en">English</option><option value="km">ខ្មែរ</option>';
+  var langHtml = '<option value="both">繁中 + English</option><option value="zh">繁體中文</option><option value="en">English</option><option value="km">ខ្មែរ</option>';
   mask.innerHTML =
     '<div class="modal" style="max-width:560px">' +
       '<div class="mh"><span>✈️</span><b>Telegram 摘要／核可</b>' +
@@ -776,10 +654,8 @@ function tgOpen(opt) {
           '<div class="f"><label>期間類型 Period</label><select id="tgType">' +
             '<option value="day">日 Day</option><option value="week">週 Week</option>' +
             '<option value="month" selected>月 Month</option><option value="year">年 Year</option>' +
-            (opt.allowRange ? '<option value="range">指定期間 Custom range</option>' : '') +
           '</select></div>' +
-          '<div class="f" id="tgSinglePeriod"><label>選擇期間 Select period</label><input id="tgAnchor" list="tgKnown" type="date"><datalist id="tgKnown"></datalist></div>' +
-          '<div class="f" id="tgRangePeriod" style="display:none"><label>起訖日期 From / To</label><div class="grid g2"><input id="tgRangeFrom" type="date"><input id="tgRangeTo" type="date"></div></div>' +
+          '<div class="f"><label>選擇期間 Select period</label><input id="tgAnchor" list="tgKnown" type="date"><datalist id="tgKnown"></datalist></div>' +
           scopeHtml +
         '</div>' +
         '<div class="f" style="margin-top:10px"><label>訊息語言 Language</label><select id="tgLang">' + langHtml +
@@ -801,7 +677,6 @@ function tgOpen(opt) {
   if (q('#tgScope')) q('#tgScope').value = st.scope;
 
   function currentKey() {
-    if (st.ptype === 'range') return st.rangeFrom || initialRange.from;
     return opt.currentPeriod ? opt.currentPeriod(st.ptype) : new Period(st.ptype).key();
   }
   function anchorValue(key, type) {
@@ -811,18 +686,6 @@ function tgOpen(opt) {
     return r.from;
   }
   function fillPeriods(reset) {
-    var isRange = st.ptype === 'range';
-    q('#tgSinglePeriod').style.display = isRange ? 'none' : '';
-    q('#tgRangePeriod').style.display = isRange ? '' : 'none';
-    if (isRange) {
-      if (reset || !/^\d{4}-\d{2}-\d{2}$/.test(st.rangeFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(st.rangeTo)) {
-        st.rangeFrom = initialRange.from; st.rangeTo = initialRange.to;
-      }
-      if (st.rangeFrom > st.rangeTo) { var swap = st.rangeFrom; st.rangeFrom = st.rangeTo; st.rangeTo = swap; }
-      st.period = st.rangeFrom + '~' + st.rangeTo;
-      q('#tgRangeFrom').value = st.rangeFrom; q('#tgRangeTo').value = st.rangeTo; q('#tgKnown').innerHTML = '';
-      return;
-    }
     var current = String(currentKey() || new Period(st.ptype).key());
     if (reset || !st.period || (st.ptype === 'month' && !/^\d{4}-\d{2}$/.test(st.period)) ||
         (st.ptype === 'year' && !/^\d{4}$/.test(st.period)) ||
@@ -840,11 +703,6 @@ function tgOpen(opt) {
     } catch (e) { q('#tgKnown').innerHTML = ''; }
   }
   function readAnchor() {
-    if (st.ptype === 'range') {
-      var from = q('#tgRangeFrom').value || initialRange.from, to = q('#tgRangeTo').value || from;
-      if (from > to) { var swap = from; from = to; to = swap; }
-      st.rangeFrom = from; st.rangeTo = to; return from + '~' + to;
-    }
     var v = q('#tgAnchor').value;
     if (st.ptype === 'year') return String(parseInt(v, 10) || new Date().getFullYear());
     if (st.ptype === 'month') return /^\d{4}-\d{2}$/.test(v) ? v : currentKey();
@@ -863,8 +721,6 @@ function tgOpen(opt) {
       return [String(v || '（本期間沒有資料）')];
     }
     if (st.lang !== 'both') return one(st);
-    /* CCTV／巡邏採逐行中英合併，避免同一份摘要完整重複兩次、占用群組空間。 */
-    if (opt.compactBilingual) return one(Object.assign({}, st, { lang:'both' }));
     var zh = one(Object.assign({}, st, { lang:'zh' }));
     var en = one(Object.assign({}, st, { lang:'en' }));
     var n = Math.max(zh.length, en.length), out = [];
@@ -880,7 +736,7 @@ function tgOpen(opt) {
       if (st.mode === 'approval') {
         var items = opt.approvalItems ? (opt.approvalItems(st) || []) : [];
         var amt = items.reduce(function (a, r) { return a + (Number(r.amount) || 0); }, 0);
-        text = '💰 保安費核可請求\n期間：' + (st.ptype === 'range' ? st.rangeFrom + ' – ' + st.rangeTo : tgPeriodLabel(st.period, st.ptype)) +
+        text = '💰 保安費核可請求\n期間：' + tgPeriodLabel(st.period, st.ptype) +
           '\n─────────────\n筆數：' + items.length + '　合計：$' + amt.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) +
           '\n\n' + items.slice(0, 10).map(function (r, i) {
             return (i + 1) + '. ' + (r.name || r.item || '—') + ' · $' + Number(r.amount || 0).toFixed(2) +
@@ -898,7 +754,6 @@ function tgOpen(opt) {
   }
   q('#tgType').onchange = function () { st.ptype = this.value; fillPeriods(true); preview(); };
   q('#tgAnchor').onchange = function () { st.period = readAnchor(); preview(); };
-  q('#tgRangeFrom').onchange = q('#tgRangeTo').onchange = function () { st.period = readAnchor(); fillPeriods(false); preview(); };
   q('#tgLang').onchange = function () { st.lang = this.value; preview(); };
   if (q('#tgScope')) q('#tgScope').onchange = function () { st.scope = this.value; preview(); };
   mask.querySelectorAll('[data-tg-mode]').forEach(function (b) {
@@ -916,9 +771,17 @@ function tgOpen(opt) {
         var pages = summaryPages();
         for (var pi = 0; pi < pages.length; pi++) {
           var pageText = pages.length > 1 ? '【' + (pi + 1) + '/' + pages.length + '】\n' + pages[pi] : pages[pi];
+          var pagePhotos = [];
+          if (typeof opt.summaryPhotos === 'function') {
+            pagePhotos = opt.summaryPhotos(st, pi, pages.length, pageText) || [];
+            if (!Array.isArray(pagePhotos)) pagePhotos = [pagePhotos];
+            pagePhotos = pagePhotos.filter(Boolean).slice(0, 4);
+          }
           await gasPost({ action:'telegram', text:pageText, module:opt.module||'', lang:st.lang,
-            mode:'summary', period:st.period, periodType:st.ptype, rangeFrom:st.rangeFrom, rangeTo:st.rangeTo });
+            mode:'summary', period:st.period, periodType:st.ptype,
+            photo:pagePhotos[0] || '', photos:pagePhotos });
         }
+        scheduleAutoCloudSync(opt.module || '', 'telegram-summary', st.period || '');
         toast('✈️ Telegram 摘要已送出' + (pages.length > 1 ? '（' + pages.length + ' 頁）' : ''), 'ok');
       } else {
         var items = opt.approvalItems ? (opt.approvalItems(st) || []) : [];
@@ -981,16 +844,19 @@ async function sendApproval(opt) {
     var r = await gasPost(body);
     toast('✅ 已送出核可 <b>' + (r.batchId||'') + '</b>｜' + (r.count||0) + ' 筆｜' +
           (r.route === 'direct' ? '🚀 直送核可' : '👥 群組審查'), 'ok', 5000);
+    scheduleAutoCloudSync(opt.module || '', 'approval-request', opt.period || '');
     return r;
   } catch (e) { toast('❌ 送出失敗：' + e.message, 'err', 6000); return null; }
 }
 
 /* ───────── 照片（壓縮成 dataURL，免後端） ───────── */
-function pickPhoto(cb, maxW) {
+function pickPhoto(cb, maxW, maxCount) {
   var inp = document.createElement('input');
   inp.type = 'file'; inp.accept = 'image/*'; inp.multiple = true;
   inp.onchange = function () {
-    Array.prototype.forEach.call(inp.files || [], function (f) { compressImage(f, maxW || 1000, cb); });
+    Array.prototype.slice.call(inp.files || [], 0, maxCount || 4).forEach(function (f) {
+      compressImage(f, maxW || 760, cb);
+    });
   };
   inp.click();
 }
@@ -1311,7 +1177,7 @@ function saveSettings() {
   closeSettings(); toast('✅ 設定已儲存', 'ok');
 }
 async function pingGas() {
-  try { var r = await gasGet({ action:'ping' }); toast('✅ GAS 連線正常 ' + (r.version || r.message || '') + ' ' + (r.time || r.ts || ''), 'ok'); }
+  try { var r = await gasPost({ action:'ping' }); toast('✅ GAS 連線正常 ' + (r.ts||''), 'ok'); }
   catch (e) { toast('❌ 連線失敗：' + e.message, 'err', 5000); }
 }
 async function tgTest() {
@@ -1336,7 +1202,9 @@ G.SEC = {
   dataReady:dataReady, dbGet:dbGet, dbPut:dbPut, storageEstimate:storageEstimate,
   Period:Period, periodNavHtml:periodNavHtml, bindPeriodNav:bindPeriodNav,
   T:T, lang:lang, setLang:setLang, applyI18n:applyI18n, I18N:BASE_I18N,
-  toast:toast, gasPost:gasPost, qrPull:qrPull, cloudPush:cloudPush, cloudPull:cloudPull,
+  toast:toast, gasPost:gasPost, cloudPush:cloudPush, cloudPull:cloudPull,
+  registerAutoUploader:registerAutoUploader, scheduleAutoCloudSync:scheduleAutoCloudSync,
+  retryAutoCloudSync:retryAutoCloudSync,
   markSync:markSync, lastSync:lastSync, tgSummary:tgSummary, tgOpen:tgOpen,
   recordKey:recordKey, mergeRecords:mergeRecords, mergeObject:mergeObject,
   blankConflictsObject:blankConflictsObject, confirmBlankMerge:confirmBlankMerge,

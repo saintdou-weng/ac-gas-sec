@@ -7,8 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
-<script src="./shared/xlsx.full.min.js?v=20260812c"></script>
-<script src="./shared/qrcode-generator.js?v=20260812c"></script>
+<script src="./shared/xlsx.full.min.js?v=20260813j"></script>
+<script src="./shared/qrcode-generator.js?v=20260813j"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="stylesheet" href="./shared/sec.css?v=20260808g">
 <style>
@@ -247,6 +247,9 @@
         <div id="gdItems"></div>
         <button class="btn sm gh" onclick="gdAddItem()">➕ <span data-zh="新增品項" data-en="Add item" data-km="បន្ថែម">新增品項</span></button>
         <div class="f" style="margin-top:12px"><label data-zh="備註" data-en="Remark" data-km="កំណត់ចំណាំ">備註</label><textarea id="gd_note" rows="2"></textarea></div>
+        <div class="f" style="margin-top:9px"><label>所帶物品照片 / Item photos / រូបថតទំនិញ</label>
+          <div class="photo-drop" onclick="addGatePhoto()">📷 <span>拍照或選擇照片（最多4張） / Take/select photos (max 4)</span></div>
+          <div id="gdPhotos"></div></div>
         <div class="row" style="margin-top:12px">
           <button class="btn" onclick="gdSave()">💾 <span data-zh="儲存" data-en="Save" data-km="រក្សាទុក">儲存</span></button>
           <button class="btn gh" onclick="gdSave(true)">💾✈️ <span data-zh="儲存並通報" data-en="Save & notify" data-km="ផ្ញើ">儲存並通報</span></button>
@@ -309,7 +312,8 @@
 <button class="btn" onclick="tkSaveEdit()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260812c"></script>
+<script src="./shared/sec-core.js?v=20260813k"></script>
+<script src="./shared/sec-smart-sync.js?v=20260813k"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -331,7 +335,7 @@ var LS_CI = 'vr-container-inspections'; /* 貨櫃檢查（沿用舊 key） */
 var LS_GD = 'vrt_v2';                   /* 出廠出貨單（沿用舊 key） */
 var TK = [], CI = [], GD = [], CH = {}, TOOL = 'container';
 var PER = new SEC.Period('month'), MOD = 'truck', TK_EDIT = '';
-var GD_TYPE = 'gp', CI_ITEMS = [], GD_ITEMS = [], CI_CHK = {}, GD_REASON = {};
+var GD_TYPE = 'gp', CI_ITEMS = [], GD_ITEMS = [], CI_CHK = {}, GD_REASON = {}, GD_PHOTOS = [];
 
 /* 17 點檢查項目 */
 var CHK17 = [
@@ -357,40 +361,10 @@ async function load() {
   if (!Array.isArray(TK)) TK = [];
   if (!Array.isArray(CI)) CI = [];
   if (!Array.isArray(GD)) GD = [];
-  TK = containerDedupe(TK, 'truck'); CI = containerDedupe(CI, 'insp'); GD = containerDedupe(GD, 'gate');
-  saveTk(); saveCi(); saveGd();
 }
 function saveTk() { SEC.dbPut(LS_TK, TK); }
 function saveCi() { SEC.dbPut(LS_CI, CI); }
 function saveGd() { SEC.dbPut(LS_GD, GD); }
-function containerPart(v) { return String(v || '').trim().toUpperCase().replace(/[–—]/g, '-').replace(/\s+/g, ''); }
-function containerNoPart(v) { var s=containerPart(v),m=s.match(/[A-Z]{4}\d{7}/);return m?m[0]:s.replace(/[/\\].*$/,''); }
-function containerDir(r) { return r && r.isImport && r.isExport ? 'BOTH' : r && r.isImport ? 'IMP' : r && r.isExport ? 'EXP' : containerPart(r && r.direction || 'NA'); }
-function containerBusinessKey(r, kind) {
-  r = r || {}; kind = String(kind || r._k || 'truck').toLowerCase(); var date = String(r.date || '').slice(0,10);
-  if (kind === 'insp') return 'insp|' + date + '|' + containerNoPart(r.containerNo);
-  if (kind === 'gate') return 'gate|' + date + '|' + containerPart(r.type || 'gp') + '|' + containerPart(r.no);
-  var anchor = containerPart(r.timeIn) ? 'IN@' + containerPart(r.timeIn) : containerPart(r.timeOut) ? 'OUT@' + containerPart(r.timeOut) :
-    containerPart(r.visitorId) ? 'VIS@' + containerPart(r.visitorId) : 'VEH@' + containerPart(r.truckNo || r.name);
-  return 'truck|' + date + '|' + containerNoPart(r.containerNo) + '|' + containerDir(r) + '|' + anchor;
-}
-function containerSameBusiness(a, b, kind) {
-  a=a||{};b=b||{};kind=String(kind||a._k||b._k||'truck');
-  if(String(a.date||'').slice(0,10)!==String(b.date||'').slice(0,10))return false;
-  if(kind==='insp')return !!containerNoPart(a.containerNo)&&containerNoPart(a.containerNo)===containerNoPart(b.containerNo);
-  if(kind==='gate')return !!containerPart(a.no)&&containerPart(a.type||'gp')===containerPart(b.type||'gp')&&containerPart(a.no)===containerPart(b.no);
-  if(!containerNoPart(a.containerNo)||containerNoPart(a.containerNo)!==containerNoPart(b.containerNo)||containerDir(a)!==containerDir(b))return false;
-  var ai=containerPart(a.timeIn),bi=containerPart(b.timeIn),ao=containerPart(a.timeOut),bo=containerPart(b.timeOut);
-  if(ai&&bi)return ai===bi;if(ao&&bo)return ao===bo;
-  return containerPart(a.truckNo)===containerPart(b.truckNo)||containerPart(a.name)===containerPart(b.name);
-}
-function containerSources(){var seen={},out=[];Array.prototype.slice.call(arguments).forEach(function(a){(Array.isArray(a)?a:[a]).forEach(function(v){v=String(v||'').trim();if(v&&!seen[v]){seen[v]=1;out.push(v);}});});return out;}
-function containerHash(s){var h=2166136261;String(s||'').split('').forEach(function(c){h^=c.charCodeAt(0);h=Math.imul(h,16777619);});return(h>>>0).toString(36).toUpperCase();}
-function containerStamp(r){var a=[r&&r.updatedAt,r&&r.modifiedAt,r&&r.createdAt];for(var i=0;i<a.length;i++){var n=Date.parse(String(a[i]||'').replace(' ','T'));if(!isNaN(n))return n;}var d=Date.parse(String(r&&r.date||'').replace(/-/g,'/'));return isNaN(d)?0:d;}
-function containerPrepare(raw,kind,source,touch){var r=Object.assign({},raw||{});r._k=kind;r.businessKey=containerBusinessKey(r,kind);if(source){r.source=source;r.sources=containerSources(r.sources,raw&&raw.source,source);if(touch!==false)r.updatedAt=new Date().toISOString();}if(!r.id)r.id=(kind==='truck'?'CT':kind==='insp'?'CI':'CG')+'-'+containerHash(r.businessKey);return r;}
-function containerMergeRow(oldRow,newRow,kind){var ns=containerStamp(newRow),os=containerStamp(oldRow),newWins=os===0?true:(ns===0?false:ns>=os),winner=newWins?newRow:oldRow,other=newWins?oldRow:newRow,merged=Object.assign({},other,winner),oldId=oldRow&&oldRow.id;Object.keys(winner||{}).forEach(function(k){if((winner[k]===''||winner[k]===null||winner[k]===undefined)&&other&&other[k]!==''&&other[k]!==null&&other[k]!==undefined)merged[k]=other[k];});if(oldId)merged.id=oldId;merged._k=kind;merged.businessKey=containerBusinessKey(merged,kind);merged.sources=containerSources(oldRow&&oldRow.sources,newRow&&newRow.sources,oldRow&&oldRow.source,newRow&&newRow.source);return merged;}
-function containerUpsert(arr,raw,kind){var r=containerPrepare(raw,kind),pos=-1;for(var i=0;i<arr.length;i++){var x=containerPrepare(arr[i],kind);if(x.businessKey===r.businessKey||containerSameBusiness(x,r,kind)){pos=i;break;}}if(pos<0){arr.push(r);return{records:arr,added:1,updated:0,row:r};}arr[pos]=containerMergeRow(arr[pos],r,kind);return{records:arr,added:0,updated:1,row:arr[pos]};}
-function containerDedupe(arr,kind){var out=[];(Array.isArray(arr)?arr:[]).forEach(function(r){containerUpsert(out,r,kind);});return out;}
 
 /* ═══════════ 初始化 ═══════════ */
 document.getElementById('hdr').innerHTML = SEC.headerHtml('🚛', '貨櫃出入 Container', 'AC SECURITY · CONTAINER');
@@ -485,10 +459,9 @@ function tkSaveEdit() {
   TF.forEach(function (f) { o[f] = document.getElementById('t_' + f).value.trim(); });
   var ie = document.getElementById('t_ie').value;
   o.isImport = ie === 'imp'; o.isExport = ie === 'exp';
-  if (!o.date || !o.containerNo) { SEC.toast('⚠ 請填日期與貨櫃號', 'warn'); return; }
-  var old = TK_EDIT ? TK.filter(function(r){return r.id===TK_EDIT;})[0] : null;
-  if (old) TK = TK.filter(function(r){return r.id!==TK_EDIT;});
-  containerUpsert(TK, containerPrepare(Object.assign({},old||{},o),'truck','online'), 'truck');
+  if (!o.date) { SEC.toast('⚠ 請填日期', 'warn'); return; }
+  if (TK_EDIT) TK.forEach(function (r) { if (r.id === TK_EDIT) Object.assign(r, o); });
+  else { o.id = 'T' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); TK.push(o); }
   saveTk(); renderAll(); SEC.closeModal('mTk'); SEC.toast('✅ 已儲存', 'ok');
 }
 function tkDel() {
@@ -542,7 +515,8 @@ function tkExp() {
 /* 貨櫃車登記表匯入（中英柬三層標題、進出口 P/V 判定） */
 function tkImp() {
   SEC.pickExcel(function (sheets) {
-    var added = 0, updated = 0, log = [];
+    var added = 0, log = [], seen = {};
+    TK.forEach(function (r) { seen[(r.date || '') + '|' + (r.containerNo || '') + '|' + (r.name || '')] = 1; });
     sheets.forEach(function (sh) {
       var rows = sh.rows, hr = -1;
       /* 找含 DATE 與 Container 的標題列 */
@@ -557,24 +531,26 @@ function tkImp() {
         var no = R[0];
         if (no === '' || no == null) continue;
         if (typeof no === 'string' && /^(note|no|序号|ល)/i.test(no.trim())) continue;
-        var name = SEC.str(R[2]);
+        var name = SEC.str(R[2]); if (!name) continue;
         var date = fmtDate(R[1]);
         var cno = SEC.str(R[4]);
-        if (!date || !cno) continue;
+        var key = date + '|' + cno + '|' + name;
+        if (seen[key]) { d0++; continue; }
+        seen[key] = 1;
         var imp = /^[pv]$/i.test(SEC.str(R[7]));
         var exp = /^[pv]$/i.test(SEC.str(R[8]));
-        var rec = containerPrepare({
+        TK.push({ id: 'I' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
           date: date, name: name, licence: SEC.str(R[3]), containerNo: cno, truckNo: SEC.str(R[5]),
           company: SEC.str(R[6]), isImport: imp, isExport: exp, visitorId: SEC.str(R[9]),
           timeIn: fmtT(R[10]), signIn: SEC.str(R[11]), timeOut: fmtT(R[12]), signOut: SEC.str(R[13]),
-          remark: SEC.str(R[14]), src: sh.name, sourceSheet:sh.name, sourceRow:i+1 }, 'truck', 'excel');
-        var merged=containerUpsert(TK,rec,'truck');n++;added+=merged.added;updated+=merged.updated;if(merged.updated)d0++;
+          remark: SEC.str(R[14]), src: sh.name });
+        n++; added++;
       }
-      log.push('· <b>' + SEC.esc(sh.name) + '</b>：讀取 <b>' + n + '</b> 筆；新增 '+(n-d0)+'，相同紀錄更新 '+d0);
+      log.push('· <b>' + SEC.esc(sh.name) + '</b>：新增 <b>' + n + '</b> 筆' + (d0 ? '（重複略過 ' + d0 + '）' : ''));
     });
     saveTk(); renderAll();
-    document.getElementById('tkLog').innerHTML = '<b>匯入結果</b>：新增 <b>' + added + '</b>，相同紀錄更新 <b>'+updated+'</b>；不會重複加總<br>' + log.join('<br>');
-    SEC.toast(added||updated ? '✅ 貨櫃 Excel：'+added+' 新增／'+updated+' 更新（不重複計數）' : '⚠ 沒有可匯入的貨櫃紀錄', added||updated ? 'ok' : 'warn', 6000);
+    document.getElementById('tkLog').innerHTML = '<b>匯入結果</b>：新增 <b>' + added + '</b> 筆<br>' + log.join('<br>');
+    SEC.toast(added ? '✅ 匯入 ' + added + ' 筆貨櫃車紀錄' : '⚠ 全部重複或格式不符', added ? 'ok' : 'warn', 5000);
   });
 }
 function fmtDate(v) { var d = SEC.parseD(v); return d ? SEC.ymd(d) : ''; }
@@ -626,7 +602,7 @@ function ciSave(notify) {
   });
   var pass = Object.keys(CI_CHK).filter(function (k) { return CI_CHK[k]; }).length;
   var fails = CHK17.filter(function (c) { return !CI_CHK[c[0]]; }).map(function (c) { return c[1]; });
-  var rec = {
+  var rec = { id: 'CI' + Date.now().toString(36),
     date: document.getElementById('ci_date').value,
     containerNo: document.getElementById('ci_cno').value.trim(),
     seal: document.getElementById('ci_seal').value.trim(),
@@ -637,8 +613,8 @@ function ciSave(notify) {
     result: pass === 17 ? 'pass' : 'fail',
     note: document.getElementById('ci_note').value.trim(), createdAt: SEC.nowStr() };
   if (!rec.date || !rec.containerNo) { SEC.toast('⚠ 請填日期與貨櫃號', 'warn'); return; }
-  rec=containerPrepare(rec,'insp','online');var ciMerged=containerUpsert(CI,rec,'insp');saveCi();renderAll();
-  SEC.toast('✅ 已儲存檢查（通過 ' + pass + '/17；'+(ciMerged.added?'新增':'同櫃同日更新，不重複計數')+'）', pass === 17 ? 'ok' : 'warn', 5000);
+  CI.unshift(rec); saveCi(); renderAll();
+  SEC.toast('✅ 已儲存檢查（通過 ' + pass + '/17）', pass === 17 ? 'ok' : 'warn', 5000);
   /* 重置表單 */
   document.getElementById('ci_cno').value = ''; document.getElementById('ci_seal').value = '';
   document.getElementById('ci_note').value = '';
@@ -725,6 +701,20 @@ function gdAddItem(name, qty, unit) {
     '<button class="btn sm err" onclick="this.parentElement.remove()">×</button>';
   document.getElementById('gdItems').appendChild(d);
 }
+function addGatePhoto() {
+  if (GD_PHOTOS.length >= 4) { SEC.toast('⚠ 每張出廠／出貨單最多 4 張照片', 'warn'); return; }
+  SEC.pickPhoto(function (d) {
+    if (GD_PHOTOS.length < 4) GD_PHOTOS.push(d);
+    renderGatePhotos();
+  }, 760, 4 - GD_PHOTOS.length);
+}
+function renderGatePhotos() {
+  var box = document.getElementById('gdPhotos'); if (!box) return;
+  box.innerHTML = SEC.photoListHtml(GD_PHOTOS, true);
+  box.querySelectorAll('.del').forEach(function (b) {
+    b.onclick = function () { GD_PHOTOS.splice(+b.dataset.i, 1); renderGatePhotos(); };
+  });
+}
 function gdSave(notify) {
   var items = [];
   document.querySelectorAll('#gdItems .itemrow').forEach(function (row) {
@@ -732,21 +722,23 @@ function gdSave(notify) {
     if (inp[0].value.trim()) items.push({ name: inp[0].value.trim(), qty: inp[1].value.trim(), unit: inp[2].value.trim() });
   });
   var reasons = Object.keys(GD_REASON).filter(function (k) { return GD_REASON[k]; });
-  var rec = { type: GD_TYPE,
+  var rec = { id: 'GD' + Date.now().toString(36), type: GD_TYPE,
     no: document.getElementById('gd_no').value,
     date: document.getElementById('gd_date').value, time: document.getElementById('gd_time').value,
     dept: document.getElementById('gd_dept').value.trim(),
     by: document.getElementById('gd_by').value.trim() || SEC.getCfg().operator,
     vehicle: document.getElementById('gd_vehicle').value.trim(),
     reasons: reasons, items: items,
-    note: document.getElementById('gd_note').value.trim(), createdAt: SEC.nowStr() };
+    note: document.getElementById('gd_note').value.trim(), photos: GD_PHOTOS.slice(0, 4), createdAt: SEC.nowStr(),
+    updatedAt: new Date().toISOString() };
   if (!rec.date) { SEC.toast('⚠ 請填日期', 'warn'); return; }
   if (!items.length) { SEC.toast('⚠ 請至少填一個品項', 'warn'); return; }
-  rec=containerPrepare(rec,'gate','online');containerUpsert(GD,rec,'gate');saveGd();renderAll();
+  GD.unshift(rec); saveGd(); renderAll();
   SEC.toast('✅ 已開立 ' + rec.no, 'ok');
   document.getElementById('gd_dept').value = ''; document.getElementById('gd_vehicle').value = '';
   document.getElementById('gd_note').value = '';
   document.getElementById('gdItems').innerHTML = ''; gdAddItem();
+  GD_PHOTOS = []; renderGatePhotos();
   gdType(GD_TYPE);
   if (notify) {
     var rN = rec.reasons.map(function (k) { var f = REASONS[rec.type].filter(function (x) { return x[0] === k; })[0]; return f ? f[1] : k; });
@@ -757,7 +749,7 @@ function gdSave(notify) {
       (rN.length ? '📋 事由：' + rN.join('、') + '\n' : '') +
       '📦 品項：\n' + items.map(function (it, i) { return '  ' + (i + 1) + '. ' + it.name + ' × ' + (it.qty || '-') + ' ' + (it.unit || ''); }).join('\n') +
       (rec.note ? '\n📝 ' + rec.note : '');
-    SEC.tgSummary(txt, 'container');
+    SEC.tgSummary(txt, 'container', rec.photos[0] || '', rec.photos);
   }
 }
 function renderGd() {
@@ -821,18 +813,17 @@ function chart(id, type, labels, ds, legend) {
 function doBackup() { SEC.backupJson({ truck: TK, inspection: CI, gate: GD }, 'container_backup_' + SEC.ymd() + '.json'); }
 function restore() {
   SEC.restoreJson(function (o) {
-    if (o.truck) TK = containerDedupe(o.truck,'truck');
-    if (o.inspection) CI = containerDedupe(o.inspection,'insp');
-    if (o.gate) GD = containerDedupe(o.gate,'gate');
+    if (o.truck) TK = o.truck;
+    if (o.inspection) CI = o.inspection;
+    if (o.gate) GD = o.gate;
     saveTk(); saveCi(); saveGd(); renderAll();
   });
 }
 async function doUpload() {
-  TK=containerDedupe(TK,'truck');CI=containerDedupe(CI,'insp');GD=containerDedupe(GD,'gate');saveTk();saveCi();saveGd();
-  var all = TK.map(function (r) { return containerPrepare(r,'truck'); })
-    .concat(CI.map(function (r) { return containerPrepare(r,'insp'); }))
-    .concat(GD.map(function (r) { return containerPrepare(r,'gate'); }));
-  await SEC.cloudPush(TOOL, all, { truck: TK.length, inspection: CI.length, gate: GD.length });
+  var all = TK.map(function (r) { return Object.assign({ _k: 'truck' }, r); })
+    .concat(CI.map(function (r) { return Object.assign({ _k: 'insp' }, r); }))
+    .concat(GD.map(function (r) { return Object.assign({ _k: 'gate' }, r); }));
+  return await SEC.cloudPush(TOOL, all, { truck: TK.length, inspection: CI.length, gate: GD.length });
 }
 async function doDownload() {
   if (!confirm('⬇️☁ 下載會與本機三類貨櫃資料合併；相同紀錄以最新資料更新，空白欄位會先確認並保留舊值。繼續？')) return;
@@ -843,9 +834,9 @@ async function doDownload() {
     .concat(GD.map(function (r) { return Object.assign({_k:'gate'}, r); }));
   var m = SEC.mergeRecords(TOOL, local, recs);
   if (!SEC.confirmBlankMerge(m.blankConflicts, '貨櫃資料雲端下載確認')) return;
-  TK = containerDedupe(m.records.filter(function (r) { return r._k === 'truck'; }),'truck');
-  CI = containerDedupe(m.records.filter(function (r) { return r._k === 'insp'; }),'insp');
-  GD = containerDedupe(m.records.filter(function (r) { return r._k === 'gate'; }),'gate');
+  TK = m.records.filter(function (r) { return r._k === 'truck'; });
+  CI = m.records.filter(function (r) { return r._k === 'insp'; });
+  GD = m.records.filter(function (r) { return r._k === 'gate'; });
   saveTk(); saveCi(); saveGd(); renderAll();
   SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，共 ' + m.records.length + ' 筆', 'ok', 5000);
 }
@@ -964,29 +955,8 @@ function qrContainerRender(d){QR_CONT_DATA=d||{};var root=document.getElementByI
 async function qrContainerSubmit(){var mode=QR_CONT_INFO.mode==='truck'?'truck':'insp',old=(QR_CONT_DATA&&QR_CONT_DATA.records&&QR_CONT_DATA.records[0])||{},r=Object.assign({},old,{_k:mode,id:old.id||QR_CONT_INFO.id||('QR'+Date.now().toString(36)),updatedAt:new Date().toISOString()}),operator='';if(mode==='truck'){r.date=document.getElementById('qct_date').value;r.name=document.getElementById('qct_name').value.trim();r.containerNo=document.getElementById('qct_cno').value.trim();r.truckNo=document.getElementById('qct_truck').value.trim();r.company=document.getElementById('qct_co').value.trim();r.timeIn=document.getElementById('qct_in').value.trim();r.timeOut=document.getElementById('qct_out').value.trim();r.remark=document.getElementById('qct_note').value.trim();operator=document.getElementById('qct_by').value.trim();}else{r.date=document.getElementById('qci_date').value;r.containerNo=document.getElementById('qci_cno').value.trim();r.seal=document.getElementById('qci_seal').value.trim();r.by=document.getElementById('qci_by').value.trim();r.result=document.getElementById('qci_result').value;r.pass=r.result==='pass'?17:0;r.fails=r.result==='pass'?[]:['QR update'];r.note=document.getElementById('qci_note').value.trim();operator=r.by;}if(!operator){SEC.toast('Operator/inspector required / 請填寫更新人／檢查人','warn');return;}if(!r.date||!r.containerNo){SEC.toast('Date and container number are required / 日期及貨櫃號必填','warn');return;}try{var out=await SEC.gasPost({action:'qrPush',tool:'container',token:QR_CONT_INFO.token,mode:mode,id:QR_CONT_INFO.id,operator:operator,notify:document.getElementById('qrContNotify').checked,records:[r],summary:{qr:true,period:r.date}});var root=document.getElementById('qrContainerRoot');root.insertAdjacentHTML('afterbegin','<div class="qr-card"><b>✅ Upload confirmed / 上傳完成</b><p>By / 更新人：'+SEC.esc(operator)+' · Updated / 更新：'+(out.updated||0)+' · Added / 新增：'+(out.added||0)+' · Telegram / 群組通知：'+(out.noticeSent?'sent / 已發送':'not sent / 未發送')+'</p><p class="hint">Supervisor confirmation is done on the full platform. / 主管可在完整平台確認。</p></div>');SEC.toast('✅ Saved & uploaded / 已儲存並上傳','ok',7000);}catch(e){SEC.toast('❌ Upload failed / 上傳失敗：'+e.message,'err',7000);}}
 async function containerQrStart(){if(!QR_CONT_INFO.mode)return;document.getElementById('hdr').style.display='none';document.querySelector('.wrap').style.display='none';var root=document.createElement('div');root.id='qrContainerRoot';document.body.appendChild(root);root.innerHTML='<div class="qr-card">Loading scoped data… / 正在載入受限資料…</div>';if(!QR_CONT_INFO.token){root.innerHTML='<div class="qr-card"><b>❌ Old or incomplete QR / 舊 QR 或 QR 不完整</b><p>Generate a new QR from the full platform. / 請回完整平台重新產生 QR。</p></div>';return;}var scanner=SEC.getCfg().operator||window.prompt('Scanner name / 掃描人姓名','')||'';try{var d=await SEC.gasPost({action:'qrPull',tool:'container',token:QR_CONT_INFO.token,mode:QR_CONT_INFO.mode,id:QR_CONT_INFO.id,operator:scanner,scanner:scanner});qrContainerRender(d);}catch(e){root.innerHTML='<div class="qr-card"><b>❌ QR data unavailable / 無法讀取 QR 資料</b><p>'+SEC.esc(e.message)+'</p></div>';}}
 var _contDoDownload=doDownload;doDownload=function(){if(QR_CONT_INFO.mode){SEC.toast('QR upload-only page / QR 頁面只允許上傳','warn');return;}return _contDoDownload.apply(this,arguments);};
-function containerQrExportGuard(){if(QR_CONT_INFO.mode){SEC.toast('QR upload-only page / QR 頁面不提供下載或匯出','warn');return true;}return false;}
-var _contTkExp=tkExp;tkExp=function(){if(containerQrExportGuard())return;return _contTkExp.apply(this,arguments);};
-var _contCiExp=ciExp;ciExp=function(){if(containerQrExportGuard())return;return _contCiExp.apply(this,arguments);};
-var _contGdExp=gdExp;gdExp=function(){if(containerQrExportGuard())return;return _contGdExp.apply(this,arguments);};
-var _contBackup=doBackup;doBackup=function(){if(containerQrExportGuard())return;return _contBackup.apply(this,arguments);};
-/* Final QR form: all three container scopes use the same business key as manual entry, Excel and cloud. */
-qrContainerRender=function(d){
-  QR_CONT_DATA=d||{};var root=document.getElementById('qrContainerRoot'),r=(d.records||[])[0]||{},mode=['truck','insp','gate'].indexOf(QR_CONT_INFO.mode)>=0?QR_CONT_INFO.mode:'insp',has=!!r.id,exp=d.meta&&d.meta.expiresAt,ed=exp?new Date(exp).toLocaleString():'—',label=d.periodType==='day'?'Day / 日':d.periodType==='week'?'Week / 週':d.periodType==='year'?'Year / 年':'Month / 月',title=containerQrTitle(mode),body='';
-  if(mode==='truck')body='<div class="qr-grid"><div class="f"><label>Date / 日期</label><input id="qct_date" type="date" value="'+SEC.esc(r.date||SEC.ymd())+'"></div><div class="f"><label>Direction / 方向</label><select id="qct_ie"><option value="imp">🟢 Import / 進口</option><option value="exp">🔴 Export / 出口</option></select></div><div class="f"><label>Driver / 司機</label><input id="qct_name" value="'+SEC.esc(r.name||'')+'"></div><div class="f"><label>Container No / 貨櫃號</label><input id="qct_cno" value="'+SEC.esc(r.containerNo||'')+'"></div><div class="f"><label>Truck No / 車牌</label><input id="qct_truck" value="'+SEC.esc(r.truckNo||'')+'"></div><div class="f"><label>Company / 公司</label><input id="qct_co" value="'+SEC.esc(r.company||'')+'"></div><div class="f"><label>Time In / 入廠</label><input id="qct_in" value="'+SEC.esc(r.timeIn||'')+'" placeholder="08:00"></div><div class="f"><label>Time Out / 出廠</label><input id="qct_out" value="'+SEC.esc(r.timeOut||'')+'" placeholder="16:00"></div><div class="f"><label>Updated by / 更新人</label><input id="qct_by" value="'+SEC.esc(SEC.getCfg().operator||'')+'"></div></div><div class="f" style="margin-top:10px"><label>Remark / 備註</label><input id="qct_note" value="'+SEC.esc(r.remark||'')+'"></div>';
-  else if(mode==='gate')body='<div class="qr-grid"><div class="f"><label>Date / 日期</label><input id="qcg_date" type="date" value="'+SEC.esc(r.date||SEC.ymd())+'"></div><div class="f"><label>Time / 時間</label><input id="qcg_time" value="'+SEC.esc(r.time||'')+'"></div><div class="f"><label>Type / 類型</label><select id="qcg_type"><option value="gp">🚪 Gate pass / 出廠單</option><option value="dn">📤 Delivery note / 出貨單</option></select></div><div class="f"><label>No / 單號</label><input id="qcg_no" value="'+SEC.esc(r.no||'')+'"></div><div class="f"><label>Department / 部門</label><input id="qcg_dept" value="'+SEC.esc(r.dept||'')+'"></div><div class="f"><label>Handler / 經手人</label><input id="qcg_by" value="'+SEC.esc(r.by||SEC.getCfg().operator||'')+'"></div><div class="f"><label>Vehicle / 車牌</label><input id="qcg_vehicle" value="'+SEC.esc(r.vehicle||'')+'"></div></div><div class="f" style="margin-top:10px"><label>Reason / 事由</label><textarea id="qcg_reason" rows="2">'+SEC.esc((r.reasons||[]).join(', '))+'</textarea></div><div class="f" style="margin-top:10px"><label>Items / 物品（每行：名稱 | 數量 | 單位）</label><textarea id="qcg_items" rows="4">'+SEC.esc((r.items||[]).map(function(x){return[x.name,x.qty,x.unit].join(' | ');}).join('\n'))+'</textarea></div><div class="f" style="margin-top:10px"><label>Remark / 備註</label><textarea id="qcg_note" rows="2">'+SEC.esc(r.note||'')+'</textarea></div>';
-  else body='<div class="qr-grid"><div class="f"><label>Date / 日期</label><input id="qci_date" type="date" value="'+SEC.esc(r.date||SEC.ymd())+'"></div><div class="f"><label>Container No / 貨櫃號</label><input id="qci_cno" value="'+SEC.esc(r.containerNo||'')+'"></div><div class="f"><label>Seal / 封條</label><input id="qci_seal" value="'+SEC.esc(r.seal||'')+'"></div><div class="f"><label>Inspector / 檢查人</label><input id="qci_by" value="'+SEC.esc(r.by||SEC.getCfg().operator||'')+'"></div></div><div class="f" style="margin-top:10px"><label>Result / 判定</label><select id="qci_result"><option value="pass">✅ Pass / 合格</option><option value="fail">⛔ Fail / 不合格</option></select></div><div class="f" style="margin-top:10px"><label>Remark / 備註</label><input id="qci_note" value="'+SEC.esc(r.note||'')+'"></div>';
-  root.innerHTML='<div class="qr-card"><h2>'+title+'</h2><p class="hint">Scope / 範圍：'+label+' '+SEC.esc(d.period||'')+' · '+(has?'Existing record / 現有紀錄':'New upload / 新增上傳')+' · Expires / 到期：'+SEC.esc(ed)+'</p>'+body+'<div class="f" style="margin-top:10px"><label><input id="qrContNotify" type="checkbox" checked> Notify security group / 通知保安群組</label></div><div class="row" style="margin-top:14px"><button class="btn" onclick="qrContainerSubmit()">💾⬆️ Save & upload / 儲存並上傳</button></div><p class="hint">Upload-only / 只能儲存並上傳；No download/export / 不提供下載／匯出。同一業務紀錄再次上傳只會更新，不會重複加總。</p></div>';
-  if(mode==='truck'&&r.isExport)document.getElementById('qct_ie').value='exp';if(mode==='gate'&&r.type)document.getElementById('qcg_type').value=r.type;if(mode==='insp'&&r.result)document.getElementById('qci_result').value=r.result;
-};
-qrContainerSubmit=async function(){
-  var mode=['truck','insp','gate'].indexOf(QR_CONT_INFO.mode)>=0?QR_CONT_INFO.mode:'insp',old=(QR_CONT_DATA&&QR_CONT_DATA.records&&QR_CONT_DATA.records[0])||{},r=Object.assign({},old),operator='';
-  if(mode==='truck'){var ie=document.getElementById('qct_ie').value;r.date=document.getElementById('qct_date').value;r.isImport=ie==='imp';r.isExport=ie==='exp';r.name=document.getElementById('qct_name').value.trim();r.containerNo=document.getElementById('qct_cno').value.trim();r.truckNo=document.getElementById('qct_truck').value.trim();r.company=document.getElementById('qct_co').value.trim();r.timeIn=fmtT(document.getElementById('qct_in').value.trim());r.timeOut=fmtT(document.getElementById('qct_out').value.trim());r.remark=document.getElementById('qct_note').value.trim();operator=document.getElementById('qct_by').value.trim();}
-  else if(mode==='gate'){r.date=document.getElementById('qcg_date').value;r.time=document.getElementById('qcg_time').value.trim();r.type=document.getElementById('qcg_type').value;r.no=document.getElementById('qcg_no').value.trim();r.dept=document.getElementById('qcg_dept').value.trim();r.by=document.getElementById('qcg_by').value.trim();r.vehicle=document.getElementById('qcg_vehicle').value.trim();r.reasons=document.getElementById('qcg_reason').value.split(/[,，\n]/).map(function(x){return x.trim();}).filter(Boolean);r.items=document.getElementById('qcg_items').value.split(/\n/).map(function(x){var p=x.split('|').map(function(y){return y.trim();});return p[0]?{name:p[0],qty:p[1]||'',unit:p[2]||''}:null;}).filter(Boolean);r.note=document.getElementById('qcg_note').value.trim();operator=r.by;}
-  else{r.date=document.getElementById('qci_date').value;r.containerNo=document.getElementById('qci_cno').value.trim();r.seal=document.getElementById('qci_seal').value.trim();r.by=document.getElementById('qci_by').value.trim();r.result=document.getElementById('qci_result').value;r.pass=r.result==='pass'?17:0;r.fails=r.result==='pass'?[]:['QR update'];r.note=document.getElementById('qci_note').value.trim();operator=r.by;}
-  if(!operator){SEC.toast('Operator/inspector required / 請填寫更新人／檢查人','warn');return;}if(!r.date||((mode==='truck'||mode==='insp')&&!r.containerNo)){SEC.toast('Date and required identity are missing / 日期及必要識別資料必填','warn');return;}if(mode==='truck'&&!r.timeIn&&!r.timeOut){SEC.toast('Time In or Time Out is required to identify this trip / 請填入廠或出廠時間以識別本趟','warn');return;}if(mode==='gate'&&(!r.no||!r.items.length)){SEC.toast('Pass number and at least one item are required / 請填單號及至少一項物品','warn');return;}
-  r=containerPrepare(r,mode,'qr');
-  try{var out=await SEC.gasPost({action:'qrPush',tool:'container',token:QR_CONT_INFO.token,mode:mode,id:QR_CONT_INFO.id,operator:operator,notify:document.getElementById('qrContNotify').checked,records:[r],summary:{qr:true,period:r.date}});document.getElementById('qrContainerRoot').insertAdjacentHTML('afterbegin','<div class="qr-card"><b>✅ Upload confirmed / 上傳完成</b><p>By / 更新人：'+SEC.esc(operator)+' · Updated / 更新：'+(out.updated||0)+' · Added / 新增：'+(out.added||0)+' · Telegram / 群組通知：'+(out.noticeSent?'sent / 已發送':'not sent / 未發送')+'</p><p class="hint">同一趟／同櫃同日紀錄會合併，Excel 或雲端再同步也不會重複計數。</p></div>');SEC.toast('✅ Saved & uploaded / 已儲存並上傳','ok',7000);}catch(e){SEC.toast('❌ Upload failed / 上傳失敗：'+e.message,'err',7000);}
-};
+SEC.registerAutoUploader(TOOL, function (opts) { return doUpload(opts); });
+window.addEventListener('load', function () { setTimeout(function () { SEC.retryAutoCloudSync(TOOL); }, 1200); });
 setTimeout(containerQrStart,0);
 </script>
 </body>

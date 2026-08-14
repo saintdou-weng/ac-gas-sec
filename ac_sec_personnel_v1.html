@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
-<script src="./shared/xlsx.full.min.js?v=20260812c"></script>
+<script src="./shared/xlsx.full.min.js?v=20260813j"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <link rel="stylesheet" href="./shared/sec.css?v=20260808g">
@@ -206,7 +206,8 @@
 <button class="btn" onclick="saveEdit()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260812c"></script>
+<script src="./shared/sec-core.js?v=20260813k"></script>
+<script src="./shared/sec-smart-sync.js?v=20260813k"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -1020,9 +1021,9 @@ function clearAll() {
 
 /* ═══ 雲端 ═══ */
 async function doUpload() {
-  var all = DB.map(function (r) { var o = Object.assign({ _k: 'staff' }, r); o.photo = r.photo ? 1 : 0; return o; })
+  var all = DB.map(function (r) { var o = Object.assign({ _k: 'staff' }, r); o.photo = r.photo || ''; return o; })
     .concat(CHG.map(function (r) { return Object.assign({ _k: 'chg' }, r); }));
-  await SEC.cloudPush(TOOL, all, { staff: DB.length, active: active().length, changes: CHG.length }, { roster: ROSTER });
+  return await SEC.cloudPush(TOOL, all, { staff: DB.length, active: active().length, changes: CHG.length }, { roster: ROSTER });
 }
 async function doDownload() {
   if (!confirm('⬇️☁ 下載會與本機人員資料合併；相同工號以最新資料更新，空白欄位會先確認並保留舊值。繼續？')) return;
@@ -1031,7 +1032,7 @@ async function doDownload() {
   var keep = {};
   DB.forEach(function (r) { if (r.photo && typeof r.photo === 'string') keep[r.empId || r.name] = r.photo; });
   var remoteStaff = recs.filter(function (r) { return r._k !== 'chg'; }).map(function (r) {
-    r.photo = keep[r.empId || r.name] || '';   /* 照片留本機，不從雲端覆蓋掉 */
+    r.photo = r.photo || keep[r.empId || r.name] || '';
     return r;
   });
   var sm = SEC.mergeRecords(TOOL, DB, remoteStaff);
@@ -1111,12 +1112,18 @@ function personnelSummaryPages(st) {
   for (var i = 0; i < lines.length; i += 28) pages.push('👮 <b>人員明細 / Personnel Details</b> · ' + SEC.esc(p.label()) + '\n' + lines.slice(i, i + 28).join('\n'));
   return pages;
 }
+function personnelSummaryPhotos(st, pageIndex) {
+  if (pageIndex !== 0) return [];
+  return personnelPeople(st).filter(function (r) { return r.photo; }).map(function (r) { return r.photo; }).slice(0, 4);
+}
 function openPersonnelTelegram() {
   return SEC.tgOpen({ module:'personnel', defaultType:PER.mode, defaultPeriod:PER.key(),
     periods:personnelPeriods, currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); },
-    summaryPages:personnelSummaryPages });
+    summaryPages:personnelSummaryPages, summaryPhotos:personnelSummaryPhotos });
 }
 function pushSummary() { return openPersonnelTelegram(); }
+SEC.registerAutoUploader(TOOL, function (opts) { return doUpload(opts); });
+window.addEventListener('load', function () { setTimeout(function () { SEC.retryAutoCloudSync(TOOL); }, 1200); });
 </script>
 </body>
 </html>
