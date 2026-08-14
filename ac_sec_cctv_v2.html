@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
-<script src="./shared/xlsx.full.min.js?v=20260813k"></script>
+<script src="./shared/xlsx.full.min.js?v=20260814a"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="stylesheet" href="./shared/sec.css?v=20260808g">
 <style>
@@ -18,6 +18,8 @@
 .cam:active{transform:scale(.95)}
 .cam .n{font:800 13px 'DM Mono',monospace;line-height:1.1}
 .cam .z{font-size:8.5px;opacity:.82;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cam .thumb{width:30px;height:24px;object-fit:cover;border-radius:5px;display:block;margin:0 auto 3px;border:1px solid rgba(15,43,70,.18)}
+.cam-photo-thumb{width:42px;height:34px;object-fit:cover;border-radius:6px;vertical-align:middle;margin-right:5px;border:1px solid var(--line)}
 .cam.ok{background:#dcfce7;color:#14532d}
 .cam.off{background:#fee2e2;color:#7f1d1d}
 .cam.blur{background:#fef3c7;color:#78350f}
@@ -71,17 +73,17 @@
       <h3>🎛 <span data-zh="今日巡檢狀態盤" data-en="Daily Check Board" data-km="ផ្ទាំងត្រួតពិនិត្យ">今日巡檢狀態盤</span>
         <span class="sp">
           <input type="date" id="cDate" style="width:auto" onchange="loadDay()">
-          <input id="cBy" placeholder="巡檢人" style="width:110px">
-          <input id="cNote" placeholder="巡檢備註／通知事項" style="width:200px">
+          <input id="cBy" data-zh="巡檢人" data-en="Inspector" data-km="អ្នកត្រួតពិនិត្យ" placeholder="巡檢人" style="width:110px">
+          <input id="cNote" data-zh="巡檢備註／通知事項" data-en="Inspection note / notice" data-km="កំណត់ចំណាំ / ជូនដំណឹង" placeholder="巡檢備註／通知事項" style="width:200px">
         </span></h3>
 
       <div class="brush">
-        <span style="font-size:11px;color:var(--ink2);font-weight:700">點選畫筆 → 再點攝影機即可標記</span>
-        <button class="bb ok on"   data-s="ok"    onclick="setBrush('ok')">✅ 正常</button>
-        <button class="bb off"     data-s="off"   onclick="setBrush('off')">🔴 離線</button>
-        <button class="bb blur"    data-s="blur"  onclick="setBrush('blur')">🟡 畫面模糊</button>
-        <button class="bb fault"   data-s="fault" onclick="setBrush('fault')">⛔ 故障</button>
-        <button class="bb dis"     data-s="dis"   onclick="setBrush('dis')">⚪ 停用</button>
+        <span id="brushHint" style="font-size:11px;color:var(--ink2);font-weight:700" data-zh="點選畫筆 → 再點攝影機即可標記" data-en="Select a status, then tap a camera to mark it" data-km="ជ្រើសស្ថានភាព រួចចុចកាមេរ៉ាដើម្បីកំណត់">點選畫筆 → 再點攝影機即可標記</span>
+        <button class="bb ok on"   data-s="ok"    onclick="setBrush('ok')"><span data-zh="✅ 正常" data-en="✅ Online" data-km="✅ ធម្មតា">✅ 正常</span></button>
+        <button class="bb off"     data-s="off"   onclick="setBrush('off')"><span data-zh="🔴 離線" data-en="🔴 Offline" data-km="🔴 ក្រៅបណ្តាញ">🔴 離線</span></button>
+        <button class="bb blur"    data-s="blur"  onclick="setBrush('blur')"><span data-zh="🟡 畫面模糊" data-en="🟡 Blurry" data-km="🟡 ស្រអាប់">🟡 畫面模糊</span></button>
+        <button class="bb fault"   data-s="fault" onclick="setBrush('fault')"><span data-zh="⛔ 故障" data-en="⛔ Fault" data-km="⛔ ខូច">⛔ 故障</span></button>
+        <button class="bb dis"     data-s="dis"   onclick="setBrush('dis')"><span data-zh="⚪ 停用" data-en="⚪ Disabled" data-km="⚪ បិទប្រើ">⚪ 停用</span></button>
         <span style="margin-left:auto;display:flex;gap:5px;flex-wrap:wrap">
           <button class="btn sm ok" onclick="allOk()">✅ <span data-zh="全部正常" data-en="All OK" data-km="ធម្មតាទាំងអស់">全部正常</span></button>
           <button class="btn sm gh" onclick="loadPrev()">📋 <span data-zh="沿用上次" data-en="Copy last" data-km="ចម្លង">沿用上次</span></button>
@@ -97,7 +99,7 @@
       </div>
       <div class="cams" id="camGrid"></div>
 
-      <p class="hint" style="margin-top:10px">
+      <p class="hint" id="boardHint" style="margin-top:10px" data-zh="紅點閃爍＝該機今天被標記異常。長按（或點兩下）攝影機可開啟詳細編輯。每天存一次，統計分析就能算出各機的可用率與重複故障排名。" data-en="A flashing red dot means the camera is abnormal today. Long-press or double-tap a camera to edit it. Save once per day to calculate uptime and repeat-fault rankings." data-km="ចំណុចក្រហមភ្លឺមានន័យថាកាមេរ៉ាមានបញ្ហា។ ចុចពីរដងដើម្បីកែ។ រក្សាទុករាល់ថ្ងៃដើម្បីវិភាគ។">
         紅點閃爍＝該機今天被標記異常。長按（或點兩下）攝影機可開啟詳細編輯。
         每天存一次，統計分析就能算出各機的可用率與重複故障排名。
       </p>
@@ -126,7 +128,7 @@
           <select id="fFactory" style="width:auto" onchange="renderList()"><option value="">全部廠區</option></select>
           <select id="fZone" style="width:auto" onchange="renderList()"><option value="">全部區域</option></select>
           <select id="fStatus" style="width:auto" onchange="renderList()"><option value="">狀態／Status</option><option value="ok">✅ 正常 / Normal</option><option value="off">🔴 離線 / Offline</option><option value="blur">🟡 模糊 / Blurry</option><option value="fault">⛔ 故障 / Fault</option><option value="dis">⚪ 停用 / Disabled</option></select>
-          <input id="q" placeholder="搜尋編號/位置…" style="width:150px" oninput="renderList()">
+          <input id="q" data-zh="搜尋編號／位置…" data-en="Search code / location…" data-km="ស្វែងរកលេខ / ទីតាំង…" placeholder="搜尋編號／位置…" style="width:150px" oninput="renderList()">
           <button class="btn sm" onclick="openEdit()">➕ <span data-t="add">新增</span></button>
           <button class="btn sm gh" onclick="expExcel()">📊 Excel</button>
         </span></h3>
@@ -195,15 +197,15 @@
         <button class="btn err" onclick="clearAll()">🗑 <span data-zh="清空" data-en="Clear" data-km="សម្អាត">清空</span></button>
       </div>
       <div class="sep"></div>
-      <p class="hint">可辨識欄位：編號 Code/No/CH、名稱 Name、廠區 Factory/Plant、位置 Location、區域 Zone/Building、類型 Type、NVR、通道 Channel/CH、IP、狀態 Status、備註 Remark。標題列可在任何位置。</p>
+      <p class="hint" data-zh="可辨識欄位：編號 Code/No/CH、名稱 Name、廠區 Factory/Plant、位置 Location、區域 Zone/Building、類型 Type、NVR、通道 Channel/CH、IP、狀態 Status、備註 Remark。標題列可在任何位置。" data-en="Recognised columns: code/no/CH, name, factory/plant, location, zone/building, type, NVR, channel/CH, IP, status and remark. The header row may appear anywhere." data-km="ស្គាល់ជួរឈរ៖ លេខកូដ ឈ្មោះ រោងចក្រ ទីតាំង តំបន់ ប្រភេទ NVR ឆាណែល IP ស្ថានភាព និងកំណត់ចំណាំ។ ជួរចំណងជើងអាចនៅទីតាំងណាក៏បាន។">可辨識欄位：編號 Code/No/CH、名稱 Name、廠區 Factory/Plant、位置 Location、區域 Zone/Building、類型 Type、NVR、通道 Channel/CH、IP、狀態 Status、備註 Remark。標題列可在任何位置。</p>
       <div id="impLog" class="hint" style="margin-top:8px"></div>
       <div class="sep"></div>
-      <p class="hint">💡 你上傳的 <code>vrt_cameras.json</code>（41 支：A 棟 25、B 棟 16，其中 8 支標記「No Video Available」）可直接用「🎥 匯入相機清單 JSON」載入。標記無畫面的會自動設為 🔴 離線狀態。</p>
+      <p class="hint" data-zh="💡 vrt_cameras.json（最多 41 支）可直接用「匯入相機清單 JSON」載入；標記無畫面的會自動設為離線狀態。" data-en="💡 Import vrt_cameras.json (up to 41 cameras) with Import cameras JSON. Rows marked No Video Available are set to Offline automatically." data-km="💡 អ្នកអាចនាំចូល vrt_cameras.json (អតិបរមា 41 កាមេរ៉ា)។ ជួរដែលគ្មានវីដេអូនឹងកំណត់ជាក្រៅបណ្តាញដោយស្វ័យប្រវត្តិ។">💡 vrt_cameras.json（最多 41 支）可直接用「匯入相機清單 JSON」載入；標記無畫面的會自動設為離線狀態。</p>
       <div class="sep"></div>
       <div class="row">
-        <label style="font-size:12px;font-weight:700;color:var(--ink2)">快速建立</label>
+        <label style="font-size:12px;font-weight:700;color:var(--ink2)" data-zh="快速建立" data-en="Quick create" data-km="បង្កើតរហ័ស">快速建立</label>
         <input type="number" id="genN" value="41" style="width:80px">
-        <span style="font-size:12px;color:var(--ink2)">支，最多 41 支，依區域平均分配</span>
+        <span id="genHint" style="font-size:12px;color:var(--ink2)" data-zh="支，最多 41 支，依區域平均分配" data-en="cameras, up to 41, distributed by zone" data-km="កាមេរ៉ា អតិបរមា 41 ចែកតាមតំបន់">支，最多 41 支，依區域平均分配</span>
         <button class="btn gh" onclick="genCams()">🏭 <span data-zh="產生攝影機編號" data-en="Generate" data-km="បង្កើត">產生攝影機編號</span></button>
       </div>
       <p class="hint" style="margin-top:6px">沒有現成清單時可先產生 CCTV A-01／CCTV B-01 正式編號；摘要列、純數字及超過 41 支的資料不會納入。</p>
@@ -223,32 +225,35 @@
 <div class="mask" id="mEdit"><div class="modal"><div class="mh"><span>📷</span><b id="mTitle">新增攝影機</b>
 <button class="x" onclick="SEC.closeModal('mEdit')">×</button></div>
 <div class="mb"><div class="grid g2">
-  <div class="f"><label>編號 Code</label><input id="e_code"></div>
-  <div class="f"><label>名稱／位置 Name</label><input id="e_name"></div>
-  <div class="f"><label>廠區 Factory</label><select id="e_factory">
+  <div class="f"><label data-zh="編號" data-en="Code" data-km="លេខកូដ">編號 Code</label><input id="e_code"></div>
+  <div class="f"><label data-zh="名稱／位置" data-en="Name / Location" data-km="ឈ្មោះ / ទីតាំង">名稱／位置 Name</label><input id="e_name"></div>
+  <div class="f"><label data-zh="廠區" data-en="Factory" data-km="រោងចក្រ">廠區 Factory</label><select id="e_factory">
     <option value="a">A 廠 A Factory</option><option value="b">B 廠 B Factory</option>
     <option value="common">公共／未指定 Common / Unassigned</option></select></div>
-  <div class="f"><label>區域 Zone</label><select id="e_zone"></select></div>
-  <div class="f"><label>類型 Type</label><select id="e_type">
+  <div class="f"><label data-zh="區域" data-en="Zone" data-km="តំបន់">區域 Zone</label><select id="e_zone"></select></div>
+  <div class="f"><label data-zh="類型" data-en="Type" data-km="ប្រភេទ">類型 Type</label><select id="e_type">
     <option value="dome">半球 Dome</option><option value="bullet">槍型 Bullet</option>
     <option value="ptz">球機 PTZ</option><option value="fisheye">魚眼 Fisheye</option>
     <option value="other">其他 Other</option></select></div>
   <div class="f"><label>NVR</label><input id="e_nvr" placeholder="NVR-1"></div>
-  <div class="f"><label>通道 Channel</label><input id="e_ch"></div>
+  <div class="f"><label data-zh="通道" data-en="Channel" data-km="ឆាណែល">通道 Channel</label><input id="e_ch"></div>
   <div class="f"><label>IP</label><input id="e_ip" placeholder="192.168.1.x"></div>
-  <div class="f"><label>狀態 Status</label><select id="e_status">
+  <div class="f"><label data-zh="狀態" data-en="Status" data-km="ស្ថានភាព">狀態 Status</label><select id="e_status">
     <option value="ok">✅ 正常</option><option value="off">🔴 離線</option>
     <option value="blur">🟡 畫面模糊</option><option value="fault">⛔ 故障</option>
     <option value="dis">⚪ 停用</option></select></div>
-  <div class="f" style="grid-column:1/-1"><label>備註 Remark</label><input id="e_remark"></div>
+  <div class="f" style="grid-column:1/-1"><label data-zh="備註" data-en="Remark" data-km="កំណត់ចំណាំ">備註 Remark</label><input id="e_remark"></div>
+  <div class="f" style="grid-column:1/-1"><label data-zh="攝影機照片（可選）" data-en="Camera photo (optional)" data-km="រូបថតកាមេរ៉ា (ជាជម្រើស)">攝影機照片（可選）</label>
+    <div class="photo-drop" onclick="addCameraPhoto()">📷 <span data-zh="拍照或選擇該攝影機現場照片（最多4張）" data-en="Take/select camera photos (max 4)" data-km="ថត/ជ្រើសរូបថតកាមេរ៉ា (អតិបរមា 4)">拍照或選擇該攝影機現場照片（最多4張）</span></div>
+    <div id="ePhotos"></div></div>
 </div></div>
 <div class="mf"><button class="btn err" onclick="delCam()" data-t="del">刪除</button>
 <button class="btn gray" onclick="SEC.closeModal('mEdit')" data-t="cancel">取消</button>
 <button class="btn" onclick="saveEdit()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260813k"></script>
-<script src="./shared/sec-smart-sync.js?v=20260813k"></script>
+<script src="./shared/sec-core.js?v=20260814a"></script>
+<script src="./shared/sec-smart-sync.js?v=20260814a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -265,7 +270,7 @@ if (typeof SEC === 'undefined') {
 }
 
 var LS = 'ac_sec_cctv_db', LSL = 'ac_sec_cctv_log';
-var DB = [], LOG = [], TODAY = {}, TODAY_PHOTOS = [], BRUSH = 'ok', CH = {}, TOOL = 'cctv';
+var DB = [], LOG = [], TODAY = {}, TODAY_PHOTOS = [], EDIT_PHOTOS = [], BRUSH = 'ok', CH = {}, TOOL = 'cctv';
 var PER = new SEC.Period('month'), EDIT_ID = '', paintCctvPeriod;
 
 var ZONES = [
@@ -303,7 +308,7 @@ function factoryOf(c) {
   return 'common';
 }
 function factoryLabel(k, lang) { var f = CCTV_FACTORIES[k] || CCTV_FACTORIES.common; return lang === 'en' ? f.en : f.zh; }
-function factoryOptionsHtml() { return Object.keys(CCTV_FACTORIES).map(function (k) { return '<option value="' + k + '">' + CCTV_FACTORIES[k].zh + ' ' + CCTV_FACTORIES[k].en + '</option>'; }).join(''); }
+function factoryOptionsHtml() { var l = SEC.lang(); return Object.keys(CCTV_FACTORIES).map(function (k) { return '<option value="' + k + '">' + SEC.esc(factoryLabel(k, l)) + '</option>'; }).join(''); }
 function isBad(s) { return s === 'off' || s === 'fault' || s === 'blur'; }
 function cctvBlank(v) { return v === undefined || v === null || String(v).trim() === ''; }
 /* 只有 CCTV A-01／CCTV B-01 這類正式編號才是攝影機；純數字、CAM-071、摘要文字一律不是。 */
@@ -375,6 +380,7 @@ async function load() {
 function save() { SEC.dbPut(LS, DB); SEC.dbPut(LSL, LOG); }
 function setCctvSyncStatus(text, kind) {
   var el = document.getElementById('cctvSyncStatus'); if (!el) return;
+  el.dataset.live = '1';
   el.textContent = text; el.style.color = kind === 'err' ? 'var(--err)' : kind === 'warn' ? 'var(--warn)' : 'var(--ink2)';
 }
 
@@ -395,21 +401,34 @@ document.getElementById('cBy').value = SEC.getCfg().operator || '';
 document.getElementById('cNote').value = '';
 fillZones();
 setCctvSyncStatus('Last sync / 上次同步：' + SEC.lastSync(TOOL), '');
-window.onLangChange = renderAll;
+window.onLangChange = function () { fillZones(); renderAll(); };
 SEC.dataReady().then(load).then(function () { loadDay(); renderAll(); }).catch(SEC.bootError);
 
 function fillZones() {
-  var o = ZONES.map(function (z) { return '<option value="' + z.id + '">' + z.zh + ' ' + z.en + '</option>'; }).join('');
+  var l = SEC.lang();
+  var o = ZONES.map(function (z) { return '<option value="' + z.id + '">' + SEC.esc(znLang(z.id, l)) + '</option>'; }).join('');
   document.getElementById('e_zone').innerHTML = o;
   document.getElementById('e_factory').innerHTML = factoryOptionsHtml();
   var fs = document.getElementById('fFactory'), fcur = fs.value;
-  fs.innerHTML = '<option value="">全部廠區 / All factories</option>' + factoryOptionsHtml();
+  fs.innerHTML = '<option value="">' + (l === 'en' ? 'All factories' : l === 'km' ? 'គ្រប់រោងចក្រ' : '全部廠區') + '</option>' + factoryOptionsHtml();
   fs.value = fcur;
   var s = document.getElementById('fZone'), cur = s.value;
-  s.innerHTML = '<option value="">全部區域</option>' + o;
+  s.innerHTML = '<option value="">' + (l === 'en' ? 'All zones' : l === 'km' ? 'គ្រប់តំបន់' : '全部區域') + '</option>' + o;
   s.value = cur;
+  var st = document.getElementById('fStatus');
+  var scur = st ? st.value : '';
+  if (st) st.innerHTML = '<option value="">' + (l === 'en' ? 'Status' : l === 'km' ? 'ស្ថានភាព' : '狀態') + '</option>' +
+    [['ok','✅','正常','Online','ធម្មតា'],['off','🔴','離線','Offline','ក្រៅបណ្តាញ'],['blur','🟡','畫面模糊','Blurry','ស្រអាប់'],['fault','⛔','故障','Fault','ខូច'],['dis','⚪','停用','Disabled','បិទប្រើ']].map(function(x){return '<option value="'+x[0]+'">'+x[1]+' '+(l==='en'?x[3]:l==='km'?x[4]:x[2])+'</option>';}).join('');
+  if (st) st.value = scur;
 }
-function renderAll() { renderBoard(); renderKpi(); renderFault(); renderList(); renderLog(); renderAna(); }
+function applyCctvPageLanguage() {
+  var l = SEC.lang(), h = document.querySelector('.hdr-t1'), s = document.querySelector('.hdr-t2');
+  if (h) h.textContent = l === 'en' ? 'CCTV Monitoring' : l === 'km' ? 'ត្រួតពិនិត្យ CCTV' : 'CCTV 監控';
+  if (s) s.textContent = l === 'en' ? 'AC SECURITY · CCTV' : l === 'km' ? 'AC SECURITY · CCTV' : 'AC SECURITY · CCTV';
+  var q = document.getElementById('q'); if (q) q.placeholder = l === 'en' ? 'Search code / location…' : l === 'km' ? 'ស្វែងរកលេខ / ទីតាំង…' : '搜尋編號／位置…';
+  var sync = document.getElementById('cctvSyncStatus'); if (sync && !sync.dataset.live) sync.textContent = l === 'en' ? 'Not synced' : l === 'km' ? 'មិនទាន់ធ្វើសមកាលកម្ម' : '尚未同步';
+}
+function renderAll() { applyCctvPageLanguage(); renderBoard(); renderKpi(); renderFault(); renderList(); renderLog(); renderAna(); }
 
 /* ═══ 狀態盤 ═══ */
 function setBrush(s) {
@@ -484,6 +503,7 @@ function dayStatus(c) {
 }
 function noVideo(c) { return !!(c && (c.noVideo || /no\s*video|無影像|沒有畫面/i.test(String(c.remark || '') + ' ' + String(c.name || '')))); }
 function renderBoard() {
+  var lang = SEC.lang();
   var g = document.getElementById('camGrid');
   if (!DB.length) {
     g.innerHTML = '<div class="empty" style="grid-column:1/-1">尚無攝影機。請到「💾 資料管理」匯入清單，或按「🏭 產生攝影機編號」快速建立。</div>';
@@ -495,8 +515,8 @@ function renderBoard() {
   ZONES.forEach(function (z) {
     var list = byZ[z.id]; if (!list || !list.length) return;
     var bad = list.filter(function (c) { return isBad(dayStatus(c)); }).length;
-    h += '<div class="zonehead">' + z.zh + '　<span style="font-weight:400;color:var(--ink2)">' +
-         list.length + ' 支' + (bad ? '　<span style="color:var(--err)">⚠️ ' + bad + ' 異常</span>' : '') + '</span></div>';
+    h += '<div class="zonehead">' + SEC.esc(znLang(z.id, lang)) + '　<span style="font-weight:400;color:var(--ink2)">' +
+         list.length + ' ' + cctvText(lang, '支', 'cameras') + (bad ? '　<span style="color:var(--err)">⚠️ ' + bad + ' ' + cctvText(lang, '異常', 'abnormal') + '</span>' : '') + '</span></div>';
     h += list.map(camTile).join('');
   });
   var rest = DB.filter(function (c) { return !ZONES.some(function (z) { return z.id === (c.zone || 'yard'); }); });
@@ -518,8 +538,9 @@ function camTile(c) {
   return '<div class="cam ' + s + '" data-id="' + c.id + '" title="' + SEC.esc((c.code || '') + ' ' + (c.name || '') +
     (c.nvr ? ' · ' + c.nvr + (c.ch ? '/CH' + c.ch : '') : '')) + '">' +
     (isBad(s) ? '<span class="dot rec"></span>' : '') +
+    (c.photos && c.photos[0] ? '<img class="thumb" src="' + SEC.esc(c.photos[0]) + '" alt="camera">' : '') +
     '<div class="n">' + SEC.esc(shortCode(c.code)) + '</div>' +
-    '<div class="z">' + SEC.esc((c.name || '').slice(0, 8)) + '</div></div>';
+    '<div class="z">' + SEC.esc((c.name || '').slice(0, 12)) + '</div></div>';
 }
 function shortCode(code) {
   var m = String(code || '').match(/(\d+)\s*$/);
@@ -548,16 +569,17 @@ function consecBad(id) {
   return n;
 }
 function renderFault() {
+  var lang = SEC.lang();
   var list = DB.filter(function (c) { return isBad(dayStatus(c)); });
   var tb = document.getElementById('tbFault');
   tb.innerHTML = list.length ? list.map(function (c) {
     var s = dayStatus(c), n = consecBad(c.id);
     return '<tr><td><code>' + SEC.esc(c.code || '') + '</code></td><td><b>' + SEC.esc(c.name || '') + '</b></td>' +
       '<td>' + SEC.esc(zn(c.zone)) + '</td><td>' + SEC.esc((c.nvr || '') + (c.ch ? ' / CH' + c.ch : '')) + '</td>' +
-      '<td>' + STAT[s].icon + ' ' + STAT[s].zh + '</td>' +
-      '<td>' + (n >= 3 ? '<span class="tag err">' + n + ' 天</span>' : (n ? n + ' 天' : '今日')) + '</td>' +
+      '<td>' + STAT[s].icon + ' ' + cctvText(lang, STAT[s].zh, STAT[s].en) + '</td>' +
+      '<td>' + (n >= 3 ? '<span class="tag err">' + n + ' ' + cctvText(lang, '天', 'days') + '</span>' : (n ? n + ' ' + cctvText(lang, '天', 'days') : cctvText(lang, '今日', 'Today'))) + '</td>' +
       '<td>' + SEC.esc(c.remark || '') + '</td></tr>';
-  }).join('') : '<tr><td colspan="7" class="empty">✅ 目前沒有異常攝影機</td></tr>';
+  }).join('') : '<tr><td colspan="7" class="empty">✅ ' + cctvText(lang, '目前沒有異常攝影機', 'No abnormal cameras') + '</td></tr>';
 }
 function saveDay(push) {
   var d = document.getElementById('cDate').value;
@@ -746,13 +768,19 @@ function renderList() {
   if (q) list = list.filter(function (c) {
     return String(c.code || '').toLowerCase().indexOf(q) >= 0 || String(c.name || '').toLowerCase().indexOf(q) >= 0;
   });
-  var TY = { dome:'半球', bullet:'槍型', ptz:'球機', fisheye:'魚眼', other:'其他' };
+  var lang = SEC.lang(), TY = {
+    dome: cctvText(lang, '半球', 'Dome'), bullet: cctvText(lang, '槍型', 'Bullet'),
+    ptz: cctvText(lang, '球機', 'PTZ'), fisheye: cctvText(lang, '魚眼', 'Fisheye'),
+    other: cctvText(lang, '其他', 'Other')
+  };
   document.getElementById('tbList').innerHTML = list.length ? list.map(function (c) {
     var s = c.status || 'ok';
-    return '<tr><td><code>' + SEC.esc(c.code || '') + '</code></td><td><b>' + SEC.esc(c.name || '') + '</b></td>' +
+    return '<tr><td><code>' + SEC.esc(c.code || '') + '</code></td><td>' +
+      (c.photos && c.photos[0] ? '<img class="cam-photo-thumb" src="' + SEC.esc(c.photos[0]) + '" alt="camera">' : '') +
+      '<b>' + SEC.esc(c.name || '') + '</b></td>' +
       '<td>' + SEC.esc(factoryLabel(factoryOf(c), SEC.lang() === 'en' ? 'en' : 'zh')) + '</td><td>' + SEC.esc(SEC.lang() === 'en' ? znLang(c.zone, 'en') : zn(c.zone)) + '</td><td>' + (TY[c.type] || '') + '</td>' +
       '<td>' + SEC.esc(c.nvr || '') + '</td><td>' + SEC.esc(c.ch || '') + '</td><td>' + SEC.esc(c.ip || '') + '</td>' +
-      '<td>' + STAT[s].icon + ' ' + STAT[s].zh + '</td><td>' + SEC.esc(c.lastCheck || '') + '</td>' +
+      '<td>' + STAT[s].icon + ' ' + cctvText(lang, STAT[s].zh, STAT[s].en) + '</td><td>' + SEC.esc(c.lastCheck || '') + '</td>' +
       '<td><button class="btn sm gh" onclick="openEdit(\'' + c.id + '\')">✏️</button></td></tr>';
   }).join('') : '<tr><td colspan="11" class="empty">' + SEC.T().noData + '</td></tr>';
 }
@@ -761,17 +789,34 @@ function openEdit(id) {
   EDIT_ID = id || '';
   var c = id ? DB.filter(function (x) { return x.id === id; })[0] : {};
   if (!c) c = {};
-  document.getElementById('mTitle').textContent = id ? '編輯攝影機' : '新增攝影機';
+  EDIT_PHOTOS = Array.isArray(c.photos) ? c.photos.slice(0, 4) : [];
+  document.getElementById('mTitle').textContent = id ? cctvText(SEC.lang(), '編輯攝影機', 'Edit camera') : cctvText(SEC.lang(), '新增攝影機', 'Add camera');
   EF.forEach(function (f) {
     document.getElementById('e_' + f).value = c[f] != null && c[f] !== ''
       ? c[f] : (f === 'status' ? 'ok' : f === 'type' ? 'dome' : f === 'factory' ? factoryOf(c) : f === 'zone' ? 'yard' : '');
   });
+  renderEditPhotos();
   if (!id) { var letter = DB.filter(function (x) { return factoryOf(x) === 'a'; }).length <= DB.filter(function (x) { return factoryOf(x) === 'b'; }).length ? 'A' : 'B'; document.getElementById('e_code').value = 'CCTV ' + letter + '-' + String(DB.filter(function (x) { return factoryOf(x) === (letter === 'A' ? 'a' : 'b'); }).length + 1).padStart(2, '0'); }
   SEC.openModal('mEdit');
+}
+function addCameraPhoto() {
+  if (EDIT_PHOTOS.length >= 4) { SEC.toast('⚠ 每台攝影機最多 4 張照片', 'warn'); return; }
+  SEC.pickPhoto(function (d) {
+    if (EDIT_PHOTOS.length < 4) EDIT_PHOTOS.push(d);
+    renderEditPhotos();
+  }, 760, 4 - EDIT_PHOTOS.length);
+}
+function renderEditPhotos() {
+  var box = document.getElementById('ePhotos'); if (!box) return;
+  box.innerHTML = SEC.photoListHtml(EDIT_PHOTOS, true);
+  box.querySelectorAll('.del').forEach(function (b) {
+    b.onclick = function () { EDIT_PHOTOS.splice(+b.dataset.i, 1); renderEditPhotos(); };
+  });
 }
 function saveEdit() {
   var o = {};
   EF.forEach(function (f) { o[f] = document.getElementById('e_' + f).value.trim(); });
+  o.photos = EDIT_PHOTOS.slice(0, 4);
   var cp = cctvCodeParts(o);
   if (!cp) { SEC.toast('⚠ 請使用正式編號 CCTV A-01 或 CCTV B-01；沒有正式編號的列不會計入', 'warn', 6000); return; }
   o.code = cp.code; o.factory = cp.factory;
@@ -817,12 +862,13 @@ function cctvPeriodSummary(type) {
   });
 }
 function renderLog() {
+  var l = SEC.lang();
   var list = LOG.filter(function (l) { return PER.has(l.date); });
   var head = document.getElementById('logHead');
   if (PER.mode === 'month' || PER.mode === 'year') {
-    head.innerHTML = '<tr><th>期間 Period</th><th class="num">檢查日 Checked days</th><th class="num">受檢 Camera-checks</th>' +
-      '<th class="num">正常 Normal</th><th class="num">離線 Offline</th><th class="num">模糊 Blurry</th><th class="num">故障 Fault</th>' +
-      '<th>可用率 Uptime</th><th>檢查人 Inspectors</th><th>備註 Notes</th></tr>';
+    head.innerHTML = '<tr><th>' + cctvText(l,'期間','Period') + '</th><th class="num">' + cctvText(l,'檢查日','Checked days') + '</th><th class="num">' + cctvText(l,'受檢','Camera-checks') + '</th>' +
+      '<th class="num">' + cctvText(l,'正常','Online') + '</th><th class="num">' + cctvText(l,'離線','Offline') + '</th><th class="num">' + cctvText(l,'模糊','Blurry') + '</th><th class="num">' + cctvText(l,'故障','Fault') + '</th>' +
+      '<th>' + cctvText(l,'可用率','Uptime') + '</th><th>' + cctvText(l,'檢查人','Inspectors') + '</th><th>' + cctvText(l,'備註','Notes') + '</th></tr>';
     document.getElementById('tbLog').innerHTML = cctvPeriodSummary(PER.mode).map(function (x) {
       var active = x.key === PER.key();
       var mark = x.hasData;
@@ -830,12 +876,12 @@ function renderLog() {
         '<td><b>' + SEC.esc(x.key) + '</b>' + (active ? ' ◀' : '') + '</td><td class="num">' + x.days + '</td><td class="num">' + (mark ? x.s.n : '—') + '</td>' +
         '<td class="num" style="color:var(--ok)">' + (mark ? x.s.ok : '—') + '</td><td class="num" style="color:' + (x.s.off ? 'var(--err)' : 'inherit') + '">' + (mark ? x.s.off : '—') + '</td>' +
         '<td class="num" style="color:' + (x.s.blur ? 'var(--warn)' : 'inherit') + '">' + (mark ? x.s.blur : '—') + '</td><td class="num" style="color:' + (x.s.fault ? 'var(--err)' : 'inherit') + '">' + (mark ? x.s.fault : '—') + '</td>' +
-        '<td><span class="tag ' + (mark ? (x.rate >= 95 ? 'ok' : x.rate >= 85 ? 'warn' : 'err') : 'warn') + '">' + (mark ? x.rate + '%' : '無資料 / No data') + '</span></td>' +
+        '<td><span class="tag ' + (mark ? (x.rate >= 95 ? 'ok' : x.rate >= 85 ? 'warn' : 'err') : 'warn') + '">' + (mark ? x.rate + '%' : cctvText(l,'無資料','No data')) + '</span></td>' +
         '<td>' + SEC.esc(x.inspectors.join('、') || '—') + '</td><td class="hint">' + SEC.esc(x.notes.join('；') || '—') + '</td></tr>';
-    }).join('') || '<tr><td colspan="10" class="empty">此期間無巡檢紀錄</td></tr>';
+    }).join('') || '<tr><td colspan="10" class="empty">' + cctvText(l,'此期間無巡檢紀錄','No inspection records in this period') + '</td></tr>';
     return;
   }
-  head.innerHTML = '<tr><th>日期</th><th>巡檢人</th><th class="num">受檢</th><th class="num">正常</th><th class="num">離線</th><th class="num">模糊</th><th class="num">故障</th><th>可用率</th><th>異常機號</th><th></th></tr>';
+  head.innerHTML = '<tr><th>' + cctvText(l,'日期','Date') + '</th><th>' + cctvText(l,'巡檢人','Inspector') + '</th><th class="num">' + cctvText(l,'受檢','Checked') + '</th><th class="num">' + cctvText(l,'正常','Online') + '</th><th class="num">' + cctvText(l,'離線','Offline') + '</th><th class="num">' + cctvText(l,'模糊','Blurry') + '</th><th class="num">' + cctvText(l,'故障','Fault') + '</th><th>' + cctvText(l,'可用率','Uptime') + '</th><th>' + cctvText(l,'異常機號','Fault cameras') + '</th><th></th></tr>';
   document.getElementById('tbLog').innerHTML = list.length ? list.map(function (l) {
     return '<tr><td>' + l.date + '</td><td>' + SEC.esc(l.by || '') + '</td>' +
       '<td class="num">' + l.n + '</td><td class="num">' + l.ok + '</td>' +
@@ -845,8 +891,8 @@ function renderLog() {
       '<td><b style="color:' + (l.uptime >= 95 ? 'var(--ok)' : l.uptime >= 85 ? 'var(--warn)' : 'var(--err)') + '">' +
         l.uptime + '%</b></td>' +
       '<td class="hint">' + SEC.esc((l.badList || []).slice(0, 4).join('；')) + ((l.badList || []).length > 4 ? '…' : '') + '</td>' +
-      '<td><button class="btn sm gh" onclick="openDay(\'' + l.date + '\')">開啟</button></td></tr>';
-  }).join('') : '<tr><td colspan="10" class="empty">此期間無巡檢紀錄</td></tr>';
+      '<td><button class="btn sm gh" onclick="openDay(\'' + l.date + '\')">' + cctvText(SEC.lang(),'開啟','Open') + '</button></td></tr>';
+  }).join('') : '<tr><td colspan="10" class="empty">' + cctvText(l,'此期間無巡檢紀錄','No inspection records in this period') + '</td></tr>';
 }
 function openDay(d) {
   document.getElementById('cDate').value = d;
@@ -944,7 +990,7 @@ function impExcel() {
           ip: SEC.str(o.ip), status: st, remark: SEC.str(o.remark), src: sh.name };
         var old = DB.filter(function (x) { return cctvIdentity(x) === cctvIdentity(row); })[0];
         if (!old && DB.length >= CCTV_MAX) { ignored++; return; }
-        if (old) { row.id = old.id; Object.assign(old, row); } else DB.push(row);
+        if (old) { row.id = old.id; if (!row.photos && old.photos) row.photos = old.photos; Object.assign(old, row); } else DB.push(row);
         n++; added++;
       });
       log.push('· <b>' + SEC.esc(sh.name) + '</b>：匯入 <b>' + n + '</b> 支，忽略 <b>' + ignored + '</b> 列（標題第 ' + (res.header.row + 1) + ' 列）');
@@ -994,7 +1040,7 @@ function loadCamArray(arr) {
       nvr: '', ch: '', ip: '', bldg: c.bldg || '',
       status: c.noVideo ? 'off' : 'ok',
       remark: c.noVideo ? 'No Video Available（原標記無畫面）' : '' };
-    if (old) { Object.assign(old, rec); }
+    if (old) { if (old.photos) rec.photos = old.photos; Object.assign(old, rec); }
     else { rec.id = 'J' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); DB.push(rec); }
     added++;
   });

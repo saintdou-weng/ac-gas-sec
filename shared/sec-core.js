@@ -711,7 +711,7 @@ function tgOpen(opt) {
   }
   function note() {
     q('#tgNote').textContent = st.mode === 'approval'
-      ? '只會送出尚未送核的 Security Fee；Telegram 群組會顯示逐筆核可／退件、翻頁、全部核可及關閉批次按鈕。'
+      ? '未送核項目會建立新批次；已送出但仍待核可的項目會更新原批次，不會重複建立費用。Telegram 群組會顯示逐筆核可／退件、翻頁、全部核可及關閉批次按鈕。'
       : '摘要是通知用途，可重複傳送，不會建立核可批次，也不會改變資料狀態。';
   }
   function summaryPages() {
@@ -785,8 +785,10 @@ function tgOpen(opt) {
         toast('✈️ Telegram 摘要已送出' + (pages.length > 1 ? '（' + pages.length + ' 頁）' : ''), 'ok');
       } else {
         var items = opt.approvalItems ? (opt.approvalItems(st) || []) : [];
-        var result = await sendApproval({ module:opt.module, period:st.period, title:opt.approvalTitle || '', route:opt.route,
-          lang:st.lang === 'both' ? 'zh' : st.lang, items:items });
+        var result = opt.onApprovalSend
+          ? await opt.onApprovalSend(st, items)
+          : await sendApproval({ module:opt.module, period:st.period, title:opt.approvalTitle || '', route:opt.route,
+              lang:st.lang === 'both' ? 'zh' : st.lang, items:items });
         if (!result) throw new Error('核可請求未送出');
         if (opt.onApprovalSent) opt.onApprovalSent(result, st, items);
       }
