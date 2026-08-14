@@ -7,9 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
-<script src="./shared/xlsx.full.min.js?v=20260814a"></script>
-<script src="./shared/qrcode-generator.js?v=20260814a"></script>
-<script src="./shared/fire-seed-data.js?v=20260814a"></script>
+<script src="./shared/xlsx.full.min.js?v=20260814b"></script>
+<script src="./shared/qrcode-generator.js?v=20260814b"></script>
+<script src="./shared/fire-seed-data.js?v=20260814b"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="stylesheet" href="./shared/sec.css?v=20260808g">
 <style>
@@ -282,8 +282,8 @@
 <button class="btn" onclick="saveEdit()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260814a"></script>
-<script src="./shared/sec-smart-sync.js?v=20260814a"></script>
+<script src="./shared/sec-core.js?v=20260814b"></script>
+<script src="./shared/sec-smart-sync.js?v=20260814b"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -341,6 +341,13 @@ async function load() {
   CHIP = await SEC.dbGet(LS_CHIP, {});
   if (!Array.isArray(DB)) DB = [];
   if (!Array.isArray(HIST)) HIST = [];
+  HIST = HIST.filter(function (h) { return h && h.date; }).map(function (h) {
+    var o = Object.assign({}, h);
+    o.items = Array.isArray(o.items) ? o.items : [];
+    o.badList = Array.isArray(o.badList) ? o.badList : [];
+    o.photos = Array.isArray(o.photos) ? o.photos.filter(Boolean).slice(0, 4) : [];
+    return o;
+  }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
   if (!CHIP || typeof CHIP !== 'object' || Array.isArray(CHIP)) CHIP = {};
   if (FIRE_SEED.length && (!DB.length || !DB.some(function (e) { return e.seedVersion === FIRE_SEED_VERSION; }))) {
     /* First launch after this package: replace the old duplicated/Other master list
@@ -756,9 +763,22 @@ function markAll(v) {
   var f = document.getElementById('cFactory').value;
   var z = document.getElementById('cZone').value;
   var t = document.getElementById('cType').value;
-  DB.filter(function (e) { return (!f || factoryOf(e) === f) && (!z || e.zone === z) && (!t || e.type === t) && e.status !== 'off'; })
-    .forEach(function (e) { INSP[e.id] = INSP[e.id] || {}; INSP[e.id].r = v; });
+  var list = DB.filter(function (e) { return (!f || factoryOf(e) === f) && (!z || e.zone === z) && (!t || e.type === t) && e.status !== 'off'; });
+  if (!list.length) { SEC.toast('⚠ 此篩選沒有可檢查設備／No equipment in this filter', 'warn'); return; }
+  var clearAllOk = v === 'ok' && list.every(function (e) { return INSP[e.id] && INSP[e.id].r === 'ok'; });
+  list.forEach(function (e) {
+    var x = INSP[e.id];
+    if (v === '' || clearAllOk) {
+      if (!x) return;
+      delete x.r;
+      if (!x.n && !(Array.isArray(x.photos) && x.photos.length)) delete INSP[e.id];
+    } else {
+      INSP[e.id] = x || {};
+      INSP[e.id].r = v;
+    }
+  });
   renderInsp();
+  SEC.toast((v === '' || clearAllOk) ? '↩️ 已清除所選判定／Cleared selected results' : '✅ 已全部標記正常／All selected items marked normal', 'ok', 3500);
 }
 function addFireOverallPhoto() {
   if (INSP_OVERALL_PHOTOS.length >= 4) { SEC.toast('⚠ 整次巡檢最多 4 張照片', 'warn'); return; }
@@ -796,6 +816,7 @@ function saveInsp(push) {
     photos: INSP_OVERALL_PHOTOS.slice(0, 4) });
   if (HIST.length > 300) HIST.length = 300;
   INSP = {}; INSP_OVERALL_PHOTOS = []; renderFireOverallPhotos(); save(); renderAll();
+  SEC.scheduleAutoCloudSync(TOOL, 'fire-inspection-save', date);
   SEC.toast('✅ 已登錄 ' + ids.length + ' 項巡檢' + (bad.length ? '，異常 ' + bad.length + ' 項' : ''), bad.length ? 'warn' : 'ok', 5000);
   if (push) openFireInspectionTelegram();
 }
@@ -1129,13 +1150,12 @@ function fireSummary(st) {
     factoryCounts[fk]++;
     typeCounts[e.type || 'other'] = (typeCounts[e.type || 'other'] || 0) + 1;
   });
+  var issueCount = over.length + soon.length + disabled + (hs.bad || 0) + inspBad.length;
   var txt = '🧯 <b>' + fireT(lang, '消防設備摘要', 'Fire Equipment Summary', 'សង្ខេបឧបករណ៍ពន្លត់អគ្គិភ័យ') + '</b> · ' + SEC.esc(p.label()) +
       '\n' + fireT(lang, '範圍', 'Scope', 'វិសាលភាព') + '：' + fireScopeLabel(st, lang) + '\n─────────────\n' +
       fireT(lang, '設備總數', 'Equipment', 'ឧបករណ៍') + '：<b>' + list.length + '</b> · ' + fireT(lang, '已檢查', 'Checked', 'បានត្រួតពិនិត្យ') + '：<b>' + hs.checked + '</b>\n' +
       '🏭 ' + fireT(lang, 'A廠', 'A Factory', 'រោងចក្រ A') + '：<b>' + factoryCounts.a + '</b> · ' + fireT(lang, 'B廠', 'B Factory', 'រោងចក្រ B') + '：<b>' + factoryCounts.b + '</b> · ' + fireT(lang, '公共區域', 'Common', 'តំបន់រួម') + '：<b>' + factoryCounts.common + '</b>\n' +
-      '✅ ' + fireT(lang, '正常', 'Normal', 'ធម្មតា') + '：<b>' + normal + '</b> · ⏰ ' + fireT(lang, '30天內到期', 'Due within 30 days', 'ជិតផុតកំណត់ក្នុង 30 ថ្ងៃ') + '：<b>' + soon.length + '</b>\n' +
-      '⛔ ' + fireT(lang, '逾期／故障', 'Overdue / Fault', 'ហួសកំណត់ / ខូច') + '：<b>' + over.length + '</b> · ' + fireT(lang, '停用', 'Disabled', 'ផ្អាកប្រើ') + '：<b>' + disabled + '</b>\n' +
-      '🧾 ' + fireT(lang, '巡檢異常', 'Inspection anomalies', 'បញ្ហាការត្រួតពិនិត្យ') + '：<b>' + (hs.bad || inspBad.length) + '</b>\n';
+      (issueCount ? ('✅ ' + fireT(lang, '正常', 'Normal', 'ធម្មតា') + '：<b>' + normal + '</b>' + (soon.length ? ' · ⏰ ' + fireT(lang, '30天內到期', 'Due within 30 days', 'ជិតផុតកំណត់ក្នុង 30 ថ្ងៃ') + '：<b>' + soon.length + '</b>' : '') + (over.length ? ' · ⛔ ' + fireT(lang, '逾期／故障', 'Overdue / Fault', 'ហួសកំណត់ / ខូច') + '：<b>' + over.length + '</b>' : '') + (disabled ? ' · ⚪ ' + fireT(lang, '停用', 'Disabled', 'ផ្អាកប្រើ') + '：<b>' + disabled + '</b>' : '') + (hs.bad || inspBad.length ? ' · 🧾 ' + fireT(lang, '巡檢異常', 'Inspection anomalies', 'បញ្ហាការត្រួតពិនិត្យ') + '：<b>' + (hs.bad || inspBad.length) + '</b>' : '') + '\n') : ('✅ ' + fireT(lang, '本期間全部正常', 'All equipment normal in this period', 'ឧបករណ៍ទាំងអស់ធម្មតាក្នុងរយៈពេលនេះ') + '\n'));
   if (hs.latestDate) txt += '📅 ' + fireT(lang, '最近巡檢', 'Latest inspection', 'ការត្រួតពិនិត្យចុងក្រោយ') + '：' + SEC.esc(hs.latestDate) + ' · ' + fireT(lang, '檢查人', 'Inspector', 'អ្នកត្រួតពិនិត្យ') + '：' + SEC.esc(hs.latestBy || '—') + '\n';
   var typeLine = Object.keys(typeCounts).map(function (tk) {
     var t = TYPES[tk] || TYPES.other;
@@ -1183,7 +1203,7 @@ function fireInspectionSummary(st) {
     latest = rows.slice().sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); })[0];
   rows.forEach(function (r) { if (r.aggregate) { checked += +r.n || 0; ok += +r.ok || 0; bad += +r.bad || 0; } else { checked++; if (r.result === 'fault') bad++; else ok++; } });
   var txt = '✅ <b>' + fireT(lang, '消防巡檢摘要', 'Fire Inspection Summary', 'សង្ខេបការត្រួតពិនិត្យអគ្គិភ័យ') + '</b> · ' + SEC.esc(fireSummaryPeriod(st).label()) + '\n─────────────\n' +
-    '📋 ' + fireT(lang, '受檢項目', 'Checked items', 'ធាតុបានត្រួតពិនិត្យ') + '：<b>' + checked + '</b>\n✅ ' + fireT(lang, '正常', 'Normal', 'ធម្មតា') + '：' + ok + '\n⛔ ' + fireT(lang, '異常', 'Abnormal', 'មិនប្រក្រតី') + '：<b>' + bad + '</b>\n';
+    '📋 ' + fireT(lang, '受檢項目', 'Checked items', 'ធាតុបានត្រួតពិនិត្យ') + '：<b>' + checked + '</b>' + (bad ? ' · ✅ ' + fireT(lang, '正常', 'Normal', 'ធម្មតា') + '：' + ok + ' · ⛔ ' + fireT(lang, '異常', 'Abnormal', 'មិនប្រក្រតី') + '：<b>' + bad + '</b>' : '') + '\n';
   if (latest) txt += '📅 ' + fireT(lang, '最近巡檢', 'Latest inspection', 'ការត្រួតពិនិត្យចុងក្រោយ') + '：' + SEC.esc(latest.date) + ' · ' + fireT(lang, '檢查人', 'Inspector', 'អ្នកត្រួតពិនិត្យ') + '：' + SEC.esc(latest.by || '—') + '\n';
   ['a','b','common'].forEach(function (fk) {
     var n = detail.filter(function (r) { return r.factory === fk; }).length;

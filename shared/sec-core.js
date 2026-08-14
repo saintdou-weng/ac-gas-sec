@@ -721,12 +721,24 @@ function tgOpen(opt) {
       return [String(v || '（本期間沒有資料）')];
     }
     if (st.lang !== 'both') return one(st);
+    function plain(s) { return String(s || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim(); }
+    function divider(s) { return /^[\s─━—_\-]+$/.test(String(s || '')); }
+    function mergePage(zhPage, enPage) {
+      var zhLines = String(zhPage || '').split('\n'), enLines = String(enPage || '').split('\n');
+      var n = Math.max(zhLines.length, enLines.length), merged = [];
+      for (var j = 0; j < n; j++) {
+        var z = zhLines[j] || '', e = enLines[j] || '';
+        if (!z) { merged.push(e); continue; }
+        if (!e || plain(z) === plain(e) || (divider(z) && divider(e))) { merged.push(z); continue; }
+        merged.push(z + ' / ' + e);
+      }
+      return merged.join('\n');
+    }
     var zh = one(Object.assign({}, st, { lang:'zh' }));
     var en = one(Object.assign({}, st, { lang:'en' }));
     var n = Math.max(zh.length, en.length), out = [];
     for (var i = 0; i < n; i++) {
-      out.push((zh[i] || '（本頁沒有中文資料）') + '\n\n──────── English / English ────────\n' +
-        (en[i] || '（No English data on this page）'));
+      out.push(mergePage(zh[i] || '（本頁沒有中文資料）', en[i] || '（No English data on this page）'));
     }
     return out;
   }
