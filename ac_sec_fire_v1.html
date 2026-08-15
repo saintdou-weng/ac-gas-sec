@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>消防設施與廠區地圖 Fire & Map | AC Security</title>
+<title>消防設備 Fire Equipment | AC Security</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
-<script src="./shared/xlsx.full.min.js?v=20260814b"></script>
-<script src="./shared/qrcode-generator.js?v=20260814b"></script>
-<script src="./shared/fire-seed-data.js?v=20260814b"></script>
+<script src="./shared/xlsx.full.min.js?v=20260815d"></script>
+<script src="./shared/qrcode-generator.js?v=20260815d"></script>
+<script src="./shared/fire-seed-data.js?v=20260815d"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="stylesheet" href="./shared/sec.css?v=20260808g">
 <style>
@@ -76,14 +76,35 @@
 .factory-pill{display:inline-flex;align-items:center;border-radius:999px;padding:2px 8px;background:#e8f2f7;color:#1e6f8e;font-size:11px;font-weight:800}
 @media(max-width:900px){.fire-filters{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:600px){.fire-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.insp-cards{grid-template-columns:1fr}.insp-card{padding:10px}}
+/* Fire Facility is intentionally equipment-only.  Keep the old data/inspection
+   handlers in the file for backward-compatible cloud/QR records, but do not
+   expose the difficult map or narrow inspection screens. */
+#p-map,#p-insp,#p-ana,#p-data,
+#tabs .tab[data-p="map"],#tabs .tab[data-p="insp"],
+#tabs .tab[data-p="ana"],#tabs .tab[data-p="data"]{display:none!important}
+#p-list{display:block!important}
+#p-list .fire-equipment-table{width:100%;min-width:0;table-layout:fixed}
+#p-list .fire-equipment-table th,#p-list .fire-equipment-table td{white-space:normal;overflow-wrap:anywhere;vertical-align:middle}
+#p-list .fire-equipment-table th:nth-child(1){width:13%}
+#p-list .fire-equipment-table th:nth-child(2){width:15%}
+#p-list .fire-equipment-table th:nth-child(3){width:15%}
+#p-list .fire-equipment-table th:nth-child(4){width:20%}
+#p-list .fire-equipment-table th:nth-child(5){width:11%}
+#p-list .fire-equipment-table th:nth-child(6){width:14%}
+#p-list .fire-equipment-table th:nth-child(7){width:8%}
+#p-list .fire-equipment-table th:nth-child(8){width:4%}
+.fire-list-kpis{margin-bottom:12px}
+.fire-list-kpis .kpi .v{font-size:25px}
+.fire-service-label{font-size:11px;color:var(--ink2);display:block;margin-top:3px}
+@media(max-width:720px){#p-list .fire-equipment-table{font-size:11px}#p-list .fire-equipment-table th,#p-list .fire-equipment-table td{padding:7px 5px}.fire-list-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 </head>
 <body>
 <div id="hdr"></div>
 
 <div class="tabs" id="tabs">
-  <button class="tab on" data-p="map"  data-zh="🗺 廠區地圖" data-en="🗺 Site Map"   data-km="🗺 ផែនទី">🗺 廠區地圖</button>
-  <button class="tab"    data-p="list" data-zh="🧯 設備清單" data-en="🧯 Equipment"  data-km="🧯 ឧបករណ៍">🧯 設備清單</button>
+  <button class="tab"     data-p="map"  data-zh="🗺 廠區地圖" data-en="🗺 Site Map"   data-km="🗺 ផែនទី">🗺 廠區地圖</button>
+  <button class="tab on" data-p="list" data-zh="🧯 設備清單" data-en="🧯 Equipment"  data-km="🧯 ឧបករណ៍">🧯 設備清單</button>
   <button class="tab"    data-p="insp" data-zh="✅ 巡檢登錄" data-en="✅ Inspection" data-km="✅ ត្រួតពិនិត្យ">✅ 巡檢登錄</button>
   <button class="tab"    data-p="ana"  data-zh="📊 統計分析" data-en="📊 Analytics"  data-km="📊 វិភាគ">📊 統計分析</button>
   <button class="tab"    data-p="data" data-zh="💾 資料管理" data-en="💾 Data"       data-km="💾 ទិន្នន័យ">💾 資料管理</button>
@@ -93,12 +114,12 @@
   <div id="pnavHost"></div>
 
   <!-- ═══ 地圖 ═══ -->
-  <div class="page" id="p-map">
+  <div class="page" id="p-map" style="display:none">
     <div class="grid g4" style="margin-bottom:12px">
       <div class="kpi"><div class="v" id="k1">0</div><div class="l" data-zh="設備總數" data-en="Equipment" data-km="ឧបករណ៍">設備總數</div></div>
       <div class="kpi ok"><div class="v" id="k2">0</div><div class="l" data-zh="正常" data-en="Normal" data-km="ធម្មតា">正常</div></div>
       <div class="kpi warn"><div class="v" id="k3">0</div><div class="l" data-zh="即將到期(30天)" data-en="Due soon" data-km="ជិតផុត">即將到期(30天)</div></div>
-      <div class="kpi err"><div class="v" id="k4">0</div><div class="l" data-zh="逾期／異常" data-en="Overdue / Fault" data-km="ហួសកំណត់">逾期／異常</div></div>
+      <div class="kpi err"><div class="v" id="k4">0</div><div class="l" data-zh="故障／日期已過" data-en="Fault / date passed" data-km="ខូច / ហួសកាលបរិច្ឆេទ">故障／日期已過</div></div>
     </div>
 
     <div class="card">
@@ -123,7 +144,7 @@
       <div class="legend">
         <span class="lg"><i style="background:#16a34a"></i> <span data-zh="正常" data-en="Normal" data-km="ធម្មតា">正常</span></span>
         <span class="lg"><i style="background:#f59e0b"></i> <span data-zh="30 天內到期" data-en="Due within 30 days" data-km="ជិតផុតកំណត់ក្នុង ៣០ ថ្ងៃ">30 天內到期</span></span>
-        <span class="lg"><i style="background:#dc2626"></i> <span data-zh="逾期未檢／故障" data-en="Overdue / Fault" data-km="ហួសកំណត់ / ខូច">逾期未檢／故障</span></span>
+        <span class="lg"><i style="background:#dc2626"></i> <span data-zh="故障／日期已過" data-en="Fault / date passed" data-km="ខូច / ហួសកាលបរិច្ឆេទ">故障／日期已過</span></span>
         <span class="lg"><i style="background:#94a3b8"></i> <span data-zh="停用／未設檢期" data-en="Disabled / No date" data-km="បិទប្រើ / គ្មានថ្ងៃ">停用／未設檢期</span></span>
         <span class="lg"><i style="background:#0f2b46;border-color:#f5c842"></i> <span data-zh="巡邏打點位置" data-en="Patrol points" data-km="ចំណុចល្បាត">巡邏打點位置</span></span>
       </div>
@@ -133,7 +154,7 @@
     </div>
 
     <div class="card">
-      <h3>⏰ <span data-zh="即將到期／逾期清單" data-en="Due & Overdue" data-km="បញ្ជីផុតកំណត់">即將到期／逾期清單</span>
+      <h3>⏰ <span data-zh="設備日期提醒" data-en="Equipment date reminders" data-km="ការរំលឹកកាលបរិច្ឆេទឧបករណ៍">設備日期提醒</span>
         <span class="sp"><button class="btn sm" onclick="pushDue()">✈️ <span data-zh="推送提醒" data-en="Push reminder" data-km="ផ្ញើរំលឹក">推送提醒</span></button></span></h3>
       <div class="tw"><table><thead><tr>
         <th data-zh="編號" data-en="Code" data-km="លេខ">編號</th><th data-zh="設備" data-en="Type" data-km="ប្រភេទ">設備</th>
@@ -146,7 +167,13 @@
   </div>
 
   <!-- ═══ 設備清單 ═══ -->
-  <div class="page" id="p-list" style="display:none">
+  <div class="page" id="p-list">
+    <div class="grid g4 fire-list-kpis">
+      <div class="kpi"><div class="v" id="fireListTotal">0</div><div class="l" data-zh="設備總數" data-en="Equipment" data-km="ឧបករណ៍">設備總數</div></div>
+      <div class="kpi ok"><div class="v" id="fireListNormal">0</div><div class="l" data-zh="目前正常" data-en="Normal" data-km="ធម្មតា">目前正常</div></div>
+      <div class="kpi warn"><div class="v" id="fireListDue">0</div><div class="l" data-zh="需注意日期" data-en="Due / service date" data-km="កាលបរិច្ឆេទត្រូវយកចិត្តទុកដាក់">需注意日期</div></div>
+      <div class="kpi err"><div class="v" id="fireListFault">0</div><div class="l" data-zh="故障／異常" data-en="Fault / abnormal" data-km="ខូច / មិនប្រក្រតី">故障／異常</div></div>
+    </div>
     <div class="card">
       <h3>🧯 <span data-zh="消防設備清單" data-en="Equipment List" data-km="បញ្ជីឧបករណ៍">消防設備清單</span>
         <span class="sp">
@@ -155,18 +182,17 @@
           <select id="fTypeList" style="width:auto" onchange="renderList()"><option value="">全部類型</option></select>
           <input id="q" placeholder="搜尋編號/位置…" style="width:150px" oninput="renderList()">
           <button class="btn sm" onclick="openEdit()">➕ <span data-t="add">新增</span></button>
+          <button class="btn sm" onclick="impExcel()">📥 <span data-zh="智慧匯入 Excel" data-en="Smart import Excel" data-km="នាំចូល Excel ឆ្លាតវៃ">智慧匯入 Excel</span></button>
           <button class="btn sm gh" onclick="openFireQrManager()">🔳 <span data-zh="QR 管理" data-en="QR manager" data-km="គ្រប់គ្រង QR">QR 管理</span></button>
           <button class="btn sm gh" onclick="expExcel()">📊 Excel</button>
         </span></h3>
-      <div class="tw"><table><thead><tr>
+      <div class="tw"><table class="fire-equipment-table"><thead><tr>
         <th data-zh="編號" data-en="Code" data-km="លេខ">編號</th>
         <th data-zh="設備類型" data-en="Type" data-km="ប្រភេទ">設備類型</th>
-        <th data-zh="廠別" data-en="Factory" data-km="រោងចក្រ">廠別</th>
-        <th data-zh="區域" data-en="Zone" data-km="តំបន់">區域</th>
+        <th data-zh="廠別／區域" data-en="Factory / Zone" data-km="រោងចក្រ / តំបន់">廠別／區域</th>
         <th data-zh="詳細位置" data-en="Location" data-km="ទីតាំង">詳細位置</th>
         <th data-zh="上次巡檢" data-en="Last" data-km="ចុងក្រោយ">上次巡檢</th>
-        <th data-zh="週期(天)" data-en="Cycle" data-km="វដ្ត">週期(天)</th>
-        <th data-zh="到期日" data-en="Due" data-km="ផុតកំណត់">到期日</th>
+        <th data-zh="設備日期" data-en="Equipment date" data-km="កាលបរិច្ឆេទឧបករណ៍">設備日期</th>
         <th data-zh="狀態" data-en="Status" data-km="ស្ថានភាព">狀態</th>
         <th></th></tr></thead><tbody id="tbList"></tbody></table></div>
     </div>
@@ -268,6 +294,7 @@
   <div class="f"><label data-zh="區域 Zone" data-en="Zone" data-km="តំបន់">區域 Zone</label><select id="e_zone"></select></div>
   <div class="f"><label data-zh="詳細位置 Location" data-en="Location" data-km="ទីតាំង">詳細位置 Location</label><input id="e_loc" placeholder="例：一樓東側走道"></div>
   <div class="f"><label data-zh="上次巡檢 Last Check" data-en="Last check" data-km="ពិនិត្យចុងក្រោយ">上次巡檢 Last Check</label><input type="date" id="e_last"></div>
+  <div class="f"><label id="e_service_label" data-zh="設備日期" data-en="Equipment date" data-km="កាលបរិច្ឆេទឧបករណ៍">設備日期</label><input type="date" id="e_serviceDate"><span class="hint fire-service-label" id="e_service_hint">滅火器：過期日；緊急照明：更換日</span></div>
   <div class="f"><label data-zh="巡檢週期(天) Cycle" data-en="Cycle (days)" data-km="វដ្ត (ថ្ងៃ)">巡檢週期(天) Cycle</label><input type="number" id="e_cycle" value="30"></div>
   <div class="f"><label data-zh="狀態 Status" data-en="Status" data-km="ស្ថានភាព">狀態 Status</label><select id="e_status">
     <option value="ok">✅ 正常 Normal</option><option value="fault">⛔ 故障 Fault</option>
@@ -327,7 +354,7 @@ var TYPES = {
   other: { icon:'📦', zh:'其他',     en:'Other',          km:'ផ្សេងទៀត', color:'#64748b' },
 };
 var ST = { ok:'#16a34a', soon:'#f59e0b', over:'#dc2626', off:'#94a3b8' };
-var FIRE_SEED_VERSION = window.FIRE_XLS_SEED_VERSION || 'fire-xlsx-2023-04';
+var FIRE_SEED_VERSION = window.FIRE_XLS_SEED_VERSION || 'fire-xlsx-2026-06';
 var FIRE_SEED = Array.isArray(window.FIRE_XLS_SEED) ? window.FIRE_XLS_SEED : [];
 var FACTORIES = {
   a: { zh:'A 廠', en:'A Factory', km:'រោងចក្រ A' },
@@ -352,7 +379,7 @@ async function load() {
   if (FIRE_SEED.length && (!DB.length || !DB.some(function (e) { return e.seedVersion === FIRE_SEED_VERSION; }))) {
     /* First launch after this package: replace the old duplicated/Other master list
        with the supplied Excel baseline, while keeping inspection history. */
-    if (DB.length) DB = [];
+    DB = DB.filter(function (e) { return !e.seedVersion || e.seedVersion === FIRE_SEED_VERSION; });
     applyFireSeed(false);
   }
 }
@@ -406,6 +433,10 @@ function applyFireSeed(rebuild) {
 
 /* ═══════════ 狀態計算 ═══════════ */
 function dueDate(e) {
+  if (e.serviceDate) {
+    var explicit = SEC.parseD(e.serviceDate);
+    if (explicit) return SEC.ymd(explicit);
+  }
   if (!e.last || !e.cycle) return '';
   var d = SEC.parseD(e.last); if (!d) return '';
   d.setDate(d.getDate() + (Number(e.cycle) || 30));
@@ -427,7 +458,7 @@ function statusOf(e) {
 function stLabel(s) {
   return s === 'ok' ? '<span class="tag ok">✅ 正常</span>'
        : s === 'soon' ? '<span class="tag warn">⏰ 即將到期</span>'
-       : s === 'over' ? '<span class="tag err">⛔ 逾期/故障</span>'
+       : s === 'over' ? '<span class="tag err">⛔ 故障／日期已過</span>'
        : '<span class="tag gray">⚪ 停用/未設</span>';
 }
 function zoneName(id) { var z = ZONES.filter(function (x) { return x.id === id; })[0]; return z ? z.zh : (id || '—'); }
@@ -451,11 +482,11 @@ function typeOptions(withAll) {
 }
 function fireStatusText(s) {
   return s === 'ok' ? '✅ 正常 / Normal' : s === 'soon' ? '⏰ 即將到期 / Due soon' :
-    s === 'over' ? '⛔ 逾期／故障 / Overdue or fault' : '⚪ 停用／未設 / Disabled or not set';
+    s === 'over' ? '⛔ 故障／日期已過 / Fault or date passed' : '⚪ 停用／未設 / Disabled or not set';
 }
 
 /* ═══════════ 初始化 ═══════════ */
-document.getElementById('hdr').innerHTML = SEC.headerHtml('🧯', '消防設施與地圖 Fire & Map', 'AC SECURITY · FIRE');
+document.getElementById('hdr').innerHTML = SEC.headerHtml('🧯', '消防設備 Fire Equipment', 'AC SECURITY · FIRE');
 document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
 SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: openFireTelegram, onSmartImport: impExcel });
 SEC.bindPeriodNav('pnav', PER, renderAll);
@@ -678,7 +709,7 @@ function renderList() {
 }
 
 /* ═══════════ 編輯 ═══════════ */
-var EF = ['code','type','factory','zone','loc','last','cycle','status','remark'];
+var EF = ['code','type','factory','zone','loc','last','serviceDate','cycle','status','remark'];
 var EDIT_ID = '', NEWXY = null, EDIT_FIRE_PHOTOS = [];
 function openEdit(id, x, y) {
   EDIT_ID = id || ''; NEWXY = (x != null) ? { x: x, y: y } : null;
@@ -895,7 +926,9 @@ function fireCol(rows, aliases) {
 function fireCodeCol(rows, prefix) {
   var best = {col:-1,n:0}, re = new RegExp('^' + prefix + '\\d{1,3}$','i');
   /* VRT Excel 可能使用 VRT F001、VRT FOO1 或 VRT F45；不要只依賴 FE/FA 前綴。 */
-  if (prefix === 'FE' || prefix === 'FA' || prefix === 'EL' || prefix === 'HR' || prefix === 'F') re = /^VRT\s*F[A-Z0-9]+$/i;
+  if (prefix === 'FE' || prefix === 'FA' || prefix === 'EL' || prefix === 'HR' || prefix === 'F') {
+    re = /^(?:VRT\s*)?(?:FE|FA|EL|HR|F)\s*[A-Z0-9]+$/i;
+  }
   for (var c = 0; c < 20; c++) {
     var n = 0;
     for (var r = 0; r < rows.length; r++) if (re.test(SEC.str((rows[r] || [])[c]))) n++;
@@ -911,7 +944,7 @@ function fireFactoryFromText(text, fallback) {
 }
 function fireZoneFromText(text, factory) {
   var s = String(text || '').toLowerCase();
-  if (/dorm|staff\s*house|house|宿舍/.test(s)) return 'house';
+  if (/dorm|staff\s*house|宿舍/.test(s)) return 'house';
   if (/finishing|finished|fabric|warehouse|倉|成品/.test(s)) return 'fwh';
   if (/back\s*gate|back|後門/.test(s)) return 'back';
   if (/front\s*gate|security|guard|大門|門崗/.test(s)) return 'gate';
@@ -946,22 +979,23 @@ function impExcel() {
       var rows = sh.rows || [], cc = fireCodeCol(rows, prof.prefix);
       if (cc < 0) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：找不到 ' + prof.prefix + ' 編號，略過'); return; }
       var lc = fireCol(rows, ['location','位置','place','area','地點']), dc = fireCol(rows, ['date check','date','日期','檢查日']),
+        sc = fireCol(rows, ['expire date','expiry date','replacement date','replace date','service date','due date','過期日','更換日','保養日']),
         bc = fireCol(rows, ['checked by','check by','inspector','檢查人','巡檢人']), rc = fireCol(rows, ['remarks','remark','comment','備註','說明']);
       var section = 'common', n = 0, histItems = {};
       for (var i = 0; i < rows.length; i++) {
         var R = rows[i] || [], joined = R.map(SEC.str).join(' ');
         if (/building\s*a|\bsda\b|a\s*factory|a廠|a棟/i.test(joined)) section = 'a';
         if (/building\s*b|\bsdb\b|b\s*factory|b廠|b棟/i.test(joined)) section = 'b';
-        var code = SEC.str(R[cc]);
-        if (!new RegExp('^' + prof.prefix + '\\d{1,3}$','i').test(code)) continue;
-        var loc = lc >= 0 ? SEC.str(R[lc]) : '', date = dc >= 0 ? (SEC.parseD(R[dc]) ? SEC.ymd(SEC.parseD(R[dc])) : '') : '';
-        code = code.replace(/FOO/ig, 'F00');
+        var code = SEC.str(R[cc]).replace(/^VRT\s*/i, '').replace(/\s+/g, '').replace(/FOO/ig, 'F00');
+        if (!new RegExp('^(?:' + prof.prefix + '|F)\\d{1,3}$','i').test(code)) continue;
+        var loc = lc >= 0 ? SEC.str(R[lc]) : '', date = dc >= 0 ? (SEC.parseD(R[dc]) ? SEC.ymd(SEC.parseD(R[dc])) : '') : '',
+          serviceDate = sc >= 0 ? (SEC.parseD(R[sc]) ? SEC.ymd(SEC.parseD(R[sc])) : '') : '';
         var combined = joined + ' ' + loc, factory = fireFactoryFromText(combined, section), zone = fireZoneFromText(combined, factory),
           z = ZONES.filter(function (x) { return x.id === zone; })[0] || ZONES[6], by = bc >= 0 ? SEC.str(R[bc]) : '', note = rc >= 0 ? SEC.str(R[rc]) : '',
           status = fireImportedStatus(joined), incomingKey = fireSeedKey({ code:code, type:prof.type, factory:factory, loc:loc }), old = DB.filter(function (x) { return fireSeedKey(x) === incomingKey; })[0];
         var baseRow = { code:code, type:prof.type, factory:factory, zone:zone, loc:loc };
         var row = { id:fireStableId(baseRow), code:code, type:prof.type, factory:factory, zone:zone,
-          loc:loc, last:date, cycle:30, status:status, remark:note, inspector:by, x:z.x+30+(n%8)*30, y:z.y+60+Math.floor(n/8)*30, src:sh.name, updatedAt:new Date().toISOString() };
+          loc:loc, last:date, serviceDate:serviceDate, cycle:30, status:status, remark:note, inspector:by, x:z.x+30+(n%8)*30, y:z.y+60+Math.floor(n/8)*30, src:sh.name, updatedAt:new Date().toISOString() };
         var m = fireMergeImported(row, old); if (m.added) { DB.push(m.row); added++; } else if (m.skipped) skipped++; else updated++;
         var hk = (date || 'no-date') + '|' + (by || '') + '|' + sh.name;
         if (!histByKey[hk]) histByKey[hk] = { id:'HX' + btoa(unescape(encodeURIComponent(hk))).replace(/[^A-Za-z0-9]/g,'').slice(0,24), importKey:hk, date:date, by:by, source:'excel', n:0, ok:0, bad:0, badList:[], items:[] };
@@ -974,6 +1008,7 @@ function impExcel() {
     if (HIST.length > 500) HIST.length = 500;
     save(); fillZoneSelects(); renderAll();
     document.getElementById('impLog').innerHTML = '<b>Import result / 匯入結果</b>：新增 ' + added + '，更新 ' + updated + '，舊資料略過 ' + skipped + '<br>' + log.join('<br>');
+    SEC.scheduleAutoCloudSync(TOOL, 'fire-excel-import', SEC.ymd());
     SEC.toast(added || updated ? '✅ Fire Excel updated: ' + added + ' new / ' + updated + ' updated' : '⚠ No fire equipment rows imported', added || updated ? 'ok' : 'warn', 6500);
   });
 }
@@ -1060,7 +1095,7 @@ function fireT(lang, zh, en, km) { return lang === 'en' ? en : lang === 'km' ? k
 function fireStatusLang(s, lang) {
   return s === 'ok' ? fireT(lang, '正常', 'Normal', 'ធម្មតា') :
     s === 'soon' ? fireT(lang, '即將到期', 'Due soon', 'ជិតផុតកំណត់') :
-    s === 'over' ? fireT(lang, '逾期／故障', 'Overdue / Fault', 'ហួសកំណត់ / ខូច') :
+    s === 'over' ? fireT(lang, '故障／日期已過', 'Fault / date passed', 'ខូច / ហួសកាលបរិច្ឆេទ') :
     fireT(lang, '停用／未設檢期', 'Disabled / No inspection date', 'បិទប្រើ / មិនទាន់កំណត់ថ្ងៃត្រួតពិនិត្យ');
 }
 function fireFactoryLang(id, lang) {
@@ -1155,7 +1190,7 @@ function fireSummary(st) {
       '\n' + fireT(lang, '範圍', 'Scope', 'វិសាលភាព') + '：' + fireScopeLabel(st, lang) + '\n─────────────\n' +
       fireT(lang, '設備總數', 'Equipment', 'ឧបករណ៍') + '：<b>' + list.length + '</b> · ' + fireT(lang, '已檢查', 'Checked', 'បានត្រួតពិនិត្យ') + '：<b>' + hs.checked + '</b>\n' +
       '🏭 ' + fireT(lang, 'A廠', 'A Factory', 'រោងចក្រ A') + '：<b>' + factoryCounts.a + '</b> · ' + fireT(lang, 'B廠', 'B Factory', 'រោងចក្រ B') + '：<b>' + factoryCounts.b + '</b> · ' + fireT(lang, '公共區域', 'Common', 'តំបន់រួម') + '：<b>' + factoryCounts.common + '</b>\n' +
-      (issueCount ? ('✅ ' + fireT(lang, '正常', 'Normal', 'ធម្មតា') + '：<b>' + normal + '</b>' + (soon.length ? ' · ⏰ ' + fireT(lang, '30天內到期', 'Due within 30 days', 'ជិតផុតកំណត់ក្នុង 30 ថ្ងៃ') + '：<b>' + soon.length + '</b>' : '') + (over.length ? ' · ⛔ ' + fireT(lang, '逾期／故障', 'Overdue / Fault', 'ហួសកំណត់ / ខូច') + '：<b>' + over.length + '</b>' : '') + (disabled ? ' · ⚪ ' + fireT(lang, '停用', 'Disabled', 'ផ្អាកប្រើ') + '：<b>' + disabled + '</b>' : '') + (hs.bad || inspBad.length ? ' · 🧾 ' + fireT(lang, '巡檢異常', 'Inspection anomalies', 'បញ្ហាការត្រួតពិនិត្យ') + '：<b>' + (hs.bad || inspBad.length) + '</b>' : '') + '\n') : ('✅ ' + fireT(lang, '本期間全部正常', 'All equipment normal in this period', 'ឧបករណ៍ទាំងអស់ធម្មតាក្នុងរយៈពេលនេះ') + '\n'));
+      (issueCount ? ('✅ ' + fireT(lang, '正常', 'Normal', 'ធម្មតា') + '：<b>' + normal + '</b>' + (soon.length ? ' · ⏰ ' + fireT(lang, '日期將近', 'Date approaching', 'កាលបរិច្ឆេទជិតដល់') + '：<b>' + soon.length + '</b>' : '') + (over.length ? ' · ⛔ ' + fireT(lang, '故障／日期已過', 'Fault / date passed', 'ខូច / ហួសកាលបរិច្ឆេទ') + '：<b>' + over.length + '</b>' : '') + (disabled ? ' · ⚪ ' + fireT(lang, '停用', 'Disabled', 'ផ្អាកប្រើ') + '：<b>' + disabled + '</b>' : '') + (hs.bad || inspBad.length ? ' · 🧾 ' + fireT(lang, '巡檢異常', 'Inspection anomalies', 'បញ្ហាការត្រួតពិនិត្យ') + '：<b>' + (hs.bad || inspBad.length) + '</b>' : '') + '\n') : ('✅ ' + fireT(lang, '本期間全部正常', 'All equipment normal in this period', 'ឧបករណ៍ទាំងអស់ធម្មតាក្នុងរយៈពេលនេះ') + '\n'));
   if (hs.latestDate) txt += '📅 ' + fireT(lang, '最近巡檢', 'Latest inspection', 'ការត្រួតពិនិត្យចុងក្រោយ') + '：' + SEC.esc(hs.latestDate) + ' · ' + fireT(lang, '檢查人', 'Inspector', 'អ្នកត្រួតពិនិត្យ') + '：' + SEC.esc(hs.latestBy || '—') + '\n';
   var typeLine = Object.keys(typeCounts).map(function (tk) {
     var t = TYPES[tk] || TYPES.other;
@@ -1172,7 +1207,7 @@ function fireSummary(st) {
     });
     if (over.length + inspBad.length > 20) txt += '· … ' + fireT(lang, '其餘異常請到設備／巡檢頁查看', 'See Equipment / Inspection pages for remaining anomalies', 'សូមមើលទំព័រឧបករណ៍ / ការត្រួតពិនិត្យសម្រាប់បញ្ហាដែលនៅសល់') + '\n';
   } else {
-    txt += '\n✅ ' + fireT(lang, '本期間沒有逾期、故障或巡檢異常。', 'No overdue, faulty, or inspection-abnormal items in this period.', 'គ្មានធាតុហួសកំណត់ ខូច ឬមានបញ្ហាការត្រួតពិនិត្យក្នុងរយៈពេលនេះទេ។');
+    txt += '\n✅ ' + fireT(lang, '本期間沒有故障、日期已過或巡檢異常。', 'No faulty, date-passed, or inspection-abnormal items in this period.', 'គ្មានធាតុខូច ហួសកាលបរិច្ឆេទ ឬមានបញ្ហាការត្រួតពិនិត្យក្នុងរយៈពេលនេះទេ។');
   }
   return txt;
 }
@@ -1246,7 +1281,7 @@ stLabel = function (s) {
   var l = SEC.lang();
   return s === 'ok' ? '<span class="tag ok">✅ ' + fireT(l,'正常','Normal','ធម្មតា') + '</span>'
     : s === 'soon' ? '<span class="tag warn">⏰ ' + fireT(l,'即將到期','Due soon','ជិតផុត') + '</span>'
-    : s === 'over' ? '<span class="tag err">⛔ ' + fireT(l,'逾期／故障','Overdue / Fault','ហួសកំណត់ / ខូច') + '</span>'
+    : s === 'over' ? '<span class="tag err">⛔ ' + fireT(l,'故障／日期已過','Fault / date passed','ខូច / ហួសកាលបរិច្ឆេទ') + '</span>'
     : '<span class="tag gray">⚪ ' + fireT(l,'停用／未設','Disabled / No date','បិទប្រើ / គ្មានថ្ងៃ') + '</span>';
 };
 factoryOptions = function (withAll) {
@@ -1302,7 +1337,7 @@ function applyFireLanguage() {
   SEC.applyI18n(document); fillZoneSelects();
   var l=SEC.lang(), labels=document.querySelectorAll('#plan .zone-lbl'), subs=document.querySelectorAll('#plan .zone-sub');
   ZONES.forEach(function(z,i){if(labels[i])labels[i].textContent=fireUiLabel(z);if(subs[i])subs[i].textContent=(l==='zh'?z.en:l==='en'?z.zh:z.km)+' · '+DB.filter(function(e){return e.zone===z.id;}).length;});
-  var title=document.querySelector('.hdr-t1');if(title)title.textContent=fireT(l,'消防設施與地圖','Fire & Map','ពន្លត់អគ្គិភ័យ និងផែនទី');
+  var title=document.querySelector('.hdr-t1');if(title)title.textContent=fireT(l,'消防設備','Fire Equipment','ឧបករណ៍ពន្លត់អគ្គិភ័យ');
   var sub=document.querySelector('.hdr-t2');if(sub)sub.textContent='AC SECURITY · FIRE';
   var q=document.getElementById('q');if(q)q.placeholder=fireT(l,'搜尋編號/位置…','Search code/location…','ស្វែងរកលេខ/ទីតាំង…');
   var loc=document.getElementById('e_loc');if(loc)loc.placeholder=fireT(l,'例：一樓東側走道','e.g. East corridor, Level 1','ឧ. ផ្លូវខាងកើត ជាន់ទី១');
@@ -1447,6 +1482,64 @@ function fireInspectionSummaryPhotos(st, pageIndex) {
   });
   return out;
 }
+/* ═══ 20260815d: equipment-only Fire Facility presentation ═══ */
+var _fireDueByCycle = dueDate;
+dueDate = function (e) {
+  if (!e || !e.serviceDate) return '';
+  var d = SEC.parseD(e.serviceDate);
+  return d ? SEC.ymd(d) : '';
+};
+statusOf = function (e) {
+  if (!e) return 'off';
+  if (e.status === 'off') return 'off';
+  if (e.status === 'fault') return 'over';
+  if (!e.serviceDate) return e.status === 'ok' ? 'ok' : 'off';
+  var dl = daysLeft(e);
+  return dl < 0 ? 'over' : dl <= 30 ? 'soon' : 'ok';
+};
+function fireEquipmentDateLabel(type, lang) {
+  var t = type === 'ext' ? ['滅火器過期日','Extinguisher expiry date','ថ្ងៃផុតកំណត់ឧបករណ៍ពន្លត់'] :
+    type === 'light' ? ['緊急照明更換日','Emergency-light replacement date','ថ្ងៃប្តូរភ្លើងបន្ទាន់'] :
+    ['下次保養／服務日','Next service date','ថ្ងៃសេវាកម្មបន្ទាប់'];
+  return fireT(lang || SEC.lang(), t[0], t[1], t[2]);
+}
+stLabel = function (s) {
+  var l = SEC.lang();
+  return s === 'ok' ? '<span class="tag ok">✅ ' + fireT(l,'正常','Normal','ធម្មតា') + '</span>'
+    : s === 'soon' ? '<span class="tag warn">⏰ ' + fireT(l,'日期將近','Date approaching','កាលបរិច្ឆេទជិតដល់') + '</span>'
+    : s === 'over' ? '<span class="tag err">⛔ ' + fireT(l,'故障／已過日期','Fault / date passed','ខូច / ហួសកាលបរិច្ឆេទ') + '</span>'
+    : '<span class="tag gray">⚪ ' + fireT(l,'停用／未設日期','Disabled / no date','បិទប្រើ / គ្មានកាលបរិច្ឆេទ') + '</span>';
+};
+function syncFireServiceLabel() {
+  var type = (document.getElementById('e_type') || {}).value || 'ext', l = SEC.lang();
+  var label = document.getElementById('e_service_label'), hint = document.getElementById('e_service_hint');
+  if (label) label.textContent = fireEquipmentDateLabel(type, l);
+  if (hint) hint.textContent = fireEquipmentDateLabel(type, l) + ' / ' + fireT(l,'填寫後才會顯示日期提醒','Fill this to show a date reminder','បំពេញដើម្បីបង្ហាញការរំលឹកកាលបរិច្ឆេទ');
+}
+var _fireOpenEditOnly = openEdit;
+openEdit = function () { var r = _fireOpenEditOnly.apply(this, arguments); syncFireServiceLabel(); return r; };
+if (document.getElementById('e_type')) document.getElementById('e_type').addEventListener('change', syncFireServiceLabel);
+
+function renderFireListKpi() {
+  var total=DB.length, normal=0, due=0, fault=0;
+  DB.forEach(function(e){var s=statusOf(e);if(s==='ok')normal++;else if(s==='soon')due++;else if(s==='over')fault++;});
+  [['fireListTotal',total],['fireListNormal',normal],['fireListDue',due],['fireListFault',fault]].forEach(function(x){var el=document.getElementById(x[0]);if(el)el.textContent=x[1];});
+}
+var _fireRenderListEquipment = renderList;
+renderList = function () {
+  var list=DB.slice(), f=document.getElementById('fFactory').value,z=document.getElementById('fZone').value,t=document.getElementById('fTypeList').value,q=(document.getElementById('q').value||'').toLowerCase();
+  if(f)list=list.filter(function(e){return factoryOf(e)===f;});
+  if(z)list=list.filter(function(e){return e.zone===z;});
+  if(t)list=list.filter(function(e){return e.type===t;});
+  if(q)list=list.filter(function(e){return String(e.code||'').toLowerCase().indexOf(q)>=0||String(e.loc||'').toLowerCase().indexOf(q)>=0;});
+  var l=SEC.lang(), tb=document.getElementById('tbList');
+  tb.innerHTML=list.length?list.map(function(e){var T=TYPES[e.type]||TYPES.other,sd=dueDate(e),thumb=e.photos&&e.photos[0]?'<img class="fire-eq-thumb" src="'+SEC.esc(e.photos[0])+'" alt="equipment">':'';
+    return '<tr><td>'+thumb+'<code>'+SEC.esc(e.code||'—')+'</code></td><td>'+T.icon+' '+SEC.esc(fireTypeLabel(e.type))+'</td><td><span class="factory-pill">'+SEC.esc(factoryName(factoryOf(e)))+'</span><br><small>'+SEC.esc(zoneName(e.zone))+'</small></td><td>'+SEC.esc(e.loc||'—')+'</td><td>'+SEC.esc(e.last||'—')+'</td><td>'+ (sd?'<b>'+SEC.esc(sd)+'</b><span class="fire-service-label">'+SEC.esc(fireEquipmentDateLabel(e.type,l))+'</span>':'<span class="hint">—</span>') +'</td><td>'+stLabel(statusOf(e))+'</td><td><button class="btn sm gh" onclick="openEdit(\''+SEC.esc(e.id)+'\')">✏️</button> <button class="btn sm qr-mini" onclick="showFireQr(\''+SEC.esc(e.id)+'\',\''+SEC.esc(e.code||'')+'\')">🔳</button></td></tr>';}).join(''):'<tr><td colspan="8" class="empty">'+SEC.T().noData+'</td></tr>';
+  renderFireListKpi();
+};
+var _fireRenderAllEquipment = renderAll;
+renderAll = function () { _fireRenderAllEquipment(); renderFireListKpi(); syncFireServiceLabel(); };
+
 var QR_FIRE_PHOTOS = {};
 var _qrFireRenderWithPhotos = qrFireRender;
 qrFireRender = function (data) {

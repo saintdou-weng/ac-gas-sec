@@ -621,7 +621,7 @@ async function tgSummary(text, module, photo, photos) {
 
 /* ───────── Telegram 摘要／核可選擇器（Security 版 GA exp TG.open） ─────────
    讓每個模組都能先選：摘要或核可、日／週／月／年、期間、語言，再送出。
-   核可項目由頁面自行提供，後端仍會再次限制只有保安服務費可送核可。 */
+   核可項目由頁面自行提供，後端會依模組限制可送出的資料類型。 */
 function tgAnchor(key, type) {
   var s = String(key || '');
   if (type === 'year' && /^\d{4}$/.test(s)) return new Date(+s, 0, 1);
@@ -643,12 +643,12 @@ function tgOpen(opt) {
   var langHtml = '<option value="both">繁中 + English</option><option value="zh">繁體中文</option><option value="en">English</option><option value="km">ខ្មែរ</option>';
   mask.innerHTML =
     '<div class="modal" style="max-width:560px">' +
-      '<div class="mh"><span>✈️</span><b>Telegram 摘要／核可</b>' +
+      '<div class="mh"><span>✈️</span><b>' + esc(opt.modalTitle || 'Telegram 摘要／核可') + '</b>' +
         '<button class="x" data-tg-close>×</button></div>' +
       '<div class="mb">' +
         '<div class="f"><label>傳送模式 Mode</label><div class="row" id="tgMode">' +
           '<button class="btn sm" data-tg-mode="summary">📄 摘要 Summary</button>' +
-          (opt.canApprove ? '<button class="btn sm gh" data-tg-mode="approval">✅ 保安費核可 Approval</button>' : '') +
+          (opt.canApprove ? '<button class="btn sm gh" data-tg-mode="approval">✅ ' + esc(opt.approvalLabel || '保安費核可 Approval') + '</button>' : '') +
         '</div></div>' +
         '<div class="grid ' + (scopeHtml ? 'g3' : 'g2') + '" style="margin-top:10px">' +
           '<div class="f"><label>期間類型 Period</label><select id="tgType">' +
@@ -710,8 +710,8 @@ function tgOpen(opt) {
     return new Period(st.ptype, d).key();
   }
   function note() {
-    q('#tgNote').textContent = st.mode === 'approval'
-      ? '未送核項目會建立新批次；已送出但仍待核可的項目會更新原批次，不會重複建立費用。Telegram 群組會顯示逐筆核可／退件、翻頁、全部核可及關閉批次按鈕。'
+      q('#tgNote').textContent = st.mode === 'approval'
+      ? (opt.approvalNote || '未送核項目會建立新批次；已送出但仍待核可的項目會更新原批次，不會重複建立資料。Telegram 群組會顯示逐筆核可／退件、翻頁、全部核可及關閉批次按鈕。')
       : '摘要是通知用途，可重複傳送，不會建立核可批次，也不會改變資料狀態。';
   }
   function summaryPages() {
@@ -747,13 +747,17 @@ function tgOpen(opt) {
     try {
       if (st.mode === 'approval') {
         var items = opt.approvalItems ? (opt.approvalItems(st) || []) : [];
-        var amt = items.reduce(function (a, r) { return a + (Number(r.amount) || 0); }, 0);
-        text = '💰 保安費核可請求\n期間：' + tgPeriodLabel(st.period, st.ptype) +
+        if (typeof opt.approvalPreview === 'function') {
+          text = String(opt.approvalPreview(st, items) || '（沒有可送核資料）');
+        } else {
+          var amt = items.reduce(function (a, r) { return a + (Number(r.amount) || 0); }, 0);
+          text = '💰 保安費核可請求\n期間：' + tgPeriodLabel(st.period, st.ptype) +
           '\n─────────────\n筆數：' + items.length + '　合計：$' + amt.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) +
           '\n\n' + items.slice(0, 10).map(function (r, i) {
             return (i + 1) + '. ' + (r.name || r.item || '—') + ' · $' + Number(r.amount || 0).toFixed(2) +
               (r.reason ? '\n   ' + r.reason : '');
           }).join('\n') + (items.length > 10 ? '\n… 另有 ' + (items.length - 10) + ' 筆' : '');
+        }
         q('#tgSend').disabled = !items.length;
       } else {
         var pages = summaryPages();
