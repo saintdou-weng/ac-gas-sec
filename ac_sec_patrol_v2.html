@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
-<script src="./shared/xlsx.full.min.js?v=20260814b"></script>
+<script src="./shared/xlsx.full.min.js?v=20260815c"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="stylesheet" href="./shared/sec.css?v=20260808g">
 <style>
@@ -88,7 +88,7 @@
         </span></h3>
       <p class="hint" style="margin-bottom:11px">
         ⚠️ 巡更棒裡的「巡检点」欄位目前是<b>「未设置」</b> — 機器沒設定名稱。這裡用 Chip ID 對照，命名一次以後所有報表都會顯示中文名。
-        <b>順序</b>是依照巡邏員實際打點的先後自動推算的（第 1 點通常最靠近出發崗哨）。
+        <b>每次匯入新巡邏檔如有新增、停用或順序變動，都會先列出差異要求確認</b>；舊紀錄保留，已停用點不再列入新的漏點計算。
       </p>
       <div class="grid g3" id="cpList"></div>
     </div>
@@ -254,8 +254,8 @@
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260814b"></script>
-<script src="./shared/sec-smart-sync.js?v=20260814b"></script>
+<script src="./shared/sec-core.js?v=20260815c"></script>
+<script src="./shared/sec-smart-sync.js?v=20260815c"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -275,9 +275,15 @@ if (typeof SEC === 'undefined') {
 var LS_SCAN = 'ac_sec_patrol_scan';     /* 巡更棒原始打點 */
 var LS_MAN  = 'ac_sec_patrol_db';       /* 人工登錄（沿用 v1 key） */
 var LS_CHIP = 'ac_sec_chipmap';         /* Chip ID → 巡邏點名稱 */
+var LS_CP_BASELINE = 'ac_sec_patrol_cp_baseline';
 var SCAN = [], MAN = [], CHIP = {}, ROUNDS = [];
 var PH = { n: [], i: [] }, PER = new SEC.Period('month'), CH = {}, TOOL = 'patrol';
 var paintPatrolPeriod;
+var CP_BASELINE_APPLIED = false;
+/* 由使用者提供的 2026-08 巡邏檔核出的最新 12 個 checkpoint。
+   只在本機已有 2026-08 資料時自動提出一次差異確認；未有 8 月資料時仍以匯入檔為準。 */
+var ATTACHMENT_LATEST_CP = ['0F004EBEFC','3A0073B8C6','3300A5D392','3300A5CD4C','3300A635E9','3300A5A761',
+  'OF004E86D9','3300A542BE','3300A5554E','3300A585AB','3300A5E151','3300A5E13D'];
 
 /* 建議名稱（依 VRT 保安崗位清單，可自行改） */
 var SUGGEST = ['大門崗哨 Front Gate','A棟前 Front Building A','A棟 Building A',
@@ -289,16 +295,21 @@ async function load() {
   SCAN = await SEC.dbGet(LS_SCAN, []);
   MAN = await SEC.dbGet(LS_MAN, []);
   CHIP = await SEC.dbGet(LS_CHIP, {});
+  CP_BASELINE_APPLIED = !!(await SEC.dbGet(LS_CP_BASELINE, ''));
   if (!Array.isArray(SCAN)) SCAN = [];
   if (!Array.isArray(MAN)) MAN = [];
   if (!CHIP || typeof CHIP !== 'object' || Array.isArray(CHIP)) CHIP = {};
+  Object.keys(CHIP).forEach(function (c) {
+    if (!CHIP[c] || typeof CHIP[c] !== 'object' || Array.isArray(CHIP[c])) CHIP[c] = {};
+    if (CHIP[c].active === undefined) CHIP[c].active = true;
+  });
 }
 function saveScan() { SEC.dbPut(LS_SCAN, SCAN); }
 function saveMan()  { SEC.dbPut(LS_MAN, MAN); }
 function saveChip() { SEC.dbPut(LS_CHIP, CHIP); }
 
 /* ═══════════ 初始化 ═══════════ */
- document.getElementById('hdr').innerHTML = SEC.headerHtml('🚨', '保安巡邏 Patrol', 'AC SECURITY · PATROL v2 · 20260814b');
+ document.getElementById('hdr').innerHTML = SEC.headerHtml('🚨', '保安巡邏 Patrol', 'AC SECURITY · PATROL v2 · 20260815c');
 document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
 SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: openPatrolTelegram, onSmartImport: impWand });
 paintPatrolPeriod = SEC.bindPeriodNav('pnav', PER, renderAll);
@@ -315,16 +326,24 @@ document.getElementById('tabs').addEventListener('click', function (e) {
 ['nTime','iTime'].forEach(function (i) { document.getElementById(i).value = SEC.hm(); });
 window.onLangChange = renderAll;
 SEC.dataReady().then(load).then(function () {
+  applyAttachmentCheckpointBaseline();
   jumpPatrolToLatest();
   rebuild();
   if (paintPatrolPeriod) paintPatrolPeriod();
 }).catch(SEC.bootError);
 
 /* ═══════════ 巡邏圈偵測 ═══════════ */
+function chipIsActive(c) { return !!CHIP[c] && CHIP[c].active !== false; }
+function allChipOrder() {
+  return Object.keys(CHIP).sort(function (a, b) {
+    var sa = chipSeq(a), sb = chipSeq(b);
+    return sa === sb ? a.localeCompare(b) : sa - sb;
+  });
+}
 function chipName(c) { return (CHIP[c] && CHIP[c].name) || ('未命名 ' + String(c).slice(-4)); }
 function chipSeq(c)  { return (CHIP[c] && CHIP[c].seq) || 999; }
 function chipOrder() {
-  return Object.keys(CHIP).sort(function (a, b) { return chipSeq(a) - chipSeq(b); });
+  return allChipOrder().filter(chipIsActive);
 }
 
 /* 由打點順序推算巡邏點編號 */
@@ -351,8 +370,10 @@ function inferChips() {
   var chips = Object.keys(cnt);
   chips.sort(function (a, b) { return (seq[a] / seqN[a]) - (seq[b] / seqN[b]); });
   chips.forEach(function (c, i) {
-    if (!CHIP[c]) CHIP[c] = { name: '', seq: i + 1 };
-    CHIP[c].seq = i + 1;
+    if (!CHIP[c]) CHIP[c] = { name: '', seq: i + 1, active: true };
+    if (CHIP[c].active === undefined) CHIP[c].active = true;
+    /* 匯入最新巡邏檔後可鎖定現行順序；否則首次匯入仍依打點順序自動排列。 */
+    if (!CHIP[c].seqLocked) CHIP[c].seq = i + 1;
     CHIP[c].n = cnt[c]; CHIP[c].first = first[c]; CHIP[c].last = last[c];
   });
   saveChip();
@@ -373,6 +394,8 @@ function buildRounds() {
   });
   if (cur) out.push(cur);
   out.forEach(function (r) {
+    /* 舊 checkpoint 的歷史打點仍保留在 SCAN，但不應再讓新版現行點數被判定為漏點。 */
+    r.chips = r.chips.filter(function (c) { return chipIsActive(c); });
     r.date = r.start.slice(0, 10);
     r.hour = parseInt(r.start.slice(11, 13), 10);
     r.dur  = Math.round((new Date(r.end.replace(' ', 'T')) - new Date(r.start.replace(' ', 'T'))) / 60000);
@@ -397,7 +420,18 @@ function jumpPatrolToDate(dateLike) {
   var d = SEC.parseD(dateLike);
   if (d) PER.at = d;
 }
-function totalCp() { return Math.max(1, Object.keys(CHIP).length); }
+function applyAttachmentCheckpointBaseline() {
+  if (CP_BASELINE_APPLIED) return;
+  var latest = '';
+  SCAN.forEach(function (s) {
+    var d = String(s.t || '').slice(0, 10);
+    if (d >= '2026-08-01' && d > latest) latest = d;
+  });
+  if (!latest || !ATTACHMENT_LATEST_CP.length) return;
+  var result = reconcileCheckpoints(ATTACHMENT_LATEST_CP, {}, '附件 2026-08 每日巡邏記錄（最新資料）');
+  if (result.confirmed) { CP_BASELINE_APPLIED = true; SEC.dbPut(LS_CP_BASELINE, '20260815c'); }
+}
+function totalCp() { return Math.max(1, chipOrder().length); }
 function rebuild() { inferChips(); buildRounds(); renderAll(); }
 
 function inPeriodR() { return ROUNDS.filter(function (r) { return PER.has(r.date); }); }
@@ -527,24 +561,36 @@ function renderRounds() {
 }
 
 function renderCp() {
-  var order = chipOrder();
+  var order = allChipOrder();
   var box = document.getElementById('cpList');
   if (!order.length) { box.innerHTML = '<div class="empty">尚未匯入巡更棒資料。請到「💾 資料管理」匯入。</div>'; return; }
   box.innerHTML = order.map(function (c) {
     var o = CHIP[c];
-    return '<div class="cp-card' + (o.name ? '' : ' unnamed') + '">' +
+    var active = o.active !== false;
+    var draft = o.pendingName !== undefined ? o.pendingName : (o.name || '');
+    var history = SCAN.some(function (s) { return s.c === c; });
+    return '<div class="cp-card' + (o.name ? '' : ' unnamed') + (active ? '' : '" style="opacity:.7;background:#f8fafc') + '">' +
       '<div style="display:flex;align-items:center;margin-bottom:7px">' +
         '<span class="cp-seq">' + o.seq + '</span>' +
         '<span class="cp-chip">' + SEC.esc(c) + '</span>' +
-        '<span style="margin-left:auto;font-size:11px;color:var(--ink2)">' + (o.n || 0) + ' 次</span>' +
+        '<span style="margin-left:auto;font-size:11px;color:' + (active ? 'var(--ok)' : 'var(--ink2)') + '">' +
+          (active ? '啟用 Active' : '已停用 Inactive') + ' · ' + (o.n || 0) + ' 次</span>' +
       '</div>' +
-      '<input value="' + SEC.esc(o.name || '') + '" placeholder="輸入巡邏點名稱…" data-c="' + SEC.esc(c) + '" class="cpn">' +
-      '<div class="hint" style="margin-top:5px">首見 ' + String(o.first || '').slice(5, 16) + '</div>' +
+      '<input value="' + SEC.esc(draft) + '" placeholder="輸入巡邏點名稱…" data-c="' + SEC.esc(c) + '" class="cpn">' +
+      '<div class="hint" style="margin-top:5px">首見 ' + String(o.first || '').slice(5, 16) +
+        (history ? ' · 歷史資料保留' : '') + '</div>' +
+      '<div class="row" style="margin-top:7px;gap:6px">' +
+        '<button class="btn sm ' + (active ? 'err' : '') + ' cp-toggle" data-c="' + SEC.esc(c) + '">' +
+          (active ? '⏸ 停用' : '↩ 啟用') + '</button>' +
+        (!history ? '<button class="btn sm err cp-delete" data-c="' + SEC.esc(c) + '">🗑 刪除</button>' : '') +
+      '</div>' +
     '</div>';
   }).join('');
   box.querySelectorAll('.cpn').forEach(function (inp) {
-    inp.onchange = function () { CHIP[inp.dataset.c].name = inp.value.trim(); saveChip(); fillLocs(); };
+    inp.oninput = function () { CHIP[inp.dataset.c].pendingName = inp.value.trim(); };
   });
+  box.querySelectorAll('.cp-toggle').forEach(function (b) { b.onclick = function () { toggleChip(b.dataset.c); }; });
+  box.querySelectorAll('.cp-delete').forEach(function (b) { b.onclick = function () { deleteChip(b.dataset.c); }; });
   renderCpStat();
 }
 function renderCpStat() {
@@ -565,11 +611,102 @@ function renderCpStat() {
 }
 function autoName() {
   var order = chipOrder();
-  order.forEach(function (c, i) { if (!CHIP[c].name) CHIP[c].name = SUGGEST[i] || ('巡邏點 ' + (i + 1)); });
+  var changes = order.filter(function (c) { return !CHIP[c].name; }).map(function (c, i) {
+    return { c:c, name:SUGGEST[i] || ('巡邏點 ' + (i + 1)) };
+  });
+  if (!changes.length) { SEC.toast('ℹ️ 目前啟用的 checkpoint 都已有名稱', 'warn'); return; }
+  var msg = '確認套用以下 checkpoint 建議名稱？名稱變更會影響之後的摘要與報表，但歷史打點不會刪除。\n\n' +
+    changes.map(function (x) { return '· ' + x.c + ' → ' + x.name; }).join('\n');
+  if (!confirm(msg)) return;
+  changes.forEach(function (x) { CHIP[x.c].name = x.name; });
   saveChip(); renderCp(); fillLocs();
-  SEC.toast('✨ 已套用建議名稱，可再逐一修改', 'ok');
+  notifyCheckpointChange({ type:'rename', added:[], removed:[], renamed:changes }, '套用建議名稱');
+  SEC.toast('✨ 已套用建議名稱並儲存', 'ok');
 }
-function saveChips() { saveChip(); renderAll(); SEC.toast('💾 巡邏點名稱已儲存', 'ok'); }
+function saveChips() {
+  var changes = [];
+  allChipOrder().forEach(function (c) {
+    var o = CHIP[c];
+    if (o.pendingName === undefined || o.pendingName === (o.name || '')) return;
+    changes.push({ c:c, from:o.name || '', name:o.pendingName });
+  });
+  if (!changes.length) { SEC.toast('ℹ️ 沒有待儲存的 checkpoint 名稱變更', 'warn'); return; }
+  var msg = '確認儲存 checkpoint 名稱變更？\n\n' + changes.map(function (x) {
+    return '· ' + x.c + '：' + (x.from || '（空白）') + ' → ' + (x.name || '（空白）');
+  }).join('\n');
+  if (!confirm(msg)) return;
+  changes.forEach(function (x) { CHIP[x.c].name = x.name; delete CHIP[x.c].pendingName; });
+  saveChip(); rebuild();
+  notifyCheckpointChange({ type:'rename', added:[], removed:[], renamed:changes }, '手動命名儲存');
+  SEC.toast('💾 checkpoint 名稱已儲存', 'ok');
+}
+function toggleChip(c) {
+  var o = CHIP[c]; if (!o) return;
+  var next = o.active === false;
+  var history = SCAN.filter(function (s) { return s.c === c; }).length;
+  var msg = next ?
+    '確認重新啟用 checkpoint ' + c + '？它會重新列入新的應打點數。' :
+    '確認停用 checkpoint ' + c + '？' + (history ? '\n已有 ' + history + ' 筆歷史打點，系統不會刪除，只是不再列入新的漏點計算。' : '') +
+    '\n變更會寫入本機並通知保安群組。';
+  if (!confirm(msg)) return;
+  o.active = next;
+  saveChip(); rebuild();
+  notifyCheckpointChange({ type:next ? 'reactivate' : 'deactivate', added:next ? [c] : [], removed:next ? [] : [c], renamed:[] }, next ? '手動重新啟用' : '手動停用');
+  SEC.toast(next ? '✅ checkpoint 已重新啟用' : '⏸ checkpoint 已停用（歷史保留）', 'ok');
+}
+function deleteChip(c) {
+  var o = CHIP[c]; if (!o) return;
+  var history = SCAN.some(function (s) { return s.c === c; });
+  if (history) { toggleChip(c); return; }
+  if (!confirm('確認永久刪除尚無巡邏紀錄的 checkpoint ' + c + '？此動作無法復原。')) return;
+  delete CHIP[c]; saveChip(); rebuild();
+  notifyCheckpointChange({ type:'delete', added:[], removed:[c], renamed:[] }, '手動刪除');
+  SEC.toast('🗑 checkpoint 已刪除', 'ok');
+}
+function checkpointNameUseful(v) {
+  var s = SEC.str(v).trim();
+  return !!s && !/^(未设置|未設定|not\s*set|unknown|n\/a|-)$/i.test(s);
+}
+function checkpointDiff(incomingOrder) {
+  var incoming = {}; incomingOrder.forEach(function (c) { incoming[c] = 1; });
+  var active = chipOrder();
+  var added = incomingOrder.filter(function (c) { return !chipIsActive(c); });
+  var removed = active.filter(function (c) { return !incoming[c]; });
+  var orderChanged = active.length === incomingOrder.length && active.some(function (c, i) { return c !== incomingOrder[i]; });
+  return { added:added, removed:removed, orderChanged:orderChanged };
+}
+function reconcileCheckpoints(incomingOrder, incomingNames, source) {
+  var diff = checkpointDiff(incomingOrder);
+  if (!diff.added.length && !diff.removed.length && !diff.orderChanged) return { changed:false, confirmed:true, diff:diff };
+  var lines = ['最新巡邏檔：' + source, '現行啟用 checkpoint：' + chipOrder().length + ' 個', '檔案 checkpoint：' + incomingOrder.length + ' 個'];
+  if (diff.added.length) lines.push('新增／重新啟用：\n· ' + diff.added.join('\n· '));
+  if (diff.removed.length) lines.push('將停用（歷史資料保留，不再列入新漏點）：\n· ' + diff.removed.join('\n· '));
+  if (diff.orderChanged) lines.push('順序：檔案順序與目前順序不同，將以最新檔案順序為準。');
+  lines.push('確認後才會更新 checkpoint 標準；取消則只匯入打點，不改現行標準。');
+  if (!confirm('⚠️ CHECKPOINT 有變動，請確認\n\n' + lines.join('\n'))) return { changed:true, confirmed:false, diff:diff };
+  incomingOrder.forEach(function (c, i) {
+    if (!CHIP[c]) CHIP[c] = { name:'', n:0, active:true };
+    CHIP[c].active = true; CHIP[c].seq = i + 1; CHIP[c].seqLocked = true;
+    if (!CHIP[c].name && checkpointNameUseful(incomingNames[c])) CHIP[c].name = incomingNames[c];
+  });
+  diff.removed.forEach(function (c) { if (CHIP[c]) CHIP[c].active = false; });
+  saveChip();
+  notifyCheckpointChange({ type:'import', added:diff.added, removed:diff.removed, renamed:[], orderChanged:diff.orderChanged }, source);
+  return { changed:true, confirmed:true, diff:diff };
+}
+function notifyCheckpointChange(change, source) {
+  var added = (change.added || []).map(function (c) { return chipName(c) + ' [' + c + ']'; });
+  var removed = (change.removed || []).map(function (c) { return chipName(c) + ' [' + c + ']'; });
+  var renamed = (change.renamed || []).map(function (x) { return x.c + '：' + (x.from || '') + ' → ' + (x.name || ''); });
+  var lines = ['⚠️ <b>Patrol checkpoint change / 巡邏點變更</b>', '來源 Source：' + SEC.esc(source || 'Patrol'), '現行啟用 Active：' + chipOrder().length];
+  if (added.length) lines.push('➕ 新增／啟用 Added：\n· ' + added.join('\n· '));
+  if (removed.length) lines.push('⏸ 停用 Disabled（歷史保留）：\n· ' + removed.join('\n· '));
+  if (renamed.length) lines.push('✏️ 名稱 Renamed：\n· ' + renamed.join('\n· '));
+  if (change.orderChanged) lines.push('↕️ 順序已按最新巡邏檔更新。');
+  if (added.length || removed.length || renamed.length || change.orderChanged) {
+    SEC.tgSummary(lines.join('\n'), 'patrol');
+  }
+}
 
 function renderNight() {
   var min = parseInt(document.getElementById('nightMin').value, 10) || 12;
@@ -723,9 +860,11 @@ function chart(id, type, labels, ds) {
 }
 function renderDbInfo() {
   var kb = Math.round((JSON.stringify(SCAN).length + JSON.stringify(MAN).length) / 1024);
+  var active = chipOrder().length, inactive = allChipOrder().length - active;
   document.getElementById('dbInfo').innerHTML =
     '目前本機：巡更棒打點 <b>' + SCAN.length + '</b> 筆 · 巡邏圈 <b>' + ROUNDS.length + '</b> 圈 · 人工登錄 <b>' + MAN.length +
-    '</b> 筆 · 巡邏點 <b>' + Object.keys(CHIP).length + '</b> 個 · 佔用約 <b>' + kb + ' KB</b>';
+    '</b> 筆 · 啟用 checkpoint <b>' + active + '</b> 個' + (inactive ? ' · 停用保留 <b>' + inactive + '</b> 個' : '') +
+    ' · 佔用約 <b>' + kb + ' KB</b>';
 }
 
 /* ═══════════ 巡更棒匯入 ═══════════ */
@@ -787,7 +926,8 @@ function wandChip(v) {
 }
 function impWand() {
   SEC.pickExcel(function (sheets) {
-    var seen = {}, added = 0, dup = 0, badTime = 0, badChip = 0, log = [], importedDates = {};
+    var seen = {}, added = 0, dup = 0, badTime = 0, badChip = 0, log = [], importedDates = {},
+      incomingOrder = [], incomingNames = {};
     SCAN.forEach(function (s) { seen[s.t + '|' + wandChip(s.c)] = 1; });
     sheets.forEach(function (sh) {
       var rows = sh.rows, hdr = wandHeaderMap(rows), hr = hdr.row, map = hdr.map;
@@ -801,6 +941,9 @@ function impWand() {
         var chip = wandChip(R[map.chip]); if (!chip) { sheetBadChip++; badChip++; continue; }
         var g = SEC.str(R[map.person]);
         importedDates[t.slice(0, 10)] = (importedDates[t.slice(0, 10)] || 0) + 1;
+        if (incomingOrder.indexOf(chip) < 0) incomingOrder.push(chip);
+        var pointName = SEC.str(map.point === undefined ? '' : R[map.point]);
+        if (checkpointNameUseful(pointName) && !incomingNames[chip]) incomingNames[chip] = pointName;
         var key = t + '|' + chip;
         /* 月總表與每日分頁通常包含同一批打點；同一時間＋Chip 只保留一筆。 */
         if (seen[key]) { d0++; dup++; continue; }
@@ -815,6 +958,8 @@ function impWand() {
         '（標題第 ' + (hr + 1) + (hdr.dualHeader ? '、' + (hr + 2) : '') + ' 列' +
         (hdr.fallback ? '，固定欄位備援' : '') + '）');
     });
+    var cpChange = reconcileCheckpoints(incomingOrder, incomingNames, sheets.map(function (s) { return s.name; }).join(', '));
+    if (cpChange.confirmed) { CP_BASELINE_APPLIED = true; SEC.dbPut(LS_CP_BASELINE, '20260815c'); }
     saveScan();
     /* 匯入哪個月份就先顯示哪個月份；不要因本機已有較新的月份而跳走。 */
     var importedLatest = Object.keys(importedDates).sort().pop();
@@ -822,12 +967,14 @@ function impWand() {
     rebuild();
     if (paintPatrolPeriod) paintPatrolPeriod();
     document.getElementById('impLog').innerHTML = '<b>匯入結果</b>：新增 <b>' + added + '</b> 筆，去重略過 ' + dup + ' 筆' +
+      '；檔案含 <b>' + incomingOrder.length + '</b> 個 checkpoint' +
+      (cpChange.changed ? (cpChange.confirmed ? '，已確認更新現行標準' : '，未確認變更（只匯入打點）') : '，與現行標準相同') +
       (badTime || badChip ? '；日期格式略過 ' + badTime + '，無 Chip ID 略過 ' + badChip : '') + '<br>' + log.join('<br>');
     SEC.toast(added ? '✅ 匯入 ' + added + ' 筆打點（自動去重 ' + dup + '）' :
       (dup ? 'ℹ️ 檔案資料已存在，本次去重略過 ' + dup + ' 筆' : '⚠ 全部重複或格式不符'),
       added ? 'ok' : (dup ? 'warn' : 'err'), 6500);
-    if (added && !Object.keys(CHIP).some(function (c) { return CHIP[c].name; })) {
-      setTimeout(function () { SEC.toast('👉 請到「📍 巡邏點」分頁替 ' + Object.keys(CHIP).length + ' 個 Chip ID 命名', 'warn', 7000); }, 900);
+    if (added && !chipOrder().some(function (c) { return CHIP[c].name; })) {
+      setTimeout(function () { SEC.toast('👉 請到「📍 巡邏點」分頁替 ' + chipOrder().length + ' 個啟用中的 Chip ID 命名', 'warn', 7000); }, 900);
     }
   });
 }
