@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
 <script src="./shared/xlsx.full.min.js?v=20260815d"></script>
 <script src="./shared/qrcode-generator.js?v=20260815d"></script>
-<script src="./shared/fire-seed-data.js?v=20260815d"></script>
+<script src="./shared/fire-seed-data.js?v=20260816a"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="stylesheet" href="./shared/sec.css?v=20260808g">
 <style>
@@ -76,26 +76,31 @@
 .factory-pill{display:inline-flex;align-items:center;border-radius:999px;padding:2px 8px;background:#e8f2f7;color:#1e6f8e;font-size:11px;font-weight:800}
 @media(max-width:900px){.fire-filters{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:600px){.fire-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.insp-cards{grid-template-columns:1fr}.insp-card{padding:10px}}
-/* Fire Facility is intentionally equipment-only.  Keep the old data/inspection
-   handlers in the file for backward-compatible cloud/QR records, but do not
-   expose the difficult map or narrow inspection screens. */
-#p-map,#p-insp,#p-ana,#p-data,
-#tabs .tab[data-p="map"],#tabs .tab[data-p="insp"],
-#tabs .tab[data-p="ana"],#tabs .tab[data-p="data"]{display:none!important}
+/* Fire Facility keeps a master list and a separate inspection page. */
+#p-map,#p-data,
+#tabs .tab[data-p="map"],#tabs .tab[data-p="data"]{display:none!important}
 #p-list{display:block!important}
-#p-list .fire-equipment-table{width:100%;min-width:0;table-layout:fixed}
+#p-list .fire-equipment-table{width:100%;min-width:1080px;table-layout:fixed}
 #p-list .fire-equipment-table th,#p-list .fire-equipment-table td{white-space:normal;overflow-wrap:anywhere;vertical-align:middle}
-#p-list .fire-equipment-table th:nth-child(1){width:13%}
-#p-list .fire-equipment-table th:nth-child(2){width:15%}
-#p-list .fire-equipment-table th:nth-child(3){width:15%}
-#p-list .fire-equipment-table th:nth-child(4){width:20%}
-#p-list .fire-equipment-table th:nth-child(5){width:11%}
-#p-list .fire-equipment-table th:nth-child(6){width:14%}
-#p-list .fire-equipment-table th:nth-child(7){width:8%}
-#p-list .fire-equipment-table th:nth-child(8){width:4%}
+#p-list .fire-equipment-table th:nth-child(1){width:4%}
+#p-list .fire-equipment-table th:nth-child(2){width:12%}
+#p-list .fire-equipment-table th:nth-child(3){width:13%}
+#p-list .fire-equipment-table th:nth-child(4){width:15%}
+#p-list .fire-equipment-table th:nth-child(5){width:18%}
+#p-list .fire-equipment-table th:nth-child(6){width:10%}
+#p-list .fire-equipment-table th:nth-child(7){width:12%}
+#p-list .fire-equipment-table th:nth-child(8){width:9%}
+#p-list .fire-equipment-table th:nth-child(9){width:10%}
+#p-list .fire-equipment-table th:nth-child(10){width:10%}
 .fire-list-kpis{margin-bottom:12px}
 .fire-list-kpis .kpi .v{font-size:25px}
 .fire-service-label{font-size:11px;color:var(--ink2);display:block;margin-top:3px}
+.fire-master-tools{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.fire-master-tools .btn{white-space:nowrap}
+.fire-master-tools .hint{flex:1 1 260px}
+.fire-period-stats{margin:12px 0}
+.fire-period-stats .kpi .v{font-size:24px}
+.fire-insp-photo-cell{min-width:270px}
 @media(max-width:720px){#p-list .fire-equipment-table{font-size:11px}#p-list .fire-equipment-table th,#p-list .fire-equipment-table td{padding:7px 5px}.fire-list-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 </head>
@@ -183,16 +188,24 @@
           <input id="q" placeholder="搜尋編號/位置…" style="width:150px" oninput="renderList()">
           <button class="btn sm" onclick="openEdit()">➕ <span data-t="add">新增</span></button>
           <button class="btn sm" onclick="impExcel()">📥 <span data-zh="智慧匯入 Excel" data-en="Smart import Excel" data-km="នាំចូល Excel ឆ្លាតវៃ">智慧匯入 Excel</span></button>
+          <button class="btn sm gh" onclick="applyFireSeed(true)">🔄 <span data-zh="以附件重建總表" data-en="Rebuild master from Excel" data-km="កសាងបញ្ជីមេពី Excel ឡើងវិញ">以附件重建總表</span></button>
           <button class="btn sm gh" onclick="openFireQrManager()">🔳 <span data-zh="QR 管理" data-en="QR manager" data-km="គ្រប់គ្រង QR">QR 管理</span></button>
           <button class="btn sm gh" onclick="expExcel()">📊 Excel</button>
         </span></h3>
+      <div class="fire-master-tools">
+        <button class="btn sm gh" onclick="toggleFireSelectAll()">☑️ <span data-zh="全選目前清單" data-en="Select visible" data-km="ជ្រើសបញ្ជីដែលបង្ហាញ">全選目前清單</span></button>
+        <button class="btn sm err" onclick="deleteFireSelected()">🗑 <span data-zh="刪除所選設備" data-en="Delete selected" data-km="លុបឧបករណ៍ដែលបានជ្រើស">刪除所選設備</span></button>
+        <span class="hint" data-zh="設備總表只管理設備標準；巡檢結果請到「巡檢」頁登錄。刪除設備不會刪除既有巡檢歷史。" data-en="The master list manages equipment standards. Record pass/fault results on Inspection. Deleting a device keeps its inspection history." data-km="បញ្ជីមេគ្រប់គ្រងស្តង់ដារឧបករណ៍។ សូមកត់ត្រាលទ្ធផលនៅទំព័រត្រួតពិនិត្យ។">設備總表只管理設備標準；巡檢結果請到「巡檢」頁登錄。刪除設備不會刪除既有巡檢歷史。</span>
+      </div>
       <div class="tw"><table class="fire-equipment-table"><thead><tr>
+        <th><input id="fireSelectAll" type="checkbox" aria-label="Select all visible equipment" onchange="toggleFireSelectAll(this.checked)"></th>
         <th data-zh="編號" data-en="Code" data-km="លេខ">編號</th>
         <th data-zh="設備類型" data-en="Type" data-km="ប្រភេទ">設備類型</th>
         <th data-zh="廠別／區域" data-en="Factory / Zone" data-km="រោងចក្រ / តំបន់">廠別／區域</th>
         <th data-zh="詳細位置" data-en="Location" data-km="ទីតាំង">詳細位置</th>
         <th data-zh="上次巡檢" data-en="Last" data-km="ចុងក្រោយ">上次巡檢</th>
-        <th data-zh="設備日期" data-en="Equipment date" data-km="កាលបរិច្ឆេទឧបករណ៍">設備日期</th>
+        <th data-zh="過期／更換日" data-en="Expiry / replacement" data-km="ថ្ងៃផុតកំណត់ / ប្តូរ">過期／更換日</th>
+        <th data-zh="檢查人" data-en="Inspector" data-km="អ្នកត្រួតពិនិត្យ">檢查人</th>
         <th data-zh="狀態" data-en="Status" data-km="ស្ថានភាព">狀態</th>
         <th></th></tr></thead><tbody id="tbList"></tbody></table></div>
     </div>
@@ -225,6 +238,7 @@
       <div id="tbInsp" class="insp-cards"></div>
     </div>
     <div class="card">
+      <div id="fireHistStats" class="grid g4 fire-period-stats"></div>
       <h3>📜 <span data-zh="巡檢歷史" data-en="Inspection History" data-km="ប្រវត្តិ">巡檢歷史</span></h3>
       <div class="tw"><table><thead><tr><th data-zh="日期" data-en="Date" data-km="កាល">日期</th><th data-zh="巡檢人" data-en="Inspector" data-km="អ្នកត្រួតពិនិត្យ">巡檢人</th><th class="num" data-zh="受檢數" data-en="Checked" data-km="បានពិនិត្យ">受檢數</th>
       <th class="num" data-zh="正常" data-en="Normal" data-km="ធម្មតា">正常</th><th class="num" data-zh="異常" data-en="Abnormal" data-km="មិនប្រក្រតី">異常</th><th data-zh="異常項目" data-en="Abnormal items" data-km="ធាតុមិនប្រក្រតី">異常項目</th></tr></thead>
@@ -294,7 +308,10 @@
   <div class="f"><label data-zh="區域 Zone" data-en="Zone" data-km="តំបន់">區域 Zone</label><select id="e_zone"></select></div>
   <div class="f"><label data-zh="詳細位置 Location" data-en="Location" data-km="ទីតាំង">詳細位置 Location</label><input id="e_loc" placeholder="例：一樓東側走道"></div>
   <div class="f"><label data-zh="上次巡檢 Last Check" data-en="Last check" data-km="ពិនិត្យចុងក្រោយ">上次巡檢 Last Check</label><input type="date" id="e_last"></div>
-  <div class="f"><label id="e_service_label" data-zh="設備日期" data-en="Equipment date" data-km="កាលបរិច្ឆេទឧបករណ៍">設備日期</label><input type="date" id="e_serviceDate"><span class="hint fire-service-label" id="e_service_hint">滅火器：過期日；緊急照明：更換日</span></div>
+  <div class="f"><label data-zh="過期日" data-en="Expiry date" data-km="ថ្ងៃផុតកំណត់">過期日</label><input type="date" id="e_expiryDate"></div>
+  <div class="f"><label data-zh="更換日" data-en="Replacement date" data-km="ថ្ងៃប្តូរ">更換日</label><input type="date" id="e_replacementDate"></div>
+  <div class="f"><label id="e_service_label" data-zh="服務／保養日" data-en="Service date" data-km="ថ្ងៃសេវាកម្ម">服務／保養日</label><input type="date" id="e_serviceDate"><span class="hint fire-service-label" id="e_service_hint">可依設備設定過期、服務或更換日期</span></div>
+  <div class="f"><label data-zh="檢查人" data-en="Inspector" data-km="អ្នកត្រួតពិនិត្យ">檢查人</label><input id="e_inspector"></div>
   <div class="f"><label data-zh="巡檢週期(天) Cycle" data-en="Cycle (days)" data-km="វដ្ត (ថ្ងៃ)">巡檢週期(天) Cycle</label><input type="number" id="e_cycle" value="30"></div>
   <div class="f"><label data-zh="狀態 Status" data-en="Status" data-km="ស្ថានភាព">狀態 Status</label><select id="e_status">
     <option value="ok">✅ 正常 Normal</option><option value="fault">⛔ 故障 Fault</option>
@@ -354,7 +371,7 @@ var TYPES = {
   other: { icon:'📦', zh:'其他',     en:'Other',          km:'ផ្សេងទៀត', color:'#64748b' },
 };
 var ST = { ok:'#16a34a', soon:'#f59e0b', over:'#dc2626', off:'#94a3b8' };
-var FIRE_SEED_VERSION = window.FIRE_XLS_SEED_VERSION || 'fire-xlsx-2026-06';
+var FIRE_SEED_VERSION = window.FIRE_XLS_SEED_VERSION || 'fire-xlsx-2026-05';
 var FIRE_SEED = Array.isArray(window.FIRE_XLS_SEED) ? window.FIRE_XLS_SEED : [];
 var FACTORIES = {
   a: { zh:'A 廠', en:'A Factory', km:'រោងចក្រ A' },
@@ -382,6 +399,7 @@ async function load() {
     DB = DB.filter(function (e) { return !e.seedVersion || e.seedVersion === FIRE_SEED_VERSION; });
     applyFireSeed(false);
   }
+  if (FIRE_SEED.length) { ensureFireSeedHistory(); save(); }
 }
 function save() { SEC.dbPut(LS, DB); SEC.dbPut(LSH, HIST); }
 
@@ -391,40 +409,80 @@ function fireStableId(e) {
     fireStableText(e.code || 'NO_CODE') + '-' + fireStableText(e.loc || e.zone || 'NO_LOCATION');
 }
 function fireSeedKey(e) {
-  return [e.type || 'other', e.factory || factoryOf(e), String(e.code || '').trim().toUpperCase(), String(e.loc || '').trim().toUpperCase()].join('|');
+  /* Code + type is the stable identity.  Location can change in a newer Excel
+     report and must not create a second device. */
+  return [e.type || 'other', String(e.code || '').trim().toUpperCase()].join('|');
+}
+function normalizeFireMaster() {
+  var by={}, out=[], removed=0;
+  DB.forEach(function(e){
+    if(!e)return;
+    if(!e.type||e.type==='other'){
+      var c=String(e.code||'').toUpperCase();
+      if(/^FE\d/.test(c))e.type='ext';else if(/^FA\d/.test(c))e.type='alarm';else if(/^EL\d/.test(c))e.type='light';else if(/^HR\d/.test(c))e.type='hose';else if(/^F\d/.test(c))e.type='smoke';
+    }
+    if(e.manual!==true&&(e.type==='other'||!String(e.code||'').trim())){removed++;return;}
+    var k=fireSeedKey(e), old=by[k];
+    if(old){
+      var newer=String(e.updatedAt||e.last||'')>=String(old.updatedAt||old.last||'');
+      if(newer)by[k]=e;
+      removed++;
+    }else{by[k]=e;out.push(e);}
+  });
+  if(removed){out=Object.keys(by).map(function(k){return by[k];});DB=out;}
+  return removed;
 }
 function fireSeedPosition(e, n) {
   var z = ZONES.filter(function (x) { return x.id === e.zone; })[0] || ZONES[6];
   return { x:z.x + 32 + (n % 8) * 30, y:z.y + 58 + Math.floor(n / 8) * 30 };
 }
-function applyFireSeed(rebuild) {
-  if (!FIRE_SEED.length) { SEC.toast('⚠ Fire Excel baseline is not available / 找不到消防 Excel 基準', 'warn', 6000); return; }
-  if (rebuild && !confirm('以附件 Excel 重建消防設備清單？\n只重建設備主檔，不刪除既有巡檢歷史；原本的 Other 設備會移除。')) return;
-  var old = DB.slice(), oldByKey = {};
-  old.forEach(function (e) { var k = fireSeedKey(e); if (!oldByKey[k] || String(e.updatedAt || '') > String(oldByKey[k].updatedAt || '')) oldByKey[k] = e; });
-  var out = [], added = 0, updated = 0, now = new Date().toISOString();
-  if (!rebuild) {
-    var seen = {};
-    old.forEach(function (e) { var k = fireSeedKey(e); if (!seen[k]) { seen[k] = 1; out.push(e); } });
-  }
-  FIRE_SEED.forEach(function (s, i) {
-    var k = fireSeedKey(s), e = oldByKey[k], pos = fireSeedPosition(s, i), row;
-    if (rebuild || !e) {
-      row = Object.assign({}, s, { id:fireStableId(s), x:pos.x, y:pos.y, updatedAt:now });
-      out.push(row); if (!e || rebuild) added++;
-    } else {
-      row = Object.assign({}, e);
-      if (row.type === 'other' || !row.factory || !row.zone || !row.loc) {
-        row.type = s.type; row.factory = s.factory; row.zone = s.zone; row.loc = s.loc; updated++;
-      }
-      Object.keys(s).forEach(function (key) { if (row[key] === '' || row[key] === null || row[key] === undefined) row[key] = s[key]; });
-      row.id = fireStableId(Object.assign({}, s, row));
-      if (row.x === undefined || row.y === undefined) { row.x = pos.x; row.y = pos.y; }
-      var oi = out.findIndex(function (x) { return fireSeedKey(x) === k; });
-      if (oi >= 0) out[oi] = row; else { out.push(row); added++; }
+function ensureFireSeedHistory() {
+  /* The Excel baseline is also a dated inspection import.  Keep it in history
+     so the selected month/year reflects the imported workbook, while the
+     equipment master remains the reusable standard list. */
+  var groups = {};
+  FIRE_SEED.forEach(function (e) {
+    if (!e.last) return;
+    var k = String(e.last) + '|' + String(e.inspector || 'Excel import');
+    if (!groups[k]) groups[k] = { date:e.last, by:e.inspector || 'Excel import', source:'excel-seed', items:[], n:0, ok:0, bad:0, badList:[], photos:[] };
+    var g = groups[k], it = { id:fireStableId(e), code:e.code, type:e.type, factory:e.factory, zone:e.zone, loc:e.loc, result:e.status === 'fault' ? 'fault' : 'ok', note:e.remark || '', photos:Array.isArray(e.photos) ? e.photos.slice(0, 4) : [] };
+    g.items.push(it); g.n++;
+    if (it.result === 'fault') { g.bad++; g.badList.push(e.code + (e.remark ? ' ' + e.remark : '')); }
+    else g.ok++;
+    (it.photos || []).forEach(function (p) { if (g.photos.length < 4) g.photos.push(p); });
+  });
+  Object.keys(groups).forEach(function (k) {
+    var importKey = 'seed|' + FIRE_SEED_VERSION + '|' + k, g = groups[k];
+    if (!HIST.some(function (h) { return h.importKey === importKey; })) {
+      g.id = 'HS' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+      g.importKey = importKey; g.seedVersion = FIRE_SEED_VERSION; HIST.unshift(g);
     }
   });
+}
+function applyFireSeed(rebuild) {
+  if (!FIRE_SEED.length) { SEC.toast('⚠ Fire Excel baseline is not available / 找不到消防 Excel 基準', 'warn', 6000); return; }
+  if (rebuild && !confirm('以附件 Excel 重建消防設備總表？\n會移除沒有出現在附件五類設備表中的舊／Other 設備，但保留既有巡檢歷史。')) return;
+  var old = DB.slice(), oldByKey = {}, seedKeys = {};
+  FIRE_SEED.forEach(function (s) { seedKeys[fireSeedKey(s)] = 1; });
+  old.forEach(function (e) { var k = fireSeedKey(e); if (seedKeys[k] && (!oldByKey[k] || String(e.updatedAt || '') > String(oldByKey[k].updatedAt || ''))) oldByKey[k] = e; });
+  var out = old.filter(function (e) { return e.manual === true && !seedKeys[fireSeedKey(e)]; }), added = 0, updated = 0, now = new Date().toISOString();
+  FIRE_SEED.forEach(function (s, i) {
+    var k = fireSeedKey(s), e = oldByKey[k], pos = fireSeedPosition(s, i), row;
+    row = Object.assign({}, s, { id:e && e.id || fireStableId(s), x:e && e.x != null ? e.x : pos.x, y:e && e.y != null ? e.y : pos.y, updatedAt:now });
+    /* Keep local photos and manually entered standard dates when the supplied
+       Excel leaves those cells blank.  Excel remains authoritative for code,
+       type, location, last check, inspector and fault result. */
+    ['photos','expiryDate','replacementDate','serviceDate','remark','cycle','manual'].forEach(function (key) {
+      if (e && e[key] !== '' && e[key] !== null && e[key] !== undefined &&
+          (s[key] === '' || s[key] === null || s[key] === undefined)) row[key] = e[key];
+    });
+    row.seedVersion = FIRE_SEED_VERSION;
+    if (e) updated++; else added++;
+    out.push(row);
+  });
   DB = out;
+  normalizeFireMaster();
+  ensureFireSeedHistory();
   save();
   if (typeof fillZoneSelects === 'function') fillZoneSelects();
   renderAll();
@@ -490,13 +548,14 @@ document.getElementById('hdr').innerHTML = SEC.headerHtml('🧯', '消防設備 
 document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
 SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: openFireTelegram, onSmartImport: impExcel });
 SEC.bindPeriodNav('pnav', PER, renderAll);
+document.getElementById('pnavHost').style.display = 'none';
 document.getElementById('tabs').addEventListener('click', function (e) {
   var b = SEC.closest(e.target, '.tab'); if (!b) return;
   document.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('on'); });
   b.classList.add('on');
   document.querySelectorAll('.page').forEach(function (p) { p.style.display = 'none'; });
   document.getElementById('p-' + b.dataset.p).style.display = '';
-  document.getElementById('pnavHost').style.display = b.dataset.p === 'data' ? 'none' : '';
+  document.getElementById('pnavHost').style.display = (b.dataset.p === 'insp' || b.dataset.p === 'ana') ? '' : 'none';
   renderAll();
 });
 SEC.dataReady().then(load).then(function () { renderAll(); }).catch(SEC.bootError);
@@ -709,7 +768,7 @@ function renderList() {
 }
 
 /* ═══════════ 編輯 ═══════════ */
-var EF = ['code','type','factory','zone','loc','last','serviceDate','cycle','status','remark'];
+var EF = ['code','type','factory','zone','loc','last','expiryDate','replacementDate','serviceDate','inspector','cycle','status','remark'];
 var EDIT_ID = '', NEWXY = null, EDIT_FIRE_PHOTOS = [];
 function openEdit(id, x, y) {
   EDIT_ID = id || ''; NEWXY = (x != null) ? { x: x, y: y } : null;
@@ -747,6 +806,7 @@ function saveEdit() {
   if (EDIT_ID) { DB.forEach(function (e) { if (e.id === EDIT_ID) Object.assign(e, o); }); }
   else {
     o.id = 'F' + Date.now().toString(36);
+    o.manual = true;
     if (NEWXY) { o.x = NEWXY.x; o.y = NEWXY.y; }
     else { var z = ZONES.filter(function (zz) { return zz.id === o.zone; })[0] || ZONES[6];
            o.x = z.x + z.w / 2; o.y = z.y + z.h / 2; }
@@ -972,16 +1032,18 @@ function fireMergeImported(row, old) {
 }
 function impExcel() {
   SEC.pickExcel(function (sheets) {
-    var added = 0, updated = 0, skipped = 0, log = [], ignored = 0, histByKey = {};
+    var added = 0, updated = 0, skipped = 0, pruned = 0, log = [], ignored = 0, histByKey = {}, importedKeys = {}, seenTypes = {};
     sheets.forEach(function (sh) {
       var prof = fireProfile(sh.name);
       if (!prof) { ignored++; log.push('· <b>' + SEC.esc(sh.name) + '</b>：非消防設備表，已略過（不建立 Other）'); return; }
+      seenTypes[prof.type] = 1;
       var rows = sh.rows || [], cc = fireCodeCol(rows, prof.prefix);
       if (cc < 0) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：找不到 ' + prof.prefix + ' 編號，略過'); return; }
-      var lc = fireCol(rows, ['location','位置','place','area','地點']), dc = fireCol(rows, ['date check','date','日期','檢查日']),
-        sc = fireCol(rows, ['expire date','expiry date','replacement date','replace date','service date','due date','過期日','更換日','保養日']),
-        bc = fireCol(rows, ['checked by','check by','inspector','檢查人','巡檢人']), rc = fireCol(rows, ['remarks','remark','comment','備註','說明']);
-      var section = 'common', n = 0, histItems = {};
+      var lc = fireCol(rows, ['location','位置','place','area','地點']), dc = fireCol(rows, ['date check','check date','inspection date','檢查日']),
+        ec = fireCol(rows, ['expire date','expiry date','expiration date','過期日']), rpc = fireCol(rows, ['replacement date','replace date','更換日']),
+        sc = fireCol(rows, ['service date','due date','maintenance date','保養日','服務日']),
+        bc = fireCol(rows, ['checked by','check by','inspector','檢查人','巡檢人']), rc = fireCol(rows, ['remarks','remark','comment','備註','說明']), pc = fireCol(rows, ['photos','photo','照片']);
+      var section = 'a', n = 0;
       for (var i = 0; i < rows.length; i++) {
         var R = rows[i] || [], joined = R.map(SEC.str).join(' ');
         if (/building\s*a|\bsda\b|a\s*factory|a廠|a棟/i.test(joined)) section = 'a';
@@ -989,13 +1051,17 @@ function impExcel() {
         var code = SEC.str(R[cc]).replace(/^VRT\s*/i, '').replace(/\s+/g, '').replace(/FOO/ig, 'F00');
         if (!new RegExp('^(?:' + prof.prefix + '|F)\\d{1,3}$','i').test(code)) continue;
         var loc = lc >= 0 ? SEC.str(R[lc]) : '', date = dc >= 0 ? (SEC.parseD(R[dc]) ? SEC.ymd(SEC.parseD(R[dc])) : '') : '',
+          expiryDate = ec >= 0 ? (SEC.parseD(R[ec]) ? SEC.ymd(SEC.parseD(R[ec])) : '') : '',
+          replacementDate = rpc >= 0 ? (SEC.parseD(R[rpc]) ? SEC.ymd(SEC.parseD(R[rpc])) : '') : '',
           serviceDate = sc >= 0 ? (SEC.parseD(R[sc]) ? SEC.ymd(SEC.parseD(R[sc])) : '') : '';
         var combined = joined + ' ' + loc, factory = fireFactoryFromText(combined, section), zone = fireZoneFromText(combined, factory),
           z = ZONES.filter(function (x) { return x.id === zone; })[0] || ZONES[6], by = bc >= 0 ? SEC.str(R[bc]) : '', note = rc >= 0 ? SEC.str(R[rc]) : '',
-          status = fireImportedStatus(joined), incomingKey = fireSeedKey({ code:code, type:prof.type, factory:factory, loc:loc }), old = DB.filter(function (x) { return fireSeedKey(x) === incomingKey; })[0];
+          status = fireImportedStatus(joined), incomingKey = fireSeedKey({ code:code, type:prof.type }), old = DB.filter(function (x) { return fireSeedKey(x) === incomingKey; })[0], photo = pc >= 0 ? SEC.str(R[pc]) : '';
+        importedKeys[incomingKey] = 1;
         var baseRow = { code:code, type:prof.type, factory:factory, zone:zone, loc:loc };
         var row = { id:fireStableId(baseRow), code:code, type:prof.type, factory:factory, zone:zone,
-          loc:loc, last:date, serviceDate:serviceDate, cycle:30, status:status, remark:note, inspector:by, x:z.x+30+(n%8)*30, y:z.y+60+Math.floor(n/8)*30, src:sh.name, updatedAt:new Date().toISOString() };
+          loc:loc, last:date, expiryDate:expiryDate, replacementDate:replacementDate, serviceDate:serviceDate, cycle:30, status:status, remark:note, inspector:by,
+          photos:photo ? [photo] : [], manual:false, x:z.x+30+(n%8)*30, y:z.y+60+Math.floor(n/8)*30, src:sh.name, updatedAt:new Date().toISOString() };
         var m = fireMergeImported(row, old); if (m.added) { DB.push(m.row); added++; } else if (m.skipped) skipped++; else updated++;
         var hk = (date || 'no-date') + '|' + (by || '') + '|' + sh.name;
         if (!histByKey[hk]) histByKey[hk] = { id:'HX' + btoa(unescape(encodeURIComponent(hk))).replace(/[^A-Za-z0-9]/g,'').slice(0,24), importKey:hk, date:date, by:by, source:'excel', n:0, ok:0, bad:0, badList:[], items:[] };
@@ -1004,10 +1070,23 @@ function impExcel() {
       }
       log.push('· <b>' + SEC.esc(sh.name) + '</b>：' + TYPES[prof.type].en + '，更新/新增 <b>' + n + '</b> 筆');
     });
+    /* A workbook containing all five supported sheets is authoritative for
+       the imported master. Remove stale/Other rows, but keep manual devices
+       and never delete inspection history. */
+    if (['ext','alarm','light','hose','smoke'].every(function (k) { return seenTypes[k]; })) {
+      var kept = {};
+      DB = DB.filter(function (e) {
+        var k = fireSeedKey(e);
+        if (e.manual === true && !importedKeys[k]) return true;
+        if (!importedKeys[k] || kept[k]) { pruned++; return false; }
+        kept[k] = 1; return true;
+      });
+    }
+    pruned += normalizeFireMaster();
     Object.keys(histByKey).forEach(function (k) { var h=histByKey[k], pos=HIST.findIndex(function(x){return x.importKey===k;}); if(pos>=0) HIST[pos]=h; else HIST.unshift(h); });
     if (HIST.length > 500) HIST.length = 500;
     save(); fillZoneSelects(); renderAll();
-    document.getElementById('impLog').innerHTML = '<b>Import result / 匯入結果</b>：新增 ' + added + '，更新 ' + updated + '，舊資料略過 ' + skipped + '<br>' + log.join('<br>');
+    document.getElementById('impLog').innerHTML = '<b>Import result / 匯入結果</b>：新增 ' + added + '，更新 ' + updated + '，舊資料略過 ' + skipped + '，移除舊資料 ' + pruned + '<br>' + log.join('<br>');
     SEC.scheduleAutoCloudSync(TOOL, 'fire-excel-import', SEC.ymd());
     SEC.toast(added || updated ? '✅ Fire Excel updated: ' + added + ' new / ' + updated + ' updated' : '⚠ No fire equipment rows imported', added || updated ? 'ok' : 'warn', 6500);
   });
@@ -1018,7 +1097,9 @@ function expExcel() {
         var s = statusOf(e);
         return { '#': i + 1, '編號 Code': e.code, '類型 Type': (TYPES[e.type] || TYPES.other).zh,
           '廠別 Factory': factoryName(factoryOf(e)), '區域 Zone': zoneName(e.zone), '位置 Location': e.loc, '上次巡檢 Last': e.last,
-          '週期 Cycle': e.cycle, '到期日 Due': dueDate(e),
+          '過期日 Expiry': e.expiryDate, '更換日 Replacement': e.replacementDate, '服務日 Service': e.serviceDate, '檢查人 Inspector': e.inspector,
+          '週期 Cycle': e.cycle,
+          '到期日 Due': dueDate(e),
           '狀態 Status': s === 'ok' ? '正常' : s === 'soon' ? '即將到期' : s === 'over' ? '逾期/故障' : '停用',
           '備註 Remark': e.remark }; }) },
     { name: 'History', rows: HIST.map(function (h) {
@@ -1063,7 +1144,7 @@ function seedDemo() {
   });
   save(); renderAll(); SEC.toast('🏭 已載入 ' + T.length + ' 項標準配置，請逐項修改編號與檢期', 'ok', 5500);
 }
-async function doUpload() { return await SEC.cloudPush(TOOL, DB, { total: DB.length, history: HIST.length }, { history: HIST, chip: CHIP }); }
+async function doUpload() { var removed=normalizeFireMaster(); if(removed)save(); return await SEC.cloudPush(TOOL, DB, { total: DB.length, history: HIST.length }, { history: HIST, chip: CHIP }); }
 async function doDownload() {
   if (!confirm('⬇️☁ 下載會與本機消防設備合併；相同編號以最新資料更新，空白欄位會先確認並保留舊值。繼續？')) return;
   var recs = await SEC.cloudPull(TOOL);
@@ -1075,9 +1156,10 @@ async function doDownload() {
     if (ex.chip && typeof ex.chip === 'object') conflicts = conflicts.concat(SEC.blankConflictsObject(CHIP, ex.chip));
     if (!SEC.confirmBlankMerge(conflicts, '消防資料雲端下載確認')) return;
     DB = m.records;
+    var removed = normalizeFireMaster();
     if (hm) HIST = hm.records;
     if (ex.chip && typeof ex.chip === 'object') CHIP = SEC.mergeObject(CHIP, ex.chip);
-    save(); saveChipMap(); renderAll(); SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，保留 ' + DB.length + ' 筆', 'ok', 5000);
+    save(); saveChipMap(); renderAll(); SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，清除重複／錯誤 ' + removed + ' 筆，保留 ' + DB.length + ' 筆', 'ok', 5000);
   }
 }
 function fireSummaryPeriod(st) {
@@ -1176,7 +1258,8 @@ function fireSummary(st) {
     over = list.filter(function (e) { return statusOf(e) === 'over'; }),
     soon = list.filter(function (e) { return statusOf(e) === 'soon'; }),
     hs = fireHistoryStats(st), inspBad = fireInspectionAbnormalRows(st),
-    normal = list.filter(function (e) { return statusOf(e) === 'ok'; }).length,
+    normal = Math.max(0, hs.checked - hs.bad),
+    pending = Math.max(0, list.length - hs.checked),
     disabled = list.filter(function (e) { return statusOf(e) === 'off'; }).length,
     factoryCounts = { a:0, b:0, common:0 }, typeCounts = {};
   list.forEach(function (e) {
@@ -1185,12 +1268,19 @@ function fireSummary(st) {
     factoryCounts[fk]++;
     typeCounts[e.type || 'other'] = (typeCounts[e.type || 'other'] || 0) + 1;
   });
-  var issueCount = over.length + soon.length + disabled + (hs.bad || 0) + inspBad.length;
+  var recorded = hs.checked > 0, abnormal = Math.max(hs.bad || 0, inspBad.length), issueCount = over.length + soon.length + disabled + abnormal, summaryStatus;
+  if (!recorded) {
+    summaryStatus = '⚠️ ' + fireT(lang, '本期間沒有巡檢紀錄，不能判定正常；請完成 ' + pending + ' 項', 'No inspection record in this period; normal status is not confirmed. Complete ' + pending + ' pending item(s)', 'មិនមានកំណត់ត្រាត្រួតពិនិត្យក្នុងរយៈពេលនេះទេ; មិនអាចបញ្ជាក់ថាធម្មតា។ សូមបំពេញ ' + pending + ' ធាតុ') + '\n';
+  } else if (abnormal || over.length || soon.length || disabled) {
+    summaryStatus = '✅ ' + fireT(lang, '已記錄正常', 'Recorded normal', 'ធម្មតាដែលបានកត់ត្រា') + '：<b>' + normal + '</b>' + (abnormal ? ' · ⛔ ' + fireT(lang, '巡檢異常', 'Inspection abnormal', 'មិនប្រក្រតី') + '：<b>' + abnormal + '</b>' : '') + (soon.length ? ' · ⏰ ' + fireT(lang, '日期將近', 'Date approaching', 'កាលបរិច្ឆេទជិតដល់') + '：<b>' + soon.length + '</b>' : '') + (over.length ? ' · ⛔ ' + fireT(lang, '故障／日期已過', 'Fault / date passed', 'ខូច / ហួសកាលបរិច្ឆេទ') + '：<b>' + over.length + '</b>' : '') + '\n';
+  } else {
+    summaryStatus = '✅ ' + fireT(lang, '本期間已登錄設備全部正常', 'All recorded equipment is normal in this period', 'ឧបករណ៍ដែលបានកត់ត្រាក្នុងរយៈពេលនេះទាំងអស់ធម្មតា') + '\n';
+  }
   var txt = '🧯 <b>' + fireT(lang, '消防設備摘要', 'Fire Equipment Summary', 'សង្ខេបឧបករណ៍ពន្លត់អគ្គិភ័យ') + '</b> · ' + SEC.esc(p.label()) +
       '\n' + fireT(lang, '範圍', 'Scope', 'វិសាលភាព') + '：' + fireScopeLabel(st, lang) + '\n─────────────\n' +
-      fireT(lang, '設備總數', 'Equipment', 'ឧបករណ៍') + '：<b>' + list.length + '</b> · ' + fireT(lang, '已檢查', 'Checked', 'បានត្រួតពិនិត្យ') + '：<b>' + hs.checked + '</b>\n' +
+      fireT(lang, '設備總數', 'Equipment', 'ឧបករណ៍') + '：<b>' + list.length + '</b> · ' + fireT(lang, '本期間已檢查', 'Checked in period', 'បានត្រួតពិនិត្យក្នុងរយៈពេល') + '：<b>' + hs.checked + '</b> · ' + fireT(lang, '待檢', 'Pending', 'រង់ចាំ') + '：<b>' + pending + '</b>\n' +
       '🏭 ' + fireT(lang, 'A廠', 'A Factory', 'រោងចក្រ A') + '：<b>' + factoryCounts.a + '</b> · ' + fireT(lang, 'B廠', 'B Factory', 'រោងចក្រ B') + '：<b>' + factoryCounts.b + '</b> · ' + fireT(lang, '公共區域', 'Common', 'តំបន់រួម') + '：<b>' + factoryCounts.common + '</b>\n' +
-      (issueCount ? ('✅ ' + fireT(lang, '正常', 'Normal', 'ធម្មតា') + '：<b>' + normal + '</b>' + (soon.length ? ' · ⏰ ' + fireT(lang, '日期將近', 'Date approaching', 'កាលបរិច្ឆេទជិតដល់') + '：<b>' + soon.length + '</b>' : '') + (over.length ? ' · ⛔ ' + fireT(lang, '故障／日期已過', 'Fault / date passed', 'ខូច / ហួសកាលបរិច្ឆេទ') + '：<b>' + over.length + '</b>' : '') + (disabled ? ' · ⚪ ' + fireT(lang, '停用', 'Disabled', 'ផ្អាកប្រើ') + '：<b>' + disabled + '</b>' : '') + (hs.bad || inspBad.length ? ' · 🧾 ' + fireT(lang, '巡檢異常', 'Inspection anomalies', 'បញ្ហាការត្រួតពិនិត្យ') + '：<b>' + (hs.bad || inspBad.length) + '</b>' : '') + '\n') : ('✅ ' + fireT(lang, '本期間全部正常', 'All equipment normal in this period', 'ឧបករណ៍ទាំងអស់ធម្មតាក្នុងរយៈពេលនេះ') + '\n'));
+      summaryStatus;
   if (hs.latestDate) txt += '📅 ' + fireT(lang, '最近巡檢', 'Latest inspection', 'ការត្រួតពិនិត្យចុងក្រោយ') + '：' + SEC.esc(hs.latestDate) + ' · ' + fireT(lang, '檢查人', 'Inspector', 'អ្នកត្រួតពិនិត្យ') + '：' + SEC.esc(hs.latestBy || '—') + '\n';
   var typeLine = Object.keys(typeCounts).map(function (tk) {
     var t = TYPES[tk] || TYPES.other;
@@ -1316,9 +1406,26 @@ renderInsp = function () {
   document.querySelectorAll('#tbInsp .insp-choice').forEach(function(b){b.onclick=function(){INSP[b.dataset.i]=INSP[b.dataset.i]||{};INSP[b.dataset.i].r=b.dataset.r;b.parentNode.querySelectorAll('.insp-choice').forEach(function(x){x.classList.toggle('on',x===b);});};});
   document.querySelectorAll('#tbInsp .insp-note').forEach(function(s){s.oninput=function(){INSP[s.dataset.i]=INSP[s.dataset.i]||{};INSP[s.dataset.i].n=s.value;};});
 };
+function fireHistoryPeriodRows() { return HIST.filter(function(h){return h && h.date && PER.has(h.date);}); }
+function fireHistoryPeriodStats(rows) {
+  var s={records:rows.length,checked:0,ok:0,bad:0};
+  rows.forEach(function(h){
+    if(Array.isArray(h.items)&&h.items.length){h.items.forEach(function(x){s.checked++;if(x.result==='fault')s.bad++;else s.ok++;});}
+    else{s.checked+=+h.n||0;s.ok+=+h.ok||0;s.bad+=+h.bad||0;}
+  });
+  return s;
+}
 renderHist = function () {
-  var l=SEC.lang(), tb=document.getElementById('tbHist');
-  tb.innerHTML=HIST.length?HIST.slice(0,100).map(function(h){return '<tr><td>'+SEC.esc(h.date||'')+'</td><td>'+SEC.esc(h.by||'')+'</td><td class="num">'+(h.n||0)+'</td><td class="num">'+(h.ok||0)+'</td><td class="num">'+(h.bad?'<span class="tag err">'+h.bad+'</span>':'0')+'</td><td class="hint">'+SEC.esc((h.badList||[]).slice(0,4).join('; '))+'</td></tr>';}).join(''):'<tr><td colspan="6" class="empty">'+fireT(l,'尚無巡檢記錄','No inspection records','គ្មានកំណត់ត្រាត្រួតពិនិត្យ')+'</td></tr>';
+  var l=SEC.lang(), rows=fireHistoryPeriodRows(), stats=fireHistoryPeriodStats(rows), tb=document.getElementById('tbHist'), box=document.getElementById('fireHistStats');
+  if(box) box.innerHTML='<div class="kpi"><div class="v">'+stats.records+'</div><div class="l">'+fireT(l,'巡檢批次','Inspection batches','វគ្គត្រួតពិនិត្យ')+'</div></div><div class="kpi"><div class="v">'+stats.checked+'</div><div class="l">'+fireT(l,'受檢設備','Checked equipment','ឧបករណ៍បានត្រួតពិនិត្យ')+'</div></div><div class="kpi ok"><div class="v">'+stats.ok+'</div><div class="l">'+fireT(l,'正常','Normal','ធម្មតា')+'</div></div><div class="kpi err"><div class="v">'+stats.bad+'</div><div class="l">'+fireT(l,'異常','Abnormal','មិនប្រក្រតី')+'</div></div>';
+  var monthly=PER.mode==='month'||PER.mode==='year', out=[];
+  if(monthly&&rows.length){
+    var g={by:{},n:0,ok:0,bad:0,badList:[]};rows.forEach(function(h){if(h.by)g.by[h.by]=1;if(Array.isArray(h.items)&&h.items.length){h.items.forEach(function(x){g.n++;if(x.result==='fault'){g.bad++;if(g.badList.length<12)g.badList.push(x.code+(x.note?' '+x.note:''));}else g.ok++;});}else{g.n+=+h.n||0;g.ok+=+h.ok||0;g.bad+=+h.bad||0;(h.badList||[]).slice(0,12).forEach(function(x){if(g.badList.indexOf(x)<0)g.badList.push(x);});}});
+    out=['<tr><td>'+SEC.esc(PER.label())+'</td><td>'+SEC.esc(Object.keys(g.by).join(', ')||'—')+'</td><td class="num">'+g.n+'</td><td class="num">'+g.ok+'</td><td class="num">'+(g.bad?'<span class="tag err">'+g.bad+'</span>':'0')+'</td><td class="hint">'+SEC.esc(g.badList.join('; '))+'</td></tr>'];
+  } else {
+    out=rows.slice().sort(function(a,b){return String(b.date).localeCompare(String(a.date));}).slice(0,100).map(function(h){return '<tr><td>'+SEC.esc(h.date||'')+'</td><td>'+SEC.esc(h.by||'')+'</td><td class="num">'+(h.n||0)+'</td><td class="num">'+(h.ok||0)+'</td><td class="num">'+(h.bad?'<span class="tag err">'+h.bad+'</span>':'0')+'</td><td class="hint">'+SEC.esc((h.badList||[]).slice(0,8).join('; '))+'</td></tr>';});
+  }
+  tb.innerHTML=out.length?out.join(''):'<tr><td colspan="6" class="empty">'+fireT(l,'所選期間尚無巡檢記錄','No inspection records in the selected period','រយៈពេលនេះមិនទាន់មានកំណត់ត្រាត្រួតពិនិត្យទេ')+'</td></tr>';
 };
 showDet = function(id) {
   SEL=id;var e=DB.filter(function(x){return x.id===id;})[0];if(!e)return;var T=TYPES[e.type]||TYPES.other,st=statusOf(e),dl=daysLeft(e),l=SEC.lang(),d=document.getElementById('det');
@@ -1331,7 +1438,7 @@ renderAna = function () {
   DB.forEach(function(e){var s=statusOf(e),k=s==='ok'?fireT(l,'正常','Normal','ធម្មតា'):s==='soon'?fireT(l,'即將到期','Due soon','ជិតផុត'):s==='over'?fireT(l,'逾期/故障','Overdue / Fault','ហួសកំណត់ / ខូច'):fireT(l,'停用/未設','Disabled / No date','បិទប្រើ / គ្មានថ្ងៃ');c[k]++;});
   chart('ch2','doughnut',Object.keys(c),[{data:Object.keys(c).map(function(k){return c[k];}),backgroundColor:['#16a34a','#f59e0b','#dc2626','#94a3b8']}]);
   document.getElementById('tbZone').innerHTML=ZONES.map(function(z){var a=DB.filter(function(e){return e.zone===z.id;});if(!a.length)return '';var ok=a.filter(function(e){return statusOf(e)==='ok';}).length,so=a.filter(function(e){return statusOf(e)==='soon';}).length,ov=a.filter(function(e){return statusOf(e)==='over';}).length,pct=Math.round(ok/a.length*100);return '<tr><td><b>'+SEC.esc(fireUiLabel(z))+'</b></td><td class="num">'+a.length+'</td><td class="num">'+ok+'</td><td class="num">'+(so||0)+'</td><td class="num">'+(ov||0)+'</td><td>'+pct+'%</td><td><button class="btn sm qr-mini" onclick="showFireZoneQr(\''+z.id+'\',\''+SEC.esc(fireUiLabel(z))+'\')">🔳</button></td></tr>';}).join('')||'<tr><td colspan="7" class="empty">'+SEC.T().noData+'</td></tr>';
-  var byD={};HIST.filter(function(h){return PER.has(h.date);}).forEach(function(h){byD[h.date]=(byD[h.date]||0)+(+h.n||0);});var dk=Object.keys(byD).sort();chart('ch3','bar',dk,[{label:fireT(l,'受檢項數','Checked items','ធាតុបានពិនិត្យ'),data:dk.map(function(k){return byD[k];}),backgroundColor:'#1e6f8e'}]);
+  var byD={}, periodRows=HIST.filter(function(h){return PER.has(h.date);});periodRows.forEach(function(h){byD[h.date]=(byD[h.date]||0)+(+h.n||0);});var dk=(PER.mode==='month'||PER.mode==='year')?(periodRows.length?[PER.label()]:[]):Object.keys(byD).sort(), dv=(PER.mode==='month'||PER.mode==='year')?(periodRows.length?[periodRows.reduce(function(a,h){return a+(+h.n||0);},0)]:[]):dk.map(function(k){return byD[k];});chart('ch3','bar',dk,[{label:fireT(l,'受檢項數','Checked items','ធាតុបានពិនិត្យ'),data:dv,backgroundColor:'#1e6f8e'}]);
 };
 function applyFireLanguage() {
   SEC.applyI18n(document); fillZoneSelects();
@@ -1485,15 +1592,19 @@ function fireInspectionSummaryPhotos(st, pageIndex) {
 /* ═══ 20260815d: equipment-only Fire Facility presentation ═══ */
 var _fireDueByCycle = dueDate;
 dueDate = function (e) {
-  if (!e || !e.serviceDate) return '';
-  var d = SEC.parseD(e.serviceDate);
-  return d ? SEC.ymd(d) : '';
+  if (!e) return '';
+  var v = e.type === 'ext' ? e.expiryDate : e.type === 'light' ? e.replacementDate : e.serviceDate;
+  v = v || e.expiryDate || e.replacementDate || e.serviceDate;
+  if (v) { var d = SEC.parseD(v); if (d) return SEC.ymd(d); }
+  /* Last inspection is not an expiry date.  Do not invent an overdue date
+     from the inspection cycle when the master has no standard due date. */
+  return '';
 };
 statusOf = function (e) {
   if (!e) return 'off';
   if (e.status === 'off') return 'off';
   if (e.status === 'fault') return 'over';
-  if (!e.serviceDate) return e.status === 'ok' ? 'ok' : 'off';
+  if (!dueDate(e)) return e.status === 'ok' ? 'ok' : 'off';
   var dl = daysLeft(e);
   return dl < 0 ? 'over' : dl <= 30 ? 'soon' : 'ok';
 };
@@ -1525,16 +1636,38 @@ function renderFireListKpi() {
   DB.forEach(function(e){var s=statusOf(e);if(s==='ok')normal++;else if(s==='soon')due++;else if(s==='over')fault++;});
   [['fireListTotal',total],['fireListNormal',normal],['fireListDue',due],['fireListFault',fault]].forEach(function(x){var el=document.getElementById(x[0]);if(el)el.textContent=x[1];});
 }
-var _fireRenderListEquipment = renderList;
-renderList = function () {
+function fireVisibleList() {
   var list=DB.slice(), f=document.getElementById('fFactory').value,z=document.getElementById('fZone').value,t=document.getElementById('fTypeList').value,q=(document.getElementById('q').value||'').toLowerCase();
   if(f)list=list.filter(function(e){return factoryOf(e)===f;});
   if(z)list=list.filter(function(e){return e.zone===z;});
   if(t)list=list.filter(function(e){return e.type===t;});
   if(q)list=list.filter(function(e){return String(e.code||'').toLowerCase().indexOf(q)>=0||String(e.loc||'').toLowerCase().indexOf(q)>=0;});
-  var l=SEC.lang(), tb=document.getElementById('tbList');
-  tb.innerHTML=list.length?list.map(function(e){var T=TYPES[e.type]||TYPES.other,sd=dueDate(e),thumb=e.photos&&e.photos[0]?'<img class="fire-eq-thumb" src="'+SEC.esc(e.photos[0])+'" alt="equipment">':'';
-    return '<tr><td>'+thumb+'<code>'+SEC.esc(e.code||'—')+'</code></td><td>'+T.icon+' '+SEC.esc(fireTypeLabel(e.type))+'</td><td><span class="factory-pill">'+SEC.esc(factoryName(factoryOf(e)))+'</span><br><small>'+SEC.esc(zoneName(e.zone))+'</small></td><td>'+SEC.esc(e.loc||'—')+'</td><td>'+SEC.esc(e.last||'—')+'</td><td>'+ (sd?'<b>'+SEC.esc(sd)+'</b><span class="fire-service-label">'+SEC.esc(fireEquipmentDateLabel(e.type,l))+'</span>':'<span class="hint">—</span>') +'</td><td>'+stLabel(statusOf(e))+'</td><td><button class="btn sm gh" onclick="openEdit(\''+SEC.esc(e.id)+'\')">✏️</button> <button class="btn sm qr-mini" onclick="showFireQr(\''+SEC.esc(e.id)+'\',\''+SEC.esc(e.code||'')+'\')">🔳</button></td></tr>';}).join(''):'<tr><td colspan="8" class="empty">'+SEC.T().noData+'</td></tr>';
+  return list;
+}
+function toggleFireSelectAll(value) {
+  var head=document.getElementById('fireSelectAll'), want=typeof value==='boolean'?value:true;
+  document.querySelectorAll('#tbList .fire-select').forEach(function(cb){cb.checked=want;});
+  if(head){head.checked=want;head.indeterminate=false;}
+}
+function deleteFireSelected() {
+  var ids=Array.prototype.slice.call(document.querySelectorAll('#tbList .fire-select:checked')).map(function(cb){return cb.value;});
+  if(!ids.length){SEC.toast('⚠ 請先勾選要刪除的設備／Select equipment first','warn');return;}
+  if(!confirm('確定刪除所選 ' + ids.length + ' 項設備？巡檢歷史會保留。\nDelete selected equipment? Inspection history will be kept.')) return;
+  var set={};ids.forEach(function(id){set[id]=1;});DB=DB.filter(function(e){return !set[e.id];});
+  save();renderAll();SEC.toast('🗑 已刪除 ' + ids.length + ' 項設備／Deleted ' + ids.length + ' equipment','ok');
+}
+renderList = function () {
+  var list=fireVisibleList(), l=SEC.lang(), tb=document.getElementById('tbList');
+  tb.innerHTML=list.length?list.map(function(e){
+    var T=TYPES[e.type]||TYPES.other, sd=dueDate(e), dates=[];
+    if(e.type==='ext'&&e.expiryDate) dates.push(fireT(l,'過期','Expiry','ផុតកំណត់')+': '+e.expiryDate);
+    if(e.type==='light'&&e.replacementDate) dates.push(fireT(l,'更換','Replace','ប្តូរ')+': '+e.replacementDate);
+    if(e.serviceDate) dates.push(fireT(l,'服務','Service','សេវា')+': '+e.serviceDate);
+    if(!dates.length&&sd) dates.push(fireEquipmentDateLabel(e.type,l)+': '+sd);
+    var thumb=e.photos&&e.photos[0]?'<img class="fire-eq-thumb" src="'+SEC.esc(e.photos[0])+'" alt="equipment">':'';
+    return '<tr><td><input class="fire-select" type="checkbox" value="'+SEC.esc(e.id)+'"></td><td>'+thumb+'<code>'+SEC.esc(e.code||'—')+'</code></td><td>'+T.icon+' '+SEC.esc(fireTypeLabel(e.type))+'</td><td><span class="factory-pill">'+SEC.esc(factoryName(factoryOf(e)))+'</span><br><small>'+SEC.esc(zoneName(e.zone))+'</small></td><td>'+SEC.esc(e.loc||'—')+'</td><td>'+SEC.esc(e.last||'—')+'</td><td>'+ (dates.length?dates.map(function(x){return '<span class="fire-service-label">'+SEC.esc(x)+'</span>';}).join(''):'<span class="hint">—</span>') +'</td><td>'+SEC.esc(e.inspector||'—')+'</td><td>'+stLabel(statusOf(e))+'</td><td><button class="btn sm gh" onclick="openEdit(\''+SEC.esc(e.id)+'\')">✏️</button> <button class="btn sm qr-mini" onclick="showFireQr(\''+SEC.esc(e.id)+'\',\''+SEC.esc(e.code||'')+'\')">🔳</button></td></tr>';
+  }).join(''):'<tr><td colspan="10" class="empty">'+SEC.T().noData+'</td></tr>';
+  var head=document.getElementById('fireSelectAll');if(head){head.checked=false;head.indeterminate=false;}
   renderFireListKpi();
 };
 var _fireRenderAllEquipment = renderAll;
