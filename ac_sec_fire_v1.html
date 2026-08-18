@@ -44,7 +44,7 @@
 .qr-code{display:flex;align-items:center;justify-content:center;background:#fff;padding:10px;margin:10px auto;width:max-content;border:1px solid var(--line);border-radius:10px}
 .qr-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 @media(max-width:600px){.qr-grid{grid-template-columns:1fr}}
-.fire-filters{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;align-items:end}
+.fire-filters{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;align-items:end}
 .fire-filters .f{min-width:0}
 .insp-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .insp-list{width:100%;min-width:980px;border-collapse:separate;border-spacing:0;font-size:12px}
@@ -79,7 +79,6 @@
 /* Fire Facility keeps a master list and a separate inspection page. */
 #p-map,#p-data,
 #tabs .tab[data-p="map"],#tabs .tab[data-p="data"]{display:none!important}
-#p-list{display:block!important}
 #p-list .fire-equipment-table{width:100%;min-width:1080px;table-layout:fixed}
 #p-list .fire-equipment-table th,#p-list .fire-equipment-table td{white-space:normal;overflow-wrap:anywhere;vertical-align:middle}
 #p-list .fire-equipment-table th:nth-child(1){width:4%}
@@ -102,6 +101,33 @@
 .fire-period-stats .kpi .v{font-size:24px}
 .fire-insp-photo-cell{min-width:270px}
 @media(max-width:720px){#p-list .fire-equipment-table{font-size:11px}#p-list .fire-equipment-table th,#p-list .fire-equipment-table td{padding:7px 5px}.fire-list-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* Keep Inspection separate from the equipment master and usable on phones. */
+.fire-insp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.fire-insp-item{border:1px solid var(--line);border-radius:12px;background:#fff;padding:12px;box-shadow:0 1px 2px rgba(15,43,70,.04);min-width:0}
+.fire-insp-item .insp-meta{min-height:58px}
+.fire-insp-item .insp-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.fire-insp-item .insp-choice{min-width:0;min-height:46px;padding:6px 4px;white-space:normal}
+.fire-insp-item .insp-note{min-height:42px}
+.fire-insp-period{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 8px}
+.fire-insp-period .tag{white-space:normal}
+.fire-insp-photo{margin-top:8px;min-width:0}
+#p-list .fire-equipment-table{min-width:1220px}
+@media(max-width:720px){
+  .fire-filters{grid-template-columns:1fr 1fr}
+  .fire-insp-grid{grid-template-columns:1fr}
+  #p-list .tw{overflow-x:visible}
+  #p-list .fire-equipment-table{display:block;min-width:0;table-layout:auto;font-size:13px}
+  #p-list .fire-equipment-table thead{display:none}
+  #p-list .fire-equipment-table tbody{display:block}
+  #p-list .fire-equipment-table tr{display:block;margin:10px 0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+  #p-list .fire-equipment-table td{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;width:auto!important;padding:9px 10px;border-bottom:1px solid #edf2f6;text-align:right}
+  #p-list .fire-equipment-table td:before{content:attr(data-label);font-weight:700;color:var(--ink2);text-align:left;min-width:92px;flex:0 0 92px}
+  #p-list .fire-equipment-table td:first-child:before{content:"";min-width:20px;flex-basis:20px}
+  #p-list .fire-equipment-table td:nth-child(2){text-align:left}
+  #p-list .fire-equipment-table td:nth-child(2):before{content:"";min-width:20px;flex-basis:20px}
+  #p-list .fire-equipment-table td:last-child{border-bottom:0}
+}
+@media(max-width:420px){.fire-filters{grid-template-columns:1fr}.fire-insp-item{padding:10px}.fire-insp-item .insp-choice{font-size:13px}}
 </style>
 </head>
 <body>
@@ -206,6 +232,8 @@
         <th data-zh="上次巡檢" data-en="Last" data-km="ចុងក្រោយ">上次巡檢</th>
         <th data-zh="過期／更換日" data-en="Expiry / replacement" data-km="ថ្ងៃផុតកំណត់ / ប្តូរ">過期／更換日</th>
         <th data-zh="檢查人" data-en="Inspector" data-km="អ្នកត្រួតពិនិត្យ">檢查人</th>
+        <th data-zh="本期檢查" data-en="Period result" data-km="លទ្ធផលរយៈពេល">本期檢查</th>
+        <th data-zh="異常原因" data-en="Issue / remark" data-km="បញ្ហា / កំណត់ចំណាំ">異常原因</th>
         <th data-zh="狀態" data-en="Status" data-km="ស្ថានភាព">狀態</th>
         <th></th></tr></thead><tbody id="tbList"></tbody></table></div>
     </div>
@@ -223,6 +251,7 @@
         <div class="f"><label data-zh="區域篩選" data-en="Zone" data-km="តំបន់">區域篩選</label>
           <select id="cZone" onchange="renderInsp()"><option value="">全部區域</option></select></div>
         <div class="f"><label data-zh="設備類型" data-en="Equipment type" data-km="ប្រភេទឧបករណ៍">設備類型</label><select id="cType" onchange="renderInsp()"><option value="">全部類型</option></select></div>
+        <div class="f"><label data-zh="檢查結果／日期標準" data-en="Result / date filter" data-km="លទ្ធផល / កាលបរិច្ឆេទ">檢查結果／日期標準</label><select id="cResult" onchange="renderInsp()"><option value="">全部</option></select></div>
       </div>
       <div class="sep"></div>
       <div class="row" style="margin-bottom:9px">
@@ -1707,6 +1736,101 @@ qrFireSubmit = function () {
   });
   return _qrFireSubmitWithPhotos.apply(this, arguments);
 };
+/* 20260817: separate equipment master from period inspection records. */
+function firePeriodInspectionMap() {
+  var out = {};
+  HIST.forEach(function (h) {
+    if (!h || !h.date || !PER.has(h.date)) return;
+    (h.items || []).forEach(function (x) {
+      var key = x.id || x.code;
+      if (!key) return;
+      if (!out[key] || String(h.date) >= String(out[key].date || '')) {
+        out[key] = { date:h.date, by:h.by || '', result:x.result || '', note:x.note || '', photos:Array.isArray(x.photos) ? x.photos.slice(0, 4) : [] };
+      }
+    });
+  });
+  return out;
+}
+function fireInspValue(e, map) { return INSP[e.id] || map[e.id] || map[e.code] || {}; }
+function fireInspectionResultOptions() {
+  var l = SEC.lang();
+  return '<option value="">' + fireT(l,'全部結果','All results','លទ្ធផលទាំងអស់') + '</option>' +
+    '<option value="fault">⛔ ' + fireT(l,'本期異常','Abnormal this period','មិនប្រក្រតីក្នុងរយៈពេល') + '</option>' +
+    '<option value="pending">⏳ ' + fireT(l,'本期未檢查','Pending this period','មិនទាន់ត្រួតពិនិត្យ') + '</option>' +
+    '<option value="ok">✅ ' + fireT(l,'本期正常','Normal this period','ធម្មតាក្នុងរយៈពេល') + '</option>' +
+    '<option value="due">⏰ ' + fireT(l,'設備日期將近','Equipment date due soon','កាលបរិច្ឆេទឧបករណ៍ជិតដល់') + '</option>' +
+    '<option value="expired">⛔ ' + fireT(l,'設備日期已過／故障','Equipment date passed / fault','កាលបរិច្ឆេទហួស / ខូច') + '</option>';
+}
+function fireInspectionResultTag(result, l) {
+  if (result === 'ok') return '<span class="tag ok">✅ ' + fireT(l,'本期正常','Normal this period','ធម្មតាក្នុងរយៈពេល') + '</span>';
+  if (result === 'fault') return '<span class="tag err">⛔ ' + fireT(l,'本期異常','Abnormal this period','មិនប្រក្រតីក្នុងរយៈពេល') + '</span>';
+  return '<span class="tag warn">⏳ ' + fireT(l,'本期未檢查','Pending this period','មិនទាន់ត្រួតពិនិត្យ') + '</span>';
+}
+function fireInspectionVisibleList() {
+  var map = firePeriodInspectionMap(), f=document.getElementById('cFactory').value, z=document.getElementById('cZone').value,
+      t=document.getElementById('cType').value, rf=(document.getElementById('cResult') || {}).value || '';
+  return DB.filter(function (e) {
+    if (e.status === 'off' || (f && factoryOf(e) !== f) || (z && e.zone !== z) || (t && e.type !== t)) return false;
+    var v=fireInspValue(e,map), r=v.r || v.result || '', ds=statusOf(e);
+    if (rf === 'fault') return r === 'fault';
+    if (rf === 'pending') return !r;
+    if (rf === 'ok') return r === 'ok';
+    if (rf === 'due') return ds === 'soon';
+    if (rf === 'expired') return ds === 'over';
+    return true;
+  }).sort(function(a,b){return String(factoryOf(a)).localeCompare(String(factoryOf(b)))||String(a.zone||'').localeCompare(String(b.zone||''))||String(a.code||'').localeCompare(String(b.code||''));});
+}
+function fireInspPhotoMarkup(e, v) {
+  var arr = Array.isArray(v.photos) ? v.photos : [];
+  return '<div class="fire-insp-photo"><button type="button" class="btn sm gh fire-photo-add" data-i="' + SEC.esc(e.id) + '">📷 ' + fireT(SEC.lang(),'照片','Photo','រូបថត') + '</button>' +
+    '<span class="hint fire-photo-count">' + (arr.length ? ' ' + arr.length + ' photo(s)' : '') + '</span><div class="fire-photo-list">' + SEC.photoListHtml(arr,true) + '</div></div>';
+}
+function fireEnsureInsp(id, map) {
+  if (!INSP[id]) {
+    var old=map[id] || map[(DB.filter(function(e){return e.id===id;})[0] || {}).code] || {};
+    INSP[id]={r:old.result || old.r || '',n:old.note || old.n || '',photos:Array.isArray(old.photos)?old.photos.slice(0,4):[]};
+  }
+  return INSP[id];
+}
+fillZoneSelects = (function (oldFill) {
+  return function () {
+    oldFill();
+    var el=document.getElementById('cResult'); if (!el) return;
+    var cur=el.value; el.innerHTML=fireInspectionResultOptions(); el.value=cur;
+  };
+})(fillZoneSelects);
+renderInsp = function () {
+  var l=SEC.lang(), map=firePeriodInspectionMap(), list=fireInspectionVisibleList(), box=document.getElementById('tbInsp');
+  box.innerHTML=list.length ? '<div class="fire-insp-grid">' + list.map(function(e){
+    var T=TYPES[e.type]||TYPES.other, v=fireInspValue(e,map), r=v.r||v.result||'', ds=statusOf(e);
+    var dateTag=ds==='soon'?stLabel('soon'):ds==='over'?stLabel('over'):'';
+    return '<div class="fire-insp-item"><div class="insp-head"><code>'+SEC.esc(e.code||'—')+'</code><span class="factory-pill">'+SEC.esc(factoryName(factoryOf(e)))+'</span></div>'+
+      '<div class="insp-meta">'+T.icon+' <b>'+SEC.esc(fireTypeLabel(e.type))+'</b><br>'+SEC.esc(zoneName(e.zone))+(e.loc?' · '+SEC.esc(e.loc):'')+'<br><span class="hint">'+fireT(l,'本期','Period','រយៈពេល')+'：'+SEC.esc(PER.label())+'</span></div>'+
+      '<div class="fire-insp-period">'+fireInspectionResultTag(r,l)+(dateTag?' '+dateTag:'')+'</div>'+
+      '<div class="insp-actions"><button type="button" data-i="'+SEC.esc(e.id)+'" data-r="ok" class="insp-choice ok'+(r==='ok'?' on':'')+'">✅ '+fireT(l,'正常','Normal','ធម្មតា')+'</button><button type="button" data-i="'+SEC.esc(e.id)+'" data-r="fault" class="insp-choice fault'+(r==='fault'?' on':'')+'">⛔ '+fireT(l,'異常','Fault','មិនប្រក្រតី')+'</button></div>'+
+      '<input data-i="'+SEC.esc(e.id)+'" class="insp-note" value="'+SEC.esc(v.n||'')+'" placeholder="'+fireT(l,'異常原因／備註','Abnormal reason / remark','មូលហេតុ / កំណត់ចំណាំ')+'">'+fireInspPhotoMarkup(e,v)+'</div>';
+  }).join('')+'</div>' : '<div class="empty" style="padding:30px">'+fireT(l,'此篩選沒有設備。請先匯入或新增。','No equipment in this filter. Import or add equipment first.','គ្មានឧបករណ៍ក្នុងការជ្រើសនេះទេ')+'</div>';
+  box.querySelectorAll('.insp-choice').forEach(function(b){b.onclick=function(){var v=fireEnsureInsp(b.dataset.i,map);v.r=b.dataset.r;b.parentNode.querySelectorAll('.insp-choice').forEach(function(x){x.classList.toggle('on',x===b);});b.closest('.fire-insp-item').querySelector('.fire-insp-period').innerHTML=fireInspectionResultTag(v.r,l)+(statusOf(DB.filter(function(e){return e.id===b.dataset.i;})[0])==='over'?' '+stLabel('over'):'');};});
+  box.querySelectorAll('.insp-note').forEach(function(s){s.oninput=function(){fireEnsureInsp(s.dataset.i,map).n=s.value;};});
+  box.querySelectorAll('.fire-photo-add').forEach(function(add){var id=add.dataset.i,host=add.parentNode;add.onclick=function(){var v=fireEnsureInsp(id,map),arr=v.photos=Array.isArray(v.photos)?v.photos:[];if(arr.length>=4){SEC.toast(fireT(l,'每台設備最多4張照片','Maximum 4 photos per item','អតិបរមា 4 រូបថតក្នុងមួយឧបករណ៍'),'warn');return;}SEC.pickPhoto(function(d){if(arr.length<4)arr.push(d);fireRefreshInspPhoto(id,host);},760,4-arr.length);};fireRefreshInspPhoto(id,host);});
+};
+markAll = function(v) {
+  var map=firePeriodInspectionMap(), list=fireInspectionVisibleList();
+  if(!list.length){SEC.toast(fireT(SEC.lang(),'此篩選沒有可檢查設備','No equipment in this filter','គ្មានឧបករណ៍ក្នុងការជ្រើសនេះទេ'),'warn');return;}
+  var clearAllOk=v==='ok'&&list.every(function(e){return (fireInspValue(e,map).r||fireInspValue(e,map).result)==='ok';});
+  list.forEach(function(e){if(v===''||clearAllOk){if(INSP[e.id]){delete INSP[e.id].r;if(!INSP[e.id].n&&!(INSP[e.id].photos||[]).length)delete INSP[e.id];}}else fireEnsureInsp(e.id,map).r=v;});
+  renderInsp();SEC.toast((v===''||clearAllOk)?fireT(SEC.lang(),'已清除本次輸入判定','Current input cleared','បានសម្អាតលទ្ធផលបញ្ចូល'):fireT(SEC.lang(),'已全部標記正常','All selected items marked normal','បានសម្គាល់ទាំងអស់ថាធម្មតា'),'ok',3500);
+};
+renderList = function () {
+  var list=fireVisibleList(), l=SEC.lang(), map=firePeriodInspectionMap(), tb=document.getElementById('tbList'),
+      labels=[fireT(l,'選取','Select','ជ្រើស'),fireT(l,'編號','Code','លេខ'),fireT(l,'設備','Equipment','ឧបករណ៍'),fireT(l,'廠別／區域','Factory / Zone','រោងចក្រ / តំបន់'),fireT(l,'位置','Location','ទីតាំង'),fireT(l,'上次檢查','Last check','ពិនិត្យចុងក្រោយ'),fireT(l,'標準日期','Standard date','កាលបរិច្ឆេទស្តង់ដារ'),fireT(l,'檢查人','Inspector','អ្នកត្រួតពិនិត្យ'),fireT(l,'本期檢查','Period result','លទ្ធផលរយៈពេល'),fireT(l,'異常原因','Issue / remark','បញ្ហា / កំណត់ចំណាំ'),fireT(l,'主檔狀態','Master status','ស្ថានភាពមេ'),fireT(l,'編輯','Edit','កែប្រែ')];
+  tb.innerHTML=list.length?list.map(function(e){var T=TYPES[e.type]||TYPES.other,p=map[e.id]||map[e.code]||{},r=p.result||'',ds=dueDate(e),dates=[];if(e.type==='ext'&&e.expiryDate)dates.push(fireT(l,'過期','Expiry','ផុតកំណត់')+': '+e.expiryDate);if(e.type==='light'&&e.replacementDate)dates.push(fireT(l,'更換','Replace','ប្តូរ')+': '+e.replacementDate);if(e.serviceDate)dates.push(fireT(l,'服務','Service','សេវា')+': '+e.serviceDate);if(!dates.length&&ds)dates.push(fireEquipmentDateLabel(e.type,l)+': '+ds);var thumb=e.photos&&e.photos[0]?'<img class="fire-eq-thumb" src="'+SEC.esc(e.photos[0])+'" alt="equipment">':'';var cells=[
+    '<input class="fire-select" type="checkbox" value="'+SEC.esc(e.id)+'">',thumb+'<code>'+SEC.esc(e.code||'—')+'</code>',T.icon+' '+SEC.esc(fireTypeLabel(e.type)),'<span class="factory-pill">'+SEC.esc(factoryName(factoryOf(e)))+'</span><br><small>'+SEC.esc(zoneName(e.zone))+'</small>',SEC.esc(e.loc||'—'),SEC.esc(e.last||'—'),dates.length?dates.map(function(x){return '<span class="fire-service-label">'+SEC.esc(x)+'</span>';}).join(''):'<span class="hint">—</span>',SEC.esc(p.by||e.inspector||'—'),fireInspectionResultTag(r,l),r==='fault'?SEC.esc(p.note||'—'):'<span class="hint">—</span>',stLabel(statusOf(e)),'<button class="btn sm gh" onclick="openEdit(\''+SEC.esc(e.id)+'\')">✏️ '+fireT(l,'編輯','Edit','កែប្រែ')+'</button> <button class="btn sm qr-mini" onclick="showFireQr(\''+SEC.esc(e.id)+'\',\''+SEC.esc(e.code||'')+'\')">🔳</button>'];return '<tr>'+cells.map(function(c,i){return '<td data-label="'+SEC.esc(labels[i])+'">'+c+'</td>';}).join('')+'</tr>';}).join(''):'<tr><td colspan="12" class="empty">'+SEC.T().noData+'</td></tr>';
+  var head=document.getElementById('fireSelectAll');if(head){head.checked=false;head.indeterminate=false;}renderFireListKpi();
+};
+fillZoneSelects();
+var _fireRenderAllWithFilters = renderAll;
+renderAll = function () { fillZoneSelects(); _fireRenderAllWithFilters(); };
 SEC.registerAutoUploader(TOOL, function (opts) { return doUpload(opts); });
 window.addEventListener('load', function () { setTimeout(function () { SEC.retryAutoCloudSync(TOOL); }, 1200); });
 setTimeout(function(){applyFireLanguage();fireQrStart();},0);
