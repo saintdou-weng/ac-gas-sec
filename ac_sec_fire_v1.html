@@ -355,8 +355,8 @@
 <button class="btn" onclick="saveEdit()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260814b"></script>
-<script src="./shared/sec-smart-sync.js?v=20260814b"></script>
+<script src="./shared/sec-core.js?v=20260820a"></script>
+<script src="./shared/sec-smart-sync.js?v=20260820a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -841,13 +841,13 @@ function saveEdit() {
            o.x = z.x + z.w / 2; o.y = z.y + z.h / 2; }
     DB.push(o);
   }
-  save(); renderAll(); SEC.closeModal('mEdit'); SEC.toast('✅ 已儲存', 'ok');
+  save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'fire-equipment-save', o.code || EDIT_ID); SEC.closeModal('mEdit'); SEC.toast('✅ 已儲存', 'ok');
 }
 function delEquip() {
   if (!EDIT_ID) { SEC.closeModal('mEdit'); return; }
   if (!confirm('確定刪除此設備？')) return;
   DB = DB.filter(function (e) { return e.id !== EDIT_ID; });
-  save(); renderAll(); SEC.closeModal('mEdit');
+  save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'fire-equipment-delete', EDIT_ID); SEC.closeModal('mEdit');
 }
 
 /* ═══════════ 巡檢 ═══════════ */
@@ -1683,7 +1683,7 @@ function deleteFireSelected() {
   if(!ids.length){SEC.toast('⚠ 請先勾選要刪除的設備／Select equipment first','warn');return;}
   if(!confirm('確定刪除所選 ' + ids.length + ' 項設備？巡檢歷史會保留。\nDelete selected equipment? Inspection history will be kept.')) return;
   var set={};ids.forEach(function(id){set[id]=1;});DB=DB.filter(function(e){return !set[e.id];});
-  save();renderAll();SEC.toast('🗑 已刪除 ' + ids.length + ' 項設備／Deleted ' + ids.length + ' equipment','ok');
+  save();renderAll();SEC.scheduleAutoCloudSync(TOOL, 'fire-equipment-bulk-delete', ids.length);SEC.toast('🗑 已刪除 ' + ids.length + ' 項設備／Deleted ' + ids.length + ' equipment','ok');
 }
 renderList = function () {
   var list=fireVisibleList(), l=SEC.lang(), tb=document.getElementById('tbList');

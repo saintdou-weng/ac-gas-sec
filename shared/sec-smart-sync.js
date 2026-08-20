@@ -147,13 +147,16 @@
     return m;
   }
   async function smartAll(tool, remote) {
-    var rows = [], extra = {};
+    var rows = [], extra = {}, missing = [];
     var keys = Object.keys(remote.hashes || {}).sort();
     for (var i = 0; i < keys.length; i++) {
-      var b = await get('smartBucket', tool, keys[i]);
-      var x = extraFrom((b && b.records) || []); rows = rows.concat(x.records); if (Object.keys(x.extra).length) extra = x.extra;
+      try {
+        var b = await get('smartBucket', tool, keys[i]);
+        var x = extraFrom((b && b.records) || []); rows = rows.concat(x.records); if (Object.keys(x.extra).length) extra = x.extra;
+      } catch (e) { missing.push(keys[i]); }
     }
-    return { records:rows, extra:extra, meta:remote.meta || {} };
+    if (missing.length) SEC.toast('⚠️ 雲端舊區塊遺失；保留本機資料並於下次上傳修復 / Missing cloud buckets will be repaired', 'warn', 6500);
+    return { records:rows, extra:extra, meta:remote.meta || {}, missing:missing };
   }
   function changedRemote(localBuckets, remote, state) {
     if (!state || !state.hashes) return true;
@@ -217,7 +220,9 @@
     if (!remote.exists && remote.legacy) return legacyAll(tool);
     if (!remote.exists) { var empty = []; empty._cloudExtra = {}; empty._cloudMeta = {}; return empty; }
     var all = await smartAll(tool, remote), out = all.records;
-    out._cloudExtra = all.extra; out._cloudMeta = remote.meta || {};
+    out._cloudExtra = all.extra; out._cloudMeta = Object.assign({}, remote.meta || {}, {
+      missingBuckets:(remote.missingBuckets || []).concat(all.missing || [])
+    });
     stateWrite(tool, { hashes:remote.hashes || {}, counts:remote.counts || {}, metaHash:remote.metaHash || '', updatedAt:remote.updatedAt || now() });
     statusDot('ok');
     return out;

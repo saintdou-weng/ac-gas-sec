@@ -319,8 +319,8 @@
 <button class="btn" onclick="tkSaveEdit()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260814b"></script>
-<script src="./shared/sec-smart-sync.js?v=20260814b"></script>
+<script src="./shared/sec-core.js?v=20260820a"></script>
+<script src="./shared/sec-smart-sync.js?v=20260820a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -484,13 +484,13 @@ function tkSaveEdit() {
   if (!o.date) { SEC.toast('⚠ 請填日期', 'warn'); return; }
   if (TK_EDIT) TK.forEach(function (r) { if (r.id === TK_EDIT) Object.assign(r, o); });
   else { o.id = 'T' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); TK.push(o); }
-  saveTk(); renderAll(); SEC.closeModal('mTk'); SEC.toast('✅ 已儲存', 'ok');
+  saveTk(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'container-truck-save', o.date); SEC.closeModal('mTk'); SEC.toast('✅ 已儲存', 'ok');
 }
 function tkDel() {
   if (!TK_EDIT) { SEC.closeModal('mTk'); return; }
   if (!confirm(SEC.T().confirmDel)) return;
   TK = TK.filter(function (r) { return r.id !== TK_EDIT; });
-  saveTk(); renderAll(); SEC.closeModal('mTk');
+  saveTk(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'container-truck-delete', TK_EDIT); SEC.closeModal('mTk');
 }
 function renderTkCo() {
   var all = inPer(TK), co = {};
@@ -646,7 +646,7 @@ function ciSave(notify) {
     result: pass === 17 ? 'pass' : 'fail',
     note: document.getElementById('ci_note').value.trim(), createdAt: SEC.nowStr() };
   if (!rec.date || !rec.containerNo) { SEC.toast('⚠ 請填日期與貨櫃號', 'warn'); return; }
-  CI.unshift(rec); saveCi(); renderAll();
+  CI.unshift(rec); saveCi(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'container-inspection-save', rec.date);
   SEC.toast('✅ 已儲存檢查（通過 ' + pass + '/17）', pass === 17 ? 'ok' : 'warn', 5000);
   /* 重置表單 */
   document.getElementById('ci_cno').value = ''; document.getElementById('ci_seal').value = '';
@@ -677,7 +677,7 @@ function renderCi() {
 }
 function ciDel(id) {
   if (!confirm(SEC.T().confirmDel)) return;
-  CI = CI.filter(function (r) { return r.id !== id; }); saveCi(); renderAll();
+  CI = CI.filter(function (r) { return r.id !== id; }); saveCi(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'container-inspection-delete', id);
 }
 function renderCiAna() {
   var list = CI.filter(function (r) { return PER.has(r.date); });
@@ -767,7 +767,7 @@ function gdSave(notify) {
     updatedAt: new Date().toISOString() };
   if (!rec.date) { SEC.toast('⚠ 請填日期', 'warn'); return; }
   if (!items.length) { SEC.toast('⚠ 請至少填一個品項', 'warn'); return; }
-  GD.unshift(rec); saveGd(); renderAll();
+  GD.unshift(rec); saveGd(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'container-gate-save', rec.date);
   SEC.toast('✅ 已開立 ' + rec.no, 'ok');
   document.getElementById('gd_dept').value = ''; document.getElementById('gd_vehicle').value = '';
   document.getElementById('gd_note').value = '';
@@ -803,7 +803,7 @@ function renderGd() {
 }
 function gdDel(id) {
   if (!confirm(SEC.T().confirmDel)) return;
-  GD = GD.filter(function (r) { return r.id !== id; }); saveGd(); renderAll();
+  GD = GD.filter(function (r) { return r.id !== id; }); saveGd(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'container-gate-delete', id);
 }
 function renderGdAna() {
   var list = GD.filter(function (r) { return PER.has(r.date); });

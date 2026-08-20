@@ -177,8 +177,8 @@
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260814b"></script>
-<script src="./shared/sec-smart-sync.js?v=20260814b"></script>
+<script src="./shared/sec-core.js?v=20260820a"></script>
+<script src="./shared/sec-smart-sync.js?v=20260820a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -330,7 +330,7 @@ function saveNew(submit) {
   };
   if (!r.name)  { SEC.toast('⚠ 請填項目名稱', 'warn'); return; }
   if (!r.date)  { SEC.toast('⚠ 請選日期', 'warn'); return; }
-  DB.push(r); save(); renderAll();
+  DB.push(r); save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'expense-save', r.date);
   SEC.toast('✅ 已儲存 ' + r.code, 'ok');
   ['nName','nVendor','nUnit','nPrice','nAmt','nReason'].forEach(function (i) { document.getElementById(i).value = ''; });
   document.getElementById('nQty').value = 1;
@@ -340,7 +340,7 @@ function saveNew(submit) {
 function delRec(id) {
   if (!confirm(SEC.T().confirmDel)) return;
   DB = DB.filter(function (r) { return r.id !== id; });
-  save(); renderAll();
+  save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'expense-delete', id);
 }
 
 /* ═══ 核可 ═══ */

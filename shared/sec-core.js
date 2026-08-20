@@ -527,6 +527,9 @@ function recordKey(tool, r, i) {
     if (cctvKey) return tool + '|code|' + cctvKey;
     return tool + '|invalid|' + (r.id || i);
   }
+  /* 巡更棒同一時間＋同一 Chip 是唯一打點；必須先於 _k 判定，
+     否則不同裝置下載時的陣列順序會造成重複。 */
+  if (tool === 'patrol' && r.t && r.c) return tool + '|scan|' + r.t + '|' + r.c;
   if (r.id !== undefined && r.id !== '') return tool + '|id|' + r.id;
   if (r.code !== undefined && r.code !== '') return tool + '|code|' + r.code;
   if (r._k !== undefined && r._k !== '') return tool + '|kind|' + r._k + '|' + (r.empId || r.name || r.date || i);
@@ -534,7 +537,6 @@ function recordKey(tool, r, i) {
   if (r.date && (r.empId || r.name)) return tool + '|date|' + r.date + '|' + (r.empId || r.name);
   if (r.date && r.time && (r.guard || r.person || r.name)) return tool + '|event|' + r.date + '|' + r.time + '|' + (r.guard || r.person || r.name) + '|' + (r.location || r.c || '');
   /* 巡更棒整月表有時沒有 Person、每日表有 Person；同一時間同一 Chip 應視為同一筆打點。 */
-  if (tool === 'patrol' && r.t && r.c) return tool + '|scan|' + r.t + '|' + r.c;
   if (r.t && (r.c || r.g)) return tool + '|scan|' + r.t + '|' + r.c + '|' + (r.g || '');
   return tool + '|row|' + i + '|' + JSON.stringify(r);
 }
@@ -869,14 +871,34 @@ async function sendApproval(opt) {
 
 /* ───────── 照片（壓縮成 dataURL，免後端） ───────── */
 function pickPhoto(cb, maxW, maxCount) {
-  var inp = document.createElement('input');
-  inp.type = 'file'; inp.accept = 'image/*'; inp.multiple = true;
-  inp.onchange = function () {
-    Array.prototype.slice.call(inp.files || [], 0, maxCount || 4).forEach(function (f) {
-      compressImage(f, maxW || 760, cb);
-    });
-  };
-  inp.click();
+  var mask = document.createElement('div');
+  mask.className = 'mask on';
+  mask.style.zIndex = 3200;
+  mask.innerHTML = '<div class="modal" style="max-width:420px">' +
+    '<div class="mh"><b>📷 Photo / 照片 / រូបថត</b><button class="x" data-photo-close>×</button></div>' +
+    '<div class="mb"><p class="hint" style="margin-bottom:12px">Choose camera or an existing image. / 請選直接拍照或既有圖片。</p>' +
+    '<div class="grid g2"><button class="btn" data-photo-camera>📷 Take photo<br><small>直接拍照</small></button>' +
+    '<button class="btn gh" data-photo-file>🖼️ Choose images<br><small>相簿／檔案</small></button></div></div>' +
+    '<div class="mf"><button class="btn gray" data-photo-close>Cancel / 取消</button></div></div>';
+  document.body.appendChild(mask);
+  function close() { if (mask && mask.parentNode) mask.parentNode.removeChild(mask); }
+  function choose(camera) {
+    var inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*';
+    if (camera) inp.setAttribute('capture', 'environment');
+    else inp.multiple = true;
+    inp.onchange = function () {
+      Array.prototype.slice.call(inp.files || [], 0, camera ? 1 : (maxCount || 4)).forEach(function (f) {
+        compressImage(f, maxW || 760, cb);
+      });
+      close();
+    };
+    inp.click();
+  }
+  mask.querySelectorAll('[data-photo-close]').forEach(function (b) { b.onclick = close; });
+  mask.querySelector('[data-photo-camera]').onclick = function () { choose(true); };
+  mask.querySelector('[data-photo-file]').onclick = function () { choose(false); };
+  mask.onclick = function (e) { if (e.target === mask) close(); };
 }
 function compressImage(file, maxW, cb) {
   var fr = new FileReader();

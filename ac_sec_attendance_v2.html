@@ -201,8 +201,8 @@
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260814b"></script>
-<script src="./shared/sec-smart-sync.js?v=20260814b"></script>
+<script src="./shared/sec-core.js?v=20260820a"></script>
+<script src="./shared/sec-smart-sync.js?v=20260820a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -388,6 +388,7 @@ function renderKpi() {
 }
 function saveGrid(push) {
   save();
+  SEC.scheduleAutoCloudSync(TOOL, 'attendance-save', ym());
   SEC.toast('💾 已儲存', 'ok');
   if (push) pushSummary();
 }
@@ -757,7 +758,7 @@ function restore() {
 }
 function clearMonth() {
   if (!confirm('確定清空 ' + ym() + ' 的出勤資料？')) return;
-  delete ATT[ym()]; ATT_LOG = ATT_LOG.filter(function (r) { return String(r.date || '').slice(0, 7) !== ym(); }); save(); renderAll();
+  var cleared = ym(); delete ATT[cleared]; ATT_LOG = ATT_LOG.filter(function (r) { return String(r.date || '').slice(0, 7) !== cleared; }); save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'attendance-clear-month', cleared);
 }
 async function doUpload() {
   var M = monthMap(), recs = [];

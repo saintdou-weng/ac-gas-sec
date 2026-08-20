@@ -252,8 +252,8 @@
 <button class="btn" onclick="saveEdit()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260814b"></script>
-<script src="./shared/sec-smart-sync.js?v=20260814b"></script>
+<script src="./shared/sec-core.js?v=20260820a"></script>
+<script src="./shared/sec-smart-sync.js?v=20260820a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -851,13 +851,13 @@ function saveEdit() {
   if (!EDIT_ID && DB.length >= CCTV_MAX) { SEC.toast('⚠ 已達 CCTV 41 支上限，不能再新增', 'warn'); return; }
   if (EDIT_ID) DB.forEach(function (c) { if (c.id === EDIT_ID) Object.assign(c, o); });
   else { o.id = 'C' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); DB.push(o); }
-  save(); renderAll(); SEC.closeModal('mEdit'); SEC.toast('✅ 已儲存', 'ok');
+  save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'cctv-camera-save', o.code); SEC.closeModal('mEdit'); SEC.toast('✅ 已儲存', 'ok');
 }
 function delCam() {
   if (!EDIT_ID) { SEC.closeModal('mEdit'); return; }
   if (!confirm('確定刪除此攝影機？')) return;
   DB = DB.filter(function (c) { return c.id !== EDIT_ID; });
-  save(); renderAll(); SEC.closeModal('mEdit');
+  save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'cctv-camera-delete', EDIT_ID); SEC.closeModal('mEdit');
 }
 
 /* ═══ 紀錄 / 統計 ═══ */

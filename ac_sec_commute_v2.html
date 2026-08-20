@@ -16,7 +16,10 @@
 .commute-repeat-row{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;margin:8px 0}.commute-repeat-row .f{min-width:0}
 .commute-photo-drop{border:1px dashed var(--n2);border-radius:10px;padding:12px;text-align:center;cursor:pointer;background:#f8fbfd}.commute-photo-list{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .commute-photo-list img{width:56px;height:46px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
+.driver-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}.driver-card{border:1px solid var(--line);border-radius:12px;padding:10px;background:#f8fbfd}.driver-card img{width:74px;height:74px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}.driver-card-grid{display:grid;grid-template-columns:82px 1fr;gap:9px}.driver-card input{padding:7px 8px;margin-top:5px}.fleet-master{width:100%;max-height:300px;object-fit:contain;border:1px solid var(--line);border-radius:10px;margin-top:10px}
+.ocr-launch{grid-column:1/-1;border:1px solid #93c5fd;background:#eff6ff;border-radius:12px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:12px}.ocr-launch b{color:#1d4ed8}.ocr-launch p{margin:3px 0 0;font-size:12px;color:#64748b}.ocr-preview{display:grid;gap:12px}.ocr-record{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff}.ocr-record.duplicate{border-color:#f59e0b;background:#fffbeb}.ocr-record-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.ocr-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.ocr-fields .uncertain input,.ocr-fields .uncertain select{border-color:#dc2626;background:#fff1f2}.ocr-fields .f small{display:block;color:#dc2626;margin-top:3px}.ocr-image{width:100%;max-height:240px;object-fit:contain;border:1px solid var(--line);border-radius:10px;background:#f8fafc}.ocr-warnings{border:1px solid #fbbf24;background:#fffbeb;color:#92400e;border-radius:10px;padding:9px;margin:8px 0}.ocr-progress{padding:25px;text-align:center;color:#64748b}.ocr-action{width:auto;min-width:160px}.ocr-confidence{font-size:12px;color:#64748b}
 @media(max-width:680px){.commute-form-grid{grid-template-columns:1fr}.commute-form-grid .full{grid-column:auto}.commute-repeat-row{grid-template-columns:1fr 1fr}.commute-repeat-row .remove-row{grid-column:1/-1;justify-self:start}}
+@media(max-width:680px){.driver-cards{grid-template-columns:1fr}.ocr-launch{display:block}.ocr-launch .btn{width:100%;margin-top:9px}.ocr-fields{grid-template-columns:1fr 1fr}.ocr-record-head{align-items:flex-start;flex-direction:column}.ocr-action{width:100%}}
 </style>
 </head>
 <body>
@@ -49,6 +52,7 @@
           <select id="fType" style="width:auto" onchange="renderCar()"><option value="">全部用途</option></select>
           <button class="btn sm gh" onclick="openDriverManager()">👤 <span data-zh="司機名單" data-en="Drivers" data-km="បញ្ជីអ្នកបើកបរ">司機名單</span></button>
           <button class="btn sm" onclick="openAdd('car')">➕ <span data-t="add">新增</span></button>
+          <button class="btn sm gh" onclick="commuteOcrStart('car')">📷 表單辨識 / Scan form</button>
           <button class="btn sm gh" onclick="impCar()">📥 Excel</button>
         </span></h3>
       <div class="tw"><table><thead><tr>
@@ -78,6 +82,7 @@
       <h3>🏍 <span data-zh="摩托車停放記錄" data-en="Motorbike Parking" data-km="ចំណតម៉ូតូ">摩托車停放記錄</span>
         <span class="sp">
           <button class="btn sm" onclick="openAdd('bike')">➕ <span data-t="add">新增</span></button>
+          <button class="btn sm gh" onclick="commuteOcrStart('bike')">📷 表單辨識 / Scan form</button>
           <button class="btn sm gh" onclick="impBike()">📥 Excel</button>
         </span></h3>
       <div class="tw"><table><thead><tr>
@@ -85,6 +90,7 @@
         <th class="num">Building A</th><th class="num">Building B</th>
         <th class="num" data-zh="合計" data-en="Total" data-km="សរុប">合計</th>
         <th data-zh="備註" data-en="Remark" data-km="កំណត់">備註</th>
+        <th data-zh="照片" data-en="Photos" data-km="រូបថត">照片</th>
         <th></th></tr></thead><tbody id="tbBike"></tbody></table></div>
     </div>
   </div>
@@ -102,6 +108,7 @@
         <span class="sp">
           <input id="qGate" data-zh="搜尋車牌/司機…" data-en="Search plate/driver…" data-km="ស្វែងរកស្លាកលេខ/អ្នកបើកបរ…" placeholder="搜尋車牌/司機…" style="width:160px" oninput="renderGate()">
           <button class="btn sm" onclick="openAdd('gate')">➕ <span data-t="add">新增</span></button>
+          <button class="btn sm gh" onclick="commuteOcrStart('gate')">📷 表單辨識 / Scan form</button>
           <button class="btn sm gh" onclick="impGate()">📥 Excel</button>
         </span></h3>
       <div class="tw"><table><thead><tr>
@@ -115,6 +122,7 @@
         <th data-zh="入閘" data-en="In" data-km="ចូល">入閘</th>
         <th class="num" data-zh="里程" data-en="KM" data-km="គីឡូ">里程</th>
         <th data-zh="用車原因" data-en="Reason" data-km="មូលហេតុ">用車原因</th>
+        <th data-zh="照片" data-en="Photos" data-km="រូបថត">照片</th>
         <th></th></tr></thead><tbody id="tbGate"></tbody></table></div>
     </div>
   </div>
@@ -132,6 +140,7 @@
         <span class="sp">
           <input id="qLate" data-zh="搜尋姓名/工號…" data-en="Search name/ID…" data-km="ស្វែងរកឈ្មោះ/អត្តលេខ…" placeholder="搜尋姓名/工號…" style="width:160px" oninput="renderLate()">
           <button class="btn sm" onclick="openAdd('late')">➕ <span data-t="add">新增</span></button>
+          <button class="btn sm gh" onclick="commuteOcrStart('late')">📷 表單辨識 / Scan form</button>
           <button class="btn sm gh" onclick="impLate()">📥 Excel</button>
         </span></h3>
       <div class="tw"><table><thead><tr>
@@ -143,6 +152,7 @@
         <th data-zh="出廠" data-en="Check Out" data-km="ចេញ">出廠</th>
         <th data-zh="門衛" data-en="Gatekeeper" data-km="សន្តិសុខ">門衛</th>
         <th data-zh="說明" data-en="Note" data-km="កំណត់">說明</th>
+        <th data-zh="照片" data-en="Photos" data-km="រូបថត">照片</th>
         <th></th></tr></thead><tbody id="tbLate"></tbody></table></div>
     </div>
     <div class="card">
@@ -187,7 +197,7 @@
       <h3>💾 <span data-zh="匯出 / 備份" data-en="Export / Backup" data-km="នាំចេញ">匯出 / 備份</span></h3>
       <div class="row">
         <button class="btn gh" onclick="expExcel()">📊 <span data-t="expExcel">匯出 Excel</span></button>
-        <button class="btn gh" onclick="SEC.backupJson({car:CAR,bike:BIKE,gate:GATE,late:LATE,drivers:DRIVERS},'commute_backup_'+SEC.ymd()+'.json')">💾 <span data-t="backup">備份 JSON</span></button>
+        <button class="btn gh" onclick="SEC.backupJson({car:CAR,bike:BIKE,gate:GATE,late:LATE,drivers:DRIVERS,driverProfiles:DRIVER_PROFILES,ocrScans:OCR_SCANS},'commute_backup_'+SEC.ymd()+'.json')">💾 <span data-t="backup">備份 JSON</span></button>
         <button class="btn gh" onclick="restore()">📂 <span data-t="restore">還原 JSON</span></button>
         <button class="btn err" onclick="clearAll()">🗑 <span data-zh="清空" data-en="Clear" data-km="សម្អាត">清空</span></button>
       </div>
@@ -208,17 +218,19 @@
 <button class="btn" onclick="saveAdd()" data-t="save">儲存</button></div></div></div>
 
 <!-- 司機名單：可管理的姓名會同時用於 Vehicle 表單、篩選器與 Telegram 明細。 -->
-<div class="mask" id="mDrivers"><div class="modal" style="max-width:520px"><div class="mh"><span>👤</span><b id="driverTitle">司機名單 / Driver list</b>
+<div class="mask" id="mDrivers"><div class="modal" style="max-width:920px"><div class="mh"><span>👤</span><b id="driverTitle">司機名單 / Driver list</b>
 <button class="x" onclick="SEC.closeModal('mDrivers')">×</button></div>
 <div class="mb"><div class="f"><label id="driverLabel">每行一個姓名 / One name per line</label>
 <textarea id="driverNames" rows="9" style="width:100%;resize:vertical"></textarea></div>
-<p class="hint" id="driverHint">儲存後會出現在車輛派遣的司機選單；歷史資料中的姓名會保留。</p></div>
+<p class="hint" id="driverHint">儲存後會出現在車輛派遣的司機選單；歷史資料中的姓名會保留。</p>
+<div id="driverProfiles" class="driver-cards"></div>
+<img class="fleet-master" src="./assets/commute/company_car_master.jpg" alt="Company vehicle reference"></div>
 <div class="mf"><button class="btn gray" onclick="SEC.closeModal('mDrivers')" data-t="cancel">取消</button>
 <button class="btn" onclick="saveDriverManager()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260815e"></script>
-<script src="./shared/sec-smart-sync.js?v=20260814b"></script>
+<script src="./shared/sec-core.js?v=20260820b"></script>
+<script src="./shared/sec-smart-sync.js?v=20260820b"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -234,8 +246,16 @@ if (typeof SEC === 'undefined') {
   throw new Error('sec-core.js not loaded');
 }
 
-var LSC = 'ac_sec_car_db', LSB = 'ac_sec_bike_db', LSL = 'ac_sec_late_db', LSG = 'ac_sec_gate_db', LSD = 'ac_sec_commute_drivers';
-var CAR = [], BIKE = [], LATE = [], GATE = [], DRIVERS = [], PER = new SEC.Period('month'), CH = {}, TOOL = 'commute', ADDKIND = 'car';
+var LSC = 'ac_sec_car_db', LSB = 'ac_sec_bike_db', LSL = 'ac_sec_late_db', LSG = 'ac_sec_gate_db', LSD = 'ac_sec_commute_drivers', LSDP='ac_sec_commute_driver_profiles', LSOCR='ac_sec_commute_ocr_scans';
+var CAR = [], BIKE = [], LATE = [], GATE = [], DRIVERS = [], DRIVER_PROFILES = [], OCR_SCANS = [], PER = new SEC.Period('month'), CH = {}, TOOL = 'commute', ADDKIND = 'car';
+var DRIVER_SEED = [
+  {name:'Set Pheara',phone:'096 816 180 8',model:'SSANG YONG',plate:'Kampongspeu-2A-8362',license:'BPP-00212559',address:'Sihanoukville'},
+  {name:'Sey Sarun',phone:'016 433 700',model:'Hyundai Starex',plate:'Kampongspeu-2C-2458',license:'B.PP-00151290',photo:'./assets/commute/sey_sarun.png',carPhoto:'./assets/commute/sey_sarun_car.png'},
+  {name:'Mao Tola',phone:'096 574 501 8',model:'Hyundai Starex',plate:'Preah Sihanouk-2CL-4937',license:'B.KRT.00031401',photo:'./assets/commute/mao_tola.jpg',carPhoto:'./assets/commute/mao_tola_car.png'},
+  {name:'Yem Sok',phone:'096 218 779 1',model:'SSANG YONG',plate:'Phnom Penh-2X-5804',license:'BKD-00080840',photo:'./assets/commute/yem_sok.jpg',carPhoto:'./assets/commute/yem_sok_car.jpg'},
+  {name:'Hea Tongheang',phone:'086 456 497',model:'SSANG YONG',plate:'Phnom Penh-2R-4306',license:'B.KRT.00029789',photo:'./assets/commute/hea_tongheang.png',carPhoto:'./assets/commute/hea_tongheang_car.png'},
+  {name:'Hea Menghorng',phone:'097 943 7213',model:'SSANG YONG',plate:'Phnom Penh-2X-4901',license:'B.KCH.00046274',photo:'./assets/commute/hea_menghorng.jpg',carPhoto:'./assets/commute/hea_menghorng_car.png'}
+];
 
 async function load() {
   CAR = await SEC.dbGet(LSC, []);
@@ -243,11 +263,21 @@ async function load() {
   LATE = await SEC.dbGet(LSL, []);
   GATE = await SEC.dbGet(LSG, []);
   DRIVERS = await SEC.dbGet(LSD, []);
+  DRIVER_PROFILES = await SEC.dbGet(LSDP, []);
+  OCR_SCANS = await SEC.dbGet(LSOCR, []);
   if (!Array.isArray(CAR)) CAR = [];
   if (!Array.isArray(BIKE)) BIKE = [];
   if (!Array.isArray(LATE)) LATE = [];
   if (!Array.isArray(GATE)) GATE = [];
   if (!Array.isArray(DRIVERS)) DRIVERS = [];
+  if (!Array.isArray(DRIVER_PROFILES)) DRIVER_PROFILES = [];
+  if (!Array.isArray(OCR_SCANS)) OCR_SCANS = [];
+  DRIVER_SEED.forEach(function (seed) {
+    var old = DRIVER_PROFILES.filter(function (x) { return x.name === seed.name; })[0];
+    if (!old) DRIVER_PROFILES.push(Object.assign({id:'DP-'+seed.name.replace(/\s+/g,'-').toLowerCase()},seed));
+    else Object.keys(seed).forEach(function (k) { if (!old[k]) old[k]=seed[k]; });
+    if (DRIVERS.indexOf(seed.name)<0) DRIVERS.push(seed.name);
+  });
   DRIVERS = Array.from(new Set(DRIVERS.map(function (x) { return String(x || '').trim(); }).filter(Boolean))).sort();
 }
 function save() {
@@ -256,6 +286,8 @@ function save() {
   SEC.dbPut(LSL, LATE);
   SEC.dbPut(LSG, GATE);
   SEC.dbPut(LSD, DRIVERS);
+  SEC.dbPut(LSDP, DRIVER_PROFILES);
+  SEC.dbPut(LSOCR, OCR_SCANS);
 }
 
 document.getElementById('hdr').innerHTML = SEC.headerHtml('🚐', '通勤交通 Commute & Motor', 'AC SECURITY · COMMUTE');
@@ -288,6 +320,15 @@ function smartCommuteImport() {
 }
 
 function inP(arr) { return arr.filter(function (r) { return PER.has(r.date); }); }
+function commuteRecordPhotos(r) {
+  var out = Array.isArray(r && r.photos) ? r.photos.slice() : [];
+  if (r && r.scanId) {
+    var scan = OCR_SCANS.filter(function (x) { return x.id === r.scanId; })[0];
+    if (scan && scan.image && out.indexOf(scan.image) < 0) out.push(scan.image);
+  }
+  return out;
+}
+function ocrPhotoCount(r) { return commuteRecordPhotos(r).length; }
 function renderAll() { renderCar(); renderBike(); renderGate(); renderLate(); renderAna(); }
 
 /* ═══ 車輛 ═══ */
@@ -346,8 +387,9 @@ function renderBike() {
       return '<tr><td>' + SEC.esc(r.date) + '</td><td class="num">' + (r.a || 0) + '</td>' +
         '<td class="num">' + (r.b || 0) + '</td><td class="num"><b>' + (r.total || 0) + '</b></td>' +
         '<td>' + SEC.esc(r.remark || '') + '</td>' +
+        '<td>' + (ocrPhotoCount(r) ? '📷 ' + ocrPhotoCount(r) : '—') + '</td>' +
         '<td><button class="btn sm err" onclick="del(\'bike\',\'' + r.id + '\')">×</button></td></tr>';
-    }).join('') : '<tr><td colspan="6" class="empty">' + SEC.T().noData + '</td></tr>';
+    }).join('') : '<tr><td colspan="7" class="empty">' + SEC.T().noData + '</td></tr>';
 }
 
 /* ═══ 車輛出入閘 ═══ */
@@ -370,8 +412,9 @@ function renderGate() {
         '<td>' + SEC.esc(r.dept || '') + '</td><td class="num">' + (r.pax || '') + '</td>' +
         '<td>' + SEC.esc(r.outTime || '') + '</td><td>' + SEC.esc(r.inTime || '') + '</td>' +
         '<td class="num">' + (r.km || '') + '</td><td>' + SEC.esc(r.reason || '') + '</td>' +
+        '<td>' + (ocrPhotoCount(r) ? '📷 ' + ocrPhotoCount(r) : '—') + '</td>' +
         '<td><button class="btn sm err" onclick="del(\'gate\',\'' + r.id + '\')">×</button></td></tr>';
-    }).join('') : '<tr><td colspan="11" class="empty">' + SEC.T().noData + '</td></tr>';
+    }).join('') : '<tr><td colspan="12" class="empty">' + SEC.T().noData + '</td></tr>';
 }
 
 /* ── ④ 公司車輛出入閘：Container_Truck_Register 檔內的派車分頁 ──
@@ -477,8 +520,9 @@ function renderLate() {
         '<td>' + SEC.esc(r.name || '') + '</td><td>' + SEC.esc(r.dept || '') + '</td>' +
         '<td>' + SEC.esc(r.checkIn || '') + '</td><td>' + SEC.esc(r.checkOut || '') + '</td>' +
         '<td>' + SEC.esc(r.gate || '') + '</td><td>' + SEC.esc(r.note || '') + '</td>' +
+        '<td>' + (ocrPhotoCount(r) ? '📷 ' + ocrPhotoCount(r) : '—') + '</td>' +
         '<td><button class="btn sm err" onclick="del(\'late\',\'' + r.id + '\')">×</button></td></tr>';
-    }).join('') : '<tr><td colspan="9" class="empty">' + SEC.T().noData + '</td></tr>';
+    }).join('') : '<tr><td colspan="10" class="empty">' + SEC.T().noData + '</td></tr>';
 
   document.getElementById('tbRepeat').innerHTML = rep.length
     ? rep.sort(function (a, b) { return uniq[b].n - uniq[a].n; }).map(function (k) {
@@ -538,6 +582,7 @@ var FIELD_LABELS = {
 function fieldLabel(key, fallback) { var x = FIELD_LABELS[key]; return x ? carText(key, x[0], x[1], x[2]) : fallback; }
 function openAdd(kind) {
   ADDKIND = kind;
+  COMMUTE_CAR_PHOTOS = [];
   var titles = { car:['新增車輛派遣','Add vehicle dispatch','បន្ថែមការចាត់ចែងរថយន្ត'], bike:['新增摩托車記錄','Add motorbike record','បន្ថែមកំណត់ត្រាម៉ូតូ'], gate:['新增車輛出入閘','Add gate log','បន្ថែមកំណត់ត្រាច្រក'], late:['新增遲到登記','Add late record','បន្ថែមកំណត់ត្រាមកយឺត'] };
   document.getElementById('mTitle').textContent = carText(kind, titles[kind][0], titles[kind][1], titles[kind][2]);
   document.getElementById('mBody').innerHTML = FIELDS[kind].map(function (f) {
@@ -550,6 +595,8 @@ function openAdd(kind) {
     if (!dl) { dl = document.createElement('datalist'); dl.id = 'commuteDriverList'; document.body.appendChild(dl); }
     dl.innerHTML = DRIVERS.map(function (x) { return '<option value="' + SEC.esc(x) + '">'; }).join('');
   }
+  document.getElementById('mBody').insertAdjacentHTML('beforeend','<div class="f" style="grid-column:1/-1"><label>Form photos / 表單照片 / រូបថត</label><div class="commute-photo-drop" onclick="commuteAddCarPhoto()">📷 Take photo or choose image (max 4) / 拍照或選圖</div><div id="mCarPhotos" class="commute-photo-list"></div></div>');
+  commuteRenderCarPhotos();
   SEC.openModal('mAdd');
 }
 function saveAdd() {
@@ -559,10 +606,11 @@ function saveAdd() {
     o[f[0]] = f[2] === 'number' ? (Number(v) || 0) : v.trim();
   });
   if (!o.date) { SEC.toast(carText('date','⚠ 請選日期','⚠ Select a date','⚠ ជ្រើសកាលបរិច្ឆេទ'), 'warn'); return; }
+  o.photos = COMMUTE_CAR_PHOTOS.slice(0,4); o.updatedAt = new Date().toISOString();
   if (ADDKIND === 'bike') o.total = (o.a || 0) + (o.b || 0);
   ({ car: CAR, bike: BIKE, gate: GATE, late: LATE })[ADDKIND].push(o);
   if ((ADDKIND === 'car' || ADDKIND === 'gate') && o.driver && DRIVERS.indexOf(o.driver) < 0) { DRIVERS.push(o.driver); DRIVERS.sort(); }
-  save(); renderAll(); SEC.closeModal('mAdd'); SEC.toast(carText('saved','✅ 已新增','✅ Added','✅ បានបន្ថែម'), 'ok');
+  save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL,'commute-'+ADDKIND+'-save',o.date); SEC.closeModal('mAdd'); SEC.toast(carText('saved','✅ 已新增','✅ Added','✅ បានបន្ថែម'), 'ok');
 }
 function openDriverManager() {
   var el = document.getElementById('driverNames');
@@ -571,13 +619,29 @@ function openDriverManager() {
   document.getElementById('driverTitle').textContent = carText('driverTitle','司機名單 / Driver list','Driver list','បញ្ជីអ្នកបើកបរ');
   document.getElementById('driverLabel').textContent = carText('driverLabel','每行一個姓名 / One name per line','One driver name per line','ឈ្មោះអ្នកបើកបរមួយក្នុងមួយបន្ទាត់');
   document.getElementById('driverHint').textContent = carText('driverHint','儲存後會出現在車輛派遣的司機選單；歷史資料中的姓名會保留。','Saved names appear in Vehicle filters and the dispatch form; historical names are kept.','ឈ្មោះដែលបានរក្សាទុកនឹងបង្ហាញក្នុងបញ្ជី Vehicle ហើយរក្សាឈ្មោះប្រវត្តិទុក។');
+  renderDriverProfiles();
   SEC.openModal('mDrivers');
 }
+function renderDriverProfiles() {
+  DRIVERS.forEach(function (name) { if (!DRIVER_PROFILES.some(function (x) { return x.name===name; })) DRIVER_PROFILES.push({id:'DP-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:name}); });
+  var box=document.getElementById('driverProfiles'); if(!box)return;
+  box.innerHTML=DRIVER_PROFILES.map(function(p,i){return '<div class="driver-card" data-dp="'+i+'"><div class="driver-card-grid"><div>'+
+    (p.photo?'<img src="'+SEC.esc(p.photo)+'" onclick="SEC.viewPhoto(0,this)" alt="driver">':'<div class="avt" style="width:74px;height:74px">👤</div>')+
+    '<button type="button" class="btn sm gh" style="margin-top:5px" onclick="pickDriverPhoto('+i+',\'photo\')">📷 Driver</button></div><div>'+
+    '<b>'+SEC.esc(p.name||'')+'</b><input data-f="name" value="'+SEC.esc(p.name||'')+'" placeholder="Name">'+
+    '<input data-f="phone" value="'+SEC.esc(p.phone||'')+'" placeholder="Phone / 電話"><input data-f="license" value="'+SEC.esc(p.license||'')+'" placeholder="Driving licence / 駕照"></div></div>'+
+    '<div class="grid g2" style="margin-top:7px"><input data-f="plate" value="'+SEC.esc(p.plate||'')+'" placeholder="Plate / 車牌"><input data-f="model" value="'+SEC.esc(p.model||'')+'" placeholder="Vehicle model / 車型"></div>'+
+    '<div style="margin-top:7px">'+(p.carPhoto?'<img src="'+SEC.esc(p.carPhoto)+'" onclick="SEC.viewPhoto(0,this)" alt="vehicle" style="width:100%;height:110px">':'')+
+    '<button type="button" class="btn sm gh" onclick="pickDriverPhoto('+i+',\'carPhoto\')">📷 Vehicle / Plate</button></div></div>';}).join('');
+}
+function pickDriverPhoto(i,field){SEC.pickPhoto(function(d){if(DRIVER_PROFILES[i])DRIVER_PROFILES[i][field]=d;renderDriverProfiles();},760,1);}
 function saveDriverManager() {
   var vals = String(document.getElementById('driverNames').value || '').split(/[\n,，;；]+/)
     .map(function (x) { return x.trim(); }).filter(Boolean);
-  DRIVERS = Array.from(new Set(vals)).sort();
+  document.querySelectorAll('#driverProfiles [data-dp]').forEach(function(card){var i=+card.dataset.dp,p=DRIVER_PROFILES[i];if(!p)return;card.querySelectorAll('[data-f]').forEach(function(inp){p[inp.dataset.f]=inp.value.trim();});});
+  DRIVERS = Array.from(new Set(vals.concat(DRIVER_PROFILES.map(function(p){return p.name;}).filter(Boolean)))).sort();
   save(); renderCar(); SEC.closeModal('mDrivers');
+  SEC.scheduleAutoCloudSync(TOOL,'driver-profile-save','');
   SEC.toast(carText('driverSaved','✅ 司機名單已儲存','✅ Driver list saved','✅ បានរក្សាទុកបញ្ជីអ្នកបើកបរ'), 'ok');
 }
 function del(kind, id) {
@@ -586,7 +650,7 @@ function del(kind, id) {
   if (kind === 'bike') BIKE = BIKE.filter(function (r) { return r.id !== id; });
   if (kind === 'gate') GATE = GATE.filter(function (r) { return r.id !== id; });
   if (kind === 'late') LATE = LATE.filter(function (r) { return r.id !== id; });
-  save(); renderAll();
+  save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'commute-' + kind + '-delete', '');
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -786,7 +850,7 @@ function expExcel() {
     { name: 'Vehicle', rows: inP(CAR).map(function (r) {
         return { '日期 Date': r.date, '司機 Driver': r.driver, '車牌 Plate': r.plate, '用途 Type': r.type, '事由 Reason': r.reason,
           '出發時間 Departure': r.outTime, '回廠時間 Return': r.inTime, '里程 KM': r.km, '核可人 Approver': r.approver,
-          '照片數 Photos': Array.isArray(r.photos) ? r.photos.length : 0 }; }) },
+          '照片數 Photos': ocrPhotoCount(r) }; }) },
     { name: 'Motorbike', rows: inP(BIKE).map(function (r) {
         return { '日期 Date': r.date, 'Building A': r.a, 'Building B': r.b, '合計 Total': r.total, '備註 Remark': r.remark }; }) },
     { name: 'GateLog', rows: inP(GATE).map(function (r) {
@@ -802,12 +866,14 @@ function restore() {
   SEC.restoreJson(function (o) {
     if (o.car) CAR = o.car; if (o.bike) BIKE = o.bike; if (o.gate) GATE = o.gate; if (o.late) LATE = o.late;
     if (Array.isArray(o.drivers)) DRIVERS = o.drivers;
+    if (Array.isArray(o.driverProfiles)) DRIVER_PROFILES = o.driverProfiles;
+    if (Array.isArray(o.ocrScans)) OCR_SCANS = o.ocrScans;
     save(); renderAll();
   });
 }
 function clearAll() {
   if (!confirm('確定清空車輛／摩托車／遲到全部資料？')) return;
-  CAR = []; BIKE = []; GATE = []; LATE = []; save(); renderAll();
+  CAR = []; BIKE = []; GATE = []; LATE = []; OCR_SCANS = []; save(); renderAll();
 }
 async function doUpload() {
   var all = [].concat(
@@ -815,9 +881,11 @@ async function doUpload() {
     BIKE.map(function (r) { return Object.assign({ _k: 'bike' }, r); }),
     GATE.map(function (r) { return Object.assign({ _k: 'gate' }, r); }),
     LATE.map(function (r) { return Object.assign({ _k: 'late' }, r); }),
-    [{ _k:'drivers', id:'commute-driver-list', names:DRIVERS.slice(), updatedAt:new Date().toISOString() }]
+    OCR_SCANS.map(function (r) { return Object.assign({ _k:'ocrScan' }, r); }),
+    [{ _k:'drivers', id:'commute-driver-list', names:DRIVERS.slice(), updatedAt:new Date().toISOString() },
+     { _k:'driverProfiles', id:'commute-driver-profiles', profiles:DRIVER_PROFILES.slice(), updatedAt:new Date().toISOString() }]
   );
-  return await SEC.cloudPush(TOOL, all, { car: CAR.length, bike: BIKE.length, gate: GATE.length, late: LATE.length, drivers: DRIVERS.length });
+  return await SEC.cloudPush(TOOL, all, { car: CAR.length, bike: BIKE.length, gate: GATE.length, late: LATE.length, drivers: DRIVERS.length, driverProfiles:DRIVER_PROFILES.length, ocrScans:OCR_SCANS.length });
 }
 async function doDownload() {
   if (!confirm('⬇️☁ 下載會與本機通勤資料合併；相同紀錄以最新資料更新，空白欄位會先確認並保留舊值。繼續？')) return;
@@ -827,15 +895,20 @@ async function doDownload() {
     .concat(BIKE.map(function (r) { return Object.assign({_k:'bike'}, r); }))
     .concat(GATE.map(function (r) { return Object.assign({_k:'gate'}, r); }))
     .concat(LATE.map(function (r) { return Object.assign({_k:'late'}, r); }))
-    .concat([{ _k:'drivers', id:'commute-driver-list', names:DRIVERS.slice(), updatedAt:new Date().toISOString() }]);
+    .concat(OCR_SCANS.map(function (r) { return Object.assign({_k:'ocrScan'}, r); }))
+    .concat([{ _k:'drivers', id:'commute-driver-list', names:DRIVERS.slice(), updatedAt:new Date().toISOString() },
+      { _k:'driverProfiles', id:'commute-driver-profiles', profiles:DRIVER_PROFILES.slice(), updatedAt:new Date().toISOString() }]);
   var m = SEC.mergeRecords(TOOL, local, recs);
   if (!SEC.confirmBlankMerge(m.blankConflicts, '通勤資料雲端下載確認')) return;
   CAR = m.records.filter(function (r) { return r._k === 'car'; });
   BIKE = m.records.filter(function (r) { return r._k === 'bike'; });
   GATE = m.records.filter(function (r) { return r._k === 'gate'; });
   LATE = m.records.filter(function (r) { return r._k === 'late'; });
+  OCR_SCANS = m.records.filter(function (r) { return r._k === 'ocrScan'; });
   var dr = m.records.filter(function (r) { return r._k === 'drivers'; })[0];
   if (dr && Array.isArray(dr.names)) DRIVERS = Array.from(new Set(dr.names.map(function (x) { return String(x || '').trim(); }).filter(Boolean))).sort();
+  var dp = m.records.filter(function (r) { return r._k === 'driverProfiles'; })[0];
+  if (dp && Array.isArray(dp.profiles)) DRIVER_PROFILES = dp.profiles;
   save(); renderAll(); SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，共 ' + m.records.length + ' 筆', 'ok', 5000);
 }
 function commuteSummaryPeriod(st) {
@@ -852,7 +925,7 @@ function commutePeriods(type) {
   if (!Object.keys(seen).length) seen[new SEC.Period(type).key()] = 1;
   return Object.keys(seen);
 }
-function cmt(lang, zh, en) { return lang === 'en' ? en : zh; }
+function cmt(lang, zh, en, km) { return lang === 'en' ? en : lang === 'km' ? (km || en) : zh; }
 function commuteScopeOn(st, kind) { return !st.scope || st.scope === 'all' || st.scope === kind; }
 function commuteScopeLabel(st) {
   var m = { all:['全部分類','All categories','គ្រប់ប្រភេទ'], vehicle:['車輛派遣','Vehicle dispatch','ការចាត់ចែងរថយន្ត'],
@@ -888,19 +961,21 @@ function commuteSummaryPages(st) {
   var p = commuteSummaryPeriod(st), pages = [commuteSummary(st)], lines = [];
   if (commuteScopeOn(st,'vehicle')) CAR.filter(function (r) { return p.has(r.date); }).forEach(function (r) {
     lines.push('🚐 ' + SEC.esc(r.date) + ' · ' + cmt(st.lang,'司機','Driver') + ' ' + SEC.esc(r.driver || '—') + ' · ' + cmt(st.lang,'用途','Purpose') + ' ' + SEC.esc(r.type || '—') +
-      ' · ' + cmt(st.lang,'事由','Reason') + ' ' + SEC.esc(r.reason || '—') + ' · ' + cmt(st.lang,'出發','Departure') + ' ' + SEC.esc(r.outTime || '—') + ' · ' + cmt(st.lang,'回廠','Return') + ' ' + SEC.esc(r.inTime || '—') + ' · ' + (r.km || 0) + ' KM');
+      ' · ' + cmt(st.lang,'車牌','Plate') + ' ' + SEC.esc(r.plate || '—') + ' · ' + cmt(st.lang,'事由','Reason') + ' ' + SEC.esc(r.reason || '—') +
+      ' · ' + cmt(st.lang,'出發','Departure') + ' ' + SEC.esc(r.outTime || '—') + ' · ' + cmt(st.lang,'回廠','Return') + ' ' + SEC.esc(r.inTime || '—') +
+      ' · ' + (r.km || 0) + ' KM · ' + cmt(st.lang,'核可人','Approver') + ' ' + SEC.esc(r.approver || '—') + (ocrPhotoCount(r) ? ' · 📷 ' + ocrPhotoCount(r) : ''));
   });
   for (var i = 0; i < lines.length; i += 26) pages.push('<b>🚐 ' + cmt(st.lang,'車輛派遣明細','Vehicle dispatch details') + '</b>\n' + lines.slice(i, i + 26).join('\n'));
   lines = [];
   if (commuteScopeOn(st,'gate')) GATE.filter(function (r) { return p.has(r.date); }).forEach(function (r) {
     lines.push('🚛 ' + SEC.esc(r.date) + ' · ' + cmt(st.lang,'車牌','Plate') + ' ' + SEC.esc(r.plate || '—') + ' · ' + cmt(st.lang,'司機','Driver') + ' ' + SEC.esc(r.driver || '—') +
       ' · ' + cmt(st.lang,'乘客','Passenger') + ' ' + SEC.esc(r.passenger || '—') + ' · ' + cmt(st.lang,'部門','Dept') + ' ' + SEC.esc(r.dept || '—') + ' · Pax ' + (r.pax || 0) +
-      ' · ' + cmt(st.lang,'出','Out') + ' ' + SEC.esc(r.outTime || '—') + ' · ' + cmt(st.lang,'入','In') + ' ' + SEC.esc(r.inTime || '—') + ' · ' + cmt(st.lang,'事由','Reason') + ' ' + SEC.esc(r.reason || '—'));
+      ' · ' + cmt(st.lang,'出','Out') + ' ' + SEC.esc(r.outTime || '—') + ' · ' + cmt(st.lang,'入','In') + ' ' + SEC.esc(r.inTime || '—') + ' · ' + cmt(st.lang,'事由','Reason') + ' ' + SEC.esc(r.reason || '—') + (ocrPhotoCount(r) ? ' · 📷 ' + ocrPhotoCount(r) : ''));
   });
   for (var j = 0; j < lines.length; j += 20) pages.push('<b>🚛 ' + cmt(st.lang,'出入閘明細','Gate details') + '</b>\n' + lines.slice(j, j + 20).join('\n'));
   lines = [];
-  if (commuteScopeOn(st,'bike')) BIKE.filter(function (r) { return p.has(r.date); }).forEach(function (r) { lines.push('🏍 ' + SEC.esc(r.date) + ' · Building A ' + (r.a || 0) + ' · Building B ' + (r.b || 0) + ' · Total ' + (r.total || 0) + ' · ' + SEC.esc(r.remark || '')); });
-  if (commuteScopeOn(st,'late')) LATE.filter(function (r) { return p.has(r.date); }).forEach(function (r) { lines.push('⏰ ' + SEC.esc(r.date) + ' · ID ' + SEC.esc(r.empId || '—') + ' · Name ' + SEC.esc(r.name || '—') + ' · Dept ' + SEC.esc(r.dept || '—') + ' · In ' + SEC.esc(r.checkIn || '—') + ' · Gate ' + SEC.esc(r.gate || '—') + (r.note ? ' · ' + SEC.esc(r.note) : '')); });
+  if (commuteScopeOn(st,'bike')) BIKE.filter(function (r) { return p.has(r.date); }).forEach(function (r) { lines.push('🏍 ' + SEC.esc(r.date) + ' · Building A ' + (r.a || 0) + ' · Building B ' + (r.b || 0) + ' · Total ' + (r.total || 0) + ' · ' + SEC.esc(r.remark || '') + (ocrPhotoCount(r) ? ' · 📷 ' + ocrPhotoCount(r) : '')); });
+  if (commuteScopeOn(st,'late')) LATE.filter(function (r) { return p.has(r.date); }).forEach(function (r) { lines.push('⏰ ' + SEC.esc(r.date) + ' · ID ' + SEC.esc(r.empId || '—') + ' · Name ' + SEC.esc(r.name || '—') + ' · Dept ' + SEC.esc(r.dept || '—') + ' · In ' + SEC.esc(r.checkIn || '—') + ' · Gate ' + SEC.esc(r.gate || '—') + (r.note ? ' · ' + SEC.esc(r.note) : '') + (ocrPhotoCount(r) ? ' · 📷 ' + ocrPhotoCount(r) : '')); });
   for (var k = 0; k < lines.length; k += 22) pages.push('<b>🏍⏰ ' + cmt(st.lang,'摩托車及遲到明細','Motorbike & late details') + '</b>\n' + lines.slice(k, k + 22).join('\n'));
   return pages;
 }
@@ -933,7 +1008,16 @@ function commuteApprovalPreview(st, items) {
 function commuteApprovalSent(result, st, items) {
   var ids = items.map(function (x) { return x._recordId || x.id; });
   [CAR, BIKE, GATE, LATE].forEach(function (arr) { arr.forEach(function (r) { if (ids.indexOf(r.id) >= 0) { r.approvalBatch = result.batchId || ''; r.approvalStatus = 'pending'; } }); });
-  save(); renderAll();
+  save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'commute-approval-sent', st && st.period || '');
+}
+function commuteSummaryPhotos(st, pageIndex) {
+  if (pageIndex !== 0) return [];
+  var p=commuteSummaryPeriod(st), out=[];
+  [[CAR,'vehicle'],[BIKE,'bike'],[GATE,'gate'],[LATE,'late']].forEach(function(pair){
+    if (!commuteScopeOn(st,pair[1])) return;
+    pair[0].filter(function(r){return p.has(r.date);}).forEach(function(r){out=out.concat(commuteRecordPhotos(r));});
+  });
+  return out.filter(Boolean).slice(0,4);
 }
 function openCommuteTelegram() {
   return SEC.tgOpen({ module:'commute', modalTitle:'通勤交通 Telegram / Commute Telegram', canApprove:true,
@@ -942,7 +1026,7 @@ function openCommuteTelegram() {
     currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); },
     scopeOptions:[{value:'all',label:'全部分類 / All categories'},{value:'vehicle',label:'車輛派遣 / Vehicle dispatch'},
       {value:'bike',label:'摩托車 / Motorbike'},{value:'gate',label:'車輛出入閘 / Gate log'},{value:'late',label:'遲到登記 / Come late'}],
-    summaryPages:commuteSummaryPages, approvalItems:commuteApprovalItems, approvalPreview:commuteApprovalPreview,
+    summaryPages:commuteSummaryPages, summaryPhotos:commuteSummaryPhotos, approvalItems:commuteApprovalItems, approvalPreview:commuteApprovalPreview,
     approvalTitle:'Commute & Motor ' + PER.key(), onApprovalSent:commuteApprovalSent });
 }
 function pushSummary() { return openCommuteTelegram(); }
@@ -1006,12 +1090,147 @@ saveAdd=function(){
 };
 renderCar=function(){
   var list=inP(CAR),fd=document.getElementById('fDriver').value,ft=document.getElementById('fType').value,ds={},ts={};DRIVERS.forEach(function(n){ds[n]=1;});inP(CAR).forEach(function(r){if(r.driver)ds[r.driver]=1;if(r.type)ts[r.type]=1;});fillSel('fDriver',ds,carText('allDrivers','全部司機','All drivers','អ្នកបើកបរទាំងអស់'));fillSel('fType',ts,carText('allPurposes','全部用途','All purposes','គោលបំណងទាំងអស់'));if(fd)list=list.filter(function(r){return r.driver===fd;});if(ft)list=list.filter(function(r){return r.type===ft;});var km=list.reduce(function(s,r){return s+(+r.km||0);},0),dr={};list.forEach(function(r){if(r.driver)dr[r.driver]=1;});document.getElementById('ck1').textContent=list.length;document.getElementById('ck2').textContent=Math.round(km).toLocaleString();document.getElementById('ck3').textContent=Object.keys(dr).length;document.getElementById('ck4').textContent=list.length?(km/list.length).toFixed(1):0;var labs=[carText('date','日期','Date','កាល'),carText('driver','司機','Driver','អ្នកបើកបរ'),carText('plate','車牌','Plate','ស្លាកលេខ'),carText('type','用途','Purpose','គោលបំណង'),carText('reason','事由','Reason','មូលហេតុ'),carText('outTime','出發','Departure','ចេញ'),carText('inTime','回廠','Return','ត្រឡប់'),carText('km','里程','KM','គីឡូ'),carText('approver','核可人','Approver','អ្នកអនុម័ត'),carText('photos','照片','Photos','រូបថត'),carText('edit','編輯','Edit','កែប្រែ')],tb=document.getElementById('tbCar');
-  tb.innerHTML=list.length?list.slice().sort(function(a,b){return(b.date||'').localeCompare(a.date||'');}).map(function(r){var cells=[SEC.esc(r.date||''),SEC.esc(r.driver||''),SEC.esc(r.plate||'—'),'<span class="tag info">'+SEC.esc(r.type||'—')+'</span>',SEC.esc(r.reason||'—'),SEC.esc(r.outTime||'—'),SEC.esc(r.inTime||'—'),'<b>'+(r.km||0)+'</b>',SEC.esc(r.approver||'—'),r.photos&&r.photos.length?'📷 '+r.photos.length:'—','<button class="btn sm err" onclick="del(\'car\',\''+SEC.esc(r.id)+'\')">×</button>'];return '<tr>'+cells.map(function(c,i){return '<td data-label="'+SEC.esc(labs[i])+'">'+c+'</td>';}).join('')+'</tr>';}).join(''):'<tr><td colspan="11" class="empty">'+SEC.T().noData+'</td></tr>';
+  tb.innerHTML=list.length?list.slice().sort(function(a,b){return(b.date||'').localeCompare(a.date||'');}).map(function(r){var cells=[SEC.esc(r.date||''),SEC.esc(r.driver||''),SEC.esc(r.plate||'—'),'<span class="tag info">'+SEC.esc(commuteCategoryLabel(r.category||r.type||'local'))+'</span>',SEC.esc(r.reason||'—'),SEC.esc(r.outTime||'—'),SEC.esc(r.inTime||'—'),'<b>'+(r.km||0)+'</b>',SEC.esc(r.approver||'—'),ocrPhotoCount(r)?'📷 '+ocrPhotoCount(r):'—','<button class="btn sm gh" onclick="editCar(\''+SEC.esc(r.id)+'\')">✏️</button> <button class="btn sm err" onclick="del(\'car\',\''+SEC.esc(r.id)+'\')">×</button>'];return '<tr>'+cells.map(function(c,i){return '<td data-label="'+SEC.esc(labs[i])+'">'+c+'</td>';}).join('')+'</tr>';}).join(''):'<tr><td colspan="11" class="empty">'+SEC.T().noData+'</td></tr>';
 };
 var _commuteSummaryPagesOriginal=commuteSummaryPages;
-commuteSummaryPages=function(st){var pages=_commuteSummaryPagesOriginal(st),p=commuteSummaryPeriod(st),l=st.lang||'zh',rows=CAR.filter(function(r){return commuteScopeOn(st,'vehicle')&&p.has(r.date);});if(rows.length){var lines=rows.map(function(r){return '🚐 '+SEC.esc(r.date)+' · '+cmt(l,'司機','Driver')+' '+SEC.esc(r.driver||'—')+' · '+cmt(l,'車牌','Plate')+' '+SEC.esc(r.plate||'—')+' · '+cmt(l,'出發','Departure')+' '+SEC.esc(r.outTime||'—')+' · '+cmt(l,'回廠','Return')+' '+SEC.esc(r.inTime||'—')+' · '+cmt(l,'核可人','Approver')+' '+SEC.esc(r.approver||'—')+(r.photos&&r.photos.length?' · 📷 '+r.photos.length:'');});pages.push('<b>🚐 '+cmt(l,'車輛派遣明細／照片','Vehicle dispatch details / photos')+'</b>\n'+lines.slice(0,25).join('\n')+(lines.length>25?'\n… +'+(lines.length-25):''));}return pages;};
+commuteSummaryPages=function(st){return _commuteSummaryPagesOriginal(st);};
 var _commuteApprovalItemsOriginal=commuteApprovalItems;
-commuteApprovalItems=function(st){var out=_commuteApprovalItemsOriginal(st);out.forEach(function(x){if(x.group==='vehicle'){var r=CAR.filter(function(y){return y.id===x.id;})[0];if(r)x.info='Plate '+(r.plate||'—')+' · Departure '+(r.outTime||'—')+' · Return '+(r.inTime||'—')+' · Approver '+(r.approver||'—')+(r.photos&&r.photos.length?' · Photos '+r.photos.length:'');}});return out;};
+commuteApprovalItems=function(st){var out=_commuteApprovalItemsOriginal(st);out.forEach(function(x){if(x.group==='vehicle'){var r=CAR.filter(function(y){return y.id===x.id;})[0];if(r)x.info='Plate '+(r.plate||'—')+' · Departure '+(r.outTime||'—')+' · Return '+(r.inTime||'—')+' · Approver '+(r.approver||'—')+(ocrPhotoCount(r)?' · Photos '+ocrPhotoCount(r):'');}});return out;};
+/* 20260820：三種車輛用途、重複接送時程、照片表單與可修改單筆。 */
+var COMMUTE_EDIT_ID='', _commuteOpenAddV17=openAdd, _commuteSaveAddV17=saveAdd;
+function commuteCategoryLabel(v){return v==='shuttle'?carText('shuttle','上下班接送','Commute shuttle','ដឹកជញ្ជូនបុគ្គលិក'):v==='local'?carText('local','平日／短途外出','Regular / local outing','ចេញក្រៅជិត'):v==='long'?carText('long','長途外出','Long-distance outing','ចេញក្រៅឆ្ងាយ'):(v||'—');}
+openAdd=function(kind){
+  if(kind!=='car'&&kind!=='late')return _commuteOpenAddV17.apply(this,arguments);
+  ADDKIND=kind;COMMUTE_EDIT_ID='';COMMUTE_CAR_ROW_NO=0;COMMUTE_APPROVER_ROW_NO=0;COMMUTE_LATE_ROW_NO=0;COMMUTE_CAR_PHOTOS=[];
+  document.getElementById('mTitle').textContent=kind==='car'?carText('title','新增車輛派遣','Add vehicle dispatch','បន្ថែមការចាត់ចែងរថយន្ត'):carText('title','新增遲到登記','Add Come Late records','បន្ថែមកំណត់ត្រាមកយឺត');
+  if(kind==='car'){
+    document.getElementById('mBody').innerHTML='<div class="commute-form-grid">'+
+      '<div class="f"><label>'+fieldLabel('date','Date')+'</label><input id="m_date" type="date" value="'+SEC.ymd()+'"></div><div class="f"><label>'+carText('endDate','重複結束日','Repeat end date','ថ្ងៃបញ្ចប់')+'</label><input id="m_endDate" type="date" value="'+SEC.ymd()+'"></div>'+
+      '<div class="f"><label>'+carText('category','派遣分類','Dispatch category','ប្រភេទ')+'</label><select id="m_type"><option value="shuttle">🚌 '+commuteCategoryLabel('shuttle')+'</option><option value="local">🚐 '+commuteCategoryLabel('local')+'</option><option value="long">🛣️ '+commuteCategoryLabel('long')+'</option></select></div>'+
+      '<div class="f"><label>'+carText('repeat','填寫方式','Entry mode','របៀប')+'</label><select id="m_repeat"><option value="once">One time / 單次</option><option value="daily">Every day / 每日重複</option><option value="workdays">Mon–Sat / 週一至週六</option></select></div>'+
+      '<div class="f"><label>'+fieldLabel('plate','Plate')+'</label><input id="m_plate" placeholder="Vehicle plate / 車牌"></div><div class="f"><label>'+fieldLabel('reason','Route / Reason')+'</label><input id="m_reason"></div>'+
+      '<div class="f"><label>'+fieldLabel('outTime','Departure time')+'</label><input id="m_outTime" type="time"></div><div class="f"><label>'+fieldLabel('inTime','Return time')+'</label><input id="m_inTime" type="time"></div><div class="f"><label>'+fieldLabel('km','Distance KM')+'</label><input id="m_km" type="number" min="0" step="0.1"></div>'+
+      '<div class="f"><label>Vehicle / form photos</label><div class="commute-photo-drop" onclick="commuteAddCarPhoto()">📷 Take photo or choose image (max 4) / 拍照或選圖</div><div id="mCarPhotos" class="commute-photo-list"></div></div>'+
+      '<div class="commute-repeat full"><h4>👤 '+carText('drivers','司機列表','Driver list','បញ្ជីអ្នកបើកបរ')+'</h4><div id="carDriverRows"></div><button type="button" class="btn sm gh" onclick="addCarDriverRow()">➕ Add driver / 增加司機</button></div>'+
+      '<div class="commute-repeat full"><h4>✅ '+carText('approvers','核可人列表','Approver list','បញ្ជីអ្នកអនុម័ត')+'</h4><div id="carApproverRows"></div><button type="button" class="btn sm gh" onclick="addCarApproverRow()">➕ Add approver / 增加核可人</button></div></div>';
+    commuteEnsureDriverList();addCarDriverRow();addCarApproverRow();commuteRenderCarPhotos();
+  }else{
+    document.getElementById('mBody').innerHTML='<div class="commute-repeat"><h4>⏰ Come Late records / 遲到記錄</h4><div id="lateRows"></div><button type="button" class="btn sm gh" onclick="addLateRow()">➕ Add record / 增加一筆</button></div><div class="f" style="margin-top:10px"><label>Register / form photos</label><div class="commute-photo-drop" onclick="commuteAddCarPhoto()">📷 Take photo or choose image (max 4) / 拍照或選圖</div><div id="mCarPhotos" class="commute-photo-list"></div></div>';
+    addLateRow();commuteRenderCarPhotos();
+  }
+  SEC.openModal('mAdd');
+};
+function commuteRepeatDates(from,to,mode){var out=[],a=SEC.parseD(from),b=SEC.parseD(to)||a;if(!a)return out;if(mode==='once')b=a;if(b<a)b=a;for(var d=new Date(a),n=0;d<=b&&n<366;d.setDate(d.getDate()+1),n++){if(mode==='workdays'&&d.getDay()===0)continue;out.push(SEC.ymd(d));}return out;}
+saveAdd=function(){
+  if(ADDKIND!=='car'&&ADDKIND!=='late')return _commuteSaveAddV17.apply(this,arguments);
+  if(ADDKIND==='car'){
+    var from=document.getElementById('m_date').value,mode=document.getElementById('m_repeat').value,dates=commuteRepeatDates(from,document.getElementById('m_endDate').value,mode),drivers=Array.from(document.querySelectorAll('#carDriverRows .car-driver')).map(function(x){return x.value.trim();}).filter(Boolean),notes=Array.from(document.querySelectorAll('#carDriverRows .car-driver-note')).map(function(x){return x.value.trim();}),approvers=Array.from(document.querySelectorAll('#carApproverRows .car-approver')).map(function(x){return x.value.trim();}).filter(Boolean);
+    if(!dates.length||!drivers.length)return SEC.toast('Date and driver required / 請填日期及司機','warn');
+    if(COMMUTE_EDIT_ID)CAR=CAR.filter(function(r){return r.id!==COMMUTE_EDIT_ID;});
+    var category=document.getElementById('m_type').value,plate=document.getElementById('m_plate').value.trim(),profile=DRIVER_PROFILES.filter(function(p){return p.name===drivers[0];})[0];if(!plate&&drivers.length===1&&profile)plate=profile.plate||'';
+    var sid='SCH-'+Date.now().toString(36),stamp=new Date().toISOString(),base={plate:plate,type:category,category:category,reason:document.getElementById('m_reason').value.trim(),outTime:document.getElementById('m_outTime').value,inTime:document.getElementById('m_inTime').value,km:Number(document.getElementById('m_km').value)||0,approver:approvers.join(', '),photos:COMMUTE_CAR_PHOTOS.slice(0,4),repeatMode:mode,scheduleId:sid,updatedAt:stamp};
+    dates.forEach(function(date){drivers.forEach(function(name,i){CAR.push(Object.assign({id:'C'+Date.now().toString(36)+'-'+date+'-'+i,driver:name,driverNote:notes[i]||'',date:date},base));if(DRIVERS.indexOf(name)<0)DRIVERS.push(name);});});
+    DRIVERS.sort();save();renderAll();SEC.scheduleAutoCloudSync(TOOL,'commute-vehicle-save',from);SEC.closeModal('mAdd');SEC.toast('✅ Saved '+(dates.length*drivers.length)+' vehicle record(s) / 已儲存','ok');return;
+  }
+  var added=0,stamp2=new Date().toISOString(),syncDate='';document.querySelectorAll('#lateRows .late-row').forEach(function(row,i){var o={_k:'late',id:'L'+Date.now().toString(36)+'-'+i,date:row.querySelector('.late-date').value.trim(),empId:row.querySelector('.late-empId').value.trim(),name:row.querySelector('.late-name').value.trim(),dept:row.querySelector('.late-dept').value.trim(),checkIn:row.querySelector('.late-checkIn').value.trim(),checkOut:row.querySelector('.late-checkOut').value.trim(),gate:row.querySelector('.late-gate').value.trim(),note:row.querySelector('.late-note').value.trim(),photos:COMMUTE_CAR_PHOTOS.slice(0,4),updatedAt:stamp2};if(o.date&&(o.empId||o.name)){LATE.push(o);syncDate=o.date;added++;}});if(!added)return SEC.toast('Enter at least one record / 請至少填一筆','warn');save();renderAll();SEC.scheduleAutoCloudSync(TOOL,'commute-late-save',syncDate);SEC.closeModal('mAdd');SEC.toast('✅ Saved / 已儲存','ok');
+};
+function editCar(id){var r=CAR.filter(function(x){return x.id===id;})[0];if(!r)return;openAdd('car');COMMUTE_EDIT_ID=id;document.getElementById('m_date').value=r.date||SEC.ymd();document.getElementById('m_endDate').value=r.date||SEC.ymd();document.getElementById('m_repeat').value='once';document.getElementById('m_type').value=r.category||r.type||'local';document.getElementById('m_plate').value=r.plate||'';document.getElementById('m_reason').value=r.reason||'';document.getElementById('m_outTime').value=r.outTime||'';document.getElementById('m_inTime').value=r.inTime||'';document.getElementById('m_km').value=r.km||0;document.getElementById('carDriverRows').innerHTML='';addCarDriverRow(r.driver||'');document.getElementById('carApproverRows').innerHTML='';addCarApproverRow(r.approver||'');COMMUTE_CAR_PHOTOS=(r.photos||[]).slice(0,4);commuteRenderCarPhotos();}
+
+/* ═══ 紙本照片智慧辨識：辨識後先預覽，人工確認才寫入 ═══ */
+var COMMUTE_OCR_IMAGE='', COMMUTE_OCR_RESULT=null, COMMUTE_OCR_KIND='';
+var COMMUTE_OCR_FIELDS={
+  car:['date','driver','category','plate','passenger','dept','pax','outTime','inTime','reason','km','approver','note'],
+  bike:['date','a','b','total','remark'],
+  gate:['date','plate','driver','passenger','dept','pax','outTime','inTime','km','reason','gateOut','gateIn','note'],
+  late:['date','empId','name','dept','checkIn','checkOut','gate','note']
+};
+var COMMUTE_OCR_LABELS={
+  category:['派遣分類','Category','ប្រភេទ'],approver:['核可人','Approver','អ្នកអនុម័ត'],total:['合計','Total','សរុប'],
+  gateOut:['出閘保安','Out gate security','សន្តិសុខចេញ'],gateIn:['入閘保安','In gate security','សន្តិសុខចូល']
+};
+function commuteOcrText(zh,en,km){return SEC.lang()==='en'?en:SEC.lang()==='km'?(km||en):zh;}
+function commuteOcrLabel(k){var x=COMMUTE_OCR_LABELS[k]||FIELD_LABELS[k];return x?(SEC.lang()==='en'?x[1]:SEC.lang()==='km'?(x[2]||x[1]):x[0]):k;}
+function commuteOcrArray(kind){return kind==='car'?CAR:kind==='bike'?BIKE:kind==='gate'?GATE:LATE;}
+function commuteOcrNorm(v){return String(v||'').toUpperCase().replace(/[^A-Z0-9\u0080-\uFFFF]/g,'');}
+function commuteOcrStableKey(kind,r){
+  var d=String(r&&r.date||'');if(!d)return '';
+  if(kind==='car'){var cp=commuteOcrNorm(r.plate),cd=commuteOcrNorm(r.driver);if(!cp&&!cd)return '';return [kind,d,cp,cd,String(r.outTime||'')].join('|');}
+  if(kind==='gate'){var gp=commuteOcrNorm(r.plate),gd=commuteOcrNorm(r.driver||r.passenger);if(!gp&&!gd)return '';return [kind,d,gp,gd,String(r.outTime||'')].join('|');}
+  if(kind==='late'){var who=commuteOcrNorm(r.empId||r.name);if(!who)return '';return [kind,d,who,String(r.checkIn||'')].join('|');}
+  return kind+'|'+d;
+}
+function commuteFindDuplicate(kind,row){var key=commuteOcrStableKey(kind,row);if(!key)return null;return commuteOcrArray(kind).filter(function(x){return commuteOcrStableKey(kind,x)===key;})[0]||null;}
+function commuteOcrValid(kind,row){
+  if(!row.date)return false;
+  if(kind==='car')return !!(row.driver||row.plate);
+  if(kind==='gate')return !!(row.plate||row.driver||row.passenger);
+  if(kind==='late')return !!(row.empId||row.name);
+  return true;
+}
+function commuteEnsureOcrModal(){
+  if(document.getElementById('mCommuteOcr'))return;
+  var mask=document.createElement('div');mask.className='mask';mask.id='mCommuteOcr';mask.style.zIndex='2800';
+  mask.innerHTML='<div class="modal" style="max-width:1100px"><div class="mh"><span>📷</span><b>'+commuteOcrText('表單照片智慧辨識','Smart paper-form scan','ស្កេនទម្រង់ក្រដាស')+'</b><button class="x" onclick="SEC.closeModal(\'mCommuteOcr\')">×</button></div><div class="mb" id="commuteOcrBody" style="max-height:72vh;overflow:auto"></div><div class="mf"><button class="btn gray" onclick="SEC.closeModal(\'mCommuteOcr\')">'+commuteOcrText('取消','Cancel','បោះបង់')+'</button><button class="btn" id="commuteOcrSaveBtn" onclick="commuteOcrSave()">✅ '+commuteOcrText('確認並儲存','Confirm & save','បញ្ជាក់ និងរក្សាទុក')+'</button></div></div>';
+  document.body.appendChild(mask);
+}
+function commuteInjectOcrLauncher(kind){
+  var host=document.getElementById('mBody');if(!host||host.querySelector('.ocr-launch'))return;
+  host.insertAdjacentHTML('afterbegin','<div class="ocr-launch"><div><b>📷 '+commuteOcrText('用表單照片直接更新資料','Read a paper form into records','អានទម្រង់ក្រដាសទៅជាទិន្នន័យ')+'</b><p>'+commuteOcrText('拍照或選圖後先預覽；紅色欄位必須人工確認。','Preview first; red fields require manual confirmation.','ពិនិត្យជាមុន; វាលក្រហមត្រូវបញ្ជាក់។')+'</p></div><button type="button" class="btn" onclick="commuteOcrStart(\''+kind+'\')">📷 '+commuteOcrText('表單辨識','Scan form','ស្កេនទម្រង់')+'</button></div>');
+}
+var _commuteOpenAddOcrBase=openAdd;
+openAdd=function(kind){var out=_commuteOpenAddOcrBase.apply(this,arguments);setTimeout(function(){commuteInjectOcrLauncher(kind);},0);return out;};
+async function commuteOcrRecognize(kind,image){
+  return await SEC.gasPost({action:'ocrForm',formType:kind,image:image,lang:SEC.lang(),clientVersion:'20260820b'});
+}
+function commuteOcrStart(kind){
+  COMMUTE_OCR_KIND=kind;
+  SEC.pickPhoto(function(data){
+    COMMUTE_OCR_IMAGE=data;COMMUTE_OCR_RESULT=null;commuteEnsureOcrModal();
+    var body=document.getElementById('commuteOcrBody');
+    body.innerHTML='<img class="ocr-image" src="'+SEC.esc(data)+'" alt="form"><div class="ocr-progress">⏳ '+commuteOcrText('正在辨識表單所有可見資料列…','Reading every visible form row…','កំពុងអានជួរទិន្នន័យទាំងអស់…')+'</div>';
+    document.getElementById('commuteOcrSaveBtn').disabled=true;SEC.openModal('mCommuteOcr');
+    commuteOcrRecognize(kind,data).then(function(result){COMMUTE_OCR_RESULT=result;commuteOcrRender(result);document.getElementById('commuteOcrSaveBtn').disabled=false;}).catch(function(err){
+      var msg=String(err&&err.message||err),setup=msg.indexOf('OCR_NOT_CONFIGURED')>=0;
+      body.innerHTML='<img class="ocr-image" src="'+SEC.esc(data)+'" alt="form"><div class="ocr-warnings"><b>⚠ '+commuteOcrText('辨識未完成','Recognition failed','ការស្គាល់បរាជ័យ')+'</b><br>'+SEC.esc(setup?commuteOcrText('請到 Apps Script「專案設定 → 指令碼屬性」新增 GEMINI_API_KEY，再重新部署 ac_sec.gs。','Add GEMINI_API_KEY under Apps Script Project Settings → Script Properties, then redeploy ac_sec.gs.','បន្ថែម GEMINI_API_KEY ក្នុង Apps Script Project Settings ហើយ deploy ម្តងទៀត។'):msg)+'</div>';
+      document.getElementById('commuteOcrSaveBtn').disabled=true;
+    });
+  },1600,1);
+}
+function commuteOcrFieldHtml(kind,key,row,uncertain){
+  var val=row[key]===null||row[key]===undefined?'':row[key],type=(key==='date'?'date':(['outTime','inTime','checkIn','checkOut'].indexOf(key)>=0?'time':(['pax','km','a','b','total'].indexOf(key)>=0?'number':'text'))),cl=uncertain.indexOf(key)>=0?' uncertain':'';
+  if(key==='category')return '<div class="f'+cl+'"><label>'+SEC.esc(commuteOcrLabel(key))+'</label><select data-f="category"><option value=""></option><option value="shuttle"'+(val==='shuttle'?' selected':'')+'>Commute shuttle / 上下班接送</option><option value="local"'+(val==='local'?' selected':'')+'>Regular / local / 平日短途</option><option value="long"'+(val==='long'?' selected':'')+'>Long-distance / 長途</option></select>'+(cl?'<small>⚠ '+commuteOcrText('請核對','Please verify','សូមផ្ទៀងផ្ទាត់')+'</small>':'')+'</div>';
+  return '<div class="f'+cl+'"><label>'+SEC.esc(commuteOcrLabel(key))+'</label><input data-f="'+SEC.esc(key)+'" type="'+type+'"'+(type==='number'?' step="0.1"':'')+' value="'+SEC.esc(val)+'">'+(cl?'<small>⚠ '+commuteOcrText('請核對','Please verify','សូមផ្ទៀងផ្ទាត់')+'</small>':'')+'</div>';
+}
+function commuteOcrRender(result){
+  var body=document.getElementById('commuteOcrBody'),records=Array.isArray(result&&result.records)?result.records:[],warnings=Array.isArray(result&&result.warnings)?result.warnings:[];
+  var html='<img class="ocr-image" src="'+SEC.esc(COMMUTE_OCR_IMAGE)+'" alt="form">';
+  if(warnings.length)html+='<div class="ocr-warnings"><b>⚠ '+commuteOcrText('影像提醒','Image warnings','ការព្រមានរូបភាព')+'</b><br>'+warnings.map(SEC.esc).join('<br>')+'</div>';
+  html+='<p class="hint">'+commuteOcrText('已讀取 '+records.length+' 筆。請核對每列；偵測到重複時預設更新舊資料，空白不會清除原值。','Read '+records.length+' row(s). Review each row. Duplicates default to update; blanks do not erase existing values.','បានអាន '+records.length+' ជួរ។ សូមពិនិត្យមុនរក្សាទុក។')+'</p><div class="ocr-preview">';
+  records.forEach(function(row,i){var uncertain=Array.isArray(row.uncertainFields)?row.uncertainFields:[],dup=commuteFindDuplicate(COMMUTE_OCR_KIND,row),pct=Math.round((Number(row.confidence)||0)*100);html+='<div class="ocr-record'+(dup?' duplicate':'')+'" data-i="'+i+'" data-dupe="'+SEC.esc(dup&&dup.id||'')+'"><div class="ocr-record-head"><div><b>#'+(i+1)+' '+(dup?'⚠ '+commuteOcrText('發現相同資料','Possible duplicate','អាចស្ទួន'):'✅ '+commuteOcrText('新資料','New record','ទិន្នន័យថ្មី'))+'</b><div class="ocr-confidence">'+commuteOcrText('辨識信心','Recognition confidence','ភាពជឿជាក់')+' '+pct+'%</div></div><select class="ocr-action">'+(dup?'<option value="update">'+commuteOcrText('更新原資料','Update existing','ធ្វើបច្ចុប្បន្នភាព')+'</option><option value="skip">'+commuteOcrText('跳過','Skip','រំលង')+'</option><option value="copy">'+commuteOcrText('另存新資料','Add as another record','រក្សាទុកជាថ្មី')+'</option>':'<option value="add">'+commuteOcrText('新增','Add','បន្ថែម')+'</option><option value="skip">'+commuteOcrText('跳過','Skip','រំលង')+'</option>')+'</select></div><div class="ocr-fields">'+COMMUTE_OCR_FIELDS[COMMUTE_OCR_KIND].map(function(k){return commuteOcrFieldHtml(COMMUTE_OCR_KIND,k,row,uncertain);}).join('')+'</div></div>';});
+  body.innerHTML=html+'</div>';
+  body.querySelectorAll('.ocr-fields input,.ocr-fields select').forEach(function(el){el.oninput=el.onchange=function(){var f=SEC.closest(el,'.f');if(f){f.classList.remove('uncertain');var s=f.querySelector('small');if(s)s.remove();}};});
+}
+function commuteOcrCollect(card){var out={};card.querySelectorAll('[data-f]').forEach(function(el){var v=String(el.value||'').trim();out[el.dataset.f]=(el.type==='number'&&v!=='')?Number(v):v;});return out;}
+function commuteOcrBlank(v){return v===null||v===undefined||String(v).trim()==='';}
+function commuteOcrMerge(target,row){Object.keys(row).forEach(function(k){if(!commuteOcrBlank(row[k]))target[k]=row[k];});return target;}
+function commuteOcrSave(){
+  var cards=Array.prototype.slice.call(document.querySelectorAll('#commuteOcrBody .ocr-record'));if(!cards.length||!COMMUTE_OCR_IMAGE)return;
+  var kind=COMMUTE_OCR_KIND,arr=commuteOcrArray(kind),stamp=new Date().toISOString(),scanId='OCR-'+Date.now().toString(36),added=0,updated=0,skipped=0,invalid=0,savedDates=[];
+  cards.forEach(function(card,i){
+    var action=card.querySelector('.ocr-action').value,row=commuteOcrCollect(card);if(action==='skip'){skipped++;return;}if(!commuteOcrValid(kind,row)){invalid++;return;}
+    var dup=commuteFindDuplicate(kind,row),target=null;
+    if(action==='update'&&dup){target=dup;commuteOcrMerge(target,row);updated++;}
+    else{target=Object.assign({},row);target.id=(kind==='car'?'C':kind==='bike'?'B':kind==='gate'?'G':'L')+Date.now().toString(36)+'-'+i;arr.push(target);added++;}
+    if(kind==='car'){target.category=target.category||target.type||'local';target.type=target.category;if(target.driver&&DRIVERS.indexOf(target.driver)<0)DRIVERS.push(target.driver);}
+    if(kind==='gate'&&target.driver&&DRIVERS.indexOf(target.driver)<0)DRIVERS.push(target.driver);
+    if(kind==='bike')target.total=commuteOcrBlank(target.total)?((Number(target.a)||0)+(Number(target.b)||0)):Number(target.total)||0;
+    target._k=kind;target.scanId=scanId;target.ocrConfidence=Number((COMMUTE_OCR_RESULT.records[i]||{}).confidence)||0;target.ocrUncertainFields=Array.prototype.slice.call(card.querySelectorAll('.f.uncertain [data-f]')).map(function(x){return x.dataset.f;});target.ocrAt=stamp;target.updatedAt=stamp;savedDates.push(target.date);
+  });
+  if(!added&&!updated){SEC.toast(commuteOcrText('沒有可儲存資料；請補齊日期及識別欄位。','No usable records; complete the date and identity fields.','គ្មានទិន្នន័យអាចរក្សាទុក។'),'warn',5000);return;}
+  OCR_SCANS.push({_k:'ocrScan',id:scanId,formType:kind,image:COMMUTE_OCR_IMAGE,createdAt:stamp,updatedAt:stamp,warnings:(COMMUTE_OCR_RESULT.warnings||[]).slice(),model:COMMUTE_OCR_RESULT.model||''});
+  DRIVERS=Array.from(new Set(DRIVERS)).sort();save();renderAll();SEC.scheduleAutoCloudSync(TOOL,'commute-ocr-'+kind,savedDates[0]||'');SEC.closeModal('mCommuteOcr');SEC.closeModal('mAdd');
+  SEC.toast('✅ '+commuteOcrText('照片表單已寫入','Photo form imported','បាននាំចូលទម្រង់')+'：'+added+' '+commuteOcrText('新增','added','បន្ថែម')+' / '+updated+' '+commuteOcrText('更新','updated','បានធ្វើបច្ចុប្បន្នភាព')+' / '+skipped+' '+commuteOcrText('跳過','skipped','រំលង')+(invalid?' / '+invalid+' '+commuteOcrText('資料不完整','incomplete','មិនពេញលេញ'):''),'ok',6500);
+}
 SEC.registerAutoUploader(TOOL, function (opts) { return doUpload(opts); });
 window.addEventListener('load', function () { setTimeout(function () { SEC.retryAutoCloudSync(TOOL); }, 1200); });
 </script>

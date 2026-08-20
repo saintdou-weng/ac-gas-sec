@@ -206,8 +206,8 @@
 <button class="btn" onclick="saveEdit()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260814b"></script>
-<script src="./shared/sec-smart-sync.js?v=20260814b"></script>
+<script src="./shared/sec-core.js?v=20260820a"></script>
+<script src="./shared/sec-smart-sync.js?v=20260820a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -344,12 +344,12 @@ function saveEdit() {
     o.createdAt = SEC.nowStr();
     DB.push(o);
   }
-  save(); renderAll(); SEC.closeModal('mEdit'); SEC.toast('✅ 已儲存', 'ok');
+  save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'personnel-save', o.empId || o.name || ''); SEC.closeModal('mEdit'); SEC.toast('✅ 已儲存', 'ok');
 }
 function delRec(id) {
   if (!confirm(SEC.T().confirmDel)) return;
   DB = DB.filter(function (r) { return r.id !== id; });
-  save(); renderAll();
+  save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'personnel-delete', id);
 }
 
 /* ═══ 異動 ═══ */
@@ -406,7 +406,7 @@ async function submitChange(silent) {
 
   /* ② 寫入異動記錄 */
   CHG.unshift(rec);
-  save(); renderAll();
+  save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'personnel-change', rec.date);
 
   if (silent) { SEC.toast('✅ 已登錄（未通知）', 'ok'); clearChangeForm(); return; }
 
