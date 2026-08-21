@@ -808,6 +808,9 @@ function tgOpen(opt) {
             throw new Error('Telegram page ' + (pi + 1) + '/' + pages.length + ' was not delivered / 第 ' + (pi + 1) + ' 頁未送達群組' +
               (reason ? '：' + reason : '；請確認已更新並重新部署 ac_sec.gs'));
           }
+          /* Avoid Telegram's per-chat burst limit before the next summary page.
+             GAS still honours Telegram's exact retry_after as the final guard. */
+          if (pi < pages.length - 1) await new Promise(function (resolve) { setTimeout(resolve, 1300); });
         }
         scheduleAutoCloudSync(opt.module || '', 'telegram-summary', st.period || '');
         toast('✈️ Telegram 摘要已送出' + (pages.length > 1 ? '（' + pages.length + ' 頁）' : ''), 'ok');

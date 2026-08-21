@@ -329,8 +329,8 @@
 <button class="btn" onclick="tkSaveEdit()" data-zh="儲存並執行" data-en="Save & process" data-km="រក្សាទុក និងដំណើរការ">儲存並執行</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260821b"></script>
-<script src="./shared/sec-smart-sync.js?v=20260821b"></script>
+<script src="./shared/sec-core.js?v=20260821c"></script>
+<script src="./shared/sec-smart-sync.js?v=20260821c"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -507,7 +507,8 @@ async function sendTruckLiveUpdate(o, phase) {
     .concat(exitSig !== o.tgExitPhotoHash ? (o.exitPhotos || []).slice() : (o.exitPhotos || []).slice(exitCount));
   var result = await SEC.gasPost({ action:'containerLiveUpdate', phase:phase, record:o,
     messageId:o.tgMessageId || '', photos:photos.slice(0, 8), lang:SEC.lang() });
-  if (!result || result.sent !== true || !result.messageId) throw new Error('Telegram did not confirm the container update / Telegram 未確認貨櫃更新');
+  if (!result || result.sent !== true || !result.messageId) throw new Error(result && result.error ? result.error :
+    'Telegram did not confirm the container update / Telegram 未確認貨櫃更新');
   o.tgMessageId = result.messageId;
   o.tgLiveStatus = phase;
   o.tgLastHash = hash;

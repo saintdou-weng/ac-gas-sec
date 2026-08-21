@@ -272,8 +272,8 @@
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260821b"></script>
-<script src="./shared/sec-smart-sync.js?v=20260821b"></script>
+<script src="./shared/sec-core.js?v=20260821c"></script>
+<script src="./shared/sec-smart-sync.js?v=20260821c"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -333,7 +333,7 @@ function saveCheck(){ SEC.dbPut(LS_CHECK, CHECK); }
 function saveChip() { SEC.dbPut(LS_CHIP, CHIP); }
 
 /* ═══════════ 初始化 ═══════════ */
- document.getElementById('hdr').innerHTML = SEC.headerHtml('🚨', '保安巡邏 Patrol', 'AC SECURITY · PATROL v2 · 20260821b');
+ document.getElementById('hdr').innerHTML = SEC.headerHtml('🚨', '保安巡邏 Patrol', 'AC SECURITY · PATROL v2 · 20260821c');
 document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
 SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: openPatrolTelegram, onSmartImport: impWand });
 paintPatrolPeriod = SEC.bindPeriodNav('pnav', PER, function () { renderAll(); });
