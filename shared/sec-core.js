@@ -403,7 +403,12 @@ async function gasPost(payload) {
     throw new Error('GAS 網路連線失敗，請確認 /exec 網址與網路狀態');
   }
   var raw = await res.text(), j;
-  try { j = JSON.parse(raw); } catch (e) { throw new Error('GAS 回傳不是 JSON：' + raw.slice(0, 120)); }
+  try { j = JSON.parse(raw); } catch (e) {
+    if (/^\s*(?:<!doctype\s+html|<html|<head|<script)/i.test(raw)) {
+      throw new Error('GAS 部署網址已失效或未開放給「所有人」（目前收到 Google 網頁，不是 AC SEC 資料）。請在 Apps Script 更新部署後執行「更新部署連線」，再重新整理本頁。');
+    }
+    throw new Error('GAS 回傳不是 JSON：' + raw.slice(0, 120));
+  }
   if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
   if (j && j.ok === false) throw new Error(j.error || 'GAS error');
   return (j && j.data !== undefined) ? j.data : j;
@@ -792,6 +797,7 @@ function tgOpen(opt) {
           var allowed = await opt.beforeSummarySend(st, pages);
           if (allowed === false) throw new Error('Transmission cancelled / 已取消傳送');
         }
+        var batchPages = [];
         for (var pi = 0; pi < pages.length; pi++) {
           var pageText = pages.length > 1 ? '【' + (pi + 1) + '/' + pages.length + '】\n' + pages[pi] : pages[pi];
           var pagePhotos = [];
@@ -800,17 +806,18 @@ function tgOpen(opt) {
             if (!Array.isArray(pagePhotos)) pagePhotos = [pagePhotos];
             pagePhotos = pagePhotos.filter(Boolean).slice(0, 4);
           }
-          var sentResult = await gasPost({ action:'telegram', text:pageText, module:opt.module||'', lang:st.lang,
-            mode:'summary', period:st.period, periodType:st.ptype,
-            photo:pagePhotos[0] || '', photos:pagePhotos });
-          if (!sentResult || sentResult.sent !== true) {
-            var reason = sentResult && sentResult.error ? String(sentResult.error) : '';
-            throw new Error('Telegram page ' + (pi + 1) + '/' + pages.length + ' was not delivered / 第 ' + (pi + 1) + ' 頁未送達群組' +
-              (reason ? '：' + reason : '；請確認已更新並重新部署 ac_sec.gs'));
-          }
-          /* Avoid Telegram's per-chat burst limit before the next summary page.
-             GAS still honours Telegram's exact retry_after as the final guard. */
-          if (pi < pages.length - 1) await new Promise(function (resolve) { setTimeout(resolve, 1300); });
+          batchPages.push({ text:pageText, photo:pagePhotos[0] || '', photos:pagePhotos });
+        }
+        /* Send one request to GAS. GAS serialises every page/photo through one
+           2.5-second Telegram queue, matching HRA Portal and avoiding browser
+           requests racing each other into Telegram HTTP 429. */
+        var sentResult = await gasPost({ action:'telegramBatch', pages:batchPages, module:opt.module||'', lang:st.lang,
+          mode:'summary', period:st.period, periodType:st.ptype });
+        if (!sentResult || sentResult.sent !== true) {
+          var failedPage = sentResult && sentResult.failedPage ? Number(sentResult.failedPage) : 1;
+          var reason = sentResult && sentResult.error ? String(sentResult.error) : '';
+          throw new Error('Telegram page ' + failedPage + '/' + pages.length + ' was not delivered / 第 ' + failedPage + ' 頁未送達群組' +
+            (reason ? '：' + reason : '；請確認已更新並重新部署 ac_sec.gs'));
         }
         scheduleAutoCloudSync(opt.module || '', 'telegram-summary', st.period || '');
         toast('✈️ Telegram 摘要已送出' + (pages.length > 1 ? '（' + pages.length + ' 頁）' : ''), 'ok');
