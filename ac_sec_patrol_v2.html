@@ -272,8 +272,8 @@
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260820a"></script>
-<script src="./shared/sec-smart-sync.js?v=20260820a"></script>
+<script src="./shared/sec-core.js?v=20260821a"></script>
+<script src="./shared/sec-smart-sync.js?v=20260821a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -333,10 +333,10 @@ function saveCheck(){ SEC.dbPut(LS_CHECK, CHECK); }
 function saveChip() { SEC.dbPut(LS_CHIP, CHIP); }
 
 /* ═══════════ 初始化 ═══════════ */
- document.getElementById('hdr').innerHTML = SEC.headerHtml('🚨', '保安巡邏 Patrol', 'AC SECURITY · PATROL v2 · 20260820a');
+ document.getElementById('hdr').innerHTML = SEC.headerHtml('🚨', '保安巡邏 Patrol', 'AC SECURITY · PATROL v2 · 20260821a');
 document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
 SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: openPatrolTelegram, onSmartImport: impWand });
-paintPatrolPeriod = SEC.bindPeriodNav('pnav', PER, renderAll);
+paintPatrolPeriod = SEC.bindPeriodNav('pnav', PER, function () { renderAll(); });
 document.getElementById('tabs').addEventListener('click', function (e) {
   var b = SEC.closest(e.target, '.tab'); if (!b) return;
   document.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('on'); });
@@ -458,7 +458,7 @@ function jumpPatrolToDate(dateLike) {
   if (d) PER.at = d;
 }
 function applyAttachmentCheckpointBaseline() {
-  if (CP_BASELINE_APPLIED === '20260820a') return;
+  if (CP_BASELINE_APPLIED === '20260821a') return;
   var latestSet = {};
   ATTACHMENT_LATEST_CP.forEach(function (c, i) {
     latestSet[c] = true;
@@ -470,7 +470,7 @@ function applyAttachmentCheckpointBaseline() {
     if (!latestSet[c] && CHIP[c].active !== false) { CHIP[c].active = false; CHIP[c].retiredFrom = '2026-08-01'; }
   });
   saveChip();
-  CP_BASELINE_APPLIED = '20260820a';
+  CP_BASELINE_APPLIED = '20260821a';
   SEC.dbPut(LS_CP_BASELINE, CP_BASELINE_APPLIED);
 }
 function totalCp(date) { return Math.max(1, checkpointOrderForDate(date).length); }
@@ -519,8 +519,24 @@ function patrolPeriodSummary(type, guard, shift) {
 
 /* ═══════════ 渲染 ═══════════ */
 function renderAll() {
+  syncPatrolCheckDateFromPeriod();
   fillGuards(); fillLocs(); renderRounds(); renderCp(); renderNight();
   renderManual(); renderAna(); renderDbInfo(); renderPatrolCheck();
+}
+function patrolDatesInSelectedPeriod() {
+  var out = {};
+  ROUNDS.forEach(function (r) { if (r.date && PER.has(r.date)) out[r.date] = 1; });
+  MAN.forEach(function (r) { if (r.date && PER.has(r.date)) out[r.date] = 1; });
+  CHECK.forEach(function (r) { if (r.date && PER.has(r.date)) out[r.date] = 1; });
+  return Object.keys(out).sort();
+}
+function syncPatrolCheckDateFromPeriod() {
+  var el = document.getElementById('pcDate'); if (!el) return;
+  if (PER.mode === 'day') el.value = PER.key();
+  else {
+    var dates = patrolDatesInSelectedPeriod();
+    el.value = dates.length ? dates[dates.length - 1] : PER.range().from;
+  }
 }
 function patrolLatestDate() {
   var dates = [];
@@ -534,7 +550,7 @@ function patrolCheckCurrent() {
 }
 function renderPatrolCheck() {
   var date = document.getElementById('pcDate'); if (!date) return;
-  if (!date.value || (date.value === SEC.ymd() && patrolLatestDate() !== SEC.ymd() && !date.dataset.userSet)) date.value = patrolLatestDate();
+  if (!date.value) syncPatrolCheckDateFromPeriod();
   var rec = patrolCheckCurrent(), flags = rec && rec.checks || {};
   document.querySelectorAll('#pcItems [data-pc]').forEach(function (x) { x.checked = !!flags[x.dataset.pc]; });
   document.getElementById('pcGuard').value = rec && rec.guard || '';
@@ -1052,7 +1068,7 @@ function impWand() {
         (hdr.fallback ? '，固定欄位備援' : '') + '）');
     });
     var cpChange = reconcileCheckpoints(incomingOrder, incomingNames, sheets.map(function (s) { return s.name; }).join(', '));
-    if (cpChange.confirmed) { CP_BASELINE_APPLIED = '20260820a'; SEC.dbPut(LS_CP_BASELINE, CP_BASELINE_APPLIED); }
+    if (cpChange.confirmed) { CP_BASELINE_APPLIED = '20260821a'; SEC.dbPut(LS_CP_BASELINE, CP_BASELINE_APPLIED); }
     saveScan();
     /* 匯入哪個月份就先顯示哪個月份；不要因本機已有較新的月份而跳走。 */
     var importedLatest = Object.keys(importedDates).sort().pop();
@@ -1242,8 +1258,8 @@ function patrolNightSummary(st) {
   return txt;
 }
 function openPatrolNightTelegram() {
-  return SEC.tgOpen({ module:'patrol', defaultType:PER.mode, defaultPeriod:latestPatrolPeriod(PER.mode),
-    periods:patrolPeriods, currentPeriod:function (type) { return latestPatrolPeriod(type); },
+  return SEC.tgOpen({ module:'patrol', defaultType:PER.mode, defaultPeriod:PER.key(),
+    periods:patrolPeriods, currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); },
     summary:patrolNightSummary });
 }
 function pushNight() {
@@ -1260,6 +1276,7 @@ function patrolPeriods(type) {
   ROUNDS.forEach(function (r) { if (r.date) seen[new SEC.Period(type, SEC.parseD(r.date)).key()] = 1; });
   MAN.forEach(function (r) { if (r.date) seen[new SEC.Period(type, SEC.parseD(r.date)).key()] = 1; });
   CHECK.forEach(function (r) { if (r.date) seen[new SEC.Period(type, SEC.parseD(r.date)).key()] = 1; });
+  seen[new SEC.Period(type, PER.at).key()] = 1;
   return Object.keys(seen);
 }
 function latestPatrolPeriod(type) {
@@ -1347,9 +1364,8 @@ function patrolSummaryPhotos(st, pageIndex) {
   return out.slice(0, 4);
 }
 function openPatrolTelegram() {
-  if (!ensurePatrolCheck()) return;
-  return SEC.tgOpen({ module:'patrol', defaultType:PER.mode, defaultPeriod:latestPatrolPeriod(PER.mode),
-    periods:patrolPeriods, currentPeriod:function (type) { return latestPatrolPeriod(type); },
+  return SEC.tgOpen({ module:'patrol', defaultType:PER.mode, defaultPeriod:PER.key(),
+    periods:patrolPeriods, currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); },
     scopeOptions:[{value:'all',label:'全天 All day'},{value:'day',label:'日班 Day shift'},{value:'night',label:'夜班 Night shift'}],
     defaultScope:'all', summaryPages:patrolSummaryPages, summaryPhotos:patrolSummaryPhotos });
 }

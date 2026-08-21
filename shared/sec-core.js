@@ -614,8 +614,9 @@ async function tgSummary(text, module, photo, photos) {
   try {
     var list = Array.isArray(photos) ? photos.filter(Boolean).slice(0, 4) : [];
     if (photo && !list.length) list = [photo];
-    await gasPost({ action:'telegram', text:text, module:module||'', lang:_lang,
+    var result = await gasPost({ action:'telegram', text:text, module:module||'', lang:_lang,
       photo:list[0] || '', photos:list });
+    if (!result || result.sent !== true) throw new Error((result && result.error) || 'Telegram API did not confirm delivery / Telegram 未確認送達');
     scheduleAutoCloudSync(module || '', 'telegram-summary', '');
     toast('✈️ Telegram 已送出', 'ok'); return true;
   } catch (e) { toast('❌ Telegram 失敗：' + e.message, 'err'); return false; }
@@ -787,6 +788,10 @@ function tgOpen(opt) {
     try {
       if (st.mode === 'summary') {
         var pages = summaryPages();
+        if (typeof opt.beforeSummarySend === 'function') {
+          var allowed = await opt.beforeSummarySend(st, pages);
+          if (allowed === false) throw new Error('Transmission cancelled / 已取消傳送');
+        }
         for (var pi = 0; pi < pages.length; pi++) {
           var pageText = pages.length > 1 ? '【' + (pi + 1) + '/' + pages.length + '】\n' + pages[pi] : pages[pi];
           var pagePhotos = [];
@@ -795,9 +800,12 @@ function tgOpen(opt) {
             if (!Array.isArray(pagePhotos)) pagePhotos = [pagePhotos];
             pagePhotos = pagePhotos.filter(Boolean).slice(0, 4);
           }
-          await gasPost({ action:'telegram', text:pageText, module:opt.module||'', lang:st.lang,
+          var sentResult = await gasPost({ action:'telegram', text:pageText, module:opt.module||'', lang:st.lang,
             mode:'summary', period:st.period, periodType:st.ptype,
             photo:pagePhotos[0] || '', photos:pagePhotos });
+          if (!sentResult || sentResult.sent !== true) {
+            throw new Error('Telegram page ' + (pi + 1) + '/' + pages.length + ' was not delivered / 第 ' + (pi + 1) + ' 頁未送達群組');
+          }
         }
         scheduleAutoCloudSync(opt.module || '', 'telegram-summary', st.period || '');
         toast('✈️ Telegram 摘要已送出' + (pages.length > 1 ? '（' + pages.length + ' 頁）' : ''), 'ok');

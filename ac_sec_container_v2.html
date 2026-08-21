@@ -310,17 +310,27 @@
   <div class="f"><label>出廠時間 Time Out</label><input id="t_timeOut" placeholder="16:00"></div>
   <div class="f"><label>門衛(出) Sign Out</label><input id="t_signOut"></div>
   <div class="f" style="grid-column:1/-1"><label>備註 Remark</label><input id="t_remark"></div>
-  <div class="f" style="grid-column:1/-1"><label data-zh="現場照片（可選）" data-en="Site photos (optional)" data-km="រូបថតទីតាំង (ជាជម្រើស)">現場照片（可選）</label>
-    <div class="photo-drop" onclick="addTruckPhoto()">📷 <span data-zh="拍照或選擇照片（最多4張）" data-en="Take/select photos (max 4)" data-km="ថត/ជ្រើសរូបថត (អតិបរមា 4)">拍照或選擇照片（最多4張）</span></div>
-    <div id="tkPhotos"></div></div>
+  <div class="f" style="grid-column:1/-1"><label data-zh="Telegram 即時通知方式" data-en="Telegram live update mode" data-km="របៀបជូនដំណឹង Telegram">Telegram 即時通知方式</label>
+    <select id="t_notifyMode">
+      <option value="live" data-zh="入廠先發；出廠更新原訊息（建議）" data-en="Send on entry; update the same message on exit (recommended)" data-km="ផ្ញើពេលចូល និងកែសារដដែលពេលចេញ">入廠先發；出廠更新原訊息（建議）</option>
+      <option value="complete" data-zh="進出完成後只發一次" data-en="Send once after entry and exit are complete" data-km="ផ្ញើម្តងបន្ទាប់ពីបញ្ចប់ចូលចេញ">進出完成後只發一次</option>
+      <option value="none" data-zh="只儲存，不發 Telegram" data-en="Save only; do not send Telegram" data-km="រក្សាទុកប៉ុណ្ណោះ">只儲存，不發 Telegram</option>
+    </select>
+    <div class="hint" data-zh="重複儲存相同內容不會重複發；內容有更新時會優先編輯原訊息。" data-en="Saving unchanged data does not resend it. Changed data updates the original message first." data-km="ទិន្នន័យដដែលមិនផ្ញើម្តងទៀតទេ។">重複儲存相同內容不會重複發；內容有更新時會優先編輯原訊息。</div></div>
+  <div class="f" style="grid-column:1/-1"><label data-zh="入廠照片（可選）" data-en="Entry photos (optional)" data-km="រូបថតពេលចូល (ជាជម្រើស)">入廠照片（可選）</label>
+    <div class="photo-drop" onclick="addTruckPhoto('entry')">📷 <span data-zh="拍照或選擇入廠照片（最多4張）" data-en="Take/select entry photos (max 4)" data-km="ថត/ជ្រើសរូបថតពេលចូល (អតិបរមា 4)">拍照或選擇入廠照片（最多4張）</span></div>
+    <div id="tkEntryPhotos"></div></div>
+  <div class="f" style="grid-column:1/-1"><label data-zh="出廠照片（可選）" data-en="Exit photos (optional)" data-km="រូបថតពេលចេញ (ជាជម្រើស)">出廠照片（可選）</label>
+    <div class="photo-drop" onclick="addTruckPhoto('exit')">📷 <span data-zh="拍照或選擇出廠照片（最多4張）" data-en="Take/select exit photos (max 4)" data-km="ថត/ជ្រើសរូបថតពេលចេញ (អតិបរមា 4)">拍照或選擇出廠照片（最多4張）</span></div>
+    <div id="tkExitPhotos"></div></div>
 </div></div>
 <div class="mf"><button class="btn err" onclick="tkDel()" data-t="del">刪除</button>
 <button class="btn gray" onclick="SEC.closeModal('mTk')" data-t="cancel">取消</button>
-<button class="btn" onclick="tkSaveEdit()" data-t="save">儲存</button></div></div></div>
+<button class="btn" onclick="tkSaveEdit()" data-zh="儲存並執行" data-en="Save & process" data-km="រក្សាទុក និងដំណើរការ">儲存並執行</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260820a"></script>
-<script src="./shared/sec-smart-sync.js?v=20260820a"></script>
+<script src="./shared/sec-core.js?v=20260821a"></script>
+<script src="./shared/sec-smart-sync.js?v=20260821a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -342,7 +352,7 @@ var LS_CI = 'vr-container-inspections'; /* 貨櫃檢查（沿用舊 key） */
 var LS_GD = 'vrt_v2';                   /* 出廠出貨單（沿用舊 key） */
 var TK = [], CI = [], GD = [], CH = {}, TOOL = 'container';
 var PER = new SEC.Period('month'), MOD = 'truck', TK_EDIT = '';
-var GD_TYPE = 'gp', CI_ITEMS = [], GD_ITEMS = [], CI_CHK = {}, GD_REASON = {}, GD_PHOTOS = [], TK_PHOTOS = [], CI_PHOTOS = [];
+var GD_TYPE = 'gp', CI_ITEMS = [], GD_ITEMS = [], CI_CHK = {}, GD_REASON = {}, GD_PHOTOS = [], TK_ENTRY_PHOTOS = [], TK_EXIT_PHOTOS = [], CI_PHOTOS = [];
 
 /* 17 點檢查項目 */
 var CHK17 = [
@@ -444,7 +454,7 @@ function renderTk() {
       '<td>' + SEC.esc(r.truckNo || '') + '</td><td>' + SEC.esc(r.company || '') + '</td>' +
       '<td>' + (r.isImport ? '<span class="tag ok">🟢 進</span>' : '') + (r.isExport ? '<span class="tag err">🔴 出</span>' : '') + '</td>' +
       '<td>' + SEC.esc(r.timeIn || '') + '</td><td>' + SEC.esc(r.timeOut || '') + '</td>' +
-      '<td>' + (r.photos && r.photos.length ? '📷 ' + r.photos.length : '') + '</td>' +
+      '<td>' + (((r.entryPhotos || r.photos || []).length || (r.exitPhotos || []).length) ? '📷 ' + ((r.entryPhotos || r.photos || []).length + (r.exitPhotos || []).length) : '') + '</td>' +
       '<td><button class="btn sm gh" onclick="tkAdd(\'' + r.id + '\')">✏️</button> <button class="btn sm qr-mini" onclick="showContainerQr(\'truck\',\'' + r.id + '\')">🔳</button></td></tr>';
   }).join('') : '<tr><td colspan="10" class="empty">' + SEC.T().noData + '</td></tr>';
   document.getElementById('tkMore').textContent = list.length > 400 ? ('僅顯示最近 400 筆，共 ' + list.length + ' 筆。') : '';
@@ -458,33 +468,88 @@ function tkAdd(id) {
   if (!r) r = {};
   document.getElementById('tkTitle').textContent = id ? '編輯貨櫃車紀錄' : '新增貨櫃車紀錄';
   TF.forEach(function (f) { document.getElementById('t_' + f).value = r[f] || ''; });
-  TK_PHOTOS = Array.isArray(r.photos) ? r.photos.slice(0, 4) : [];
+  TK_ENTRY_PHOTOS = Array.isArray(r.entryPhotos) ? r.entryPhotos.slice(0, 4) : (Array.isArray(r.photos) ? r.photos.slice(0, 4) : []);
+  TK_EXIT_PHOTOS = Array.isArray(r.exitPhotos) ? r.exitPhotos.slice(0, 4) : [];
+  document.getElementById('t_notifyMode').value = r.notifyMode || 'live';
   renderTruckPhotos();
   document.getElementById('t_ie').value = r.isExport ? 'exp' : 'imp';
   if (!id) document.getElementById('t_date').value = SEC.ymd();
   SEC.openModal('mTk');
 }
-function addTruckPhoto() {
-  if (TK_PHOTOS.length >= 4) { SEC.toast('⚠ 貨櫃車紀錄最多 4 張照片', 'warn'); return; }
-  SEC.pickPhoto(function (d) { if (TK_PHOTOS.length < 4) TK_PHOTOS.push(d); renderTruckPhotos(); }, 760, 4 - TK_PHOTOS.length);
+function addTruckPhoto(phase) {
+  var list = phase === 'exit' ? TK_EXIT_PHOTOS : TK_ENTRY_PHOTOS;
+  if (list.length >= 4) { SEC.toast('⚠ 每個階段最多 4 張照片 / Maximum 4 photos per phase', 'warn'); return; }
+  SEC.pickPhoto(function (d) { if (list.length < 4) list.push(d); renderTruckPhotos(); }, 760, 4 - list.length);
 }
 function renderTruckPhotos() {
-  var box = document.getElementById('tkPhotos'); if (!box) return;
-  box.innerHTML = SEC.photoListHtml(TK_PHOTOS, true);
-  box.querySelectorAll('.del').forEach(function (b) {
-    b.onclick = function () { TK_PHOTOS.splice(+b.dataset.i, 1); renderTruckPhotos(); };
+  [['tkEntryPhotos',TK_ENTRY_PHOTOS],['tkExitPhotos',TK_EXIT_PHOTOS]].forEach(function (pair) {
+    var box = document.getElementById(pair[0]); if (!box) return;
+    box.innerHTML = SEC.photoListHtml(pair[1], true);
+    box.querySelectorAll('.del').forEach(function (b) {
+      b.onclick = function () { pair[1].splice(+b.dataset.i, 1); renderTruckPhotos(); };
+    });
   });
 }
-function tkSaveEdit() {
-  var o = {};
+function truckLiveHash(o, phase) {
+  function photoSig(list) { return (list || []).map(function (x) { x=String(x||''); return x.length + ':' + x.slice(-28); }).join('|'); }
+  return JSON.stringify([phase,o.date,o.name,o.containerNo,o.truckNo,o.company,o.timeIn,o.timeOut,o.signIn,o.signOut,o.remark,
+    photoSig(o.entryPhotos),photoSig(o.exitPhotos)]);
+}
+async function sendTruckLiveUpdate(o, phase) {
+  var hash = truckLiveHash(o, phase);
+  if (o.tgLastHash === hash && o.tgLiveStatus === phase) return { skipped:true, sent:true, messageId:o.tgMessageId || '' };
+  var photos = [], entryCount = Number(o.tgEntryPhotoSentCount) || 0, exitCount = Number(o.tgExitPhotoSentCount) || 0;
+  function sig(list) { return (list || []).map(function (x) { x=String(x||''); return x.length + ':' + x.slice(-28); }).join('|'); }
+  var entrySig = sig(o.entryPhotos), exitSig = sig(o.exitPhotos);
+  if (phase === 'entry') photos = entrySig !== o.tgEntryPhotoHash ? (o.entryPhotos || []).slice() : (o.entryPhotos || []).slice(entryCount);
+  else if (phase === 'exit') photos = exitSig !== o.tgExitPhotoHash ? (o.exitPhotos || []).slice() : (o.exitPhotos || []).slice(exitCount);
+  else photos = (entrySig !== o.tgEntryPhotoHash ? (o.entryPhotos || []).slice() : (o.entryPhotos || []).slice(entryCount))
+    .concat(exitSig !== o.tgExitPhotoHash ? (o.exitPhotos || []).slice() : (o.exitPhotos || []).slice(exitCount));
+  var result = await SEC.gasPost({ action:'containerLiveUpdate', phase:phase, record:o,
+    messageId:o.tgMessageId || '', photos:photos.slice(0, 8), lang:SEC.lang() });
+  if (!result || result.sent !== true || !result.messageId) throw new Error('Telegram did not confirm the container update / Telegram 未確認貨櫃更新');
+  o.tgMessageId = result.messageId;
+  o.tgLiveStatus = phase;
+  o.tgLastHash = hash;
+  o.tgLastSentAt = new Date().toISOString();
+  o.tgEntryPhotoHash = entrySig; o.tgExitPhotoHash = exitSig;
+  if (phase === 'entry') o.tgEntryPhotoSentCount = (o.entryPhotos || []).length;
+  else if (phase === 'exit') o.tgExitPhotoSentCount = (o.exitPhotos || []).length;
+  else { o.tgEntryPhotoSentCount = (o.entryPhotos || []).length; o.tgExitPhotoSentCount = (o.exitPhotos || []).length; }
+  return result;
+}
+async function tkSaveEdit() {
+  var old = TK_EDIT ? TK.filter(function (x) { return x.id === TK_EDIT; })[0] : null;
+  var o = old ? Object.assign({}, old) : {};
   TF.forEach(function (f) { o[f] = document.getElementById('t_' + f).value.trim(); });
   var ie = document.getElementById('t_ie').value;
   o.isImport = ie === 'imp'; o.isExport = ie === 'exp';
-  o.photos = TK_PHOTOS.slice(0, 4);
+  o.notifyMode = document.getElementById('t_notifyMode').value || 'live';
+  o.entryPhotos = TK_ENTRY_PHOTOS.slice(0, 4);
+  o.exitPhotos = TK_EXIT_PHOTOS.slice(0, 4);
+  o.photos = o.entryPhotos.concat(o.exitPhotos);
+  o.updatedAt = new Date().toISOString();
   if (!o.date) { SEC.toast('⚠ 請填日期', 'warn'); return; }
-  if (TK_EDIT) TK.forEach(function (r) { if (r.id === TK_EDIT) Object.assign(r, o); });
-  else { o.id = 'T' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); TK.push(o); }
-  saveTk(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'container-truck-save', o.date); SEC.closeModal('mTk'); SEC.toast('✅ 已儲存', 'ok');
+  if (!o.id) o.id = 'T' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  if (old) Object.assign(old, o); else { TK.push(o); old = o; }
+  saveTk(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'container-truck-save', o.date);
+  var phase = '';
+  if (o.notifyMode === 'live') phase = o.timeOut ? 'exit' : (o.timeIn ? 'entry' : '');
+  else if (o.notifyMode === 'complete' && o.timeIn && o.timeOut) phase = 'complete';
+  try {
+    if (phase) {
+      var result = await sendTruckLiveUpdate(old, phase);
+      saveTk(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'container-telegram-' + phase, o.date);
+      SEC.toast(result.skipped ? '✅ 已儲存；內容未變更，未重複發送 / Saved; duplicate send skipped' :
+        (result.edited ? '✅ 已更新群組原訊息 / Original Telegram message updated' : '✅ 已發送貨櫃即時訊息 / Live container message sent'), 'ok', 5500);
+    } else if (o.notifyMode === 'complete') {
+      SEC.toast('✅ 已儲存；填入出廠時間後才會發送一次 / Saved; sends once after Time Out is entered', 'ok', 5500);
+    } else SEC.toast('✅ 已儲存 / Saved', 'ok');
+    SEC.closeModal('mTk');
+  } catch (e) {
+    saveTk();
+    SEC.toast('⚠️ 資料已儲存，但 Telegram 更新失敗：' + SEC.esc(e.message) + ' / Data saved; Telegram failed', 'err', 8000);
+  }
 }
 function tkDel() {
   if (!TK_EDIT) { SEC.closeModal('mTk'); return; }
