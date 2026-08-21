@@ -804,7 +804,9 @@ function tgOpen(opt) {
             mode:'summary', period:st.period, periodType:st.ptype,
             photo:pagePhotos[0] || '', photos:pagePhotos });
           if (!sentResult || sentResult.sent !== true) {
-            throw new Error('Telegram page ' + (pi + 1) + '/' + pages.length + ' was not delivered / 第 ' + (pi + 1) + ' 頁未送達群組');
+            var reason = sentResult && sentResult.error ? String(sentResult.error) : '';
+            throw new Error('Telegram page ' + (pi + 1) + '/' + pages.length + ' was not delivered / 第 ' + (pi + 1) + ' 頁未送達群組' +
+              (reason ? '：' + reason : '；請確認已更新並重新部署 ac_sec.gs'));
           }
         }
         scheduleAutoCloudSync(opt.module || '', 'telegram-summary', st.period || '');
