@@ -355,8 +355,8 @@
 <button class="btn" onclick="saveEdit()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260821d"></script>
-<script src="./shared/sec-smart-sync.js?v=20260821d"></script>
+<script src="./shared/sec-core.js?v=20260824c"></script>
+<script src="./shared/sec-smart-sync.js?v=20260824c"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -1116,7 +1116,12 @@ function impExcel() {
     if (HIST.length > 500) HIST.length = 500;
     save(); fillZoneSelects(); renderAll();
     document.getElementById('impLog').innerHTML = '<b>Import result / 匯入結果</b>：新增 ' + added + '，更新 ' + updated + '，舊資料略過 ' + skipped + '，移除舊資料 ' + pruned + '<br>' + log.join('<br>');
-    SEC.scheduleAutoCloudSync(TOOL, 'fire-excel-import', SEC.ymd());
+    var importedPeriods = {};
+    Object.keys(histByKey).forEach(function (k) {
+      var d = String((histByKey[k] && histByKey[k].date) || '');
+      if (/^\d{4}-\d{2}/.test(d)) importedPeriods[d.slice(0, 7)] = true;
+    });
+    Object.keys(importedPeriods).forEach(function (p) { SEC.scheduleAutoCloudSync(TOOL, 'fire-excel-import', p); });
     SEC.toast(added || updated ? '✅ Fire Excel updated: ' + added + ' new / ' + updated + ' updated' : '⚠ No fire equipment rows imported', added || updated ? 'ok' : 'warn', 6500);
   });
 }
@@ -1174,22 +1179,24 @@ function seedDemo() {
   save(); renderAll(); SEC.toast('🏭 已載入 ' + T.length + ' 項標準配置，請逐項修改編號與檢期', 'ok', 5500);
 }
 async function doUpload() { var removed=normalizeFireMaster(); if(removed)save(); return await SEC.cloudPush(TOOL, DB, { total: DB.length, history: HIST.length }, { history: HIST, chip: CHIP }); }
-async function doDownload() {
-  if (!confirm('⬇️☁ 下載會與本機消防設備合併；相同編號以最新資料更新，空白欄位會先確認並保留舊值。繼續？')) return;
+async function doDownload(opts) {
+  if (!(opts && opts.auto) && !confirm('⬇️☁ 下載會與本機消防設備合併；相同編號以最新資料更新，空白欄位會先確認並保留舊值。繼續？')) return false;
   var recs = await SEC.cloudPull(TOOL);
+  if (recs && recs._cloudMeta && recs._cloudMeta.unchanged) return true;
   if (recs) {
     var m = SEC.mergeRecords(TOOL, DB, recs);
     var ex = recs._cloudExtra || {};
     var hm = Array.isArray(ex.history) ? SEC.mergeRecords('fire-history', HIST, ex.history) : null;
     var conflicts = m.blankConflicts.concat(hm ? hm.blankConflicts : []);
     if (ex.chip && typeof ex.chip === 'object') conflicts = conflicts.concat(SEC.blankConflictsObject(CHIP, ex.chip));
-    if (!SEC.confirmBlankMerge(conflicts, '消防資料雲端下載確認')) return;
+    if (!(opts && opts.auto) && !SEC.confirmBlankMerge(conflicts, '消防資料雲端下載確認')) return false;
     DB = m.records;
     var removed = normalizeFireMaster();
     if (hm) HIST = hm.records;
     if (ex.chip && typeof ex.chip === 'object') CHIP = SEC.mergeObject(CHIP, ex.chip);
-    save(); saveChipMap(); renderAll(); SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，清除重複／錯誤 ' + removed + ' 筆，保留 ' + DB.length + ' 筆', 'ok', 5000);
+    save(); saveChipMap(); renderAll(); if (!(opts && opts.silent)) SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，清除重複／錯誤 ' + removed + ' 筆，保留 ' + DB.length + ' 筆', 'ok', 5000);
   }
+  return !!recs;
 }
 function fireSummaryPeriod(st) {
   var a = SEC.parseD(st.period) || new Date();
@@ -1832,7 +1839,8 @@ fillZoneSelects();
 var _fireRenderAllWithFilters = renderAll;
 renderAll = function () { fillZoneSelects(); _fireRenderAllWithFilters(); };
 SEC.registerAutoUploader(TOOL, function (opts) { return doUpload(opts); });
-window.addEventListener('load', function () { setTimeout(function () { SEC.retryAutoCloudSync(TOOL); }, 1200); });
+SEC.registerAutoDownloader(TOOL, function (opts) { return doDownload(opts); });
+window.addEventListener('load', function () { setTimeout(function () { SEC.startAutoCloudSync(TOOL); }, 350); });
 setTimeout(function(){applyFireLanguage();fireQrStart();},0);
 </script>
 </body>

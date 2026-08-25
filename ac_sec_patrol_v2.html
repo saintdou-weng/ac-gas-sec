@@ -24,6 +24,14 @@
 .h0{background:#fee2e2;color:#991b1b;font-weight:800}
 .h1{background:#fef3c7;color:#92400e}
 .h2{background:#dcfce7;color:#15803d}
+.pc-check{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:10px;padding:7px 9px;background:#fff}
+.pc-check>span{font-size:12px;font-weight:700;min-width:105px}
+.pc-choice{display:inline-flex;align-items:center;gap:3px;border:1px solid var(--line);border-radius:8px;padding:4px 7px;cursor:pointer;font-size:12px;font-weight:800}
+.pc-choice input{width:auto;margin:0}
+.pc-choice.ok{background:#ecfdf5;color:#15803d}.pc-choice.bad{background:#fff1f2;color:#be123c}
+.pc-photo-entry{display:grid;grid-template-columns:auto minmax(180px,1fr);align-items:center;gap:10px;margin-top:8px;padding:8px;border:1px solid var(--line);border-radius:10px;background:#f8fafc}
+.pc-photo-entry .photo-list{margin:0}.pc-photo-entry input{width:100%}
+@media(max-width:640px){.pc-check{width:100%}.pc-check>span{flex:1}.pc-photo-entry{grid-template-columns:1fr}.pc-photo-entry .photo-item{margin:auto}}
 </style>
 </head>
 <body>
@@ -47,16 +55,19 @@
     <div class="card" id="patrolConfirmCard">
       <h3>✅ <span data-zh="巡邏完成確認" data-en="Patrol completion confirmation" data-km="បញ្ជាក់ការល្បាត">巡邏完成確認</span>
         <span class="sp"><button class="btn sm ok" onclick="togglePatrolAllOk()">✅ All OK / 全部正常</button><button class="btn sm" onclick="savePatrolCheck()">💾 Save / 儲存</button></span></h3>
-      <p class="hint" style="margin-bottom:10px">上傳或發送摘要前，請先確認當日／當班門窗、水電、照明及消防通道；有問題請取消勾選並寫備註。 / Confirm before cloud upload or Telegram.</p>
+      <p class="hint" style="margin-bottom:10px">發送每日摘要前，巡邏員姓名及每一項都必須選 ✅ 正常或 ❌ 異常；有異常必須寫備註，附照片時每張都要說明。 / Before sending a daily summary, enter the guard, mark every item OK or issue, and caption every photo.</p>
       <div class="grid g3">
         <div class="f"><label>Date / 日期</label><input id="pcDate" type="date" onchange="renderPatrolCheck()"></div>
         <div class="f"><label>Shift / 班別</label><select id="pcShift" onchange="renderPatrolCheck()"><option value="all">全天 All day</option><option value="D">日班 Day</option><option value="N">夜班 Night</option></select></div>
         <div class="f"><label>Guard / 巡邏員</label><input id="pcGuard" list="guardList"></div>
       </div>
-      <div class="row" id="pcItems" style="margin-top:10px;gap:12px;flex-wrap:wrap">
-        <label><input type="checkbox" data-pc="doors"> 🚪 Doors / 門</label><label><input type="checkbox" data-pc="windows"> 🪟 Windows / 窗</label>
-        <label><input type="checkbox" data-pc="water"> 💧 Water / 水</label><label><input type="checkbox" data-pc="electric"> ⚡ Electricity / 電</label>
-        <label><input type="checkbox" data-pc="lights"> 💡 Lighting / 照明</label><label><input type="checkbox" data-pc="fireway"> 🧯 Fire route / 消防通道</label>
+      <div class="row" id="pcItems" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+        <div class="pc-check" data-pc-key="doors"><span>🚪 Doors / 門</span><label class="pc-choice ok"><input type="radio" name="pc_doors" value="ok">✅</label><label class="pc-choice bad"><input type="radio" name="pc_doors" value="issue">❌</label></div>
+        <div class="pc-check" data-pc-key="windows"><span>🪟 Windows / 窗</span><label class="pc-choice ok"><input type="radio" name="pc_windows" value="ok">✅</label><label class="pc-choice bad"><input type="radio" name="pc_windows" value="issue">❌</label></div>
+        <div class="pc-check" data-pc-key="water"><span>💧 Water / 水</span><label class="pc-choice ok"><input type="radio" name="pc_water" value="ok">✅</label><label class="pc-choice bad"><input type="radio" name="pc_water" value="issue">❌</label></div>
+        <div class="pc-check" data-pc-key="electric"><span>⚡ Electricity / 電</span><label class="pc-choice ok"><input type="radio" name="pc_electric" value="ok">✅</label><label class="pc-choice bad"><input type="radio" name="pc_electric" value="issue">❌</label></div>
+        <div class="pc-check" data-pc-key="lights"><span>💡 Lighting / 照明</span><label class="pc-choice ok"><input type="radio" name="pc_lights" value="ok">✅</label><label class="pc-choice bad"><input type="radio" name="pc_lights" value="issue">❌</label></div>
+        <div class="pc-check" data-pc-key="fireway"><span>🧯 Fire route / 消防通道</span><label class="pc-choice ok"><input type="radio" name="pc_fireway" value="ok">✅</label><label class="pc-choice bad"><input type="radio" name="pc_fireway" value="issue">❌</label></div>
       </div>
       <div class="f" style="margin-top:10px"><label>Issue note / 異常備註</label><textarea id="pcNote" rows="2"></textarea></div>
       <div class="f" style="margin-top:9px"><label>Photos / 照片</label><div class="photo-drop" onclick="addPatrolCheckPhoto()">📷 Take photo or choose image / 拍照或選圖</div><div id="pcPhotos"></div></div>
@@ -272,8 +283,8 @@
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260821d"></script>
-<script src="./shared/sec-smart-sync.js?v=20260821d"></script>
+<script src="./shared/sec-core.js?v=20260824c"></script>
+<script src="./shared/sec-smart-sync.js?v=20260824c"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -295,7 +306,9 @@ var LS_MAN  = 'ac_sec_patrol_db';       /* 人工登錄（沿用 v1 key） */
 var LS_CHIP = 'ac_sec_chipmap';         /* Chip ID → 巡邏點名稱 */
 var LS_CP_BASELINE = 'ac_sec_patrol_cp_baseline';
 var LS_CHECK = 'ac_sec_patrol_confirmations';
-var SCAN = [], MAN = [], CHECK = [], CHIP = {}, ROUNDS = [], PC_PHOTOS = [];
+var SCAN = [], MAN = [], CHECK = [], CHIP = {}, ROUNDS = [], PC_PHOTOS = [], PC_PHOTO_NOTES = [];
+var PC_KEYS = ['doors','windows','water','electric','lights','fireway'];
+var PC_LABELS = { doors:'Doors / 門', windows:'Windows / 窗', water:'Water / 水', electric:'Electricity / 電', lights:'Lighting / 照明', fireway:'Fire route / 消防通道' };
 var PH = { n: [], i: [] }, PER = new SEC.Period('month'), CH = {}, TOOL = 'patrol';
 var paintPatrolPeriod;
 var CP_BASELINE_APPLIED = '';
@@ -333,7 +346,7 @@ function saveCheck(){ SEC.dbPut(LS_CHECK, CHECK); }
 function saveChip() { SEC.dbPut(LS_CHIP, CHIP); }
 
 /* ═══════════ 初始化 ═══════════ */
- document.getElementById('hdr').innerHTML = SEC.headerHtml('🚨', '保安巡邏 Patrol', 'AC SECURITY · PATROL v2 · 20260821d');
+ document.getElementById('hdr').innerHTML = SEC.headerHtml('🚨', '保安巡邏 Patrol', 'AC SECURITY · PATROL v2 · 20260824c');
 document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
 SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: openPatrolTelegram, onSmartImport: impWand });
 paintPatrolPeriod = SEC.bindPeriodNav('pnav', PER, function () { renderAll(); });
@@ -548,46 +561,82 @@ function patrolCheckCurrent() {
   var d = document.getElementById('pcDate').value || patrolLatestDate(), sh = document.getElementById('pcShift').value || 'all';
   return CHECK.filter(function (x) { return x.date === d && x.shift === sh; }).sort(function (a,b) { return String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')); })[0] || null;
 }
+function patrolCheckValue(rec, key) {
+  var v = rec && rec.checks ? rec.checks[key] : '';
+  if (v === true || v === 'ok') return 'ok';
+  if (v === 'issue' || v === 'bad' || v === 'x') return 'issue';
+  return '';
+}
+function patrolCheckHasIssue(rec) {
+  return PC_KEYS.some(function (k) { return patrolCheckValue(rec, k) === 'issue'; });
+}
+function patrolCheckMissing(rec) {
+  return PC_KEYS.filter(function (k) { return !patrolCheckValue(rec, k); });
+}
+function pcFormValue(key) {
+  var x = document.querySelector('input[name="pc_' + key + '"]:checked');
+  return x ? x.value : '';
+}
+function setPcFormValue(key, value) {
+  document.querySelectorAll('input[name="pc_' + key + '"]').forEach(function (x) { x.checked = x.value === value; });
+}
 function renderPatrolCheck() {
   var date = document.getElementById('pcDate'); if (!date) return;
   if (!date.value) syncPatrolCheckDateFromPeriod();
-  var rec = patrolCheckCurrent(), flags = rec && rec.checks || {};
-  document.querySelectorAll('#pcItems [data-pc]').forEach(function (x) { x.checked = !!flags[x.dataset.pc]; });
+  var rec = patrolCheckCurrent();
+  PC_KEYS.forEach(function (k) { setPcFormValue(k, patrolCheckValue(rec, k)); });
   document.getElementById('pcGuard').value = rec && rec.guard || '';
   document.getElementById('pcNote').value = rec && rec.note || '';
   PC_PHOTOS = rec && Array.isArray(rec.photos) ? rec.photos.slice(0,4) : [];
+  PC_PHOTO_NOTES = rec && Array.isArray(rec.photoNotes) ? rec.photoNotes.slice(0,4) : [];
+  while (PC_PHOTO_NOTES.length < PC_PHOTOS.length) PC_PHOTO_NOTES.push('');
   paintPatrolCheckPhotos();
   document.getElementById('pcSaved').textContent = rec ? '✅ Saved / 已確認：' + (rec.updatedAt || rec.date) : '⚠️ Not confirmed / 尚未確認';
 }
 function togglePatrolAllOk() {
-  var list = Array.from(document.querySelectorAll('#pcItems [data-pc]')), all = list.length && list.every(function (x) { return x.checked; });
-  list.forEach(function (x) { x.checked = !all; });
+  var all = PC_KEYS.every(function (k) { return pcFormValue(k) === 'ok'; });
+  PC_KEYS.forEach(function (k) { setPcFormValue(k, all ? '' : 'ok'); });
+  SEC.toast(all ? '↩️ 已清除全部項目 / Cleared all checks' : '✅ 已標記全部正常 / All items marked OK', 'ok');
 }
 function addPatrolCheckPhoto() {
   if (PC_PHOTOS.length >= 4) return SEC.toast('Maximum 4 photos / 最多 4 張','warn');
-  SEC.pickPhoto(function (d) { if (PC_PHOTOS.length < 4) PC_PHOTOS.push(d); paintPatrolCheckPhotos(); }, 760, 4-PC_PHOTOS.length);
+  SEC.pickPhoto(function (d) { if (PC_PHOTOS.length < 4) { PC_PHOTOS.push(d); PC_PHOTO_NOTES.push(''); } paintPatrolCheckPhotos(); }, 760, 4-PC_PHOTOS.length);
 }
 function paintPatrolCheckPhotos() {
   var box = document.getElementById('pcPhotos'); if (!box) return;
-  box.innerHTML = SEC.photoListHtml(PC_PHOTOS,true);
-  box.querySelectorAll('.del').forEach(function (b) { b.onclick=function(){PC_PHOTOS.splice(+b.dataset.i,1);paintPatrolCheckPhotos();}; });
+  box.innerHTML = PC_PHOTOS.map(function (p, i) {
+    return '<div class="pc-photo-entry" data-pc-photo="' + i + '">' + SEC.photoListHtml([p], true) +
+      '<div class="f"><label>Photo note ' + (i + 1) + ' / 照片說明 ' + (i + 1) + '</label>' +
+      '<input data-pc-photo-note="' + i + '" value="' + SEC.esc(PC_PHOTO_NOTES[i] || '') + '" placeholder="What is shown? / 照片內容、地點或異常"></div></div>';
+  }).join('');
+  box.querySelectorAll('.del').forEach(function (b) { b.onclick=function(){var i=+b.closest('[data-pc-photo]').dataset.pcPhoto;PC_PHOTOS.splice(i,1);PC_PHOTO_NOTES.splice(i,1);paintPatrolCheckPhotos();}; });
+  box.querySelectorAll('[data-pc-photo-note]').forEach(function (x) { x.oninput=function(){PC_PHOTO_NOTES[+x.dataset.pcPhotoNote]=x.value;}; });
 }
 function savePatrolCheck() {
   var checks = {}, date = document.getElementById('pcDate').value, shift = document.getElementById('pcShift').value;
-  document.querySelectorAll('#pcItems [data-pc]').forEach(function (x) { checks[x.dataset.pc] = !!x.checked; });
+  PC_KEYS.forEach(function (k) { checks[k] = pcFormValue(k); });
   if (!date || !document.getElementById('pcGuard').value.trim()) return SEC.toast('請填日期及巡邏員 / Date and guard required','warn');
+  var missing = PC_KEYS.filter(function (k) { return !checks[k]; });
+  if (missing.length) return SEC.toast('請逐項選 ✅ 或 ❌：' + missing.map(function(k){return PC_LABELS[k];}).join('、') + ' / Mark every item','warn',7000);
+  var note = document.getElementById('pcNote').value.trim();
+  if (PC_KEYS.some(function (k) { return checks[k] === 'issue'; }) && !note) return SEC.toast('有 ❌ 異常時必須填寫 Issue note / 異常備註','warn',7000);
+  var photoNotes = PC_PHOTO_NOTES.slice(0, PC_PHOTOS.length).map(function (x) { return String(x || '').trim(); });
+  if (PC_PHOTOS.length && photoNotes.some(function (x) { return !x; })) return SEC.toast('每張照片都要填寫說明 / Add a note for every photo','warn',7000);
   var id = date + '|' + shift;
   CHECK = CHECK.filter(function (x) { return x.id !== id; });
   CHECK.push({ id:id, date:date, shift:shift, guard:document.getElementById('pcGuard').value.trim(), checks:checks,
-    note:document.getElementById('pcNote').value.trim(), photos:PC_PHOTOS.slice(0,4), updatedAt:new Date().toISOString() });
+    note:note, photos:PC_PHOTOS.slice(0,4), photoNotes:photoNotes, updatedAt:new Date().toISOString() });
   saveCheck(); renderPatrolCheck(); SEC.scheduleAutoCloudSync(TOOL,'patrol-confirmation',date); SEC.toast('✅ 巡邏確認已儲存','ok');
 }
 function ensurePatrolCheck() {
-  var latest = patrolLatestDate(), found = CHECK.some(function (x) { return x.date === latest; });
+  var latest = patrolLatestDate(), found = CHECK.some(function (x) {
+    return x.date === latest && x.guard && !patrolCheckMissing(x).length && (!patrolCheckHasIssue(x) || String(x.note || '').trim()) &&
+      !(Array.isArray(x.photos) && x.photos.length && (!Array.isArray(x.photoNotes) || x.photoNotes.slice(0,x.photos.length).some(function(n){return !String(n||'').trim();})));
+  });
   if (found || (!SCAN.length && !MAN.length)) return true;
   document.getElementById('pcDate').value = latest; renderPatrolCheck();
   document.getElementById('patrolConfirmCard').scrollIntoView({behavior:'smooth',block:'start'});
-  SEC.toast('⚠️ 請先完成 ' + latest + ' 巡邏確認，再上傳或傳送摘要 / Confirm patrol first','warn',7000);
+  SEC.toast('⚠️ 請先完成 ' + latest + ' 巡邏確認：姓名、六項結果、異常備註及照片說明 / Complete patrol confirmation first','warn',8000);
   return false;
 }
 function fillGuards() {
@@ -1070,6 +1119,7 @@ function impWand() {
     var cpChange = reconcileCheckpoints(incomingOrder, incomingNames, sheets.map(function (s) { return s.name; }).join(', '));
     if (cpChange.confirmed) { CP_BASELINE_APPLIED = '20260821a'; SEC.dbPut(LS_CP_BASELINE, CP_BASELINE_APPLIED); }
     saveScan();
+    Object.keys(importedDates).forEach(function (d) { SEC.scheduleAutoCloudSync(TOOL, 'patrol-wand-import', d); });
     /* 匯入哪個月份就先顯示哪個月份；不要因本機已有較新的月份而跳走。 */
     var importedLatest = Object.keys(importedDates).sort().pop();
     if (importedLatest) jumpPatrolToDate(importedLatest); else jumpPatrolToLatest();
@@ -1126,7 +1176,7 @@ var SPEC = {
 };
 function impGeneric() {
   SEC.pickExcel(function (sheets) {
-    var added = 0, log = [];
+    var added = 0, log = [], importedDates = {};
     sheets.forEach(function (sh) {
       var res = SEC.parseSheet(sh.rows, SPEC, { minScore: 2 });
       if (!res.rows.length) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：未偵測到資料（分數 ' + res.header.score + '）'); return; }
@@ -1135,16 +1185,19 @@ function impGeneric() {
         var d = SEC.parseD(o.date); if (!d) return;
         var guard = SEC.str(o.guard), loc = SEC.str(o.location);
         if (!guard && !loc) return;
+        var importedDate = SEC.ymd(d);
         MAN.push({ id: 'X' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-          date: SEC.ymd(d), time: fmtT(o.time), shift: /夜|night|c/i.test(SEC.str(o.shift)) ? 'N' : 'D',
+          date: importedDate, time: fmtT(o.time), shift: /夜|night|c/i.test(SEC.str(o.shift)) ? 'N' : 'D',
           guard: guard, location: loc || sh.name,
           status: /異常|abnorm|issue|fail/i.test(SEC.str(o.status)) ? 'issue' : 'ok',
           note: SEC.str(o.note), photos: [], src: sh.name });
+        importedDates[importedDate] = true;
         n++; added++;
       });
       log.push('· <b>' + SEC.esc(sh.name) + '</b>：匯入 <b>' + n + '</b> 筆（標題第 ' + (res.header.row + 1) + ' 列）');
     });
     saveMan(); renderAll();
+    Object.keys(importedDates).forEach(function (d) { SEC.scheduleAutoCloudSync(TOOL, 'patrol-generic-import', d); });
     document.getElementById('impLog').innerHTML = '<b>匯入結果</b><br>' + log.join('<br>');
     SEC.toast(added ? '✅ 匯入 ' + added + ' 筆' : '⚠ 未匯入', added ? 'ok' : 'warn', 5000);
   });
@@ -1177,7 +1230,7 @@ function saveNew(notify) {
     note: document.getElementById('nNote').value.trim(), photos: PH.n.slice(),
     by: SEC.getCfg().operator || '', createdAt: SEC.nowStr() };
   if (!r.date || !r.guard) { SEC.toast('⚠ 請填日期與巡邏員', 'warn'); return; }
-  MAN.push(r); saveMan(); renderAll();
+  MAN.push(r); saveMan(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'patrol-manual-save', r.date);
   SEC.toast('✅ 已儲存', 'ok');
   document.getElementById('nNote').value = ''; PH.n = []; document.getElementById('nPhotos').innerHTML = '';
   if (notify) {
@@ -1189,7 +1242,9 @@ function saveNew(notify) {
 }
 function delMan(id) {
   if (!confirm(SEC.T().confirmDel)) return;
+  var old = MAN.filter(function (r) { return r.id === id; })[0];
   MAN = MAN.filter(function (r) { return r.id !== id; }); saveMan(); renderAll();
+  if (old && old.date) SEC.scheduleAutoCloudSync(TOOL, 'patrol-manual-delete', old.date);
 }
 async function sendIssue() {
   var title = document.getElementById('iTitle').value.trim();
@@ -1320,10 +1375,22 @@ function patrolSummary(st) {
   }
   var checks = CHECK.filter(function (r) { return p.has(r.date) && (!st.scope || st.scope === 'all' || (st.scope === 'night' ? r.shift === 'N' : r.shift === 'D')); });
   if (checks.length) {
-    var badChecks = checks.filter(function (r) { return Object.keys(r.checks || {}).some(function (k) { return !r.checks[k]; }) || r.note; });
+    var badChecks = checks.filter(function (r) { return patrolCheckHasIssue(r) || patrolCheckMissing(r).length || r.note; });
     txt += '\n<b>✅ ' + ptt(st.lang,'巡邏完成確認','Patrol completion checks','ការបញ្ជាក់ល្បាត') + '</b>：' + checks.length +
       ' · ⚠️ ' + ptt(st.lang,'有備註／未勾','Issues / unchecked','មានបញ្ហា') + ' ' + badChecks.length + '\n';
-    badChecks.slice(0,10).forEach(function (r) { txt += '· ' + SEC.esc(r.date) + ' · ' + SEC.esc(r.guard || '—') + (r.note ? ' · ' + SEC.esc(r.note) : '') + '\n'; });
+    badChecks.slice(0,10).forEach(function (r) {
+      var bad = PC_KEYS.filter(function(k){return patrolCheckValue(r,k)==='issue';});
+      var missing = patrolCheckMissing(r);
+      txt += '· ' + SEC.esc(r.date) + ' · ' + SEC.esc(r.guard || '—') +
+        (bad.length ? ' · ❌ ' + bad.map(function(k){return PC_LABELS[k];}).join(', ') : '') +
+        (missing.length ? ' · ⚠️ Missing ' + missing.map(function(k){return PC_LABELS[k];}).join(', ') : '') +
+        (r.note ? ' · ' + SEC.esc(r.note) : '') + '\n';
+    });
+  }
+  if (st.ptype === 'week') {
+    var nightPhotoCount = CHECK.filter(function(r){return p.has(r.date) && (r.shift === 'N' || r.shift === 'all');})
+      .reduce(function(n,r){return n + (Array.isArray(r.photos) ? r.photos.length : 0);},0);
+    txt += '\n📸 ' + ptt(st.lang,'夜班巡邏照片','Night-shift patrol photos','រូបថតល្បាតវេនយប់') + '：<b>' + nightPhotoCount + '</b> / 2–4\n';
   }
   if (Object.keys(byD).length) {
     txt += '\n<b>📅 ' + ptt(st.lang, '每日圈數', 'Daily rounds', 'ជុំប្រចាំថ្ងៃ') + '</b>\n';
@@ -1347,9 +1414,12 @@ function patrolSummaryPages(st) {
       ' · ' + (r.status === 'issue' ? '⚠️ Issue/異常' : '✅ Normal/正常') + (r.note ? ' · Note/備註 ' + SEC.esc(r.note) : ''));
   });
   CHECK.filter(function (r) { return p.has(r.date); }).slice().sort(function (a,b) { return b.date.localeCompare(a.date); }).forEach(function (r) {
-    var bad = Object.keys(r.checks || {}).filter(function (k) { return !r.checks[k]; });
+    var bad = PC_KEYS.filter(function (k) { return patrolCheckValue(r, k) === 'issue'; });
+    var missing = patrolCheckMissing(r);
     lines.push('✅ ' + SEC.esc(r.date) + ' · ' + SEC.esc(r.shift || 'all') + ' · Guard/巡邏員 ' + SEC.esc(r.guard || '—') +
-      (bad.length ? ' · ⚠️ Unchecked/未勾 ' + bad.join(', ') : ' · All OK/全部正常') + (r.note ? ' · Note/備註 ' + SEC.esc(r.note) : ''));
+      (bad.length ? ' · ❌ Issue/異常 ' + bad.map(function(k){return PC_LABELS[k];}).join(', ') : (missing.length ? ' · ⚠️ Missing/未確認 ' + missing.map(function(k){return PC_LABELS[k];}).join(', ') : ' · All OK/全部正常')) +
+      (r.note ? ' · Note/備註 ' + SEC.esc(r.note) : '') +
+      (Array.isArray(r.photoNotes) && r.photoNotes.filter(Boolean).length ? ' · 📷 ' + r.photoNotes.filter(Boolean).map(SEC.esc).join('；') : ''));
   });
   for (var i = 0; i < lines.length; i += 24) pages.push('<b>🚨 Patrol records / 巡邏明細</b> · ' + patrolScopeLabel(st) + '\n' + lines.slice(i, i + 24).join('\n'));
   return pages;
@@ -1363,11 +1433,54 @@ function patrolSummaryPhotos(st, pageIndex) {
   CHECK.filter(function (r) { return p.has(r.date); }).forEach(function (r) { out = out.concat(r.photos || []); });
   return out.slice(0, 4);
 }
+function patrolCheckRecordsForDailySummary(st, p) {
+  var date = p.range().from;
+  var candidates = CHECK.filter(function (r) { return r.date === date; });
+  if (st.scope === 'night') return candidates.filter(function(r){return r.shift === 'N' || r.shift === 'all';});
+  if (st.scope === 'day') return candidates.filter(function(r){return r.shift === 'D' || r.shift === 'all';});
+  var all = candidates.filter(function(r){return r.shift === 'all';});
+  if (all.length) return all;
+  var rounds = ROUNDS.filter(function(r){return r.date === date;}), manual = MAN.filter(function(r){return r.date === date;});
+  var needDay = rounds.some(function(r){return !r.night;}) || manual.some(function(r){return r.shift !== 'N';});
+  var needNight = rounds.some(function(r){return r.night;}) || manual.some(function(r){return r.shift === 'N';});
+  if (needDay && !candidates.some(function(r){return r.shift === 'D';})) return [];
+  if (needNight && !candidates.some(function(r){return r.shift === 'N';})) return [];
+  return candidates.filter(function(r){return (needDay && r.shift === 'D') || (needNight && r.shift === 'N');});
+}
+function patrolValidateConfirmation(rec) {
+  if (!rec || !String(rec.guard || '').trim()) throw new Error('請先填寫巡邏員姓名 / Guard name is required');
+  var missing = patrolCheckMissing(rec);
+  if (missing.length) throw new Error('請先逐項選 ✅ 或 ❌：' + missing.map(function(k){return PC_LABELS[k];}).join('、'));
+  if (patrolCheckHasIssue(rec) && !String(rec.note || '').trim()) throw new Error('有 ❌ 異常時必須先填 Issue note / 異常備註');
+  var photos = Array.isArray(rec.photos) ? rec.photos : [], notes = Array.isArray(rec.photoNotes) ? rec.photoNotes : [];
+  if (photos.length && photos.some(function(_,i){return !String(notes[i] || '').trim();})) throw new Error('每張巡邏照片都必須填寫內容說明 / Caption every patrol photo');
+}
+async function patrolBeforeSummarySend(st) {
+  var p = patrolSummaryPeriod(st);
+  var hasData = ROUNDS.some(function(r){return p.has(r.date) && patrolScopeMatch(st,r,false);}) || MAN.some(function(r){return p.has(r.date) && patrolScopeMatch(st,r,true);});
+  if (!hasData) throw new Error('所選期間沒有巡邏資料，不能發送空白摘要 / No patrol data in the selected period');
+  if (st.ptype === 'day') {
+    var checks = patrolCheckRecordsForDailySummary(st, p);
+    if (!checks.length) {
+      document.getElementById('pcDate').value = p.range().from;
+      document.getElementById('patrolConfirmCard').scrollIntoView({behavior:'smooth',block:'start'});
+      throw new Error('請先完成所選日期的巡邏確認 / Complete the selected day confirmation first');
+    }
+    checks.forEach(patrolValidateConfirmation);
+  }
+  if (st.ptype === 'week' && new Date().getDay() === 1) {
+    var nightChecks = CHECK.filter(function(r){return p.has(r.date) && (r.shift === 'N' || r.shift === 'all');});
+    nightChecks.forEach(patrolValidateConfirmation);
+    var photos = nightChecks.reduce(function(n,r){return n + (Array.isArray(r.photos) ? r.photos.length : 0);},0);
+    if (photos < 2) throw new Error('週一發送週報前，請附上夜班巡邏照片至少 2 張（建議 2–4 張） / Add 2–4 night patrol photos');
+  }
+  return true;
+}
 function openPatrolTelegram() {
   return SEC.tgOpen({ module:'patrol', defaultType:PER.mode, defaultPeriod:PER.key(),
     periods:patrolPeriods, currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); },
     scopeOptions:[{value:'all',label:'全天 All day'},{value:'day',label:'日班 Day shift'},{value:'night',label:'夜班 Night shift'}],
-    defaultScope:'all', summaryPages:patrolSummaryPages, summaryPhotos:patrolSummaryPhotos });
+    defaultScope:'all', summaryPages:patrolSummaryPages, summaryPhotos:patrolSummaryPhotos, beforeSummarySend:patrolBeforeSummarySend });
 }
 function pushSummary() { return openPatrolTelegram(); }
 
@@ -1425,10 +1538,11 @@ async function doUpload(opts) {
   })).concat(CHECK.map(function (r) { return Object.assign({_k:'check'}, r); }));
   return await SEC.cloudPush(TOOL, recs, { rounds: ROUNDS.length, scans: SCAN.length, checkpoints: totalCp(), confirmations:CHECK.length }, { chip:CHIP });
 }
-async function doDownload() {
-  if (!confirm('⬇️☁ 下載會合併巡更棒、人工記錄及巡邏確認；同一時間＋Chip 或同一 ID 不會重複，較新的資料優先。繼續？')) return;
+async function doDownload(opts) {
+  if (!(opts && opts.auto) && !confirm('⬇️☁ 下載會合併巡更棒、人工記錄及巡邏確認；同一時間＋Chip 或同一 ID 不會重複，較新的資料優先。繼續？')) return false;
   var recs = await SEC.cloudPull(TOOL);
-  if (!recs) return;
+  if (!recs) return false;
+  if (recs._cloudMeta && recs._cloudMeta.unchanged) return true;
   var local = SCAN.map(function (s) { return Object.assign({_k:'scan'},s); })
     .concat(MAN.map(function (r) { return Object.assign({_k:'manual'},r); }))
     .concat(CHECK.map(function (r) { return Object.assign({_k:'check'},r); }));
@@ -1439,16 +1553,18 @@ async function doDownload() {
       note:r.note || '', photos:Array.isArray(r.photos) ? r.photos.slice(0, 4) : [], updatedAt:r.updatedAt || '' };
   });
   var m = SEC.mergeRecords('patrol', local, remote);
-  if (!SEC.confirmBlankMerge(m.blankConflicts, '巡邏資料雲端下載確認')) return;
+  if (!(opts && opts.auto) && !SEC.confirmBlankMerge(m.blankConflicts, '巡邏資料雲端下載確認')) return false;
   SCAN = m.records.filter(function (r) { return r._k === 'scan'; }).map(function (r) { return {t:r.t,g:r.g,c:r.c,e:r.e,r:r.r||''}; });
   MAN = m.records.filter(function (r) { return r._k === 'manual'; }).map(function (r) { var x=Object.assign({},r); delete x._k; return x; });
   CHECK = m.records.filter(function (r) { return r._k === 'check'; }).map(function (r) { var x=Object.assign({},r); delete x._k; return x; });
   saveScan(); saveMan(); saveCheck(); rebuild();
   if (recs._cloudMeta && recs._cloudMeta.missingBuckets && recs._cloudMeta.missingBuckets.length) SEC.scheduleAutoCloudSync(TOOL,'repair-missing-cloud-bucket','');
-  SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新；巡更棒 ' + SCAN.length + ' 筆、確認 ' + CHECK.length + ' 筆', 'ok', 6000);
+  if (!(opts && opts.silent)) SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新；巡更棒 ' + SCAN.length + ' 筆、確認 ' + CHECK.length + ' 筆', 'ok', 6000);
+  return true;
 }
 SEC.registerAutoUploader(TOOL, function (opts) { return doUpload(opts); });
-window.addEventListener('load', function () { setTimeout(function () { SEC.retryAutoCloudSync(TOOL); }, 1200); });
+SEC.registerAutoDownloader(TOOL, function (opts) { return doDownload(opts); });
+window.addEventListener('load', function () { setTimeout(function () { SEC.startAutoCloudSync(TOOL); }, 350); });
 </script>
 </body>
 </html>

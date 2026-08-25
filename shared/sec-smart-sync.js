@@ -33,7 +33,7 @@
   }
   function get(action, tool, bucket) {
     var u = url(); if (!u) return Promise.reject(new Error('GAS URL missing'));
-    var q = '?action=' + esc(action) + '&tool=' + esc(tool) + '&_=' + Date.now();
+    var q = '?action=' + esc(action) + '&tool=' + esc(tool) + '&_=' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     if (bucket) q += '&bucket=' + esc(bucket);
     return fetch(u + q, { method:'GET', cache:'no-store' }).then(parseResponse);
   }
@@ -146,16 +146,16 @@
     if (!m || (m.exists === undefined && m.legacy === undefined)) throw new Error('AC SEC smart sync endpoint not deployed');
     return m;
   }
-  async function smartAll(tool, remote) {
+  async function smartAll(tool, remote, wantedKeys) {
     var rows = [], extra = {}, missing = [];
-    var keys = Object.keys(remote.hashes || {}).sort();
+    var keys = Array.isArray(wantedKeys) ? wantedKeys.slice().sort() : Object.keys(remote.hashes || {}).sort();
     for (var i = 0; i < keys.length; i++) {
       try {
         var b = await get('smartBucket', tool, keys[i]);
         var x = extraFrom((b && b.records) || []); rows = rows.concat(x.records); if (Object.keys(x.extra).length) extra = x.extra;
       } catch (e) { missing.push(keys[i]); }
     }
-    if (missing.length) SEC.toast('⚠️ 雲端舊區塊遺失；保留本機資料並於下次上傳修復 / Missing cloud buckets will be repaired', 'warn', 6500);
+    if (missing.length && !SEC._autoSyncSilent) SEC.toast('⚠️ 雲端舊區塊遺失；保留本機資料並於下次上傳修復 / Missing cloud buckets will be repaired', 'warn', 6500);
     return { records:rows, extra:extra, meta:remote.meta || {}, missing:missing };
   }
   function changedRemote(localBuckets, remote, state) {
@@ -180,11 +180,13 @@
     }
     var buckets = buildBuckets(tool, local.records, local.extra), state = stateRead(tool);
     if (!migrated && remote.exists && (changedRemote(buckets, remote, state) || !state) && depth < 2) {
-      var cloud = await smartAll(tool, remote);
+      var previous = state && state.hashes || {}, remoteHashes = remote.hashes || {};
+      var changedRemoteKeys = Object.keys(remoteHashes).filter(function (k) { return !state || previous[k] !== remoteHashes[k]; });
+      var cloud = await smartAll(tool, remote, changedRemoteKeys);
       local = mergeLocal(tool, local.records, normalizeRecords(tool, cloud.records), local.extra, cloud.extra);
       local.records = normalizeRecords(tool, local.records);
-      /* 雲端有新資料時先合併，再在同一輪提交；避免同一頁重複下載。 */
-      remote = { exists:false, hashes:{}, counts:{}, metaHash:'' }; migrated = true;
+      /* Only changed cloud buckets are read.  Keep the remote manifest so
+         unchanged buckets are not uploaded again after the merge. */
     }
     buckets = buildBuckets(tool, local.records, local.extra);
     var remoteH = remote.hashes || {}, remoteC = remote.counts || {}, hashes = {}, counts = {}, changed = [];
@@ -206,11 +208,13 @@
       var stamp = result && (result.timestamp || result.updatedAt) || now();
       stateWrite(tool, { hashes:hashes, counts:counts, metaHash:metaHash, updatedAt:stamp });
       statusDot('ok');
-      SEC.toast('☁️ 智慧上傳完成 / Smart cloud save complete' + (changed.length ? ' · ' + changed.length + ' 個變更區塊' : ''), 'ok', 4500);
+      SEC.markSync(tool);
+      if (!SEC._autoSyncSilent) SEC.toast('☁️ 智慧上傳完成 / Smart cloud save complete' + (changed.length ? ' · ' + changed.length + ' 個變更區塊' : ''), 'ok', 4500);
     } else {
       stateWrite(tool, { hashes:hashes, counts:counts, metaHash:metaHash, updatedAt:now() });
       statusDot('ok');
-      SEC.toast('☁️ 雲端已是最新，無需重傳 / Cloud already up to date', 'ok', 4000);
+      SEC.markSync(tool);
+      if (!SEC._autoSyncSilent) SEC.toast('☁️ 雲端已是最新，無需重傳 / Cloud already up to date', 'ok', 4000);
     }
     return true;
   }
@@ -219,19 +223,30 @@
     var remote = await manifest(tool);
     if (!remote.exists && remote.legacy) return legacyAll(tool);
     if (!remote.exists) { var empty = []; empty._cloudExtra = {}; empty._cloudMeta = {}; return empty; }
-    var all = await smartAll(tool, remote), out = all.records;
+    var state = stateRead(tool), previous = state && state.hashes || {}, remoteHashes = remote.hashes || {};
+    var changedKeys = Object.keys(remoteHashes).filter(function (k) { return !state || previous[k] !== remoteHashes[k]; });
+    if (!changedKeys.length) {
+      var unchanged = [];
+      unchanged._cloudExtra = {};
+      unchanged._cloudMeta = Object.assign({}, remote.meta || {}, { unchanged:true, downloadedBuckets:0, missingBuckets:[] });
+      statusDot('ok'); SEC.markSync(tool); return unchanged;
+    }
+    var all = await smartAll(tool, remote, changedKeys), out = all.records;
     out._cloudExtra = all.extra; out._cloudMeta = Object.assign({}, remote.meta || {}, {
+      downloadedBuckets:changedKeys.length,
       missingBuckets:(remote.missingBuckets || []).concat(all.missing || [])
     });
-    stateWrite(tool, { hashes:remote.hashes || {}, counts:remote.counts || {}, metaHash:remote.metaHash || '', updatedAt:remote.updatedAt || now() });
-    statusDot('ok');
+    var nextHashes = Object.assign({}, remoteHashes);
+    (all.missing || []).forEach(function (k) { if (previous[k]) nextHashes[k] = previous[k]; else delete nextHashes[k]; });
+    stateWrite(tool, { hashes:nextHashes, counts:remote.counts || {}, metaHash:remote.metaHash || '', updatedAt:remote.updatedAt || now() });
+    statusDot('ok'); SEC.markSync(tool);
     return out;
   }
   SEC.cloudPush = async function (tool, records, summary, extra) {
     try { return await smartPush(tool, records, summary, extra || {}); }
     catch (e) {
       console.warn('[AC SEC smart sync fallback]', e);
-      SEC.toast('ℹ️ 智慧同步暫不可用，改用相容上傳 / Smart sync fallback', 'warn', 4500);
+      if (!SEC._autoSyncSilent) SEC.toast('ℹ️ 智慧同步暫不可用，改用相容上傳 / Smart sync fallback', 'warn', 4500);
       return oldPush(tool, records, summary, extra);
     }
   };
@@ -239,7 +254,7 @@
     try { return await smartPull(tool); }
     catch (e) {
       console.warn('[AC SEC smart download fallback]', e);
-      SEC.toast('ℹ️ 智慧下載暫不可用，改用相容下載 / Smart download fallback', 'warn', 4500);
+      if (!SEC._autoSyncSilent) SEC.toast('ℹ️ 智慧下載暫不可用，改用相容下載 / Smart download fallback', 'warn', 4500);
       return oldPull(tool);
     }
   };

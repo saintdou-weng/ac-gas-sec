@@ -417,35 +417,106 @@ async function gasPost(payload) {
 /* ───────── HRA Pay 同步習慣：摘要／核可後自動上傳及失敗重試 ─────────
    只在 localStorage 留一個很小的待辦標記；實際資料仍由各模組的
    doUpload() 讀取，避免把整份資料塞進瀏覽器儲存空間。 */
-var SEC_AUTO_UPLOADERS = {};
+var SEC_AUTO_UPLOADERS = {}, SEC_AUTO_DOWNLOADERS = {}, SEC_AUTO_TIMERS = {}, SEC_AUTO_BUSY = {}, SEC_AUTO_AGAIN = {};
+var SEC_REPORT_TIMERS = {};
 function registerAutoUploader(tool, fn) {
   if (tool && typeof fn === 'function') SEC_AUTO_UPLOADERS[String(tool)] = fn;
 }
+function registerAutoDownloader(tool, fn) {
+  if (tool && typeof fn === 'function') SEC_AUTO_DOWNLOADERS[String(tool)] = fn;
+}
 function autoSyncKey(tool) { return 'ac_sec_auto_sync_' + String(tool || ''); }
-function scheduleAutoCloudSync(tool, reason, period) {
+function reportPeriod(period) {
+  var m = String(period || '').match(/^(\d{4}-\d{2})(?:-(\d{2}))?/);
+  return m ? (m[2] ? m[1] + '-' + m[2] : m[1]) : '';
+}
+function shouldTrackReportUpdate(reason) {
+  return !/(?:telegram|approval|startup|resume|network|retry|queued|repair|cloud)/i.test(String(reason || ''));
+}
+/* Register the business date that was actually edited. GAS applies the
+   previous-month cutoff, so an August edit to June data is intentionally
+   ignored. The client timestamp prevents a later background upload from
+   reopening a reminder after the corresponding summary was already sent. */
+function queueReportUpdate(tool, reason, period, updateAt) {
+  if (!tool || !shouldTrackReportUpdate(reason)) return;
+  /* Master-data edits may carry an ID instead of a business date. Treat those
+     as an update for today; imports and dated records keep their real period,
+     so an August import of June data still stays outside the reminder window. */
+  period = reportPeriod(period) || ymd();
+  var key = String(tool) + '|' + period;
+  clearTimeout(SEC_REPORT_TIMERS[key]);
+  SEC_REPORT_TIMERS[key] = setTimeout(function () {
+    delete SEC_REPORT_TIMERS[key];
+    gasPost({ action:'reportUpdate', tool:String(tool), period:period,
+      reason:String(reason || 'update'), updateAt:Number(updateAt) || Date.now(),
+      needApproval:String(tool) === 'expense' && /security[-_ ]?fee/i.test(String(reason || '')) })
+      .catch(function (e) { console.warn('[AC SEC report reminder]', tool, period, e); });
+  }, 120);
+}
+async function runAutoCloudSync(tool, marker) {
+  tool = String(tool || '');
+  if (!tool || SEC_AUTO_BUSY[tool] || !navigator.onLine) {
+    if (tool && SEC_AUTO_BUSY[tool]) SEC_AUTO_AGAIN[tool] = marker || { reason:'queued', period:'' };
+    return false;
+  }
+  var push = SEC_AUTO_UPLOADERS[tool], pull = SEC_AUTO_DOWNLOADERS[tool];
+  if (typeof push !== 'function') return false;
+  SEC_AUTO_BUSY[tool] = true;
+  SEC._autoSyncSilent = true;
+  try {
+    /* HRA Portal style: local data opens first, then changed cloud buckets are
+       reconciled before changed local buckets are committed. */
+    if (typeof pull === 'function') await pull({ silent:true, auto:true, reason:(marker && marker.reason) || 'background-reconcile' });
+    var ok = await push({ silent:true, auto:true, reason:(marker && marker.reason) || 'background-reconcile', period:(marker && marker.period) || '' });
+    if (ok !== false) {
+      try { localStorage.removeItem(autoSyncKey(tool)); } catch (e) {}
+      markSync(tool);
+    }
+    return ok !== false;
+  } catch (e) {
+    console.warn('[AC SEC auto sync]', tool, e);
+    return false;
+  } finally {
+    SEC._autoSyncSilent = false;
+    SEC_AUTO_BUSY[tool] = false;
+    if (SEC_AUTO_AGAIN[tool]) {
+      var again = SEC_AUTO_AGAIN[tool]; delete SEC_AUTO_AGAIN[tool];
+      scheduleAutoCloudSync(tool, again.reason || 'queued', again.period || '');
+    }
+  }
+}
+function scheduleAutoCloudSync(tool, reason, period, delay) {
   tool = String(tool || ''); if (!tool) return;
   var marker = { tool:tool, reason:String(reason || 'event'), period:String(period || ''), at:Date.now() };
+  queueReportUpdate(tool, marker.reason, marker.period, marker.at);
   try { safeStorageSet(autoSyncKey(tool), JSON.stringify(marker)); } catch (e) {}
-  setTimeout(function () {
-    var fn = SEC_AUTO_UPLOADERS[tool];
-    if (typeof fn !== 'function') return;
-    Promise.resolve().then(function () { return fn({ silent:true, auto:true, reason:marker.reason, period:marker.period }); })
-      .then(function (ok) {
-        if (ok !== false) {
-          try { localStorage.removeItem(autoSyncKey(tool)); } catch (e) {}
-          toast('☁️ 自動保存完成 / Auto cloud save complete', 'ok', 3500);
-        }
-      }).catch(function () { /* 保留標記，下一次開頁時重試 */ });
-  }, 20);
+  clearTimeout(SEC_AUTO_TIMERS[tool]);
+  SEC_AUTO_TIMERS[tool] = setTimeout(function () { runAutoCloudSync(tool, marker); }, Number(delay) >= 0 ? Number(delay) : 900);
 }
 function retryAutoCloudSync(tool) {
   tool = String(tool || ''); if (!tool) return;
   var raw = null;
   try { raw = localStorage.getItem(autoSyncKey(tool)); } catch (e) {}
-  if (!raw) return;
+  if (!raw) return false;
   var m = {}; try { m = JSON.parse(raw) || {}; } catch (e) {}
-  scheduleAutoCloudSync(tool, m.reason || 'retry', m.period || '');
+  scheduleAutoCloudSync(tool, m.reason || 'retry', m.period || '', 180);
+  return true;
 }
+function startAutoCloudSync(tool) {
+  tool = String(tool || ''); if (!tool) return;
+  if (!retryAutoCloudSync(tool)) scheduleAutoCloudSync(tool, 'startup-reconcile', '', 350);
+}
+function resumeAllAutoCloudSync(reason) {
+  if (!navigator.onLine) return;
+  Object.keys(SEC_AUTO_UPLOADERS).forEach(function (tool) {
+    scheduleAutoCloudSync(tool, reason || 'resume', '', 180);
+  });
+}
+G.addEventListener('online', function () { resumeAllAutoCloudSync('network-restored'); });
+G.addEventListener('pageshow', function (e) { if (e.persisted) resumeAllAutoCloudSync('page-resume'); });
+document.addEventListener('visibilitychange', function () {
+  if (!document.hidden) resumeAllAutoCloudSync('app-resume');
+});
 
 /* 雲端上傳（分塊） */
 async function cloudPush(tool, records, summary, extra) {
@@ -474,15 +545,15 @@ async function cloudPush(tool, records, summary, extra) {
     } else {
       var result = await gasPost({ action:'push', tool:tool, syncMode:'merge', records: records || [],
         recordCount: (records||[]).length, summary: summary || {}, extra: extra || {} });
-      if (result && result.keptExisting) toast('ℹ️ 雲端原有較完整資料，已合併保留，沒有刪除較多筆數', 'warn', 5000);
+      if (result && result.keptExisting && !SEC._autoSyncSilent) toast('ℹ️ 雲端原有較完整資料，已合併保留，沒有刪除較多筆數', 'warn', 5000);
     }
     markSync(tool);
     if (dot) dot.className = 'c-dot ok';
-    toast('⬆️☁ ' + T().cloudOk + '（' + (records||[]).length + ' ' + T().records + '）', 'ok');
+    if (!SEC._autoSyncSilent) toast('⬆️☁ ' + T().cloudOk + '（' + (records||[]).length + ' ' + T().records + '）', 'ok');
     return true;
   } catch (e) {
     if (dot) dot.className = 'c-dot err';
-    toast('❌ ' + T().cloudFail + '：' + e.message, 'err', 5000);
+    if (!SEC._autoSyncSilent) toast('❌ ' + T().cloudFail + '：' + e.message, 'err', 5000);
     return false;
   }
 }
@@ -504,7 +575,7 @@ async function cloudPull(tool) {
     return recs;
   } catch (e) {
     if (dot) dot.className = 'c-dot err';
-    toast('❌ ' + T().cloudFail + '：' + e.message, 'err', 5000);
+    if (!SEC._autoSyncSilent) toast('❌ ' + T().cloudFail + '：' + e.message, 'err', 5000);
     return null;
   }
 }
@@ -619,8 +690,10 @@ async function tgSummary(text, module, photo, photos) {
   try {
     var list = Array.isArray(photos) ? photos.filter(Boolean).slice(0, 4) : [];
     if (photo && !list.length) list = [photo];
+    var periodHit = String(text || '').match(/\b(\d{4}-\d{2}-\d{2})\b/);
     var result = await gasPost({ action:'telegram', text:text, module:module||'', lang:_lang,
-      photo:list[0] || '', photos:list });
+      photo:list[0] || '', photos:list, mode:'summary',
+      period:periodHit ? periodHit[1] : '', periodType:periodHit ? 'day' : '' });
     if (!result || result.sent !== true) throw new Error((result && result.error) || 'Telegram API did not confirm delivery / Telegram 未確認送達');
     scheduleAutoCloudSync(module || '', 'telegram-summary', '');
     toast('✈️ Telegram 已送出', 'ok'); return true;
@@ -826,7 +899,7 @@ function tgOpen(opt) {
         var result = opt.onApprovalSend
           ? await opt.onApprovalSend(st, items)
           : await sendApproval({ module:opt.module, period:st.period, title:opt.approvalTitle || '', route:opt.route,
-              lang:st.lang === 'both' ? 'zh' : st.lang, items:items });
+              lang:st.lang === 'both' ? 'zh' : st.lang, periodType:st.ptype, items:items });
         if (!result) throw new Error('核可請求未送出');
         if (opt.onApprovalSent) opt.onApprovalSent(result, st, items);
       }
@@ -875,6 +948,7 @@ async function sendApproval(opt) {
     lang   : opt.lang || _lang,
     route  : opt.route || c.route || 'review',
     requestedBy : c.operator || 'web',
+    periodType : opt.periodType || '',
     items  : opt.items || [],
   };
   if (opt.batch) body.batch = opt.batch;
@@ -1263,8 +1337,9 @@ G.SEC = {
   Period:Period, periodNavHtml:periodNavHtml, bindPeriodNav:bindPeriodNav,
   T:T, lang:lang, setLang:setLang, applyI18n:applyI18n, I18N:BASE_I18N,
   toast:toast, gasPost:gasPost, cloudPush:cloudPush, cloudPull:cloudPull,
-  registerAutoUploader:registerAutoUploader, scheduleAutoCloudSync:scheduleAutoCloudSync,
-  retryAutoCloudSync:retryAutoCloudSync,
+  registerAutoUploader:registerAutoUploader, registerAutoDownloader:registerAutoDownloader,
+  scheduleAutoCloudSync:scheduleAutoCloudSync, retryAutoCloudSync:retryAutoCloudSync,
+  startAutoCloudSync:startAutoCloudSync, runAutoCloudSync:runAutoCloudSync,
   markSync:markSync, lastSync:lastSync, tgSummary:tgSummary, tgOpen:tgOpen,
   recordKey:recordKey, mergeRecords:mergeRecords, mergeObject:mergeObject,
   blankConflictsObject:blankConflictsObject, confirmBlankMerge:confirmBlankMerge,

@@ -206,8 +206,8 @@
 <button class="btn" onclick="saveEdit()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260821d"></script>
-<script src="./shared/sec-smart-sync.js?v=20260821d"></script>
+<script src="./shared/sec-core.js?v=20260824c"></script>
+<script src="./shared/sec-smart-sync.js?v=20260824c"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -1025,10 +1025,11 @@ async function doUpload() {
     .concat(CHG.map(function (r) { return Object.assign({ _k: 'chg' }, r); }));
   return await SEC.cloudPush(TOOL, all, { staff: DB.length, active: active().length, changes: CHG.length }, { roster: ROSTER });
 }
-async function doDownload() {
-  if (!confirm('⬇️☁ 下載會與本機人員資料合併；相同工號以最新資料更新，空白欄位會先確認並保留舊值。繼續？')) return;
+async function doDownload(opts) {
+  if (!(opts && opts.auto) && !confirm('⬇️☁ 下載會與本機人員資料合併；相同工號以最新資料更新，空白欄位會先確認並保留舊值。繼續？')) return false;
   var recs = await SEC.cloudPull(TOOL);
-  if (!recs) return;
+  if (!recs) return false;
+  if (recs._cloudMeta && recs._cloudMeta.unchanged) return true;
   var keep = {};
   DB.forEach(function (r) { if (r.photo && typeof r.photo === 'string') keep[r.empId || r.name] = r.photo; });
   var remoteStaff = recs.filter(function (r) { return r._k !== 'chg'; }).map(function (r) {
@@ -1040,11 +1041,12 @@ async function doDownload() {
   var ex = recs._cloudExtra || {};
   var conflicts = sm.blankConflicts.concat(cm.blankConflicts);
   if (ex.roster && typeof ex.roster === 'object') conflicts = conflicts.concat(SEC.blankConflictsObject(ROSTER, ex.roster));
-  if (!SEC.confirmBlankMerge(conflicts, '保安人員／Roster 雲端下載確認')) return;
+  if (!(opts && opts.auto) && !SEC.confirmBlankMerge(conflicts, '保安人員／Roster 雲端下載確認')) return false;
   DB = sm.records;
   CHG = cm.records;
   if (ex.roster && typeof ex.roster === 'object') ROSTER = SEC.mergeObject(ROSTER, ex.roster);
-  save(); renderAll(); SEC.toast('⬇️☁ 已合併人員 ' + sm.added + ' 新增／' + sm.updated + ' 更新，保留 ' + DB.length + ' 人', 'ok', 5000);
+  save(); renderAll(); if (!(opts && opts.silent)) SEC.toast('⬇️☁ 已合併人員 ' + sm.added + ' 新增／' + sm.updated + ' 更新，保留 ' + DB.length + ' 人', 'ok', 5000);
+  return true;
 }
 function personnelSummaryPeriod(st) {
   var a = SEC.parseD(st.period) || new Date();
@@ -1123,7 +1125,8 @@ function openPersonnelTelegram() {
 }
 function pushSummary() { return openPersonnelTelegram(); }
 SEC.registerAutoUploader(TOOL, function (opts) { return doUpload(opts); });
-window.addEventListener('load', function () { setTimeout(function () { SEC.retryAutoCloudSync(TOOL); }, 1200); });
+SEC.registerAutoDownloader(TOOL, function (opts) { return doDownload(opts); });
+window.addEventListener('load', function () { setTimeout(function () { SEC.startAutoCloudSync(TOOL); }, 350); });
 </script>
 </body>
 </html>

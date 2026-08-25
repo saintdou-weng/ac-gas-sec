@@ -230,8 +230,8 @@
 <button class="btn" onclick="saveDriverManager()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260821d"></script>
-<script src="./shared/sec-smart-sync.js?v=20260821d"></script>
+<script src="./shared/sec-core.js?v=20260824c"></script>
+<script src="./shared/sec-smart-sync.js?v=20260824c"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -463,7 +463,7 @@ var GATE_SPEC = {
 };
 function impGate() {
   SEC.pickExcel(function (sheets) {
-    var added = 0, log = [];
+    var added = 0, log = [], importStart = GATE.length;
     sheets.forEach(function (sh) {
       var rows = sh.rows, hr = -1, map = {};
       for (var r = 0; r < Math.min(rows.length, 12); r++) {
@@ -513,7 +513,7 @@ function impGate() {
       log.push('· <b>' + SEC.esc(sh.name) + '</b>：匯入 <b>' + n + '</b> 筆（標題第 ' + (hr + 1) +
                ' 列，里程欄 ' + kmCols.length + ' 個）');
     });
-    save(); renderAll(); logImp(log.join('<br>'));
+    save(); renderAll(); scheduleCommuteImport(GATE, importStart, 'commute-gate-import'); logImp(log.join('<br>'));
     SEC.toast(added ? '✅ 車輛出入閘匯入 ' + added + ' 筆' : '⚠ 未匯入，請看偵測記錄', added ? 'ok' : 'warn', 5000);
   });
 }
@@ -683,6 +683,11 @@ function del(kind, id) {
    ★ 專用 Excel 匯入器 —— 針對三種實際檔案格式
    ═══════════════════════════════════════════════════════════════════ */
 function logImp(html) { document.getElementById('impLog').innerHTML = '<b>匯入結果</b><br>' + html; }
+function scheduleCommuteImport(arr, from, reason) {
+  var dates = {};
+  (arr || []).slice(from || 0).forEach(function (r) { if (/^\d{4}-\d{2}/.test(String(r.date || ''))) dates[r.date] = true; });
+  Object.keys(dates).forEach(function (d) { SEC.scheduleAutoCloudSync(TOOL, reason, d); });
+}
 
 /* ── ① 車輛派遣：transportation_record 格式 ──
    結構：每張表 = 一位司機；第 1 列「Driver: xxx」；
@@ -692,7 +697,7 @@ function logImp(html) { document.getElementById('impLog').innerHTML = '<b>匯入
    作法：掃描前 8 列找出「Reason / KM」成對欄位，往上回溯取大類名稱。 */
 function impCar() {
   SEC.pickExcel(function (sheets) {
-    var added = 0, log = [];
+    var added = 0, log = [], importStart = CAR.length;
     sheets.forEach(function (sh) {
       var rows = sh.rows;
       /* 找 Reason/KM 標題列 */
@@ -773,7 +778,7 @@ function impCar() {
       log.push('· <b>' + SEC.esc(sh.name) + '</b>（司機 ' + SEC.esc(driver) + '）：匯入 <b>' + n +
                '</b> 筆，偵測到 ' + pairs.length + ' 組用途欄（' + pairs.map(function (p) { return SEC.esc(p.type); }).join('、') + '）');
     });
-    save(); renderAll(); logImp(log.join('<br>'));
+    save(); renderAll(); scheduleCommuteImport(CAR, importStart, 'commute-vehicle-import'); logImp(log.join('<br>'));
     SEC.toast(added ? '✅ 車輛派遣匯入 ' + added + ' 筆' : '⚠ 未匯入，請看偵測記錄', added ? 'ok' : 'warn', 5000);
   });
 }
@@ -781,7 +786,7 @@ function impCar() {
 /* ── ② 摩托車：Motor_Bike 格式（每月一張表；Holiday/Sunday 略過） ── */
 function impBike() {
   SEC.pickExcel(function (sheets) {
-    var added = 0, log = [];
+    var added = 0, log = [], importStart = BIKE.length;
     sheets.forEach(function (sh) {
       var rows = sh.rows, hr = -1, ca = -1, cb = -1, ct = -1, cd = -1, cr = -1;
       for (var r = 0; r < Math.min(rows.length, 10); r++) {
@@ -818,7 +823,7 @@ function impBike() {
       log.push('· <b>' + SEC.esc(sh.name) + '</b>：匯入 <b>' + n + '</b> 筆' +
                (skip ? '（略過假日 ' + skip + ' 天）' : '') + '，標題第 ' + (hr + 1) + ' 列');
     });
-    save(); renderAll(); logImp(log.join('<br>'));
+    save(); renderAll(); scheduleCommuteImport(BIKE, importStart, 'commute-motorbike-import'); logImp(log.join('<br>'));
     SEC.toast(added ? '✅ 摩托車匯入 ' + added + ' 筆' : '⚠ 未匯入，請看偵測記錄', added ? 'ok' : 'warn', 5000);
   });
 }
@@ -837,7 +842,7 @@ var LATE_SPEC = {
 };
 function impLate() {
   SEC.pickExcel(function (sheets) {
-    var added = 0, log = [];
+    var added = 0, log = [], importStart = LATE.length;
     sheets.forEach(function (sh) {
       var res = SEC.parseSheet(sh.rows, LATE_SPEC, { minScore: 3, scan: 12 });
       if (!res.rows.length) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：未偵測到遲到資料（比對分數 ' + res.header.score + '，需 ≥3）'); return; }
@@ -855,7 +860,7 @@ function impLate() {
       log.push('· <b>' + SEC.esc(sh.name) + '</b>：匯入 <b>' + n + '</b> 筆（標題第 ' +
                (res.header.row + 1) + ' 列，比對 ' + res.header.score + ' 欄）');
     });
-    save(); renderAll(); logImp(log.join('<br>'));
+    save(); renderAll(); scheduleCommuteImport(LATE, importStart, 'commute-late-import'); logImp(log.join('<br>'));
     SEC.toast(added ? '✅ 遲到登記匯入 ' + added + ' 筆' : '⚠ 未匯入，請看偵測記錄', added ? 'ok' : 'warn', 5000);
   });
 }
@@ -915,10 +920,11 @@ async function doUpload() {
   );
   return await SEC.cloudPush(TOOL, all, { car: CAR.length, bike: BIKE.length, gate: GATE.length, late: LATE.length, drivers: DRIVERS.length, driverProfiles:DRIVER_PROFILES.length, ocrScans:OCR_SCANS.length });
 }
-async function doDownload() {
-  if (!confirm('⬇️☁ 下載會與本機通勤資料合併；相同紀錄以最新資料更新，空白欄位會先確認並保留舊值。繼續？')) return;
+async function doDownload(opts) {
+  if (!(opts && opts.auto) && !confirm('⬇️☁ 下載會與本機通勤資料合併；相同紀錄以最新資料更新，空白欄位會先確認並保留舊值。繼續？')) return false;
   var recs = await SEC.cloudPull(TOOL);
-  if (!recs) return;
+  if (!recs) return false;
+  if (recs._cloudMeta && recs._cloudMeta.unchanged) return true;
   var local = CAR.map(function (r) { return Object.assign({_k:'car'}, r); })
     .concat(BIKE.map(function (r) { return Object.assign({_k:'bike'}, r); }))
     .concat(GATE.map(function (r) { return Object.assign({_k:'gate'}, r); }))
@@ -927,7 +933,7 @@ async function doDownload() {
     .concat([{ _k:'drivers', id:'commute-driver-list', names:DRIVERS.slice(), updatedAt:new Date().toISOString() },
       { _k:'driverProfiles', id:'commute-driver-profiles', profiles:DRIVER_PROFILES.slice(), updatedAt:new Date().toISOString() }]);
   var m = SEC.mergeRecords(TOOL, local, recs);
-  if (!SEC.confirmBlankMerge(m.blankConflicts, '通勤資料雲端下載確認')) return;
+  if (!(opts && opts.auto) && !SEC.confirmBlankMerge(m.blankConflicts, '通勤資料雲端下載確認')) return false;
   CAR = m.records.filter(function (r) { return r._k === 'car'; });
   BIKE = m.records.filter(function (r) { return r._k === 'bike'; });
   GATE = m.records.filter(function (r) { return r._k === 'gate'; });
@@ -938,7 +944,8 @@ async function doDownload() {
   var dp = m.records.filter(function (r) { return r._k === 'driverProfiles'; })[0];
   if (dp && Array.isArray(dp.profiles)) DRIVER_PROFILES = dp.profiles;
   cleanDriverMaster();
-  save(); renderAll(); SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，共 ' + m.records.length + ' 筆', 'ok', 5000);
+  save(); renderAll(); if (!(opts && opts.silent)) SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，共 ' + m.records.length + ' 筆', 'ok', 5000);
+  return true;
 }
 function commuteSummaryPeriod(st) {
   var a = SEC.parseD(st.period) || new Date();
@@ -1262,7 +1269,8 @@ function commuteOcrSave(){
   SEC.toast('✅ '+commuteOcrText('照片表單已寫入','Photo form imported','បាននាំចូលទម្រង់')+'：'+added+' '+commuteOcrText('新增','added','បន្ថែម')+' / '+updated+' '+commuteOcrText('更新','updated','បានធ្វើបច្ចុប្បន្នភាព')+' / '+skipped+' '+commuteOcrText('跳過','skipped','រំលង')+(invalid?' / '+invalid+' '+commuteOcrText('資料不完整','incomplete','មិនពេញលេញ'):''),'ok',6500);
 }
 SEC.registerAutoUploader(TOOL, function (opts) { return doUpload(opts); });
-window.addEventListener('load', function () { setTimeout(function () { SEC.retryAutoCloudSync(TOOL); }, 1200); });
+SEC.registerAutoDownloader(TOOL, function (opts) { return doDownload(opts); });
+window.addEventListener('load', function () { setTimeout(function () { SEC.startAutoCloudSync(TOOL); }, 350); });
 </script>
 </body>
 </html>

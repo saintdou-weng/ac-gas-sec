@@ -329,8 +329,8 @@
 <button class="btn" onclick="tkSaveEdit()" data-zh="儲存並執行" data-en="Save & process" data-km="រក្សាទុក និងដំណើរការ">儲存並執行</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260821d"></script>
-<script src="./shared/sec-smart-sync.js?v=20260821d"></script>
+<script src="./shared/sec-core.js?v=20260824c"></script>
+<script src="./shared/sec-smart-sync.js?v=20260824c"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -603,7 +603,7 @@ function tkExp() {
 /* 貨櫃車登記表匯入（中英柬三層標題、進出口 P/V 判定） */
 function tkImp() {
   SEC.pickExcel(function (sheets) {
-    var added = 0, log = [], seen = {};
+    var added = 0, log = [], seen = {}, importedDates = {};
     TK.forEach(function (r) { seen[(r.date || '') + '|' + (r.containerNo || '') + '|' + (r.name || '')] = 1; });
     sheets.forEach(function (sh) {
       var rows = sh.rows, hr = -1;
@@ -632,11 +632,13 @@ function tkImp() {
           company: SEC.str(R[6]), isImport: imp, isExport: exp, visitorId: SEC.str(R[9]),
           timeIn: fmtT(R[10]), signIn: SEC.str(R[11]), timeOut: fmtT(R[12]), signOut: SEC.str(R[13]),
           remark: SEC.str(R[14]), src: sh.name });
+        if (date) importedDates[date] = true;
         n++; added++;
       }
       log.push('· <b>' + SEC.esc(sh.name) + '</b>：新增 <b>' + n + '</b> 筆' + (d0 ? '（重複略過 ' + d0 + '）' : ''));
     });
     saveTk(); renderAll();
+    Object.keys(importedDates).forEach(function (d) { SEC.scheduleAutoCloudSync(TOOL, 'container-truck-import', d); });
     document.getElementById('tkLog').innerHTML = '<b>匯入結果</b>：新增 <b>' + added + '</b> 筆<br>' + log.join('<br>');
     SEC.toast(added ? '✅ 匯入 ' + added + ' 筆貨櫃車紀錄' : '⚠ 全部重複或格式不符', added ? 'ok' : 'warn', 5000);
   });
@@ -925,20 +927,22 @@ async function doUpload() {
     .concat(GD.map(function (r) { return Object.assign({ _k: 'gate' }, r); }));
   return await SEC.cloudPush(TOOL, all, { truck: TK.length, inspection: CI.length, gate: GD.length });
 }
-async function doDownload() {
-  if (!confirm('⬇️☁ 下載會與本機三類貨櫃資料合併；相同紀錄以最新資料更新，空白欄位會先確認並保留舊值。繼續？')) return;
+async function doDownload(opts) {
+  if (!(opts && opts.auto) && !confirm('⬇️☁ 下載會與本機三類貨櫃資料合併；相同紀錄以最新資料更新，空白欄位會先確認並保留舊值。繼續？')) return false;
   var recs = await SEC.cloudPull(TOOL);
-  if (!recs) return;
+  if (!recs) return false;
+  if (recs._cloudMeta && recs._cloudMeta.unchanged) return true;
   var local = TK.map(function (r) { return Object.assign({_k:'truck'}, r); })
     .concat(CI.map(function (r) { return Object.assign({_k:'insp'}, r); }))
     .concat(GD.map(function (r) { return Object.assign({_k:'gate'}, r); }));
   var m = SEC.mergeRecords(TOOL, local, recs);
-  if (!SEC.confirmBlankMerge(m.blankConflicts, '貨櫃資料雲端下載確認')) return;
+  if (!(opts && opts.auto) && !SEC.confirmBlankMerge(m.blankConflicts, '貨櫃資料雲端下載確認')) return false;
   TK = m.records.filter(function (r) { return r._k === 'truck'; });
   CI = m.records.filter(function (r) { return r._k === 'insp'; });
   GD = m.records.filter(function (r) { return r._k === 'gate'; });
   saveTk(); saveCi(); saveGd(); renderAll();
-  SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，共 ' + m.records.length + ' 筆', 'ok', 5000);
+  if (!(opts && opts.silent)) SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，共 ' + m.records.length + ' 筆', 'ok', 5000);
+  return true;
 }
 function summaryPeriod(st) {
   var a = SEC.parseD(st.period) || new Date();
@@ -1075,7 +1079,8 @@ qrContainerSubmit=async function(){
 };
 var _contDoDownload=doDownload;doDownload=function(){if(QR_CONT_INFO.mode){SEC.toast('QR upload-only page / QR 頁面只允許上傳','warn');return;}return _contDoDownload.apply(this,arguments);};
 SEC.registerAutoUploader(TOOL, function (opts) { return doUpload(opts); });
-window.addEventListener('load', function () { setTimeout(function () { SEC.retryAutoCloudSync(TOOL); }, 1200); });
+SEC.registerAutoDownloader(TOOL, function (opts) { return doDownload(opts); });
+window.addEventListener('load', function () { setTimeout(function () { SEC.startAutoCloudSync(TOOL); }, 350); });
 setTimeout(containerQrStart,0);
 </script>
 </body>

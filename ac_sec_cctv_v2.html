@@ -252,8 +252,8 @@
 <button class="btn" onclick="saveEdit()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260821d"></script>
-<script src="./shared/sec-smart-sync.js?v=20260821d"></script>
+<script src="./shared/sec-core.js?v=20260824c"></script>
+<script src="./shared/sec-smart-sync.js?v=20260824c"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -775,10 +775,24 @@ function cctvSummaryPhotos(st, pageIndex) {
   var rec = cctvCurrentRecord(cctvSummaryPeriod(st));
   return rec && Array.isArray(rec.photos) ? rec.photos.slice(0, 4) : [];
 }
+async function cctvBeforeSummarySend(st) {
+  var p = cctvSummaryPeriod(st), logs = LOG.filter(function(r){return p.has(r.date);}).sort(function(a,b){return b.date.localeCompare(a.date);});
+  if (!logs.length) throw new Error('所選期間沒有已儲存的 CCTV 巡檢記錄，不能標示正常或發送摘要 / No saved CCTV inspection for this period');
+  var cameras = cctvUniqueCameras(cctvScopedCameras(st));
+  var latest = logs[0];
+  if (!String(latest.by || '').trim()) throw new Error('請先填寫 CCTV 巡檢人並儲存 / Inspector name is required');
+  var pending = cameras.filter(function(c){return cctvRecordStatus(latest,c) === 'pending';});
+  if (pending.length) throw new Error('仍有 ' + pending.length + ' 支攝影機待確認；請全部選正常或異常後儲存 / Cameras are still pending');
+  var missingNotes = logs.filter(function(rec){
+    return cameras.some(function(c){return isBad(cctvRecordStatus(rec,c));}) && !String(rec.note || '').trim();
+  });
+  if (missingNotes.length) throw new Error('CCTV 有異常時必須先填巡檢備註並儲存：' + missingNotes.slice(0,6).map(function(r){return r.date;}).join('、') + ' / Add an anomaly note first');
+  return true;
+}
 function openCctvTelegram(defaultType, defaultPeriod) {
   return SEC.tgOpen({ module:'cctv', forceBilingual:true, defaultType:defaultType || PER.mode, defaultPeriod:defaultPeriod || PER.key(), periods:cctvPeriods,
     currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); }, scopeOptions:cctvScopeOptions(), defaultScope:'all',
-    summaryPages:cctvSummaryPages, summaryPhotos:cctvSummaryPhotos });
+    summaryPages:cctvSummaryPages, summaryPhotos:cctvSummaryPhotos, beforeSummarySend:cctvBeforeSummarySend });
 }
 function pushDay(rec) { return openCctvTelegram('day', rec && rec.date ? rec.date : SEC.ymd()); }
 function pushFault() { return openCctvTelegram(); }
@@ -1183,31 +1197,34 @@ async function doUpload() {
   if (clean.ignored || clean.overflow) SEC.toast('☁️ 已上傳正式 CCTV 編號；忽略非攝影機列 ' + clean.ignored + '，超過 41 支未上傳 ' + clean.overflow, 'warn', 7000);
   return ok;
 }
-async function doDownload() {
-  if (!confirm('⬇️☁ 下載只接受 CCTV A-01／CCTV B-01 類正式編號，最多 41 支；摘要列及超出上限的資料不會納入。相同機號只保留一支，空白欄位會先確認並保留舊值。繼續？')) return;
+async function doDownload(opts) {
+  if (!(opts && opts.auto) && !confirm('⬇️☁ 下載只接受 CCTV A-01／CCTV B-01 類正式編號，最多 41 支；摘要列及超出上限的資料不會納入。相同機號只保留一支，空白欄位會先確認並保留舊值。繼續？')) return false;
   setCctvSyncStatus('Downloading… / 下載中…', 'warn');
   var recs = await SEC.cloudPull(TOOL);
-  if (!recs) { setCctvSyncStatus('❌ Download failed / 下載失敗', 'err'); return; }
+  if (!recs) { setCctvSyncStatus('❌ Download failed / 下載失敗', 'err'); return false; }
+  if (recs._cloudMeta && recs._cloudMeta.unchanged) { setCctvSyncStatus('✅ Cloud is current / 雲端已是最新'); return true; }
   if (recs) {
     var before = DB.length;
     var m = SEC.mergeRecords(TOOL, DB, recs);
-    if (!SEC.confirmBlankMerge(m.blankConflicts, 'CCTV 雲端下載確認')) return;
+    if (!(opts && opts.auto) && !SEC.confirmBlankMerge(m.blankConflicts, 'CCTV 雲端下載確認')) return false;
     var clean = cctvDeduplicate(m.records);
     DB = clean.records;
     var ex = recs._cloudExtra || {};
     if (Array.isArray(ex.log)) {
       var lm = SEC.mergeRecords('cctv-log', LOG, ex.log);
-      if (!SEC.confirmBlankMerge(lm.blankConflicts, 'CCTV 巡檢紀錄下載確認')) return;
+      if (!(opts && opts.auto) && !SEC.confirmBlankMerge(lm.blankConflicts, 'CCTV 巡檢紀錄下載確認')) return false;
       LOG = lm.records;
     }
     save(); renderAll();
     setCctvSyncStatus('⬇️ Download complete / 下載完成 · ' + SEC.lastSync(TOOL) + ' · ' + DB.length + ' cameras', (clean.removed || clean.ignored || clean.overflow) ? 'warn' : '');
     var added = Math.max(0, DB.length - before);
-    SEC.toast('⬇️☁ 已更新 ' + m.updated + ' 筆／新增 ' + added + ' 支；移除重複 ' + clean.removed + '，忽略非攝影機列 ' + clean.ignored + '，超出 41 支未納入 ' + clean.overflow + '；目前共 ' + DB.length + ' 支', (clean.removed || clean.ignored || clean.overflow) ? 'warn' : 'ok', 9000);
+    if (!(opts && opts.silent)) SEC.toast('⬇️☁ 已更新 ' + m.updated + ' 筆／新增 ' + added + ' 支；移除重複 ' + clean.removed + '，忽略非攝影機列 ' + clean.ignored + '，超出 41 支未納入 ' + clean.overflow + '；目前共 ' + DB.length + ' 支', (clean.removed || clean.ignored || clean.overflow) ? 'warn' : 'ok', 9000);
   }
+  return true;
 }
 SEC.registerAutoUploader(TOOL, function (opts) { return doUpload(opts); });
-window.addEventListener('load', function () { setTimeout(function () { SEC.retryAutoCloudSync(TOOL); }, 1200); });
+SEC.registerAutoDownloader(TOOL, function (opts) { return doDownload(opts); });
+window.addEventListener('load', function () { setTimeout(function () { SEC.startAutoCloudSync(TOOL); }, 350); });
 </script>
 </body>
 </html>
