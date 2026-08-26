@@ -177,7 +177,7 @@
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260824c"></script>
+<script src="./shared/sec-core.js?v=20260826b"></script>
 <script src="./shared/sec-smart-sync.js?v=20260824c"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
@@ -339,8 +339,9 @@ function saveNew(submit) {
 }
 function delRec(id) {
   if (!confirm(SEC.T().confirmDel)) return;
+  var old = DB.filter(function (r) { return r.id === id; })[0];
   DB = DB.filter(function (r) { return r.id !== id; });
-  save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'expense-delete', id);
+  save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'expense-delete', old && old.date || '');
 }
 
 /* ═══ 核可 ═══ */

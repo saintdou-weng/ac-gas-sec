@@ -230,7 +230,7 @@
 <button class="btn" onclick="saveDriverManager()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260824c"></script>
+<script src="./shared/sec-core.js?v=20260826b"></script>
 <script src="./shared/sec-smart-sync.js?v=20260824c"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
@@ -672,11 +672,13 @@ function saveDriverManager() {
 }
 function del(kind, id) {
   if (!confirm(SEC.T().confirmDel)) return;
+  var list = ({ car:CAR, bike:BIKE, gate:GATE, late:LATE })[kind] || [];
+  var old = list.filter(function (r) { return r.id === id; })[0];
   if (kind === 'car')  CAR  = CAR.filter(function (r) { return r.id !== id; });
   if (kind === 'bike') BIKE = BIKE.filter(function (r) { return r.id !== id; });
   if (kind === 'gate') GATE = GATE.filter(function (r) { return r.id !== id; });
   if (kind === 'late') LATE = LATE.filter(function (r) { return r.id !== id; });
-  save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'commute-' + kind + '-delete', '');
+  save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'commute-' + kind + '-delete', old && old.date || '');
 }
 
 /* ═══════════════════════════════════════════════════════════════════

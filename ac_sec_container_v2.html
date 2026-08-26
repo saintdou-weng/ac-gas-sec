@@ -329,7 +329,7 @@
 <button class="btn" onclick="tkSaveEdit()" data-zh="儲存並執行" data-en="Save & process" data-km="រក្សាទុក និងដំណើរការ">儲存並執行</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260824c"></script>
+<script src="./shared/sec-core.js?v=20260826b"></script>
 <script src="./shared/sec-smart-sync.js?v=20260824c"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
@@ -555,8 +555,9 @@ async function tkSaveEdit() {
 function tkDel() {
   if (!TK_EDIT) { SEC.closeModal('mTk'); return; }
   if (!confirm(SEC.T().confirmDel)) return;
+  var old = TK.filter(function (r) { return r.id === TK_EDIT; })[0];
   TK = TK.filter(function (r) { return r.id !== TK_EDIT; });
-  saveTk(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'container-truck-delete', TK_EDIT); SEC.closeModal('mTk');
+  saveTk(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'container-truck-delete', old && old.date || ''); SEC.closeModal('mTk');
 }
 function renderTkCo() {
   var all = inPer(TK), co = {};
@@ -745,7 +746,8 @@ function renderCi() {
 }
 function ciDel(id) {
   if (!confirm(SEC.T().confirmDel)) return;
-  CI = CI.filter(function (r) { return r.id !== id; }); saveCi(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'container-inspection-delete', id);
+  var old = CI.filter(function (r) { return r.id === id; })[0];
+  CI = CI.filter(function (r) { return r.id !== id; }); saveCi(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'container-inspection-delete', old && old.date || '');
 }
 function renderCiAna() {
   var list = CI.filter(function (r) { return PER.has(r.date); });
@@ -871,7 +873,8 @@ function renderGd() {
 }
 function gdDel(id) {
   if (!confirm(SEC.T().confirmDel)) return;
-  GD = GD.filter(function (r) { return r.id !== id; }); saveGd(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'container-gate-delete', id);
+  var old = GD.filter(function (r) { return r.id === id; })[0];
+  GD = GD.filter(function (r) { return r.id !== id; }); saveGd(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'container-gate-delete', old && old.date || '');
 }
 function renderGdAna() {
   var list = GD.filter(function (r) { return PER.has(r.date); });

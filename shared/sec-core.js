@@ -439,10 +439,11 @@ function shouldTrackReportUpdate(reason) {
    reopening a reminder after the corresponding summary was already sent. */
 function queueReportUpdate(tool, reason, period, updateAt) {
   if (!tool || !shouldTrackReportUpdate(reason)) return;
-  /* Master-data edits may carry an ID instead of a business date. Treat those
-     as an update for today; imports and dated records keep their real period,
-     so an August import of June data still stays outside the reminder window. */
-  period = reportPeriod(period) || ymd();
+  /* A reminder must come from an actual dated/monthly operation record.
+     Camera/equipment/driver master IDs are not business periods and must not
+     silently become "today"; that old fallback produced false reminders. */
+  period = reportPeriod(period);
+  if (!period) return;
   var key = String(tool) + '|' + period;
   clearTimeout(SEC_REPORT_TIMERS[key]);
   SEC_REPORT_TIMERS[key] = setTimeout(function () {
@@ -481,13 +482,15 @@ async function runAutoCloudSync(tool, marker) {
     SEC_AUTO_BUSY[tool] = false;
     if (SEC_AUTO_AGAIN[tool]) {
       var again = SEC_AUTO_AGAIN[tool]; delete SEC_AUTO_AGAIN[tool];
-      scheduleAutoCloudSync(tool, again.reason || 'queued', again.period || '');
+      scheduleAutoCloudSync(tool, again.reason || 'queued', again.period || '', undefined, again.at);
     }
   }
 }
-function scheduleAutoCloudSync(tool, reason, period, delay) {
+function scheduleAutoCloudSync(tool, reason, period, delay, updateAt) {
   tool = String(tool || ''); if (!tool) return;
-  var marker = { tool:tool, reason:String(reason || 'event'), period:String(period || ''), at:Date.now() };
+  /* Keep the original business-update timestamp across retry/reload. A retry
+     is transport work, not a new edit, and must never reopen a sent reminder. */
+  var marker = { tool:tool, reason:String(reason || 'event'), period:String(period || ''), at:Number(updateAt) || Date.now() };
   queueReportUpdate(tool, marker.reason, marker.period, marker.at);
   try { safeStorageSet(autoSyncKey(tool), JSON.stringify(marker)); } catch (e) {}
   clearTimeout(SEC_AUTO_TIMERS[tool]);
@@ -499,7 +502,7 @@ function retryAutoCloudSync(tool) {
   try { raw = localStorage.getItem(autoSyncKey(tool)); } catch (e) {}
   if (!raw) return false;
   var m = {}; try { m = JSON.parse(raw) || {}; } catch (e) {}
-  scheduleAutoCloudSync(tool, m.reason || 'retry', m.period || '', 180);
+  scheduleAutoCloudSync(tool, m.reason || 'retry', m.period || '', 180, m.at);
   return true;
 }
 function startAutoCloudSync(tool) {
