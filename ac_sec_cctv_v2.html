@@ -680,6 +680,21 @@ function cctvPeriods(type) {
   return Object.keys(seen);
 }
 function cctvText(lang, zh, en) { return lang === 'en' ? en : zh; }
+/* Telegram compact table helpers. CCTV summaries stay Chinese + English in
+   one clean report so the default bilingual mode does not duplicate lines. */
+function cctvBi(lang, zh, en) { return zh + ' / ' + en; }
+function cctvCell(v, n) {
+  v = String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
+  if (v.length > n) v = v.slice(0, Math.max(1, n - 1)) + '…';
+  while (v.length < n) v += ' ';
+  return v;
+}
+function cctvPre(lines) { return '<pre>' + lines.join('\n') + '</pre>'; }
+function cctvAreaShort(id) {
+  var map = {gate:'Front Gate', bldA:'Building A', fwh:'Finishing WH', bldB:'Building B', back:'Back Gate', house:'7F House', yard:'Yard/Drive', office:'Office'};
+  return map[id] || id || 'Unassigned';
+}
+
 function cctvCurrentRecord(p) {
   var logs = LOG.filter(function (r) { return p.has(r.date); }).slice().sort(function (a,b) { return b.date.localeCompare(a.date); });
   if (logs.length) return logs[0];
@@ -726,54 +741,60 @@ function cctvStatusLine(s, lang) {
 function cctvSummary(st) {
   var p = cctvSummaryPeriod(st), rawList = cctvScopedCameras(st), list = cctvUniqueCameras(rawList),
     a = cctvAudit(rawList), rec = cctvCurrentRecord(p), logs = LOG.filter(function (r) { return p.has(r.date); }),
-    bad = rec ? list.filter(function (c) { return isBad(cctvRecordStatus(rec, c)); }) : [],
     overall = cctvStats(list, rec),
     uptime = overall.pending || !(overall.ok + overall.off + overall.blur + overall.fault) ? null : Math.round(overall.ok / Math.max(1, overall.ok + overall.off + overall.blur + overall.fault) * 100),
-    lang = st.lang || 'zh', txt = '📷 <b>' + cctvText(lang, 'CCTV 監控摘要', 'CCTV Monitoring Summary') + '</b> · ' + SEC.esc(p.label()) + '\n' +
-      cctvText(lang, '範圍', 'Scope') + '：' + SEC.esc(cctvScopeLabel(st, lang)) + '\n─────────────\n' +
-      '📊 ' + cctvText(lang, '攝影機總數', 'Camera total') + '：<b>' + list.length + '</b> · ' + cctvText(lang, '已檢查日數', 'Checked days') + '：<b>' + logs.length + '</b>\n';
-  if (a.duplicate.length) txt += '⚠️ ' + cctvText(lang, '重複編號需確認', 'Duplicate camera codes need confirmation') + '：<b>' + a.duplicate.length + '</b> · ' + a.duplicate.slice(0, 10).map(SEC.esc).join(', ') + '\n';
-  if (a.invalid) txt += 'ℹ️ ' + cctvText(lang, '已忽略非攝影機列', 'Non-camera rows ignored') + '：<b>' + a.invalid + '</b>\n';
-  if (a.over) txt += '⚠️ ' + cctvText(lang, '超過 41 支上限，超出的編號未納入', 'The 41-camera limit was reached; extra codes were excluded') + '\n';
-  if (rec) {
-    txt += '📅 ' + cctvText(lang, '最新巡檢', 'Latest check') + '：' + SEC.esc(rec.date) + ' · ' + cctvText(lang, '檢查人', 'Inspector') + '：' + SEC.esc(rec.by || '—') + '\n' +
-      cctvStatusLine(overall, lang) + '\n' +
-      '📊 ' + cctvText(lang, '可用率', 'Uptime') + '：<b>' + (uptime == null ? '—' : uptime + '%') + '</b>' + (bad.length ? ' · ⚠️ ' + cctvText(lang, '異常', 'Anomalies') + '：<b>' + bad.length + '</b>' : '') + '\n';
-  } else {
-    txt += '⚠️ ' + cctvText(lang, '本期間沒有巡檢紀錄；不能判定為正常，全部列為待確認。', 'No inspection record in this period; the cameras are not considered normal and remain pending.') + '\n' + cctvStatusLine(overall, lang) + '\n' +
-      '📊 ' + cctvText(lang, '可用率', 'Uptime') + '：<b>—</b>\n';
-  }
-  ['a','b','common'].forEach(function (fk) {
-    var group = list.filter(function (c) { return factoryOf(c) === fk; });
-    if (!group.length) return;
-    txt += '\n<b>🏭 ' + SEC.esc(factoryLabel(fk, lang)) + ' · ' + group.length + '</b>\n';
-    ZONES.forEach(function (z) {
-      var zoneList = group.filter(function (c) { return (c.zone || 'yard') === z.id; });
-      if (!zoneList.length) return;
-      txt += '· 📍 ' + SEC.esc(znLang(z.id, lang)) + ' · ' + cctvText(lang, '總數', 'Total') + ' <b>' + zoneList.length + '</b> · ' + cctvStatusLine(cctvStats(zoneList, rec), lang) + '\n';
-    });
-  });
-  if (rec && rec.note) txt += '\n📝 <b>' + cctvText(lang, '巡檢備註／通知', 'Inspection note / Notice') + '</b>：' + SEC.esc(rec.note) + '\n';
-  if (bad.length) txt += '\n⚠️ ' + cctvText(lang, '有異常攝影機，下一頁列出編號、廠區、區域、NVR／通道及備註。', 'Abnormal cameras are listed on the next page with code, factory, zone, NVR/channel and notes.') + '\n';
-  else if (rec && !overall.pending) txt += '\n✅ ' + cctvText(lang, '本次檢查全部正常。', 'All cameras were normal in this inspection.') + '\n';
-  else if (rec && overall.pending) txt += '\n⚠️ ' + cctvText(lang, '仍有攝影機未確認，不能標示為全部正常。', 'Some cameras are still pending; the inspection cannot be marked all normal.') + '\n';
+    lang = st.lang || 'zh', txt = '📷 <b>' + cctvBi(lang, 'CCTV 監控摘要', 'CCTV Monitoring Summary') + '</b> · ' + SEC.esc(p.label()) + '\n' +
+      cctvBi(lang, '範圍', 'Scope') + '：' + SEC.esc(cctvScopeLabel(st, 'zh')) + ' / ' + SEC.esc(cctvScopeLabel(st, 'en')) + '\n' +
+      '🛡️ AC Security · VRT Sihanoukville\n━━━━━━━━━━━━━━━━\n';
+  var issueTotal = (overall.off || 0) + (overall.blur || 0) + (overall.fault || 0);
+  txt += '<b>📊 ' + cctvBi(lang, '總覽', 'Overview') + '</b>\n' + cctvPre([
+    'Item                 Qty',
+    'Cameras              ' + list.length,
+    'Checked days         ' + logs.length,
+    'Normal               ' + (overall.ok || 0),
+    'Offline              ' + (overall.off || 0),
+    'Blurry               ' + (overall.blur || 0),
+    'Fault                ' + (overall.fault || 0),
+    'Issues total         ' + issueTotal,
+    'Pending              ' + (overall.pending || 0),
+    'Disabled             ' + (overall.dis || 0),
+    'Uptime               ' + (uptime == null ? '—' : uptime + '%')
+  ]) + '\n';
+  if (rec) txt += '📅 ' + cctvBi(lang, '最新巡檢', 'Latest check') + '：<b>' + SEC.esc(rec.date) + '</b> · ' + cctvBi(lang, '檢查人', 'Inspector') + '：<b>' + SEC.esc(rec.by || '—') + '</b>\n';
+  else txt += '⚠️ ' + cctvBi(lang, '本期間沒有巡檢紀錄，狀態視為待確認。', 'No inspection record in this period; status remains pending.') + '\n';
+  var fRows = ['Factory       Tot  OK   Bad  Pend Dis'];
+  ['a','b','common'].forEach(function (fk) { var group=list.filter(function(c){return factoryOf(c)===fk;});if(!group.length)return;var s=cctvStats(group,rec),bn=(s.off||0)+(s.blur||0)+(s.fault||0);fRows.push(cctvCell(fk==='a'?'A Factory':fk==='b'?'B Factory':'Common',14)+cctvCell(group.length,5)+cctvCell(s.ok,5)+cctvCell(bn,5)+cctvCell(s.pending,5)+(s.dis||0)); });
+  if(fRows.length>1) txt+='\n<b>🏭 '+cctvBi(lang,'廠區統計','Factory Breakdown')+'</b>\n'+cctvPre(fRows)+'\n';
+  var zRows=['Area            Tot  OK   Bad  Pend'];
+  ZONES.forEach(function(z){var zoneList=list.filter(function(c){return(c.zone||'yard')===z.id;});if(!zoneList.length)return;var s=cctvStats(zoneList,rec),bn=(s.off||0)+(s.blur||0)+(s.fault||0);zRows.push(cctvCell(cctvAreaShort(z.id),16)+cctvCell(zoneList.length,5)+cctvCell(s.ok,5)+cctvCell(bn,5)+(s.pending||0));});
+  if(zRows.length>1) txt+='\n<b>📍 '+cctvBi(lang,'分區統計','Area Breakdown')+'</b>\n'+cctvPre(zRows)+'\n';
+  if(a.duplicate.length) txt+='\n⚠️ '+cctvBi(lang,'重複編號需確認','Duplicate camera codes')+'：<b>'+a.duplicate.length+'</b> · '+a.duplicate.slice(0,10).map(SEC.esc).join(', ')+'\n';
+  if(a.invalid) txt+='ℹ️ '+cctvBi(lang,'已忽略非攝影機列','Non-camera rows ignored')+'：<b>'+a.invalid+'</b>\n';
+  if(a.over) txt+='⚠️ '+cctvBi(lang,'超過 41 支上限，超出編號未納入','41-camera limit reached; extra codes excluded')+'\n';
+  if(rec&&rec.note) txt+='\n📝 <b>'+cctvBi(lang,'巡檢備註／通知','Inspection Note / Notice')+'</b>：'+SEC.esc(rec.note)+'\n';
+  txt+='\n<i>'+cctvBi(lang,'下一頁會逐支列出所有攝影機：機號、廠別、區域、狀態、NVR、CH、備註及照片；正常資料也保留。','Next pages list every camera: code, factory, area, status, NVR, channel, remark and photos; normal cameras are retained.')+'</i>';
   return txt;
 }
 function cctvSummaryPages(st) {
-  var p = cctvSummaryPeriod(st), rec = cctvCurrentRecord(p), list = cctvUniqueCameras(cctvScopedCameras(st)), pages = [cctvSummary(st)], lines = [];
-  if (rec) list.filter(function (c) { return isBad(cctvRecordStatus(rec, c)); }).forEach(function (c) {
-    var s = cctvRecordStatus(rec, c);
-    lines.push('📷 ' + SEC.esc(c.code || '—') + ' · ' + SEC.esc(c.name || '—') + ' · Factory/廠區 ' + SEC.esc(factoryLabel(factoryOf(c), 'en')) + ' · Zone/區域 ' + SEC.esc(zn(c.zone)) +
-      ' · NVR ' + SEC.esc(c.nvr || '—') + ' / CH ' + SEC.esc(c.ch || '—') + ' · ' + (STAT[s] || STAT.pending).icon + ' ' + SEC.esc((STAT[s] || STAT.pending).en || (STAT[s] || STAT.pending).zh) +
-      ' · Consecutive/連續 ' + consecBad(c.id) + ' days' + (c.remark ? ' · Note/備註 ' + SEC.esc(c.remark) : ''));
-  });
-  if (lines.length) for (var i = 0; i < lines.length; i += 18) pages.push('<b>⚠️ CCTV anomaly details / CCTV 異常明細</b>\n' + lines.slice(i, i + 18).join('\n'));
+  var p=cctvSummaryPeriod(st),rec=cctvCurrentRecord(p),list=cctvUniqueCameras(cctvScopedCameras(st)).slice().sort(function(a,b){return String(a.code||'').localeCompare(String(b.code||''));}),pages=[cctvSummary(st)];
+  for(var i=0;i<list.length;i+=12){
+    var batch=list.slice(i,i+12),lines=['Camera     F   Area            Status NVR    CH  Ph'];
+    batch.forEach(function(c){var s=cctvRecordStatus(rec,c),label=s==='ok'?'OK':s==='off'?'OFF':s==='blur'?'BLUR':s==='fault'?'FAULT':s==='dis'?'DIS':'PEND';lines.push(cctvCell(c.code||'—',11)+cctvCell(factoryOf(c).toUpperCase(),4)+cctvCell(cctvAreaShort(c.zone),16)+cctvCell(label,7)+cctvCell(c.nvr||'—',7)+cctvCell(c.ch||'—',4)+(Array.isArray(c.photos)?c.photos.length:0));});
+    var pg='<b>📷 CCTV 攝影機明細 / Camera Details</b> · '+SEC.esc(p.label())+'\n'+cctvPre(lines);
+    var notes=batch.filter(function(c){return c.remark;}).map(function(c){return '· '+SEC.esc(c.code||'—')+' · '+SEC.esc(c.remark);});
+    if(notes.length) pg+='\n<b>📝 備註 / Notes</b>\n'+notes.join('\n');
+    pages.push(pg);
+  }
+  if(!list.length) pages.push('ℹ️ CCTV：No camera records / 沒有攝影機資料');
   return pages;
 }
 function cctvSummaryPhotos(st, pageIndex) {
-  if (pageIndex !== 0) return [];
-  var rec = cctvCurrentRecord(cctvSummaryPeriod(st));
-  return rec && Array.isArray(rec.photos) ? rec.photos.slice(0, 4) : [];
+  var rec=cctvCurrentRecord(cctvSummaryPeriod(st));
+  if(pageIndex===0) return rec&&Array.isArray(rec.photos)?rec.photos.slice(0,4):[];
+  var list=cctvUniqueCameras(cctvScopedCameras(st)).slice().sort(function(a,b){return String(a.code||'').localeCompare(String(b.code||''));});
+  var batch=list.slice((pageIndex-1)*12,(pageIndex-1)*12+12),out=[];
+  batch.forEach(function(c){out=out.concat(Array.isArray(c.photos)?c.photos:[]);});
+  return out.filter(Boolean).slice(0,4);
 }
 async function cctvBeforeSummarySend(st) {
   var p = cctvSummaryPeriod(st), logs = LOG.filter(function(r){return p.has(r.date);}).sort(function(a,b){return b.date.localeCompare(a.date);});

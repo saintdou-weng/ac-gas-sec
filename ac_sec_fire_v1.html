@@ -1289,69 +1289,48 @@ function fireInspectionAbnormalRows(st) {
   });
   return rows;
 }
+
+function fireCell(v,n){v=String(v==null?'':v).replace(/\s+/g,' ').trim();if(v.length>n)v=v.slice(0,Math.max(1,n-1))+'…';while(v.length<n)v+=' ';return v;}
+function firePre(lines){return '<pre>'+lines.join('\n')+'</pre>';}
+function fireStatusShort(e){var s=statusOf(e);return s==='ok'?'OK':s==='soon'?'SOON':s==='over'?'FAULT':'OFF';}
 function fireSummary(st) {
-  var lang = st.lang || 'zh', p = fireSummaryPeriod(st), list = fireScopedEquipment(st),
-    over = list.filter(function (e) { return statusOf(e) === 'over'; }),
-    soon = list.filter(function (e) { return statusOf(e) === 'soon'; }),
-    hs = fireHistoryStats(st), inspBad = fireInspectionAbnormalRows(st),
-    normal = Math.max(0, hs.checked - hs.bad),
-    pending = Math.max(0, list.length - hs.checked),
-    disabled = list.filter(function (e) { return statusOf(e) === 'off'; }).length,
-    factoryCounts = { a:0, b:0, common:0 }, typeCounts = {};
-  list.forEach(function (e) {
-    var fk = factoryOf(e);
-    if (!Object.prototype.hasOwnProperty.call(factoryCounts, fk)) fk = 'common';
-    factoryCounts[fk]++;
-    typeCounts[e.type || 'other'] = (typeCounts[e.type || 'other'] || 0) + 1;
-  });
-  var recorded = hs.checked > 0, abnormal = Math.max(hs.bad || 0, inspBad.length), issueCount = over.length + soon.length + disabled + abnormal, summaryStatus;
-  if (!recorded) {
-    summaryStatus = '⚠️ ' + fireT(lang, '本期間沒有巡檢紀錄，不能判定正常；請完成 ' + pending + ' 項', 'No inspection record in this period; normal status is not confirmed. Complete ' + pending + ' pending item(s)', 'មិនមានកំណត់ត្រាត្រួតពិនិត្យក្នុងរយៈពេលនេះទេ; មិនអាចបញ្ជាក់ថាធម្មតា។ សូមបំពេញ ' + pending + ' ធាតុ') + '\n';
-  } else if (abnormal || over.length || soon.length || disabled) {
-    summaryStatus = '✅ ' + fireT(lang, '已記錄正常', 'Recorded normal', 'ធម្មតាដែលបានកត់ត្រា') + '：<b>' + normal + '</b>' + (abnormal ? ' · ⛔ ' + fireT(lang, '巡檢異常', 'Inspection abnormal', 'មិនប្រក្រតី') + '：<b>' + abnormal + '</b>' : '') + (soon.length ? ' · ⏰ ' + fireT(lang, '日期將近', 'Date approaching', 'កាលបរិច្ឆេទជិតដល់') + '：<b>' + soon.length + '</b>' : '') + (over.length ? ' · ⛔ ' + fireT(lang, '故障／日期已過', 'Fault / date passed', 'ខូច / ហួសកាលបរិច្ឆេទ') + '：<b>' + over.length + '</b>' : '') + '\n';
-  } else {
-    summaryStatus = '✅ ' + fireT(lang, '本期間已登錄設備全部正常', 'All recorded equipment is normal in this period', 'ឧបករណ៍ដែលបានកត់ត្រាក្នុងរយៈពេលនេះទាំងអស់ធម្មតា') + '\n';
-  }
-  var txt = '🧯 <b>' + fireT(lang, '消防設備摘要', 'Fire Equipment Summary', 'សង្ខេបឧបករណ៍ពន្លត់អគ្គិភ័យ') + '</b> · ' + SEC.esc(p.label()) +
-      '\n' + fireT(lang, '範圍', 'Scope', 'វិសាលភាព') + '：' + fireScopeLabel(st, lang) + '\n─────────────\n' +
-      fireT(lang, '設備總數', 'Equipment', 'ឧបករណ៍') + '：<b>' + list.length + '</b> · ' + fireT(lang, '本期間已檢查', 'Checked in period', 'បានត្រួតពិនិត្យក្នុងរយៈពេល') + '：<b>' + hs.checked + '</b> · ' + fireT(lang, '待檢', 'Pending', 'រង់ចាំ') + '：<b>' + pending + '</b>\n' +
-      '🏭 ' + fireT(lang, 'A廠', 'A Factory', 'រោងចក្រ A') + '：<b>' + factoryCounts.a + '</b> · ' + fireT(lang, 'B廠', 'B Factory', 'រោងចក្រ B') + '：<b>' + factoryCounts.b + '</b> · ' + fireT(lang, '公共區域', 'Common', 'តំបន់រួម') + '：<b>' + factoryCounts.common + '</b>\n' +
-      summaryStatus;
-  if (hs.latestDate) txt += '📅 ' + fireT(lang, '最近巡檢', 'Latest inspection', 'ការត្រួតពិនិត្យចុងក្រោយ') + '：' + SEC.esc(hs.latestDate) + ' · ' + fireT(lang, '檢查人', 'Inspector', 'អ្នកត្រួតពិនិត្យ') + '：' + SEC.esc(hs.latestBy || '—') + '\n';
-  var typeLine = Object.keys(typeCounts).map(function (tk) {
-    var t = TYPES[tk] || TYPES.other;
-    return t.icon + ' ' + SEC.esc(lang === 'en' ? t.en : lang === 'km' ? t.km : t.zh) + '：<b>' + typeCounts[tk] + '</b>';
-  }).join(' · ');
-  if (typeLine) txt += '📦 ' + fireT(lang, '設備分類', 'Equipment types', 'ប្រភេទឧបករណ៍') + '：' + typeLine + '\n';
-  if (!list.length) txt += '\n⚠️ ' + fireT(lang, '所選分類沒有設備資料', 'No equipment in the selected category', 'គ្មានឧបករណ៍ក្នុងប្រភេទដែលបានជ្រើស') + '\n';
-  if (over.length || inspBad.length) {
-    txt += '\n<b>⚠️ ' + fireT(lang, '異常重點（僅列異常）', 'Abnormal highlights (abnormal items only)', 'ចំណុចមិនប្រក្រតី (បង្ហាញតែធាតុមិនប្រក្រតី)') + '</b>\n';
-    over.slice(0, 10).forEach(function (e) { txt += fireEquipmentLine(e, lang) + '\n'; });
-    inspBad.slice(0, 10).forEach(function (r) {
-      txt += r.legacy ? '· ' + SEC.esc(r.date) + ' · ' + SEC.esc(r.by || '—') + ' · ' + SEC.esc(r.text || fireT(lang, '巡檢異常', 'Inspection abnormality', 'បញ្ហាការត្រួតពិនិត្យ')) + '\n' :
-        '· <b>' + SEC.esc(r.code || '—') + '</b> · ' + SEC.esc(fireFactoryLang(r.factory, lang)) + ' · ' + SEC.esc(zoneName(r.zone)) + (r.loc ? ' · ' + SEC.esc(r.loc) : '') + (r.note ? ' · ' + SEC.esc(r.note) : '') + '\n';
-    });
-    if (over.length + inspBad.length > 20) txt += '· … ' + fireT(lang, '其餘異常請到設備／巡檢頁查看', 'See Equipment / Inspection pages for remaining anomalies', 'សូមមើលទំព័រឧបករណ៍ / ការត្រួតពិនិត្យសម្រាប់បញ្ហាដែលនៅសល់') + '\n';
-  } else {
-    txt += '\n✅ ' + fireT(lang, '本期間沒有故障、日期已過或巡檢異常。', 'No faulty, date-passed, or inspection-abnormal items in this period.', 'គ្មានធាតុខូច ហួសកាលបរិច្ឆេទ ឬមានបញ្ហាការត្រួតពិនិត្យក្នុងរយៈពេលនេះទេ។');
-  }
+  var lang=st.lang||'zh',p=fireSummaryPeriod(st),list=fireScopedEquipment(st),over=list.filter(function(e){return statusOf(e)==='over';}),soon=list.filter(function(e){return statusOf(e)==='soon';}),hs=fireHistoryStats(st),inspBad=fireInspectionAbnormalRows(st),normal=Math.max(0,hs.checked-hs.bad),pending=Math.max(0,list.length-hs.checked),disabled=list.filter(function(e){return statusOf(e)==='off';}).length,factoryCounts={a:0,b:0,common:0},typeCounts={};
+  list.forEach(function(e){var fk=factoryOf(e);if(!Object.prototype.hasOwnProperty.call(factoryCounts,fk))fk='common';factoryCounts[fk]++;typeCounts[e.type||'other']=(typeCounts[e.type||'other']||0)+1;});
+  var abnormal=Math.max(hs.bad||0,inspBad.length),txt='🧯 <b>'+fireT(lang,'消防設備摘要','Fire Equipment Summary','សង្ខេបឧបករណ៍ពន្លត់អគ្គិភ័យ')+'</b> · '+SEC.esc(p.label())+'\n'+fireT(lang,'範圍','Scope','វិសាលភាព')+'：'+fireScopeLabel(st,lang)+'\n─────────────\n<b>📊 '+fireT(lang,'總覽','Overview','ទិដ្ឋភាពទូទៅ')+'</b>\n'+firePre([
+    'Item                 Qty',
+    'Equipment            '+list.length,
+    'Checked in period    '+hs.checked,
+    'Recorded normal      '+normal,
+    'Inspection abnormal  '+abnormal,
+    'Pending              '+pending,
+    'Due soon             '+soon.length,
+    'Fault / overdue      '+over.length,
+    'Disabled / unset     '+disabled
+  ]);
+  txt+='\n<b>🏭 '+fireT(lang,'廠區統計','Factory breakdown','តាមរោងចក្រ')+'</b>\n'+firePre(['Factory       Qty','A Factory     '+factoryCounts.a,'B Factory     '+factoryCounts.b,'Common        '+factoryCounts.common]);
+  var tl=['Type                 Qty'];Object.keys(typeCounts).forEach(function(k){var t=TYPES[k]||TYPES.other;tl.push(fireCell((lang==='en'?t.en:lang==='km'?t.km:t.zh),21)+typeCounts[k]);});if(tl.length>1)txt+='\n<b>📦 '+fireT(lang,'設備分類','Equipment types','ប្រភេទឧបករណ៍')+'</b>\n'+firePre(tl);
+  if(hs.latestDate)txt+='\n📅 '+fireT(lang,'最近巡檢','Latest inspection','ការត្រួតពិនិត្យចុងក្រោយ')+'：'+SEC.esc(hs.latestDate)+' · '+fireT(lang,'檢查人','Inspector','អ្នកត្រួតពិនិត្យ')+'：'+SEC.esc(hs.latestBy||'—');
+  if(over.length||inspBad.length){txt+='\n\n<b>⚠️ '+fireT(lang,'異常重點','Abnormal highlights','ចំណុចមិនប្រក្រតី')+'</b>';over.slice(0,8).forEach(function(e){txt+='\n'+fireEquipmentLine(e,lang);});inspBad.slice(0,8).forEach(function(r){txt+='\n· '+SEC.esc(r.code||r.date||'—')+' · '+SEC.esc(r.note||r.text||fireT(lang,'巡檢異常','Inspection abnormality','បញ្ហាការត្រួតពិនិត្យ'));});}
+  txt+='\n\n<i>'+fireT(lang,'下一頁逐項列出完整設備欄位：編號、類型、廠別、區域、位置、上次巡檢、到期／更換／服務日期、檢查人、狀態、備註、照片。','Next pages list full equipment fields: code, type, factory, area, location, last check, due/replacement/service dates, inspector, status, remark and photos.','ទំព័របន្ទាប់បង្ហាញវាលឧបករណ៍ពេញលេញ។')+'</i>';
   return txt;
 }
 function fireSummaryPages(st) {
-  /* Telegram summary stays short; the full equipment register remains in Equipment/Data/Excel. */
-  return [fireSummary(st)];
+  var p=fireSummaryPeriod(st),list=fireScopedEquipment(st).slice().sort(function(a,b){return String(factoryOf(a)+a.zone+a.code).localeCompare(String(factoryOf(b)+b.zone+b.code));}),pages=[fireSummary(st)];
+  for(var i=0;i<list.length;i+=9){var b=list.slice(i,i+9),lines=['Code       Type          F Area         Last       Due        Status Ph'];b.forEach(function(e){lines.push(fireCell(e.code||'—',11)+fireCell(fireTypeLabel(e.type),14)+fireCell(factoryOf(e).toUpperCase(),2)+fireCell(zoneName(e.zone),13)+fireCell(e.last||'—',11)+fireCell(dueDate(e)||'—',11)+fireCell(fireStatusShort(e),7)+(e.photos||[]).length);});var pg='<b>🧯 設備明細 / Equipment Details</b> · '+SEC.esc(p.label())+'\n'+firePre(lines);b.forEach(function(e){var dates=[];if(e.expiryDate)dates.push('Expiry '+e.expiryDate);if(e.replacementDate)dates.push('Replace '+e.replacementDate);if(e.serviceDate)dates.push('Service '+e.serviceDate);pg+='\n· '+SEC.esc(e.code||'—')+' · Location/位置 '+SEC.esc(e.loc||'—')+' · Inspector/檢查人 '+SEC.esc(e.inspector||'—')+(dates.length?' · '+dates.map(SEC.esc).join(' · '):'')+(e.remark?' · Note '+SEC.esc(e.remark):'');});pages.push(pg);}return pages;
 }
+
+function fireSummaryPhotos(st,pageIndex){if(pageIndex===0){return fireInspectionSummaryPhotos(st,0);}var list=fireScopedEquipment(st).slice().sort(function(a,b){return String(factoryOf(a)+a.zone+a.code).localeCompare(String(factoryOf(b)+b.zone+b.code));}),b=list.slice((pageIndex-1)*9,(pageIndex-1)*9+9),out=[];b.forEach(function(e){out=out.concat(e.photos||[]);});return out.filter(Boolean).slice(0,4);}
 function openFireTelegram() {
   return SEC.tgOpen({ module:'fire', forceBilingual:true, defaultLang:'both', defaultType:PER.mode, defaultPeriod:PER.key(), periods:firePeriods,
     currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); }, scopeOptions:fireScopeOptions(), defaultScope:'all',
-    summaryPages:fireSummaryPages, summaryPhotos:fireInspectionSummaryPhotos });
+    summaryPages:fireSummaryPages, summaryPhotos:fireSummaryPhotos });
 }
 function fireInspectionRows(st) {
   var p = fireSummaryPeriod(st), rows = [];
   HIST.filter(function (h) { return p.has(h.date); }).forEach(function (h) {
     if (Array.isArray(h.items) && h.items.length) {
       h.items.filter(function (x) { return fireScopeMatch(st, x); }).forEach(function (x) {
-        rows.push({ date:h.date, by:h.by, code:x.code, type:x.type, factory:x.factory || factoryOf(x), zone:x.zone, loc:x.loc, result:x.result, note:x.note || '' });
+        rows.push({ date:h.date, by:h.by, code:x.code, type:x.type, factory:x.factory || factoryOf(x), zone:x.zone, loc:x.loc, result:x.result, note:x.note || '', photos:Array.isArray(x.photos)?x.photos.slice(0,4):[] });
       });
     } else if (!st.scope || st.scope === 'all') {
       rows.push({ date:h.date, by:h.by, aggregate:true, n:h.n, ok:h.ok, bad:h.bad, badList:h.badList || [] });
@@ -1360,34 +1339,18 @@ function fireInspectionRows(st) {
   return rows;
 }
 function fireInspectionSummary(st) {
-  var lang = st.lang || 'zh', rows = fireInspectionRows(st), detail = rows.filter(function (r) { return !r.aggregate; }), checked = 0, ok = 0, bad = 0,
-    latest = rows.slice().sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); })[0];
-  rows.forEach(function (r) { if (r.aggregate) { checked += +r.n || 0; ok += +r.ok || 0; bad += +r.bad || 0; } else { checked++; if (r.result === 'fault') bad++; else ok++; } });
-  var txt = '✅ <b>' + fireT(lang, '消防巡檢摘要', 'Fire Inspection Summary', 'សង្ខេបការត្រួតពិនិត្យអគ្គិភ័យ') + '</b> · ' + SEC.esc(fireSummaryPeriod(st).label()) + '\n─────────────\n' +
-    '📋 ' + fireT(lang, '受檢項目', 'Checked items', 'ធាតុបានត្រួតពិនិត្យ') + '：<b>' + checked + '</b>' + (bad ? ' · ✅ ' + fireT(lang, '正常', 'Normal', 'ធម្មតា') + '：' + ok + ' · ⛔ ' + fireT(lang, '異常', 'Abnormal', 'មិនប្រក្រតី') + '：<b>' + bad + '</b>' : '') + '\n';
-  if (latest) txt += '📅 ' + fireT(lang, '最近巡檢', 'Latest inspection', 'ការត្រួតពិនិត្យចុងក្រោយ') + '：' + SEC.esc(latest.date) + ' · ' + fireT(lang, '檢查人', 'Inspector', 'អ្នកត្រួតពិនិត្យ') + '：' + SEC.esc(latest.by || '—') + '\n';
-  ['a','b','common'].forEach(function (fk) {
-    var n = detail.filter(function (r) { return r.factory === fk; }).length;
-    if (n) txt += '🏭 ' + fireFactoryLang(fk, lang) + '：' + n + '\n';
-  });
-  if (!rows.length) txt += '\nℹ️ ' + fireT(lang, '所選期間沒有巡檢記錄。', 'No inspection records in the selected period.', 'គ្មានកំណត់ត្រាត្រួតពិនិត្យក្នុងរយៈពេលនេះទេ។');
-  if (bad) {
-    txt += '\n<b>⚠️ ' + fireT(lang, '異常項目', 'Abnormal items', 'ធាតុមិនប្រក្រតី') + '</b>\n';
-    rows.filter(function (r) { return r.aggregate ? r.bad : r.result === 'fault'; }).slice(0, 18).forEach(function (r) {
-      txt += r.aggregate ? '· ' + SEC.esc(r.date) + ' · ' + SEC.esc(r.by || '—') + ' · ' + r.bad + '\n' :
-        '· ' + SEC.esc(r.date) + ' · ' + SEC.esc(r.code || '—') + ' · ' + SEC.esc(r.note || fireStatusLang('over', lang)) + '\n';
-    });
-  } else if (checked) txt += '\n✅ ' + fireT(lang, '本期間已登錄的設備全部正常。', 'All inspected equipment in this period is normal.', 'ឧបករណ៍ដែលបានត្រួតពិនិត្យក្នុងរយៈពេលនេះទាំងអស់ធម្មតា។');
+  var lang=st.lang||'zh',rows=fireInspectionRows(st),detail=rows.filter(function(r){return !r.aggregate;}),checked=0,ok=0,bad=0,latest=rows.slice().sort(function(a,b){return String(b.date||'').localeCompare(String(a.date||''));})[0];
+  rows.forEach(function(r){if(r.aggregate){checked+=+r.n||0;ok+=+r.ok||0;bad+=+r.bad||0;}else{checked++;if(r.result==='fault')bad++;else ok++;}});
+  var fc={a:0,b:0,common:0};detail.forEach(function(r){fc[r.factory||'common']=(fc[r.factory||'common']||0)+1;});
+  var txt='✅ <b>'+fireT(lang,'消防巡檢摘要','Fire Inspection Summary','សង្ខេបការត្រួតពិនិត្យអគ្គិភ័យ')+'</b> · '+SEC.esc(fireSummaryPeriod(st).label())+'\n─────────────\n'+firePre(['Item                 Qty','Checked items         '+checked,'Normal                '+ok,'Abnormal              '+bad,'A Factory             '+(fc.a||0),'B Factory             '+(fc.b||0),'Common                '+(fc.common||0)]);
+  if(latest)txt+='\n📅 '+fireT(lang,'最近巡檢','Latest inspection','ការត្រួតពិនិត្យចុងក្រោយ')+'：'+SEC.esc(latest.date)+' · '+fireT(lang,'檢查人','Inspector','អ្នកត្រួតពិនិត្យ')+'：'+SEC.esc(latest.by||'—');
+  if(!rows.length)txt+='\nℹ️ '+fireT(lang,'所選期間沒有巡檢記錄。','No inspection records in the selected period.','គ្មានកំណត់ត្រាត្រួតពិនិត្យក្នុងរយៈពេលនេះទេ។');
+  txt+='\n<i>'+fireT(lang,'下一頁逐筆列出日期、設備、廠別、區域、位置、結果、檢查人、備註及照片。','Next pages list date, equipment, factory, area, location, result, inspector, note and photos.','ទំព័របន្ទាប់បង្ហាញលម្អិតការត្រួតពិនិត្យ។')+'</i>';
   return txt;
 }
 function fireInspectionSummaryPages(st) {
-  var lang = st.lang || 'zh', rows = fireInspectionRows(st), pages = [fireInspectionSummary(st)], lines = [];
-  rows.forEach(function (r) {
-    if (r.aggregate) lines.push('· ' + SEC.esc(r.date) + ' · ' + SEC.esc(r.by || '—') + ' · ' + r.n + ' checked · ' + r.ok + ' OK · ' + r.bad + ' abnormal');
-    else lines.push('· ' + SEC.esc(r.date) + ' · ' + SEC.esc(r.code || '—') + ' · ' + SEC.esc(factoryName(r.factory)) + ' · ' + SEC.esc(zoneName(r.zone)) + ' · ' + SEC.esc(fireStatusLang(r.result === 'fault' ? 'over' : 'ok', lang)) + (r.note ? ' · ' + SEC.esc(r.note) : ''));
-  });
-  for (var i = 0; i < lines.length; i += 20) pages.push('<b>✅ ' + fireT(lang, '巡檢明細', 'Inspection details', 'ព័ត៌មានលម្អិតការត្រួតពិនិត្យ') + '</b>\n' + lines.slice(i, i + 20).join('\n'));
-  return pages;
+  var lang=st.lang||'zh',rows=fireInspectionRows(st),pages=[fireInspectionSummary(st)];
+  for(var i=0;i<rows.length;i+=10){var b=rows.slice(i,i+10),lines=['Date  Code        F Area         Result Inspector'];b.forEach(function(r){if(r.aggregate)lines.push(fireCell(String(r.date||'').slice(5),6)+fireCell('AGG',12)+fireCell('-',2)+fireCell('-',13)+fireCell((r.bad?'ISSUE':'OK'),7)+SEC.esc(fireCell(r.by||'—',14)));else lines.push(fireCell(String(r.date||'').slice(5),6)+SEC.esc(fireCell(r.code||'—',12))+fireCell(String(r.factory||'common').toUpperCase(),2)+SEC.esc(fireCell(zoneName(r.zone),13))+fireCell(r.result==='fault'?'FAULT':'OK',7)+SEC.esc(fireCell(r.by||'—',14)));});var pg='<b>✅ '+fireT(lang,'巡檢明細','Inspection details','ព័ត៌មានលម្អិតការត្រួតពិនិត្យ')+'</b>\n'+firePre(lines);b.forEach(function(r){if(r.aggregate){pg+='\n· '+SEC.esc(r.date||'—')+' · Checked '+(r.n||0)+' · OK '+(r.ok||0)+' · Abnormal '+(r.bad||0)+(r.badList&&r.badList.length?' · '+r.badList.map(SEC.esc).join('、'):'');}else{pg+='\n· '+SEC.esc(r.code||'—')+' · Location/位置 '+SEC.esc(r.loc||'—')+(r.note?' · Note '+SEC.esc(r.note):'');}});pages.push(pg);}return pages;
 }
 function openFireInspectionTelegram() {
   return SEC.tgOpen({ module:'fire', forceBilingual:true, defaultLang:'both', defaultType:PER.mode, defaultPeriod:PER.key(), periods:firePeriods,
@@ -1614,16 +1577,8 @@ renderList = function () {
   });
 };
 function fireInspectionSummaryPhotos(st, pageIndex) {
-  if (pageIndex !== 0) return [];
-  var p = fireSummaryPeriod(st), out = [];
-  HIST.slice().sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); }).forEach(function (h) {
-    if (!p.has(h.date)) return;
-    (h.photos || []).forEach(function (photo) { if (out.length < 4 && photo) out.push(photo); });
-    (h.items || []).filter(function (x) { return fireScopeMatch(st, x); }).forEach(function (x) {
-      (x.photos || []).forEach(function (photo) { if (out.length < 4 && photo) out.push(photo); });
-    });
-  });
-  return out;
+  if(pageIndex===0){var p=fireSummaryPeriod(st),out=[];HIST.slice().sort(function(a,b){return String(b.date||'').localeCompare(String(a.date||''));}).forEach(function(h){if(!p.has(h.date))return;(h.photos||[]).forEach(function(photo){if(out.length<4&&photo)out.push(photo);});(h.items||[]).filter(function(x){return fireScopeMatch(st,x);}).forEach(function(x){(x.photos||[]).forEach(function(photo){if(out.length<4&&photo)out.push(photo);});});});return out;}
+  var rows=fireInspectionRows(st),b=rows.slice((pageIndex-1)*10,(pageIndex-1)*10+10),out2=[];b.forEach(function(r){out2=out2.concat(r.photos||[]);});return out2.filter(Boolean).slice(0,4);
 }
 /* ═══ 20260815d: equipment-only Fire Facility presentation ═══ */
 var _fireDueByCycle = dueDate;

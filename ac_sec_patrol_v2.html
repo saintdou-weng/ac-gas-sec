@@ -1284,38 +1284,61 @@ async function closeIssue(id) {
 }
 
 /* ═══════════ 推送 ═══════════ */
-function patrolNightSummary(st) {
+function patrolNightPageDefs(st) {
   var p = patrolSummaryPeriod(st), min = parseInt(document.getElementById('nightMin').value, 10) || 12;
   var TC = totalCp();
-  var list = ROUNDS.filter(function (r) { return p.has(r.date) && r.night; });
+  var list = ROUNDS.filter(function (r) { return p.has(r.date) && r.night; }).slice().sort(function(a,b){return b.start.localeCompare(a.start);});
   var byN = {};
   list.forEach(function (r) {
     var d = r.date;
     if (r.hour < 6) { var dd = new Date(d.replace(/-/g, '/')); dd.setDate(dd.getDate() - 1); d = SEC.ymd(dd); }
-    if (!byN[d]) byN[d] = { n: 0, bad: 0, g: {} };
-    byN[d].n++; byN[d].g[r.g] = 1;
+    if (!byN[d]) byN[d] = { n: 0, bad: 0, g: {}, rounds: [] };
+    byN[d].n++; byN[d].g[r.g || '—'] = 1; byN[d].rounds.push(r);
     if (!roundComplete(r)) byN[d].bad++;
   });
-  var ks = Object.keys(byN).sort().reverse();
-  var short = ks.filter(function (k) { return byN[k].n < min; });
-  var txt = '🌙 <b>夜間巡邏檢查</b>\n' + SEC.esc(p.label()) + '\n─────────────\n' +
-    '標準：每晚至少 <b>' + min + '</b> 圈（每圈 ' + TC + ' 點）\n' +
-    '夜巡總圈數：<b>' + list.length + '</b>\n達標：' + (ks.length - short.length) + ' / ' + ks.length + ' 夜\n';
-  if (short.length) {
-    txt += '\n⛔ <b>巡邏不足（' + short.length + ' 夜）</b>\n';
-    short.slice(0, 12).forEach(function (k) {
-      txt += '· ' + k + ' 夜 · <b>' + byN[k].n + '/' + min + '</b> 圈 · ' + Object.keys(byN[k].g).join('、') + '\n';
-    });
-    txt += '\n👮 請追查當班主管並補正紀錄。';
-  } else { txt += '\n✅ 全數達標。'; }
-  var badTotal = ks.reduce(function (s, k) { return s + byN[k].bad; }, 0);
-  if (badTotal) txt += '\n\n⚠️ 另有 <b>' + badTotal + '</b> 圈未走完全部 ' + TC + ' 個巡邏點。';
-  return txt;
+  var ks = Object.keys(byN).sort().reverse(), short = ks.filter(function (k) { return byN[k].n < min; });
+  var badTotal = ks.reduce(function (sum,k) { return sum + byN[k].bad; }, 0);
+  var nightPhotos = [];
+  CHECK.filter(function(r){return p.has(r.date) && (r.shift === 'N' || r.shift === 'all');}).forEach(function(r){nightPhotos=nightPhotos.concat(r.photos||[]);});
+  MAN.filter(function(r){return p.has(r.date) && r.shift === 'N';}).forEach(function(r){nightPhotos=nightPhotos.concat(r.photos||[]);});
+  var txt = '🌙 <b>夜間巡邏達標摘要 / Night Patrol Compliance</b> · ' + SEC.esc(p.label()) + '\n' +
+    '🛡️ AC Security · VRT Sihanoukville\n━━━━━━━━━━━━━━━━\n' +
+    '<b>📊 總覽 / Overview</b>\n' + patrolPre([
+      'Field                 Value',
+      'Target / night        ' + patrolCell(min + ' rounds', 12),
+      'Checkpoints / round   ' + patrolCell(TC, 12),
+      'Night rounds          ' + patrolCell(list.length, 12),
+      'Nights recorded       ' + patrolCell(ks.length, 12),
+      'Qualified nights      ' + patrolCell(ks.length - short.length, 12),
+      'Short nights          ' + patrolCell(short.length, 12),
+      'Incomplete rounds     ' + patrolCell(badTotal, 12),
+      'Attached photos       ' + patrolCell(nightPhotos.filter(Boolean).length, 12)
+    ]) + '\n\n<i>每晚與每圈明細於後續欄位頁完整列出；照片隨對應摘要附上。 / Night and round details are listed in field pages; photos follow the summary.</i>';
+  var defs=[{text:txt,photos:nightPhotos.filter(Boolean).slice(0,4)}];
+  for(var i=0;i<ks.length;i+=10){
+    var dates=ks.slice(i,i+10),lines=['Date   Rounds Target Bad Guards        Result'];
+    dates.forEach(function(d){var x=byN[d],guards=Object.keys(x.g).join('/');lines.push(patrolCell(patrolShortDate(d),7)+patrolCell(x.n,7)+patrolCell(min,7)+patrolCell(x.bad,4)+SEC.esc(patrolCell(guards,14))+(x.n<min?'SHORT':x.bad?'CHECK':'OK'));});
+    var detail='<b>📅 每晚達標 / Night-by-Night</b>\n'+patrolPre(lines);
+    dates.forEach(function(d){var x=byN[d];if(x.n<min||x.bad)detail+='\n· '+SEC.esc(d)+' · '+(x.n<min?'不足 / Short '+x.n+'/'+min:'圈數達標 / Target met')+(x.bad?' · 未完整 / Incomplete '+x.bad:'');});
+    var ph=[]; CHECK.filter(function(r){return dates.indexOf(r.date)>=0&&(r.shift==='N'||r.shift==='all');}).forEach(function(r){ph=ph.concat(r.photos||[]);});
+    defs.push({text:detail,photos:ph.filter(Boolean).slice(0,4)});
+  }
+  for(var j=0;j<list.length;j+=12){
+    var rb=list.slice(j,j+12),rl=['Date  Time        Guard         CP     Min Result'];
+    rb.forEach(function(r){var exp=roundExpected(r),miss=roundMissing(r).map(chipName);rl.push(patrolCell(patrolShortDate(r.date),6)+patrolCell(r.start.slice(11,16)+'-'+r.end.slice(11,16),12)+SEC.esc(patrolCell(r.g||'—',14))+patrolCell(r.chips.length+'/'+exp,7)+patrolCell(r.dur,4)+(miss.length?'MISS '+miss.length:'OK'));});
+    var rp='<b>🔄 夜巡逐圈 / Night Round Details</b>\n'+patrolPre(rl);
+    rb.forEach(function(r){var miss=roundMissing(r).map(chipName);if(miss.length)rp+='\n· '+SEC.esc(r.date+' '+r.start.slice(11,16)+' · '+(r.g||'—'))+' · Miss/漏點：'+miss.map(SEC.esc).join('、');});
+    defs.push({text:rp,photos:[]});
+  }
+  return defs;
 }
+function patrolNightSummary(st) { return patrolNightPageDefs(st)[0].text; }
+function patrolNightSummaryPages(st) { return patrolNightPageDefs(st).map(function(x){return x.text;}); }
+function patrolNightSummaryPhotos(st, pageIndex) { var d=patrolNightPageDefs(st)[pageIndex]; return d&&d.photos?d.photos.slice(0,4):[]; }
 function openPatrolNightTelegram() {
   return SEC.tgOpen({ module:'patrol', defaultType:PER.mode, defaultPeriod:PER.key(),
     periods:patrolPeriods, currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); },
-    summary:patrolNightSummary });
+    summaryPages:patrolNightSummaryPages, summaryPhotos:patrolNightSummaryPhotos });
 }
 function pushNight() {
   return openPatrolNightTelegram();
@@ -1340,6 +1363,19 @@ function latestPatrolPeriod(type) {
   return known.indexOf(current) >= 0 ? current : (known.length ? known[known.length - 1] : current);
 }
 function ptt(lang, zh, en, km) { return lang === 'en' ? en : lang === 'km' ? km : zh; }
+/* Telegram compact report helpers: Chinese + English are intentionally kept
+   together so the default bilingual mode stays clean instead of duplicating
+   each line. Tables use short ASCII headers for stable mobile alignment. */
+function patrolBi(lang, zh, en, km) { return lang === 'km' ? (km || zh) : (zh + ' / ' + en); }
+function patrolCell(v, n) {
+  v = String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
+  if (v.length > n) v = v.slice(0, Math.max(1, n - 1)) + '…';
+  while (v.length < n) v += ' ';
+  return v;
+}
+function patrolPre(lines) { return '<pre>' + lines.join('\n') + '</pre>'; }
+function patrolShortDate(v) { v = String(v || ''); return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v.slice(5) : v.slice(0, 5); }
+
 function patrolScopeMatch(st, r, manual) {
   if (!st.scope || st.scope === 'all') return true;
   var night = manual ? r.shift === 'N' : !!r.night;
@@ -1353,86 +1389,81 @@ function patrolSummary(st) {
   var TC = totalCp(), full = list.filter(roundComplete).length;
   var night = list.filter(function (r) { return r.night; }).length, issues = manual.filter(function (r) { return r.status === 'issue'; });
   var byG = {}, byD = {};
-  list.forEach(function (r) { byG[r.g] = (byG[r.g] || 0) + 1; byD[r.date] = (byD[r.date] || 0) + 1; });
-  var txt = '🚨 <b>' + ptt(st.lang, '巡邏摘要', 'Patrol Summary', 'សេចក្តីសង្ខេបល្បាត') + '</b> · ' + SEC.esc(p.label()) + '\n' +
+  list.forEach(function (r) { byG[r.g || '—'] = (byG[r.g || '—'] || 0) + 1; byD[r.date] = (byD[r.date] || 0) + 1; });
+  var checks = CHECK.filter(function (r) { return p.has(r.date) && (!st.scope || st.scope === 'all' || (st.scope === 'night' ? r.shift === 'N' : r.shift === 'D')); });
+  var badChecks = checks.filter(function (r) { return patrolCheckHasIssue(r) || patrolCheckMissing(r).length || r.note; });
+  var lang = st.lang || 'zh';
+  var txt = '🚨 <b>' + patrolBi(lang, '巡邏摘要', 'Patrol Summary', 'សេចក្តីសង្ខេបល្បាត') + '</b> · ' + SEC.esc(p.label()) + '\n' +
     '🕐 ' + patrolScopeLabel(st) + '\n' +
     '🛡️ AC Security · VRT Sihanoukville\n━━━━━━━━━━━━━━━━\n' +
-    '🔄 ' + ptt(st.lang, '巡邏圈數', 'Patrol rounds', 'ជុំល្បាត') + '：<b>' + list.length + '</b>\n' +
-    '✅ ' + ptt(st.lang, '完整圈', 'Complete rounds', 'ជុំពេញ') + '：<b>' + full + '</b>（' + (list.length ? Math.round(full / list.length * 100) : 0) + '%）\n' +
-    '⛔ ' + ptt(st.lang, '漏點圈', 'Incomplete rounds', 'ជុំខ្វះ') + '：' + (list.length - full) + '\n' +
-    '🌙 ' + ptt(st.lang, '夜巡圈', 'Night rounds', 'ជុំយប់') + '：' + night + ' · 📍 ' + ptt(st.lang, '巡邏點', 'Checkpoints', 'ចំណុច') + '：' + TC + '\n' +
-    '📝 ' + ptt(st.lang, '人工記錄', 'Manual entries', 'កំណត់ត្រាដោយដៃ') + '：' + manual.length + ' · ⚠️ ' + ptt(st.lang, '異常備註', 'Issue notes', 'កំណត់ចំណាំបញ្ហា') + '：<b>' + issues.length + '</b>\n';
+    '<b>📊 ' + patrolBi(lang, '總覽', 'Overview', 'ទិដ្ឋភាពទូទៅ') + '</b>\n';
+  txt += patrolPre([
+    'Item                 Qty   Rate',
+    'Rounds               ' + patrolCell(list.length, 5) + ' —',
+    'Complete             ' + patrolCell(full, 5) + patrolCell((list.length ? Math.round(full / list.length * 100) : 0) + '%', 5),
+    'Incomplete           ' + patrolCell(list.length - full, 5) + '—',
+    'Night rounds         ' + patrolCell(night, 5) + '—',
+    'Checkpoints          ' + patrolCell(TC, 5) + '—',
+    'Manual entries       ' + patrolCell(manual.length, 5) + '—',
+    'Manual issues        ' + patrolCell(issues.length, 5) + '—',
+    'Check exceptions     ' + patrolCell(badChecks.length, 5) + '—'
+  ]) + '\n';
   if (!list.length && !manual.length && (ROUNDS.length || MAN.length)) {
     var available = patrolPeriods('month').sort().slice(-6).reverse();
-    txt += '\n⚠️ <b>' + ptt(st.lang, '所選期間沒有巡邏資料', 'No patrol data in the selected period', 'គ្មានទិន្នន័យល្បាតក្នុងរយៈពេលដែលបានជ្រើស') + '</b>' +
-      (available.length ? '\n' + ptt(st.lang, '已有資料月份', 'Available months', 'ខែដែលមានទិន្នន័យ') + '：' + available.join('、') : '') + '\n';
+    txt += '\n⚠️ <b>' + patrolBi(lang, '所選期間沒有巡邏資料', 'No patrol data in selected period', 'គ្មានទិន្នន័យល្បាត') + '</b>' +
+      (available.length ? '\n' + patrolBi(lang, '已有資料月份', 'Available months', 'ខែមានទិន្នន័យ') + '：' + available.join('、') : '') + '\n';
   }
   var gk = Object.keys(byG).sort(function (a, b) { return byG[b] - byG[a]; });
-  if (gk.length) { txt += '\n<b>👮 ' + ptt(st.lang, '巡邏員統計', 'Guard breakdown', 'តាមអ្នកយាម') + '</b>\n'; gk.slice(0, 15).forEach(function (k) { txt += '· ' + SEC.esc(k || '—') + '：' + byG[k] + '\n'; }); }
-  if (issues.length) {
-    txt += '\n<b>⚠️ ' + ptt(st.lang, '異常／備註', 'Issues / remarks', 'បញ្ហា／កំណត់ចំណាំ') + '</b>\n';
-    issues.slice(0, 12).forEach(function (r) { txt += '· ' + SEC.esc(r.date + ' ' + (r.time || '')) + ' · ' + SEC.esc(r.guard || '—') + ' · ' + SEC.esc(r.location || '—') + (r.note ? '\n   📝 ' + SEC.esc(r.note) : '') + '\n'; });
+  if (gk.length) {
+    var gl = ['Guard            Rounds'];
+    gk.slice(0, 12).forEach(function (k) { gl.push(SEC.esc(patrolCell(k || '—', 16)) + patrolCell(byG[k], 6)); });
+    txt += '\n<b>👮 ' + patrolBi(lang, '巡邏員', 'Guards', 'អ្នកយាម') + '</b>\n' + patrolPre(gl) + '\n';
   }
-  var checks = CHECK.filter(function (r) { return p.has(r.date) && (!st.scope || st.scope === 'all' || (st.scope === 'night' ? r.shift === 'N' : r.shift === 'D')); });
-  if (checks.length) {
-    var badChecks = checks.filter(function (r) { return patrolCheckHasIssue(r) || patrolCheckMissing(r).length || r.note; });
-    txt += '\n<b>✅ ' + ptt(st.lang,'巡邏完成確認','Patrol completion checks','ការបញ្ជាក់ល្បាត') + '</b>：' + checks.length +
-      ' · ⚠️ ' + ptt(st.lang,'有備註／未勾','Issues / unchecked','មានបញ្ហា') + ' ' + badChecks.length + '\n';
-    badChecks.slice(0,10).forEach(function (r) {
-      var bad = PC_KEYS.filter(function(k){return patrolCheckValue(r,k)==='issue';});
-      var missing = patrolCheckMissing(r);
-      txt += '· ' + SEC.esc(r.date) + ' · ' + SEC.esc(r.guard || '—') +
-        (bad.length ? ' · ❌ ' + bad.map(function(k){return PC_LABELS[k];}).join(', ') : '') +
-        (missing.length ? ' · ⚠️ Missing ' + missing.map(function(k){return PC_LABELS[k];}).join(', ') : '') +
+  if (Object.keys(byD).length && st.ptype !== 'day') {
+    var dl = ['Date   Rounds'];
+    Object.keys(byD).sort().slice(-20).forEach(function (d) { dl.push(patrolCell(patrolShortDate(d), 7) + patrolCell(byD[d], 6)); });
+    txt += '\n<b>📅 ' + patrolBi(lang, '每日圈數', 'Daily rounds', 'ជុំប្រចាំថ្ងៃ') + '</b>\n' + patrolPre(dl) + '\n';
+  }
+  if (issues.length || badChecks.length) {
+    txt += '\n<b>⚠️ ' + patrolBi(lang, '需注意', 'Attention', 'ត្រូវយកចិត្តទុកដាក់') + '</b>\n' +
+      patrolBi(lang, '人工異常', 'Manual issues', 'បញ្ហាដោយដៃ') + '：<b>' + issues.length + '</b> · ' +
+      patrolBi(lang, '完成確認異常／未勾', 'Check issues / unchecked', 'បញ្ហា/មិនបានគូស') + '：<b>' + badChecks.length + '</b>\n';
+    issues.slice(0, 6).forEach(function (r) {
+      txt += '· ' + SEC.esc(r.date + ' ' + (r.time || '')) + ' · ' + SEC.esc(r.guard || '—') + ' · ' + SEC.esc(r.location || '—') +
         (r.note ? ' · ' + SEC.esc(r.note) : '') + '\n';
     });
+    badChecks.slice(0, 6).forEach(function (r) {
+      var bad = PC_KEYS.filter(function(k){return patrolCheckValue(r,k)==='issue';}), missing = patrolCheckMissing(r);
+      txt += '· ' + SEC.esc(r.date) + ' · ' + SEC.esc(r.guard || '—') +
+        (bad.length ? ' · ❌ ' + bad.map(function(k){return PC_LABELS[k];}).join(', ') : '') +
+        (missing.length ? ' · ⚠️ ' + missing.map(function(k){return PC_LABELS[k];}).join(', ') : '') +
+        (r.note ? ' · ' + SEC.esc(r.note) : '') + '\n';
+    });
+  } else if (checks.length) {
+    txt += '\n✅ ' + patrolBi(lang, '完成確認無異常', 'Completion checks all OK', 'ការបញ្ជាក់ទាំងអស់ធម្មតា') + ' · ' + checks.length + '\n';
   }
   if (st.ptype === 'week') {
     var nightPhotoCount = CHECK.filter(function(r){return p.has(r.date) && (r.shift === 'N' || r.shift === 'all');})
       .reduce(function(n,r){return n + (Array.isArray(r.photos) ? r.photos.length : 0);},0);
-    txt += '\n📸 ' + ptt(st.lang,'夜班巡邏照片','Night-shift patrol photos','រូបថតល្បាតវេនយប់') + '：<b>' + nightPhotoCount + '</b> / 2–4\n';
+    txt += '\n📸 ' + patrolBi(lang,'夜班巡邏照片','Night-shift patrol photos','រូបថតល្បាតវេនយប់') + '：<b>' + nightPhotoCount + '</b> / 2–4\n';
   }
-  if (Object.keys(byD).length) {
-    txt += '\n<b>📅 ' + ptt(st.lang, '每日圈數', 'Daily rounds', 'ជុំប្រចាំថ្ងៃ') + '</b>\n';
-    Object.keys(byD).sort().slice(-20).forEach(function (d) { txt += '· ' + SEC.esc(d) + '：' + byD[d] + '\n'; });
-  }
-  txt += '\n<i>' + ptt(st.lang, '摘要可重複發送；人工異常備註會一併列出。', 'Summary can be resent; manual issue remarks are included.', 'អាចផ្ញើសារសង្ខេបម្តងទៀត និងបញ្ចូលកំណត់ចំណាំបញ្ហាដោយដៃ។') + '</i>';
+  txt += '\n<i>' + patrolBi(lang, '明細採表格分頁；只把異常／漏點另外列出，正常內容不重複堆疊。', 'Details are paged as compact tables; only exceptions are expanded.', 'បង្ហាញជាតារាង និងពង្រីកតែបញ្ហា។') + '</i>';
   return txt;
 }
-function patrolSummaryPages(st) {
-  var p = patrolSummaryPeriod(st), pages = [patrolSummary(st)], lines = [];
-  ROUNDS.filter(function (r) { return p.has(r.date) && patrolScopeMatch(st, r, false); }).slice().sort(function (a,b) { return b.start.localeCompare(a.start); }).forEach(function (r) {
-    var TC = roundExpected(r), miss = roundMissing(r).map(chipName);
-    lines.push('🔄 ' + SEC.esc(r.date) + ' · ' + SEC.esc(r.start.slice(11,16)) + '–' + SEC.esc(r.end.slice(11,16)) +
-      ' · ' + (r.night ? 'Night/夜班' : 'Day/日班') + ' · Guard/巡邏員 ' + SEC.esc(r.g || '—') +
-      ' · ' + r.chips.length + '/' + TC + ' checkpoints · ' + r.dur + ' min' +
-      (miss.length ? ' · Miss/漏點 ' + miss.slice(0, 8).map(SEC.esc).join('、') : ' · Complete/完整'));
-  });
-  MAN.filter(function (r) { return p.has(r.date) && patrolScopeMatch(st, r, true); }).slice().sort(function (a,b) { return (b.date + b.time).localeCompare(a.date + a.time); }).forEach(function (r) {
-    lines.push('📝 ' + SEC.esc(r.date + ' ' + (r.time || '')) + ' · ' + (r.shift === 'N' ? 'Night/夜班' : 'Day/日班') +
-      ' · Guard/巡邏員 ' + SEC.esc(r.guard || '—') + ' · Location/地點 ' + SEC.esc(r.location || '—') +
-      ' · ' + (r.status === 'issue' ? '⚠️ Issue/異常' : '✅ Normal/正常') + (r.note ? ' · Note/備註 ' + SEC.esc(r.note) : ''));
-  });
-  CHECK.filter(function (r) { return p.has(r.date); }).slice().sort(function (a,b) { return b.date.localeCompare(a.date); }).forEach(function (r) {
-    var bad = PC_KEYS.filter(function (k) { return patrolCheckValue(r, k) === 'issue'; });
-    var missing = patrolCheckMissing(r);
-    lines.push('✅ ' + SEC.esc(r.date) + ' · ' + SEC.esc(r.shift || 'all') + ' · Guard/巡邏員 ' + SEC.esc(r.guard || '—') +
-      (bad.length ? ' · ❌ Issue/異常 ' + bad.map(function(k){return PC_LABELS[k];}).join(', ') : (missing.length ? ' · ⚠️ Missing/未確認 ' + missing.map(function(k){return PC_LABELS[k];}).join(', ') : ' · All OK/全部正常')) +
-      (r.note ? ' · Note/備註 ' + SEC.esc(r.note) : '') +
-      (Array.isArray(r.photoNotes) && r.photoNotes.filter(Boolean).length ? ' · 📷 ' + r.photoNotes.filter(Boolean).map(SEC.esc).join('；') : ''));
-  });
-  for (var i = 0; i < lines.length; i += 24) pages.push('<b>🚨 Patrol records / 巡邏明細</b> · ' + patrolScopeLabel(st) + '\n' + lines.slice(i, i + 24).join('\n'));
-  return pages;
+
+function patrolSummaryPageDefs(st){
+  var p=patrolSummaryPeriod(st),defs=[{text:patrolSummary(st),photos:patrolSummaryPhotosBase(st)}];
+  var rr=ROUNDS.filter(function(r){return p.has(r.date)&&patrolScopeMatch(st,r,false);}).slice().sort(function(a,b){return b.start.localeCompare(a.start);});
+  for(var i=0;i<rr.length;i+=12){var b=rr.slice(i,i+12),lines=['Date  Time        S Guard         CP     Min Result'];b.forEach(function(r){var TC=roundExpected(r),miss=roundMissing(r).map(chipName);lines.push(patrolCell(patrolShortDate(r.date),6)+patrolCell(r.start.slice(11,16)+'-'+r.end.slice(11,16),12)+patrolCell(r.night?'N':'D',2)+SEC.esc(patrolCell(r.g||'—',14))+patrolCell(r.chips.length+'/'+TC,7)+patrolCell(r.dur,4)+(miss.length?'MISS '+miss.length:'OK'));});var pg='<b>🔄 巡邏明細 / Patrol Records</b> · '+patrolScopeLabel(st)+'\n'+patrolPre(lines);b.forEach(function(r){var miss=roundMissing(r).map(chipName);if(miss.length)pg+='\n· '+SEC.esc(r.date+' '+r.start.slice(11,16))+' · '+SEC.esc(r.g||'—')+' · Miss/漏點：'+miss.map(SEC.esc).join('、');});defs.push({text:pg,photos:[]});}
+  var man=MAN.filter(function(r){return p.has(r.date)&&patrolScopeMatch(st,r,true);}).slice().sort(function(a,b){return(b.date+b.time).localeCompare(a.date+a.time);});
+  for(var j=0;j<man.length;j+=10){var mb=man.slice(j,j+10),ml=['Date  Time  S Guard         Status Location        Ph'];mb.forEach(function(r){ml.push(patrolCell(patrolShortDate(r.date),6)+patrolCell((r.time||'').slice(0,5),6)+patrolCell(r.shift==='N'?'N':'D',2)+SEC.esc(patrolCell(r.guard||'—',14))+patrolCell(r.status==='issue'?'ISSUE':'OK',7)+SEC.esc(patrolCell(r.location||'—',16))+(r.photos||[]).length);});var mp='<b>📝 人工巡邏 / Manual Patrol</b>\n'+patrolPre(ml);mb.forEach(function(r){if(r.note)mp+='\n· '+SEC.esc(r.date+' '+(r.time||'')+' · '+(r.guard||'—')+' · '+r.note);});var mph=[];mb.forEach(function(r){mph=mph.concat(r.photos||[]);});defs.push({text:mp,photos:mph.filter(Boolean).slice(0,4)});}
+  var checks=CHECK.filter(function(r){return p.has(r.date)&&(!st.scope||st.scope==='all'||(st.scope==='night'?(r.shift==='N'||r.shift==='all'):(r.shift==='D'||r.shift==='all')));}).slice().sort(function(a,b){return b.date.localeCompare(a.date);});
+  for(var k=0;k<checks.length;k+=8){var cb=checks.slice(k,k+8),cl=['Date  S Guard         D W Wa E L F  Result Ph'];cb.forEach(function(r){function v(x){return x==='ok'?'✓':x==='issue'?'X':'-';}var bad=PC_KEYS.filter(function(q){return patrolCheckValue(r,q)==='issue';}),missing=patrolCheckMissing(r);cl.push(patrolCell(patrolShortDate(r.date),6)+patrolCell(r.shift||'A',2)+SEC.esc(patrolCell(r.guard||'—',14))+patrolCell(v(patrolCheckValue(r,'doors')),2)+patrolCell(v(patrolCheckValue(r,'windows')),2)+patrolCell(v(patrolCheckValue(r,'water')),3)+patrolCell(v(patrolCheckValue(r,'electric')),2)+patrolCell(v(patrolCheckValue(r,'lights')),2)+patrolCell(v(patrolCheckValue(r,'fireway')),3)+patrolCell(bad.length?'ISSUE':missing.length?'MISS':'OK',7)+(r.photos||[]).length);});var cp='<b>✅ 巡邏確認 / Completion Check</b>\n'+patrolPre(cl)+'\n<i>D=Doors 門 · W=Windows 窗 · Wa=Water 水 · E=Electricity 電 · L=Lighting 照明 · F=Fire route 消防通道</i>';cb.forEach(function(r){var bad=PC_KEYS.filter(function(q){return patrolCheckValue(r,q)==='issue';}),missing=patrolCheckMissing(r);if(bad.length||missing.length||r.note)cp+='\n· '+SEC.esc(r.date+' · '+(r.guard||'—'))+(bad.length?' · ❌ '+bad.map(function(q){return PC_LABELS[q];}).join(', '):'')+(missing.length?' · ⚠️ '+missing.map(function(q){return PC_LABELS[q];}).join(', '):'')+(r.note?' · '+SEC.esc(r.note):'');});cb.forEach(function(r){var pn=Array.isArray(r.photoNotes)?r.photoNotes.filter(function(x){return String(x||'').trim();}):[];if(pn.length)cp+='\n· '+SEC.esc(r.date+' · '+(r.guard||'—'))+' · Photo/照片：'+pn.map(SEC.esc).join('；');});var cph=[];cb.forEach(function(r){cph=cph.concat(r.photos||[]);});defs.push({text:cp,photos:cph.filter(Boolean).slice(0,4)});}
+  return defs;
 }
-function patrolSummaryPhotos(st, pageIndex) {
-  if (pageIndex !== 0) return [];
-  var p = patrolSummaryPeriod(st), rows = MAN.filter(function (r) {
-    return p.has(r.date) && patrolScopeMatch(st, r, true) && r.photos && r.photos.length && r.status === 'issue';
-  });
-  var out = rows.reduce(function (all, r) { return all.concat(r.photos || []); }, []);
-  CHECK.filter(function (r) { return p.has(r.date); }).forEach(function (r) { out = out.concat(r.photos || []); });
-  return out.slice(0, 4);
-}
+function patrolSummaryPhotosBase(st){var p=patrolSummaryPeriod(st),out=[];MAN.filter(function(r){return p.has(r.date)&&patrolScopeMatch(st,r,true);}).forEach(function(r){out=out.concat(r.photos||[]);});CHECK.filter(function(r){return p.has(r.date);}).forEach(function(r){out=out.concat(r.photos||[]);});return out.filter(Boolean).slice(0,4);}
+function patrolSummaryPages(st) { return patrolSummaryPageDefs(st).map(function(x){return x.text;}); }
+function patrolSummaryPhotos(st, pageIndex) { var d=patrolSummaryPageDefs(st)[pageIndex]; return d&&d.photos?d.photos.slice(0,4):[]; }
 function patrolCheckRecordsForDailySummary(st, p) {
   var date = p.range().from;
   var candidates = CHECK.filter(function (r) { return r.date === date; });

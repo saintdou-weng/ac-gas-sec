@@ -519,23 +519,31 @@ function pushFee() {
   var head = Number(document.getElementById('fHead').value) || STAFF.length;
   var co = document.getElementById('fCo').value.trim() || 'ICSC';
   var rows = STAFF.map(function (r) {
-    var s = stats(r);
-    return { n: r.name, hrs: s.hrs, pay: s.hrs * f.perHr, dHr: s.hrs - f.contractHr };
+    var st = stats(r);
+    return { n: r.name, hrs: st.hrs, pay: st.hrs * f.perHr, dHr: st.hrs - f.contractHr };
   });
-  var cT = f.rate * head, aT = rows.reduce(function (a, x) { return a + x.pay; }, 0);
-  var txt = '💵 <b>保安服務費對帳</b> · ' + ym() + '\n🏢 ' + SEC.esc(co) + '\n─────────────\n' +
-    '合約：' + head + ' 人 × $' + f.rate + ' × ' + f.days + ' 天 × ' + f.hd + ' hr\n' +
-    '每小時單價：$' + f.perHr.toFixed(4) + '\n' +
-    '合約應付：<b>$' + cT.toLocaleString() + '</b>\n' +
-    '實際應付：<b>$' + Math.round(aT).toLocaleString() + '</b>\n' +
-    '差額：<b>' + (aT - cT >= 0 ? '+' : '') + Math.round(aT - cT) + '</b>\n';
+  var cT = f.rate * head, aT = rows.reduce(function (a, x) { return a + x.pay; }, 0), variance=aT-cT;
+  var txt = '💵 <b>保安服務費對帳 / Security Fee Reconciliation</b> · ' + ym() + '\n🏢 ' + SEC.esc(co) + '\n━━━━━━━━━━━━━━━━\n' +
+    '<b>📊 對帳欄位 / Reconciliation</b>\n' + attPre([
+      'Field                 Value',
+      'Headcount             ' + attCell(head, 12),
+      'Contract rate         ' + attCell('$'+Number(f.rate||0).toFixed(2), 12),
+      'Contract days         ' + attCell(f.days, 12),
+      'Hours / day           ' + attCell(f.hd, 12),
+      'Contract hours        ' + attCell(f.contractHr, 12),
+      'Hourly rate           ' + attCell('$'+f.perHr.toFixed(4), 12),
+      'Contract payable      ' + attCell('$'+cT.toLocaleString('en-US',{maximumFractionDigits:2}), 12),
+      'Actual payable        ' + attCell('$'+aT.toLocaleString('en-US',{maximumFractionDigits:2}), 12),
+      'Variance              ' + attCell((variance>=0?'+':'')+'$'+variance.toLocaleString('en-US',{maximumFractionDigits:2}), 12)
+    ]);
   var bad = rows.filter(function (x) { return Math.abs(x.dHr) > 0.01; });
   if (bad.length) {
-    txt += '\n<b>⚠️ 工時與合約不符（' + bad.length + '）</b>\n';
-    bad.slice(0, 15).forEach(function (x) {
-      txt += '· ' + x.n + '：' + x.hrs + ' hr（' + (x.dHr > 0 ? '+' : '') + x.dHr + '）\n';
-    });
-  } else { txt += '\n✅ 全員工時與合約相符。'; }
+    var lines=['Name             Hours  Diff     Pay'];
+    bad.slice(0,20).forEach(function(x){lines.push(SEC.esc(attCell(x.n||'—',17))+attCell(x.hrs,7)+attCell((x.dHr>0?'+':'')+x.dHr,9)+'$'+Number(x.pay||0).toFixed(2));});
+    txt += '\n\n<b>⚠️ 工時差異 / Hour Variance ('+bad.length+')</b>\n'+attPre(lines);
+  } else {
+    txt += '\n\n✅ 全員工時與合約相符 / All recorded hours match the contract.';
+  }
   SEC.tgSummary(txt, 'attendance');
 }
 
@@ -837,6 +845,11 @@ function attendanceStatsFor(r, p) {
   });
   return { c:c, hrs:hrs, workDates:Object.keys(dates).sort() };
 }
+
+/* 20260825e Telegram field/table helpers. Presentation only; attendance data logic is unchanged. */
+function attCell(v,n){v=String(v==null?'':v).replace(/\s+/g,' ').trim();if(v.length>n)v=v.slice(0,Math.max(1,n-1))+'…';while(v.length<n)v+=' ';return v;}
+function attPre(lines){return '<pre>'+lines.join('\n')+'</pre>';}
+function attShortDate(d){return String(d||'').slice(5);}
 function attendanceSummary(st) {
   var p = attSummaryPeriod(st), raw = ATT_LOG.filter(function (r) { return p.has(r.date); });
   var total = { W:0, O:0, R:0, L:0, A:0, H:0 }, hours = 0, details = [];
@@ -849,34 +862,44 @@ function attendanceSummary(st) {
   STAFF.forEach(function (r) { byShift[r.shift || ''] = (byShift[r.shift || ''] || 0) + 1; });
   var txt = '🕐 <b>' + attT(st.lang, '保安出勤摘要', 'Security Attendance Summary', 'សេចក្តីសង្ខេបវត្តមានសន្តិសុខ') + '</b> · ' + SEC.esc(p.label()) + '\n' +
     '🛡️ AC Security · VRT Sihanoukville\n━━━━━━━━━━━━━━━━\n' +
-    '👮 ' + attT(st.lang, '在職人數', 'Active staff', 'បុគ្គលិកសកម្ម') + '：<b>' + STAFF.length + '</b>\n' +
-    '📅 ' + attT(st.lang, '出勤人日', 'Work man-days', 'ថ្ងៃការងារ') + '：<b>' + work + '</b>\n' +
-    '⏱ ' + attT(st.lang, '總工時', 'Total hours', 'ម៉ោងសរុប') + '：<b>' + hours.toLocaleString() + '</b> hr\n' +
-    '🏖 ' + attT(st.lang, '請假', 'Leave', 'ឈប់') + '：' + total.L + ' · ⛔ ' + attT(st.lang, '曠職', 'Absent', 'អវត្តមាន') + '：<b>' + total.A + '</b> · 🕘 ' + attT(st.lang, '原始打卡筆數', 'Raw punch rows', 'ជួរទិន្នន័យដើម') + '：' + raw.length + '\n' +
-    '🟢 W ' + total.W + ' · 🟩 O ' + total.O + ' · ⚪ R ' + total.R + ' · 🔵 H ' + total.H + '\n\n' +
-    '👥 ' + attT(st.lang, '班別人數', 'Staff by shift', 'បុគ្គលិកតាមវេន') + '：A ' + byShift.A + ' · B ' + byShift.B + ' · C ' + byShift.C + '\n';
+    '<b>📊 ' + attT(st.lang,'總覽','Overview','ទិដ្ឋភាពទូទៅ') + '</b>\n' + attPre([
+      'Item                 Qty',
+      'Active staff         ' + STAFF.length,
+      'Work man-days        ' + work,
+      'Total hours          ' + hours.toLocaleString() + ' hr',
+      'Leave                ' + total.L,
+      'Absent               ' + total.A,
+      'Raw punch rows       ' + raw.length,
+      'W / O / R / H        ' + total.W + ' / ' + total.O + ' / ' + total.R + ' / ' + total.H
+    ]) + '\n' +
+    '<b>👥 ' + attT(st.lang,'班別人數','Staff by shift','បុគ្គលិកតាមវេន') + '</b>\n' + attPre([
+      'Shift      Staff',
+      'A          ' + (byShift.A || 0),
+      'B          ' + (byShift.B || 0),
+      'C          ' + (byShift.C || 0),
+      'Other      ' + (byShift[''] || 0)
+    ]);
   var bad = details.filter(function (x) { return x.s.c.A >= 1 || x.s.c.L >= 1; }).sort(function (a,b) { return b.s.c.A - a.s.c.A || b.s.c.L - a.s.c.L; });
   if (bad.length) {
-    txt += '\n<b>⚠️ ' + attT(st.lang, '缺勤／請假人員', 'Absence / leave detail', 'ព័ត៌មានអវត្តមាន／ឈប់') + '</b>\n';
-    bad.slice(0, 20).forEach(function (x) { txt += '· ' + SEC.esc(x.r.name || x.r.empId || '—') + '：A ' + x.s.c.A + ' · L ' + x.s.c.L + '\n'; });
+    var lines=['ID        Name          A   L   W   O'];
+    bad.slice(0,20).forEach(function(x){lines.push(attCell(x.r.empId||'—',10)+attCell(x.r.name||'—',14)+attCell(x.s.c.A,4)+attCell(x.s.c.L,4)+attCell(x.s.c.W,4)+x.s.c.O);});
+    txt += '\n\n<b>⚠️ ' + attT(st.lang,'缺勤／請假人員','Absence / leave detail','ព័ត៌មានអវត្តមាន／ឈប់') + '</b>\n' + attPre(lines);
   }
-  txt += '\n<i>' + attT(st.lang, '摘要可重複發送；所選期間以出勤表與 Day／Night 原始打卡資料合計。', 'Summary can be resent; selected period combines the roster and Day/Night raw punch records.', 'អាចផ្ញើសារសង្ខេបម្តងទៀត；រយៈពេលជ្រើសរើសរួមបញ្ចូលតារាងវត្តមាន និងទិន្នន័យវេនថ្ងៃ／យប់។') + '</i>';
+  txt += '\n\n<i>' + attT(st.lang, '下一頁以固定欄位列出每位保安的班別、崗位、實際出勤、W/O/R/L/A/H、工時及出勤日期；資料內容不省略。', 'Next pages use fixed columns for each guard: shift, post, actual days, W/O/R/L/A/H, hours and work dates; no data fields are removed.', 'ទំព័របន្ទាប់បង្ហាញវាលថេរសម្រាប់បុគ្គលិកម្នាក់ៗ ហើយមិនលុបទិន្នន័យឡើយ។') + '</i>';
   return txt;
 }
 function attendanceSummaryPages(st) {
-  var p = attSummaryPeriod(st), lines = [];
-  STAFF.slice().sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || '')); }).forEach(function (r) {
-    var s = attendanceStatsFor(r, p), dates = s.workDates || [];
-    lines.push('👮 <b>' + SEC.esc(r.name || r.empId || '—') + '</b> · ID ' + SEC.esc(r.empId || '—') + '\n' +
-      '   ' + attT(st.lang, '班別／崗位', 'Shift / Post', 'វេន／ប៉ុស្តិ៍') + '：' + SEC.esc(r.shift || '—') + ' / ' + SEC.esc(r.post || '—') + '\n' +
-      '   ' + attT(st.lang, '實際出勤天數', 'Actual work days', 'ចំនួនថ្ងៃធ្វើការពិត') + '：<b>' + dates.length + '</b> · W ' + s.c.W + ' · O ' + s.c.O + ' · ' +
-      attT(st.lang, '日期', 'Dates', 'កាលបរិច្ឆេទ') + '：' + (dates.length ? dates.join(', ') : '—'));
-  });
-  var pages = [attendanceSummary(st)];
-  for (var i = 0; i < lines.length; i += 12) {
-    pages.push('👮 <b>' + attT(st.lang, '逐人實際出勤明細', 'Per-person actual attendance', 'វត្តមានពិតតាមបុគ្គល') + '</b> · ' + SEC.esc(p.label()) + '\n━━━━━━━━━━━━━━━━\n' + lines.slice(i, i + 12).join('\n\n'));
+  var p = attSummaryPeriod(st), list=[];
+  STAFF.slice().sort(function(a,b){return String(a.name||'').localeCompare(String(b.name||''));}).forEach(function(r){list.push({r:r,s:attendanceStatsFor(r,p)});});
+  var pages=[attendanceSummary(st)];
+  for(var i=0;i<list.length;i+=8){
+    var batch=list.slice(i,i+8), lines=['ID        Name          Sh  Post        Days W  O  R  L  A  H  Hours'];
+    batch.forEach(function(x){var r=x.r,s=x.s,dates=s.workDates||[];lines.push(attCell(r.empId||'—',10)+attCell(r.name||'—',14)+attCell(r.shift||'—',4)+attCell(r.post||'—',12)+attCell(dates.length,5)+attCell(s.c.W,3)+attCell(s.c.O,3)+attCell(s.c.R,3)+attCell(s.c.L,3)+attCell(s.c.A,3)+attCell(s.c.H,3)+Math.round(s.hrs));});
+    var pg='👮 <b>'+attT(st.lang,'逐人實際出勤明細','Per-person actual attendance','វត្តមានពិតតាមបុគ្គល')+'</b> · '+SEC.esc(p.label())+'\n'+attPre(lines)+'\n<b>📅 '+attT(st.lang,'實際出勤日期','Actual work dates','កាលបរិច្ឆេទធ្វើការពិត')+'</b>';
+    batch.forEach(function(x){var dates=x.s.workDates||[];pg+='\n· '+SEC.esc(x.r.empId||'—')+' '+SEC.esc(x.r.name||'—')+'：'+(dates.length?dates.map(attShortDate).join(', '):'—');});
+    pages.push(pg);
   }
-  if (!lines.length) pages.push('ℹ️ ' + attT(st.lang, '所選期間沒有保安人員資料。', 'No staff data for the selected period.', 'គ្មានទិន្នន័យបុគ្គលិកក្នុងរយៈពេលនេះទេ។'));
+  if(!list.length) pages.push('ℹ️ '+attT(st.lang,'所選期間沒有保安人員資料。','No staff data for the selected period.','គ្មានទិន្នន័យបុគ្គលិកក្នុងរយៈពេលនេះទេ។'));
   return pages;
 }
 function openAttendanceTelegram() {

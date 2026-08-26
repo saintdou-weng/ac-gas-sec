@@ -729,7 +729,7 @@ function ciSave(notify) {
     if (fails.length) { txt += '\n<b>⛔ 不合格項目</b>\n'; fails.forEach(function (f) { txt += '· ' + f + '\n'; }); }
     else txt += '\n✅ 全部合格。';
     if (items.length) { txt += '\n📦 裝載：' + items.map(function (it) { return it.name + '×' + (it.qty || '-'); }).join('、'); }
-    SEC.tgSummary(txt, 'container');
+    SEC.tgSummary(txt, 'container', rec.photos[0] || '', rec.photos);
   }
 }
 function renderCi() {
@@ -959,6 +959,18 @@ function containerPeriods(type) {
   return Object.keys(seen);
 }
 function ctt(lang, zh, en, km) { return lang === 'en' ? en : lang === 'km' ? km : zh; }
+/* Compact Telegram report tables. Daily operations are kept Chinese + English
+   together for fast reading on mobile; Khmer keeps the main title/labels. */
+function containerBi(lang, zh, en, km) { return lang === 'km' ? (km || zh) : (zh + ' / ' + en); }
+function containerCell(v, n) {
+  v=String(v==null?'':v).replace(/\s+/g,' ').trim();
+  if(v.length>n) v=v.slice(0,Math.max(1,n-1))+'…';
+  while(v.length<n) v+=' ';
+  return v;
+}
+function containerPre(lines){return '<pre>'+lines.join('\n')+'</pre>';}
+function containerShortDate(v){v=String(v||'');return /^\d{4}-\d{2}-\d{2}$/.test(v)?v.slice(5):v.slice(0,5);}
+
 function containerSummary(st) {
   var p = summaryPeriod(st), label = p.label(), has = function (r) { return p.has(r.date); };
   var tk = TK.filter(has), ci = CI.filter(has), gd = GD.filter(has);
@@ -970,53 +982,53 @@ function containerSummary(st) {
   var dn = gd.filter(function (r) { return r.type === 'dn'; }).length;
   var pct = ci.length ? Math.round(pass / ci.length * 100) : 0;
   var co = {};
-  tk.forEach(function (r) { var k = r.company || ctt(st.lang, '未填公司', 'Unspecified company', 'មិនបានបញ្ជាក់'); co[k] = (co[k] || 0) + 1; });
+  tk.forEach(function (r) { var k = r.company || 'Unspecified'; co[k] = (co[k] || 0) + 1; });
   var ck = Object.keys(co).sort(function (a, b) { return co[b] - co[a]; });
-  var txt = '🚛 <b>' + ctt(st.lang, '貨櫃出入摘要', 'Container In/Out Summary', 'សេចក្តីសង្ខេបកុងតឺន័រ') + '</b> · ' + SEC.esc(label) + '\n' +
+  var lang=st.lang||'zh';
+  var txt = '🚛 <b>' + containerBi(lang, '貨櫃出入摘要', 'Container In/Out Summary', 'សេចក្តីសង្ខេបកុងតឺន័រ') + '</b> · ' + SEC.esc(label) + '\n' +
     '🛡️ AC Security · VRT Sihanoukville\n━━━━━━━━━━━━━━━━\n' +
-    '🚛 ' + ctt(st.lang, '貨櫃車進出', 'Truck movements', 'ចលនារថយន្ត') + '：<b>' + tk.length + '</b>\n' +
-    '   🟢 ' + ctt(st.lang, '進口', 'Import', 'នាំចូល') + '：' + imp + '　🔴 ' + ctt(st.lang, '出口', 'Export', 'នាំចេញ') + '：' + exp + '\n' +
-    '🔍 ' + ctt(st.lang, '貨櫃檢查', 'Inspections', 'ការត្រួតពិនិត្យ') + '：<b>' + ci.length + '</b>\n' +
-    '   ✅ ' + ctt(st.lang, '合格', 'Pass', 'ជាប់') + '：' + pass + '　⛔ ' + ctt(st.lang, '不合格', 'Fail', 'ធ្លាក់') + '：' + fail + '　(' + pct + '%)\n' +
-    '📤 ' + ctt(st.lang, '出廠／出貨單', 'Gate / delivery passes', 'ប័ណ្ណចេញ／ដឹកជញ្ជូន') + '：<b>' + gd.length + '</b>\n' +
-    '   🚪 ' + ctt(st.lang, '出廠單', 'Gate pass', 'ប័ណ្ណចេញ') + '：' + gp + '　📦 ' + ctt(st.lang, '出貨單', 'Delivery note', 'ប័ណ្ណដឹកជញ្ជូន') + '：' + dn + '\n';
-  txt += '━━━━━━━━━━━━━━━━\n';
+    '<b>📊 ' + containerBi(lang,'總覽','Overview','ទិដ្ឋភាពទូទៅ') + '</b>\n' + containerPre([
+      'Item                 Qty   Rate',
+      'Truck movements      ' + containerCell(tk.length,5) + '—',
+      'Import               ' + containerCell(imp,5) + '—',
+      'Export               ' + containerCell(exp,5) + '—',
+      'Inspections          ' + containerCell(ci.length,5) + '—',
+      'Inspection pass      ' + containerCell(pass,5) + containerCell((ci.length?pct:0)+'%',5),
+      'Inspection fail      ' + containerCell(fail,5) + '—',
+      'Gate / delivery      ' + containerCell(gd.length,5) + '—',
+      'Gate pass            ' + containerCell(gp,5) + '—',
+      'Delivery note        ' + containerCell(dn,5) + '—'
+    ]) + '\n';
   if (ck.length) {
-    txt += '🏢 <b>' + ctt(st.lang, '貨櫃車公司明細', 'Company breakdown', 'តាមក្រុមហ៊ុន') + '</b>\n';
-    ck.slice(0, 10).forEach(function (k) { txt += '· ' + SEC.esc(k) + '：' + co[k] + ' ' + ctt(st.lang, '趟', 'trip(s)', 'ជើង') + '\n'; });
-    if (ck.length > 10) txt += '· … +' + (ck.length - 10) + '\n';
-  } else {
-    txt += 'ℹ️ ' + ctt(st.lang, '本期間沒有貨櫃資料', 'No container records in this period', 'គ្មានទិន្នន័យកុងតឺន័រក្នុងរយៈពេលនេះ') + '\n';
-  }
-  txt += '\n<i>' + ctt(st.lang, '摘要可重複發送；不會改變資料或核可狀態。', 'Summary only; resending does not change records or approval status.', 'សេចក្តីសង្ខេបប៉ុណ្ណោះ មិនផ្លាស់ប្តូរទិន្នន័យ ឬស្ថានភាពអនុម័តទេ។') + '</i>';
+    var cl=['Company          Trips'];
+    ck.slice(0,12).forEach(function(k){cl.push(SEC.esc(containerCell(k,17))+containerCell(co[k],5));});
+    txt += '\n<b>🏢 ' + containerBi(lang,'公司統計','Company Breakdown','តាមក្រុមហ៊ុន') + '</b>\n' + containerPre(cl) + '\n';
+  } else txt += '\nℹ️ ' + containerBi(lang,'本期間沒有貨櫃資料','No container records in this period','គ្មានទិន្នន័យកុងតឺន័រ') + '\n';
+  txt += '\n<i>' + containerBi(lang,'明細改為表格分頁；正常資料不再用長段落重複描述。','Details are paged as compact tables instead of repeated long lines.','ព័ត៌មានលម្អិតបង្ហាញជាតារាង។') + '</i>';
   return txt;
 }
-function containerSummaryPages(st) {
-  var p = summaryPeriod(st), list = TK.filter(function (r) { return p.has(r.date); });
-  var pages = [containerSummary(st)];
-  if (!list.length) return pages;
-  var title = '🚛 <b>' + ctt(st.lang, '進出口逐櫃明細', 'Import / Export container details', 'ព័ត៌មានកុងតឺន័រនាំចូល／នាំចេញ') + '</b> · ' + SEC.esc(p.label()) + '\n━━━━━━━━━━━━━━━━\n';
-  var body = title, pageNo = 1;
-  list.slice().sort(function (a, b) { return String(a.date || '').localeCompare(String(b.date || '')); }).forEach(function (r, i) {
-    var direction = r.isImport && r.isExport ? '🟢/🔴' : r.isImport ? '🟢 ' + ctt(st.lang, '進口', 'Import', 'នាំចូល') : '🔴 ' + ctt(st.lang, '出口', 'Export', 'នាំចេញ');
-    var line = (i + 1) + '. ' + direction + ' · <b>' + SEC.esc(r.containerNo || '—') + '</b>\n' +
-      '   📅 ' + SEC.esc(r.date || '—') + ' · 👤 ' + SEC.esc(r.name || '—') + '\n' +
-      '   🚚 ' + SEC.esc(r.truckNo || '—') + ' · 🏢 ' + SEC.esc(r.company || '—') + '\n' +
-      '   ⏱ ' + SEC.esc(r.timeIn || '—') + ' → ' + SEC.esc(r.timeOut || '—') +
-      (r.signIn || r.signOut ? ' · ✍️ ' + SEC.esc(r.signIn || '—') + ' → ' + SEC.esc(r.signOut || '—') : '') +
-      (r.remark ? '\n   📝 ' + SEC.esc(r.remark) : '') + '\n';
-    if ((body + line).length > 3400) {
-      pages.push(body + '\n<i>' + ctt(st.lang, '本頁列出所有符合所選期間的貨櫃紀錄。', 'All container records matching the selected period are listed.', 'កត់ត្រាកុងតឺន័រទាំងអស់ក្នុងរយៈពេលដែលបានជ្រើស') + '</i>');
-      pageNo++; body = title.replace('</b>', '</b> · ' + pageNo) + line;
-    } else body += line;
-  });
-  if (body !== title) pages.push(body + '\n<i>' + ctt(st.lang, '本頁列出所有符合所選期間的貨櫃紀錄。', 'All container records matching the selected period are listed.', 'កត់ត្រាកុងតឺន័រទាំងអស់ក្នុងរយៈពេលដែលបានជ្រើស') + '</i>');
+
+function containerSummaryPageDefs(st){
+  var p=summaryPeriod(st),pages=[],allPhotos=[];
+  TK.filter(function(r){return p.has(r.date);}).forEach(function(r){allPhotos=allPhotos.concat(r.entryPhotos||r.photos||[],r.exitPhotos||[]);});
+  CI.filter(function(r){return p.has(r.date);}).forEach(function(r){allPhotos=allPhotos.concat(r.photos||[]);});
+  GD.filter(function(r){return p.has(r.date);}).forEach(function(r){allPhotos=allPhotos.concat(r.photos||[]);});
+  pages.push({text:containerSummary(st),photos:allPhotos.filter(Boolean).slice(0,4)});
+  var tk=TK.filter(function(r){return p.has(r.date);}).slice().sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''))||String(a.timeIn||'').localeCompare(String(b.timeIn||''));});
+  for(var i=0;i<tk.length;i+=10){var batch=tk.slice(i,i+10),lines=['Date  Dir Container/ID  Truck      Company      In-Out      Ph'];batch.forEach(function(r){var dir=r.isImport&&r.isExport?'I/E':r.isImport?'IMP':'EXP',id=r.containerNo||r.truckNo||r.id||'—',ph=(r.entryPhotos||r.photos||[]).length+(r.exitPhotos||[]).length;lines.push(containerCell(containerShortDate(r.date),6)+containerCell(dir,4)+SEC.esc(containerCell(id,14))+SEC.esc(containerCell(r.truckNo||'—',11))+SEC.esc(containerCell(r.company||'—',13))+containerCell((r.timeIn||'—')+'-'+(r.timeOut||'—'),12)+ph);});var pg='<b>🚛 進出口逐櫃明細 / Container Details</b> · '+SEC.esc(p.label())+'\n'+containerPre(lines);batch.forEach(function(r){var id=r.containerNo||r.truckNo||r.id||'—';pg+='\n· '+SEC.esc(id)+' · Driver/司機 '+SEC.esc(r.name||'—')+' · Guard/門衛 '+SEC.esc(r.signIn||'—')+' → '+SEC.esc(r.signOut||'—')+(r.remark?' · Note/備註 '+SEC.esc(r.remark):'');});var ph=[];batch.forEach(function(r){ph=ph.concat(r.entryPhotos||r.photos||[],r.exitPhotos||[]);});pages.push({text:pg,photos:ph.filter(Boolean).slice(0,4)});}
+  var ci=CI.filter(function(r){return p.has(r.date);}).slice().sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''));});
+  for(var j=0;j<ci.length;j+=8){var cb=ci.slice(j,j+8),cl=['Date  Container     Seal       Truck      Pass Result Inspector    Ph'];cb.forEach(function(r){cl.push(containerCell(containerShortDate(r.date),6)+SEC.esc(containerCell(r.containerNo||'—',14))+SEC.esc(containerCell(r.seal||'—',11))+SEC.esc(containerCell(r.truck||'—',11))+containerCell((r.pass||0)+'/17',5)+containerCell(r.result==='pass'?'PASS':'FAIL',7)+SEC.esc(containerCell(r.by||'—',13))+(r.photos||[]).length);});var cp='<b>🔍 貨櫃檢查 / Container Inspection</b> · '+SEC.esc(p.label())+'\n'+containerPre(cl);cb.forEach(function(r){cp+='\n· '+SEC.esc(r.containerNo||'—')+' · Company/公司 '+SEC.esc(r.company||'—')+(r.fails&&r.fails.length?' · Fail/不合格 '+r.fails.map(SEC.esc).join('、'):' · ✅ 17/17')+(r.items&&r.items.length?' · Items/裝載 '+r.items.map(function(x){return SEC.esc(x.name||'')+'×'+SEC.esc(x.qty||'')+SEC.esc(x.unit||'');}).join('；'):'')+(r.note?' · Note '+SEC.esc(r.note):'');});var cph=[];cb.forEach(function(r){cph=cph.concat(r.photos||[]);});pages.push({text:cp,photos:cph.filter(Boolean).slice(0,4)});}
+  var gd=GD.filter(function(r){return p.has(r.date);}).slice().sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''))||String(a.time||'').localeCompare(String(b.time||''));});
+  for(var k=0;k<gd.length;k+=8){var gb=gd.slice(k,k+8),gl=['Date  Type No             Dept        By          Vehicle     Time  Ph'];gb.forEach(function(r){gl.push(containerCell(containerShortDate(r.date),6)+containerCell(r.type==='gp'?'GP':'DN',5)+SEC.esc(containerCell(r.no||'—',15))+SEC.esc(containerCell(r.dept||'—',12))+SEC.esc(containerCell(r.by||'—',12))+SEC.esc(containerCell(r.vehicle||'—',12))+containerCell(r.time||'—',6)+(r.photos||[]).length);});var gp='<b>📤 出廠／出貨單 / Gate & Delivery</b> · '+SEC.esc(p.label())+'\n'+containerPre(gl);gb.forEach(function(r){var rs=(r.reasons||[]).map(function(x){var f=(REASONS[r.type]||[]).filter(function(y){return y[0]===x;})[0];return f?f[1]:x;});gp+='\n· '+SEC.esc(r.no||'—')+(rs.length?' · Reason/事由 '+rs.map(SEC.esc).join('、'):'')+(r.items&&r.items.length?' · Items/品項 '+r.items.map(function(x){return SEC.esc(x.name||'')+'×'+SEC.esc(x.qty||'')+SEC.esc(x.unit||'');}).join('；'):'')+(r.note?' · Note '+SEC.esc(r.note):'');});var gph=[];gb.forEach(function(r){gph=gph.concat(r.photos||[]);});pages.push({text:gp,photos:gph.filter(Boolean).slice(0,4)});}
   return pages;
 }
+function containerSummaryPages(st) { return containerSummaryPageDefs(st).map(function(x){return x.text;}); }
+
+function containerSummaryPhotos(st,pageIndex){var d=containerSummaryPageDefs(st)[pageIndex];return d&&d.photos?d.photos.slice(0,4):[];}
 function openContainerTelegram() {
   return SEC.tgOpen({ module:'container', defaultType:PER.mode, defaultPeriod:PER.key(),
     periods:containerPeriods, currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); },
-    summaryPages:containerSummaryPages });
+    summaryPages:containerSummaryPages, summaryPhotos:containerSummaryPhotos });
 }
 
 /* ═══ QR 受限更新：貨櫃只看當月、只上傳，不提供下載 ═══ */

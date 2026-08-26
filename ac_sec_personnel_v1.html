@@ -1075,49 +1075,23 @@ function personnelPeople(st) {
   }); });
   return Object.keys(byId).length ? Object.keys(byId).map(function (k) { return byId[k]; }) : active();
 }
+
+function perCell(v,n){v=String(v==null?'':v).replace(/\s+/g,' ').trim();if(v.length>n)v=v.slice(0,Math.max(1,n-1))+'…';while(v.length<n)v+=' ';return v;}
+function perPre(lines){return '<pre>'+lines.join('\n')+'</pre>';}
 function personnelSummary(st) {
-  var p = personnelSummaryPeriod(st), a = active(), resigned = DB.filter(function (r) { return r.status === 'resigned'; });
-  var changes = CHG.filter(function (r) { return r.date && p.has(r.date); }), roster = personnelPeople(st), byS = {}, byPost = {};
-  a.forEach(function (r) { var s = r.shift || '—'; byS[s] = (byS[s] || 0) + 1; var q = r.post || '—'; byPost[q] = (byPost[q] || 0) + 1; });
-  var txt = '👮 <b>' + perText(st.lang, '保安人員摘要', 'Security Personnel Summary') + '</b> · ' + SEC.esc(p.label()) + '\n' +
-    '🛡️ AC Security · Personnel / Security Staff\n━━━━━━━━━━━━━━━━\n' +
-    '在職 Active：<b>' + a.length + '</b>\n' +
-    '離職 Resigned：<b>' + resigned.length + '</b>\n' +
-    '班別 Shift：' + Object.keys(byS).sort().map(function (k) { return SEC.esc(k) + ' ' + byS[k]; }).join(' · ') + '\n' +
-    '崗位／Post：' + Object.keys(byPost).slice(0, 12).map(function (k) { return SEC.esc(k) + ' ' + byPost[k]; }).join(' · ') + '\n' +
-    '排班明細 Roster records：<b>' + roster.length + '</b>\n' +
-    '異動 Changes：<b>' + changes.length + '</b>\n';
-  if (changes.length) {
-    txt += '\n<b>🔄 異動明細 / Change details</b>\n';
-    changes.slice(0, 15).forEach(function (r) {
-      var k = KIND[r.kind] || KIND.update;
-      txt += '· ' + SEC.esc(r.date) + ' · ' + k.icon + ' ' + SEC.esc(k.en) + ' · ' + SEC.esc(r.empId || '') + ' ' + SEC.esc(r.name || '') +
-        (r.reason ? ' · ' + SEC.esc(r.reason) : '') + '\n';
-    });
-    if (changes.length > 15) txt += '· … +' + (changes.length - 15) + ' changes\n';
-  }
-  txt += '\n<i>下一頁列出人名、工號、班別、崗位、職稱及公司。 / Next pages list name, ID, shift, post, position and company.</i>';
+  var p=personnelSummaryPeriod(st),a=active(),resigned=DB.filter(function(r){return r.status==='resigned';}),changes=CHG.filter(function(r){return r.date&&p.has(r.date);}),roster=personnelPeople(st),byS={},byPost={};
+  a.forEach(function(r){var s=r.shift||'—';byS[s]=(byS[s]||0)+1;var q=r.post||'—';byPost[q]=(byPost[q]||0)+1;});
+  var txt='👮 <b>'+perText(st.lang,'保安人員摘要','Security Personnel Summary')+'</b> · '+SEC.esc(p.label())+'\n🛡️ AC Security · Personnel / Security Staff\n━━━━━━━━━━━━━━━━\n'+perPre(['Item                 Qty','Active staff          '+a.length,'Resigned              '+resigned.length,'Roster records        '+roster.length,'Changes in period     '+changes.length]);
+  var sl=['Shift          Staff'];Object.keys(byS).sort().forEach(function(k){sl.push(perCell(k,15)+byS[k]);});if(sl.length>1)txt+='\n<b>🕐 Shift / 班別</b>\n'+perPre(sl);
+  var pl=['Post                   Staff'];Object.keys(byPost).sort(function(x,y){return byPost[y]-byPost[x];}).forEach(function(k){pl.push(perCell(k,23)+byPost[k]);});if(pl.length>1)txt+='\n<b>📍 Post / 崗位</b>\n'+perPre(pl);
+  if(changes.length){var cl=['Date  Kind       ID        Name          Reason'];changes.slice(0,18).forEach(function(r){var k=KIND[r.kind]||KIND.update;cl.push(perCell(String(r.date||'').slice(5),6)+perCell(k.en||r.kind||'Update',11)+perCell(r.empId||'—',10)+perCell(r.name||'—',14)+String(r.reason||'').slice(0,22));});txt+='\n<b>🔄 Change details / 異動明細</b>\n'+perPre(cl);}
+  txt+='\n<i>下一頁逐人列出工號、姓名、班別、崗位、職稱、公司、狀態及照片。 / Next pages list ID, name, shift, post, position, company, status and photo for every person.</i>';
   return txt;
 }
-function personnelSummaryPages(st) {
-  var p = personnelSummaryPeriod(st), list = personnelPeople(st).slice().sort(function (a, b) {
-    return String(a.shift || '').localeCompare(String(b.shift || '')) || String(a.name || '').localeCompare(String(b.name || ''));
-  });
-  var pages = [personnelSummary(st)], lines = [];
-  list.forEach(function (r) {
-    lines.push('· ' + SEC.esc(r.empId || '—') + ' · <b>' + SEC.esc(r.name || '—') + '</b> · ' +
-      'Shift ' + SEC.esc(r.shift || '—') + ' · Post ' + SEC.esc(r.post || '—') +
-      ' · Position ' + SEC.esc(r.position || 'Security Guard') +
-      (r.company ? ' · Company ' + SEC.esc(r.company) : '') +
-      (r.status === 'resigned' ? ' · Resigned' : ' · Active'));
-  });
-  for (var i = 0; i < lines.length; i += 28) pages.push('👮 <b>人員明細 / Personnel Details</b> · ' + SEC.esc(p.label()) + '\n' + lines.slice(i, i + 28).join('\n'));
-  return pages;
-}
-function personnelSummaryPhotos(st, pageIndex) {
-  if (pageIndex !== 0) return [];
-  return personnelPeople(st).filter(function (r) { return r.photo; }).map(function (r) { return r.photo; }).slice(0, 4);
-}
+
+function personnelSummaryPageDefs(st){var p=personnelSummaryPeriod(st),list=personnelPeople(st).slice().sort(function(a,b){return String(a.shift||'').localeCompare(String(b.shift||''))||String(a.name||'').localeCompare(String(b.name||''));}),all=[];list.forEach(function(r){if(r.photo)all.push(r.photo);});var defs=[{text:personnelSummary(st),photos:all.slice(0,4)}];for(var i=0;i<list.length;i+=12){var b=list.slice(i,i+12),lines=['ID        Name          Sh  Post          Position      Company    St Ph'];b.forEach(function(r){lines.push(perCell(r.empId||'—',10)+perCell(r.name||'—',14)+perCell(r.shift||'—',4)+perCell(r.post||'—',14)+perCell(r.position||'Security Guard',14)+perCell(r.company||'—',11)+perCell(r.status==='resigned'?'RES':'ACT',4)+(r.photo?1:0));});var pg='👮 <b>人員明細 / Personnel Details</b> · '+SEC.esc(p.label())+'\n'+perPre(lines);b.forEach(function(r){if(r.remark)pg+='\n· '+SEC.esc(r.empId||r.name||'—')+' · '+SEC.esc(r.remark);});defs.push({text:pg,photos:b.filter(function(r){return r.photo;}).map(function(r){return r.photo;}).slice(0,4)});}return defs;}
+function personnelSummaryPages(st) { return personnelSummaryPageDefs(st).map(function(x){return x.text;}); }
+function personnelSummaryPhotos(st, pageIndex) { var d=personnelSummaryPageDefs(st)[pageIndex]; return d&&d.photos?d.photos.slice(0,4):[]; }
 function openPersonnelTelegram() {
   return SEC.tgOpen({ module:'personnel', defaultType:PER.mode, defaultPeriod:PER.key(),
     periods:personnelPeriods, currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); },

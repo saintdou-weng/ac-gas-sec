@@ -382,7 +382,8 @@ async function doSend() {
     items : list.map(function (x) {
       return { key: x.code, id: x.code, name: x.name, dept: x.cat, vendor: x.vendor,
         qty: x.qty, unit: x.unit, amount: x.amount, date: x.date,
-        reason: x.reason, info: x.by ? ('申請人 ' + x.by) : '' };
+        reason: x.reason, info: x.by ? ('申請人 ' + x.by) : '',
+        photo: (x.photos && x.photos[0]) || '', photos: Array.isArray(x.photos) ? x.photos.slice(0,4) : [] };
     }),
   });
   if (!r || !r.batchId) return;
@@ -659,46 +660,38 @@ function securityFeeRows(st) {
   var fresh = fee.filter(function (r) { return !r.batchId; });
   return fresh.length ? fresh : fee.filter(function (r) { return !!r.batchId; });
 }
+
+function expCell(v,n){v=String(v==null?'':v).replace(/\s+/g,' ').trim();if(v.length>n)v=v.slice(0,Math.max(1,n-1))+'…';while(v.length<n)v+=' ';return v;}
+function expPre(lines){return '<pre>'+lines.join('\n')+'</pre>';}
+function expenseStatusShort(r){return !isSecurityFee(r)?'N/A':r.apprStatus==='approved'?'APP':r.apprStatus==='rejected'?'REJ':(r.apprStatus==='pending'||r.batchId)?'PEND':'NEW';}
 function expenseSummary(st) {
-  var p = expenseSummaryPeriod(st), list = DB.filter(function (r) { return p.has(r.date); });
-  var amt = list.reduce(function (s, r) { return s + (+r.amount || 0); }, 0);
-  var fee = list.filter(isSecurityFee), pending = fee.filter(function (r) { return !r.batchId && r.apprStatus !== 'pending'; });
-  var waiting = fee.filter(function (r) { return r.apprStatus === 'pending' || !!r.batchId; });
-  var approved = fee.filter(function (r) { return r.apprStatus === 'approved'; });
-  var rejected = fee.filter(function (r) { return r.apprStatus === 'rejected'; });
-  var byC = {};
-  list.forEach(function (r) { var k = r.cat || ett(st.lang, '未分類', 'Uncategorized', 'មិនបានចាត់ថ្នាក់'); if (!byC[k]) byC[k] = { n:0, a:0 }; byC[k].n++; byC[k].a += (+r.amount || 0); });
-  var ks = Object.keys(byC).sort(function (a, b) { return byC[b].a - byC[a].a; });
-  var txt = '💰 <b>' + ett(st.lang, '保安費用摘要', 'Security Expense Summary', 'សេចក្តីសង្ខេបចំណាយសន្តិសុខ') + '</b> · ' + SEC.esc(p.label()) + '\n' +
-    '🛡️ AC Security · VRT Sihanoukville\n━━━━━━━━━━━━━━━━\n' +
-    '📋 ' + ett(st.lang, '費用筆數', 'Expense items', 'ចំនួនចំណាយ') + '：<b>' + list.length + '</b>\n' +
-    '💵 ' + ett(st.lang, '總金額', 'Total amount', 'ទឹកប្រាក់សរុប') + '：<b>' + money(amt) + '</b>\n' +
-    '🛡️ ' + ett(st.lang, '保安費筆數', 'Security Fee items', 'ចំណាយសន្តិសុខ') + '：' + fee.length + '\n' +
-    '⏳ ' + ett(st.lang, '未送核', 'Not submitted', 'មិនទាន់ដាក់ស្នើ') + '：' + pending.length + '\n' +
-    '🕘 ' + ett(st.lang, '待核可', 'Awaiting approval', 'កំពុងរង់ចាំអនុម័ត') + '：' + waiting.length + ' · ' + money(waiting.reduce(function (s, r) { return s + (+r.amount || 0); }, 0)) + '\n' +
-    '✅ ' + ett(st.lang, '已核可', 'Approved', 'បានអនុម័ត') + '：' + approved.length + '\n' +
-    '❌ ' + ett(st.lang, '已退件', 'Rejected', 'បានបដិសេធ') + '：' + rejected.length + '\n';
-  if (ks.length) {
-    txt += '\n<b>🏷 ' + ett(st.lang, '分類明細', 'Category breakdown', 'តាមប្រភេទ') + '</b>\n';
-    ks.slice(0, 10).forEach(function (k) { txt += '· ' + SEC.esc(k) + '：' + byC[k].n + ' · <b>' + money(byC[k].a) + '</b>\n'; });
-    if (ks.length > 10) txt += '· … +' + (ks.length - 10) + '\n';
-  }
-  if (fee.length) {
-    txt += '\n<b>🛡️ ' + ett(st.lang, '保安費明細', 'Security Fee detail', 'ព័ត៌មានចំណាយសន្តិសុខ') + '</b>\n';
-    fee.slice(0, 12).forEach(function (r, i) {
-      txt += (i + 1) + '. ' + SEC.esc(r.name || '—') + ' · <b>' + money(r.amount) + '</b>' +
-        (r.reason ? '\n   ' + SEC.esc(r.reason) : '') + '\n';
-    });
-    if (fee.length > 12) txt += '· … +' + (fee.length - 12) + '\n';
-  }
-  txt += '\n<i>' + ett(st.lang, '摘要可重複發送；只有 Security Fee 進入核可流程。', 'Summary only; only Security Fee enters approval.', 'សេចក្តីសង្ខេបប៉ុណ្ណោះ មានតែ Security Fee ប៉ុណ្ណោះដែលចូលដំណើរការអនុម័ត។') + '</i>';
+  var p=expenseSummaryPeriod(st),list=DB.filter(function(r){return p.has(r.date);}),amt=list.reduce(function(s,r){return s+(+r.amount||0);},0),fee=list.filter(isSecurityFee),pending=fee.filter(function(r){return !r.batchId&&r.apprStatus!=='pending';}),waiting=fee.filter(function(r){return r.apprStatus==='pending'||!!r.batchId;}),approved=fee.filter(function(r){return r.apprStatus==='approved';}),rejected=fee.filter(function(r){return r.apprStatus==='rejected';}),byC={};
+  list.forEach(function(r){var k=r.cat||ett(st.lang,'未分類','Uncategorized','មិនបានចាត់ថ្នាក់');if(!byC[k])byC[k]={n:0,a:0};byC[k].n++;byC[k].a+=(+r.amount||0);});
+  var txt='💰 <b>'+ett(st.lang,'保安費用摘要','Security Expense Summary','សេចក្តីសង្ខេបចំណាយសន្តិសុខ')+'</b> · '+SEC.esc(p.label())+'\n🛡️ AC Security · VRT Sihanoukville\n━━━━━━━━━━━━━━━━\n<b>📊 '+ett(st.lang,'總覽','Overview','ទិដ្ឋភាពទូទៅ')+'</b>\n'+expPre([
+    'Item                 Qty / Amount',
+    'Expense items        '+list.length,
+    'Total amount         '+money(amt),
+    'Security Fee         '+fee.length,
+    'Not submitted        '+pending.length,
+    'Awaiting approval    '+waiting.length+' / '+money(waiting.reduce(function(s,r){return s+(+r.amount||0);},0)),
+    'Approved             '+approved.length,
+    'Rejected             '+rejected.length
+  ]);
+  var ks=Object.keys(byC).sort(function(a,b){return byC[b].a-byC[a].a;});if(ks.length){var cl=['Category             Qty   Amount'];ks.forEach(function(k){cl.push(expCell(k,21)+expCell(byC[k].n,6)+money(byC[k].a));});txt+='\n\n<b>🏷 '+ett(st.lang,'分類明細','Category breakdown','តាមប្រភេទ')+'</b>\n'+expPre(cl);}
+  txt+='\n\n<i>'+ett(st.lang,'下一頁逐筆列出日期、編號、分類、項目、供應商、數量、單價、金額、申請人、核可狀態、原因、照片。只有 Security Fee 進入核可流程。','Next pages list date, code, category, item, vendor, quantity, unit price, amount, applicant, approval status, reason and photos. Only Security Fee enters approval.','ទំព័របន្ទាប់បង្ហាញព័ត៌មានចំណាយលម្អិត និងរូបថត។')+'</i>';
   return txt;
 }
+
+function expenseSummaryPageDefs(st){var p=expenseSummaryPeriod(st),list=DB.filter(function(r){return p.has(r.date);}).slice().sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''))||String(a.code||'').localeCompare(String(b.code||''));}),all=[];list.forEach(function(r){all=all.concat(r.photos||[]);});var defs=[{text:expenseSummary(st),photos:all.filter(Boolean).slice(0,4)}];for(var i=0;i<list.length;i+=8){var b=list.slice(i,i+8),lines=['Date  Code         Category     Item          Qty    Price    Amount    St Ph'];b.forEach(function(r){lines.push(expCell(String(r.date||'').slice(5),6)+SEC.esc(expCell(r.code||r.id||'—',13))+SEC.esc(expCell(r.cat||'—',13))+SEC.esc(expCell(r.name||'—',14))+expCell((r.qty||0)+' '+(r.unit||''),7)+expCell(r.price||0,9)+expCell((+r.amount||0).toFixed(2),10)+expCell(expenseStatusShort(r),4)+(r.photos||[]).length);});var pg='<b>💰 費用逐筆明細 / Expense Details</b> · '+SEC.esc(p.label())+'\n'+expPre(lines);b.forEach(function(r){pg+='\n· '+SEC.esc(r.code||r.id||'—')+' · Vendor/供應商 '+SEC.esc(r.vendor||'—')+' · Applicant/申請人 '+SEC.esc(r.by||'—')+(r.reason?' · Reason/原因 '+SEC.esc(r.reason):'')+(r.batchId?' · Batch '+SEC.esc(r.batchId):'');});var ph=[];b.forEach(function(r){ph=ph.concat(r.photos||[]);});defs.push({text:pg,photos:ph.filter(Boolean).slice(0,4)});}return defs;}
+function expenseSummaryPages(st){return expenseSummaryPageDefs(st).map(function(x){return x.text;});}
+function expenseSummaryPhotos(st,pageIndex){var d=expenseSummaryPageDefs(st)[pageIndex];return d&&d.photos?d.photos.slice(0,4):[];}
 function expenseApprovalItems(st) {
   return securityFeeRows(st).map(function (x) {
+    var ph=Array.isArray(x.photos)?x.photos.slice(0,4):[];
     return { _recordId:x.id, key:x.code || x.id, id:x.code || x.id, name:x.name, dept:x.cat,
       vendor:x.vendor, qty:x.qty, unit:x.unit, amount:x.amount, date:x.date,
-      period:String(x.date || '').slice(0,7), reason:x.reason, info:x.by ? '申請人 ' + x.by : '', batchId:x.batchId || '' };
+      period:String(x.date || '').slice(0,7), reason:x.reason, info:(x.by ? '申請人 ' + x.by : '') + (x.price ? ' · Unit price $'+Number(x.price).toFixed(2) : ''), batchId:x.batchId || '',
+      photo:ph[0]||'', photos:ph };
   });
 }
 function expenseApprovalSent(result, st, items) {
@@ -710,10 +703,12 @@ function expenseApprovalSent(result, st, items) {
   }
   save(); renderAll();
 }
+
+function expenseApprovalPreview(st,items){var p=expenseSummaryPeriod(st),amt=items.reduce(function(s,x){return s+(+x.amount||0);},0),pc=items.reduce(function(n,x){return n+(Array.isArray(x.photos)?x.photos.length:(x.photo?1:0));},0),txt='✅ <b>保安費用核可 / Security Expense Approval</b> · '+SEC.esc(p.label())+'\n'+expPre(['Field                Value','Records              '+items.length,'Total amount         '+money(amt),'Photos               '+pc]);items.slice(0,8).forEach(function(x,i){txt+='\n┌ #'+(i+1)+' '+SEC.esc(x.id||'—')+'\n│ Item      '+SEC.esc(x.name||'—')+'\n│ Date      '+SEC.esc(x.date||'—')+'\n│ Category  '+SEC.esc(x.dept||'—')+'\n│ Vendor    '+SEC.esc(x.vendor||'—')+'\n│ Qty       '+SEC.esc((x.qty||0)+' '+(x.unit||''))+'\n│ Amount    '+money(x.amount||0)+'\n│ Applicant '+SEC.esc(x.info||'—')+'\n│ Reason    '+SEC.esc(x.reason||'—')+'\n│ Photos    '+(Array.isArray(x.photos)?x.photos.length:(x.photo?1:0))+'\n└';});if(items.length>8)txt+='\n… +'+(items.length-8)+' records';return txt;}
 function openExpenseTelegram() {
   return SEC.tgOpen({ module:'expense', canApprove:true, defaultType:PER.mode, defaultPeriod:PER.key(),
     periods:expensePeriods, currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); },
-    summary:expenseSummary, approvalItems:expenseApprovalItems, approvalTitle:PER.key() + ' 保安費用',
+    summaryPages:expenseSummaryPages, summaryPhotos:expenseSummaryPhotos, approvalItems:expenseApprovalItems, approvalPreview:expenseApprovalPreview, approvalTitle:PER.key() + ' 保安費用',
     onApprovalSend:async function (st, items) {
       var bids = Array.from(new Set(items.map(function (x) { return x.batchId; }).filter(Boolean)));
       if (items.length && bids.length === 1 && items.every(function (x) { return x.batchId === bids[0]; })) {

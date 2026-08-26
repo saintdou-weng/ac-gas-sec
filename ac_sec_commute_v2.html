@@ -962,6 +962,11 @@ function commutePeriods(type) {
   return Object.keys(seen);
 }
 function cmt(lang, zh, en, km) { return lang === 'en' ? en : lang === 'km' ? (km || en) : zh; }
+function commuteBi(lang, zh, en, km) { return lang === 'km' ? (km || en) : (zh + ' / ' + en); }
+function commuteCell(v,n){v=String(v==null?'':v).replace(/\s+/g,' ').trim();if(v.length>n)v=v.slice(0,Math.max(1,n-1))+'…';while(v.length<n)v+=' ';return v;}
+function commutePre(lines){return '<pre>'+lines.join('\n')+'</pre>';}
+function commuteShortDate(v){v=String(v||'');return /^\d{4}-\d{2}-\d{2}$/.test(v)?v.slice(5):v.slice(0,5);}
+
 function commuteScopeOn(st, kind) { return !st.scope || st.scope === 'all' || st.scope === kind; }
 function commuteScopeLabel(st) {
   var m = { all:['全部分類','All categories','គ្រប់ប្រភេទ'], vehicle:['車輛派遣','Vehicle dispatch','ការចាត់ចែងរថយន្ត'],
@@ -978,83 +983,82 @@ function commuteSummary(st) {
   var rep = Object.keys(uniq).filter(function (k) { return uniq[k].n >= 3; });
   var avgB = b.length ? Math.round(b.reduce(function (s, r) { return s + (+r.total || 0); }, 0) / b.length) : 0;
   var drivers = {}; c.forEach(function (r) { if (r.driver) drivers[r.driver] = (drivers[r.driver] || 0) + 1; });
-  var txt = '🏍 <b>' + cmt(st.lang, '通勤交通摘要', 'Commute & Motor Summary') + '</b> · ' + SEC.esc(p.label()) +
-    ' · ' + SEC.esc(commuteScopeLabel(st)) + '\n' +
-    '🚐 ' + cmt(st.lang,'車輛派遣','Vehicle dispatch') + '：<b>' + c.length + '</b> ' + cmt(st.lang,'次','trips') + ' · <b>' + Math.round(km).toLocaleString() + '</b> KM\n' +
-    '🚛 ' + cmt(st.lang,'車輛出入閘','Gate logs') + '：<b>' + g.length + '</b> · ' + cmt(st.lang,'乘客','Passengers') + ' ' + g.reduce(function (s2, r) { return s2 + (+r.pax || 0); }, 0) + '\n' +
-    '🏍 ' + cmt(st.lang,'摩托車平均每日','Motorbike daily average') + '：<b>' + avgB + '</b>\n' +
-    '⏰ ' + cmt(st.lang,'遲到記錄','Late records') + '：<b>' + l.length + '</b> · ' + cmt(st.lang,'不重複','Unique staff') + ' ' + Object.keys(uniq).length + '\n' +
-    '🔁 ' + cmt(st.lang,'重複遲到 ≥3','Repeat late ≥3') + '：<b>' + rep.length + '</b> ' + cmt(st.lang,'人','people') + '\n';
-  if (Object.keys(drivers).length) txt += '\n<b>🚐 ' + cmt(st.lang,'司機','Drivers') + '</b>\n' + Object.keys(drivers).sort(function (a,b2) { return drivers[b2] - drivers[a]; }).slice(0, 15).map(function (k) { return '· ' + SEC.esc(k) + '：' + drivers[k] + ' ' + cmt(st.lang,'次','trips'); }).join('\n') + '\n';
-  if (rep.length) {
-    txt += '\n<b>🔁 ' + cmt(st.lang,'重複遲到名單','Repeat late list') + '</b>\n';
-    rep.slice(0, 15).forEach(function (k) { var u = uniq[k]; txt += '· ' + SEC.esc(u.id || '—') + ' · ' + SEC.esc(u.name || k) + ' · ' + SEC.esc(u.dept || '—') + ' · ' + u.n + ' ' + cmt(st.lang,'次','times') + '\n'; });
-  }
-  txt += '\n<i>' + cmt(st.lang,'下一頁列出每筆車輛、出入閘、摩托車及遲到明細。','Next pages list every vehicle, gate, motorbike and late record.') + '</i>';
+  var lang=st.lang||'zh', pax=g.reduce(function(s2,r){return s2+(+r.pax||0);},0);
+  var txt='🏍 <b>'+commuteBi(lang,'通勤交通摘要','Commute & Motor Summary','សេចក្តីសង្ខេបដំណើរ')+'</b> · '+SEC.esc(p.label())+'\n'+
+    commuteBi(lang,'分類','Scope','ប្រភេទ')+'：'+SEC.esc(commuteScopeLabel(st))+'\n🛡️ AC Security · VRT Sihanoukville\n━━━━━━━━━━━━━━━━\n'+
+    '<b>📊 '+commuteBi(lang,'總覽','Overview','ទិដ្ឋភាពទូទៅ')+'</b>\n'+commutePre([
+      'Item                 Qty      Extra',
+      'Vehicle dispatch     '+commuteCell(c.length,8)+Math.round(km).toLocaleString()+' KM',
+      'Gate logs            '+commuteCell(g.length,8)+pax+' pax',
+      'Motorbike days       '+commuteCell(b.length,8)+'Avg '+avgB,
+      'Late records         '+commuteCell(l.length,8)+Object.keys(uniq).length+' staff',
+      'Repeat late >=3      '+commuteCell(rep.length,8)+'people'
+    ])+'\n';
+  var dk=Object.keys(drivers).sort(function(a,b2){return drivers[b2]-drivers[a];});
+  if(dk.length){var dl=['Driver           Trips'];dk.slice(0,12).forEach(function(k){dl.push(SEC.esc(commuteCell(k,17))+commuteCell(drivers[k],5));});txt+='\n<b>🚐 '+commuteBi(lang,'司機統計','Drivers','អ្នកបើកបរ')+'</b>\n'+commutePre(dl)+'\n';}
+  if(rep.length){var rl=['ID        Name          Dept        Times'];rep.slice(0,12).forEach(function(k){var u=uniq[k];rl.push(SEC.esc(commuteCell(u.id||'—',10))+SEC.esc(commuteCell(u.name||k,14))+SEC.esc(commuteCell(u.dept||'—',12))+u.n);});txt+='\n<b>🔁 '+commuteBi(lang,'重複遲到名單','Repeat Late','មកយឺតដដែលៗ')+'</b>\n'+commutePre(rl)+'\n';}
+  txt+='\n<i>'+commuteBi(lang,'下一頁依車輛派遣、出入閘、摩托車、遲到分開列成表格。','Next pages are separated into vehicle, gate, motorbike and late tables.','ទំព័របន្ទាប់បែងចែកជាតារាង។')+'</i>';
   return txt;
 }
-function commuteSummaryPages(st) {
-  var p = commuteSummaryPeriod(st), pages = [commuteSummary(st)], lines = [];
-  if (commuteScopeOn(st,'vehicle')) CAR.filter(function (r) { return p.has(r.date); }).forEach(function (r) {
-    lines.push('🚐 ' + SEC.esc(r.date) + ' · ' + cmt(st.lang,'司機','Driver') + ' ' + SEC.esc(r.driver || '—') + ' · ' + cmt(st.lang,'用途','Purpose') + ' ' + SEC.esc(r.type || '—') +
-      ' · ' + cmt(st.lang,'車牌','Plate') + ' ' + SEC.esc(r.plate || '—') + ' · ' + cmt(st.lang,'事由','Reason') + ' ' + SEC.esc(r.reason || '—') +
-      ' · ' + cmt(st.lang,'出發','Departure') + ' ' + SEC.esc(r.outTime || '—') + ' · ' + cmt(st.lang,'回廠','Return') + ' ' + SEC.esc(r.inTime || '—') +
-      ' · ' + (r.km || 0) + ' KM · ' + cmt(st.lang,'核可人','Approver') + ' ' + SEC.esc(r.approver || '—') + (ocrPhotoCount(r) ? ' · 📷 ' + ocrPhotoCount(r) : ''));
-  });
-  for (var i = 0; i < lines.length; i += 26) pages.push('<b>🚐 ' + cmt(st.lang,'車輛派遣明細','Vehicle dispatch details') + '</b>\n' + lines.slice(i, i + 26).join('\n'));
-  lines = [];
-  if (commuteScopeOn(st,'gate')) GATE.filter(function (r) { return p.has(r.date); }).forEach(function (r) {
-    lines.push('🚛 ' + SEC.esc(r.date) + ' · ' + cmt(st.lang,'車牌','Plate') + ' ' + SEC.esc(r.plate || '—') + ' · ' + cmt(st.lang,'司機','Driver') + ' ' + SEC.esc(r.driver || '—') +
-      ' · ' + cmt(st.lang,'乘客','Passenger') + ' ' + SEC.esc(r.passenger || '—') + ' · ' + cmt(st.lang,'部門','Dept') + ' ' + SEC.esc(r.dept || '—') + ' · Pax ' + (r.pax || 0) +
-      ' · ' + cmt(st.lang,'出','Out') + ' ' + SEC.esc(r.outTime || '—') + ' · ' + cmt(st.lang,'入','In') + ' ' + SEC.esc(r.inTime || '—') + ' · ' + cmt(st.lang,'事由','Reason') + ' ' + SEC.esc(r.reason || '—') + (ocrPhotoCount(r) ? ' · 📷 ' + ocrPhotoCount(r) : ''));
-  });
-  for (var j = 0; j < lines.length; j += 20) pages.push('<b>🚛 ' + cmt(st.lang,'出入閘明細','Gate details') + '</b>\n' + lines.slice(j, j + 20).join('\n'));
-  lines = [];
-  if (commuteScopeOn(st,'bike')) BIKE.filter(function (r) { return p.has(r.date); }).forEach(function (r) { lines.push('🏍 ' + SEC.esc(r.date) + ' · Building A ' + (r.a || 0) + ' · Building B ' + (r.b || 0) + ' · Total ' + (r.total || 0) + ' · ' + SEC.esc(r.remark || '') + (ocrPhotoCount(r) ? ' · 📷 ' + ocrPhotoCount(r) : '')); });
-  if (commuteScopeOn(st,'late')) LATE.filter(function (r) { return p.has(r.date); }).forEach(function (r) { lines.push('⏰ ' + SEC.esc(r.date) + ' · ID ' + SEC.esc(r.empId || '—') + ' · Name ' + SEC.esc(r.name || '—') + ' · Dept ' + SEC.esc(r.dept || '—') + ' · In ' + SEC.esc(r.checkIn || '—') + ' · Gate ' + SEC.esc(r.gate || '—') + (r.note ? ' · ' + SEC.esc(r.note) : '') + (ocrPhotoCount(r) ? ' · 📷 ' + ocrPhotoCount(r) : '')); });
-  for (var k = 0; k < lines.length; k += 22) pages.push('<b>🏍⏰ ' + cmt(st.lang,'摩托車及遲到明細','Motorbike & late details') + '</b>\n' + lines.slice(k, k + 22).join('\n'));
-  return pages;
+
+function commuteSummaryPageDefs(st){
+  var p=commuteSummaryPeriod(st),defs=[{text:commuteSummary(st),photos:commuteSummaryPhotosBase(st)}];
+  function add(title,header,arr,rowFn,noteFn,per){
+    for(var i=0;i<arr.length;i+=per){var batch=arr.slice(i,i+per),lines=[header].concat(batch.map(rowFn)),pg='<b>'+title+'</b>\n'+commutePre(lines),notes=[];batch.forEach(function(r){var n=noteFn?nFnSafe(noteFn,r):'';if(n)notes.push(n);});if(notes.length)pg+='\n<b>📝 Notes / 備註</b>\n'+notes.join('\n');var ph=[];batch.forEach(function(r){ph=ph.concat(commuteRecordPhotos(r));});defs.push({text:pg,photos:ph.filter(Boolean).slice(0,4)});}
+  }
+  function nFnSafe(fn,r){try{return fn(r)||'';}catch(e){return '';}}
+  if(commuteScopeOn(st,'vehicle')){
+    var vr=CAR.filter(function(r){return p.has(r.date);}).slice().sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''))||String(a.outTime||'').localeCompare(String(b.outTime||''));});
+    add('🚐 車輛派遣 / Vehicle Dispatch','Date  Driver       Plate      Type      Out-In      KM  Ph',vr,function(r){return commuteCell(commuteShortDate(r.date),6)+SEC.esc(commuteCell(r.driver||'—',13))+SEC.esc(commuteCell(r.plate||'—',11))+SEC.esc(commuteCell(r.type||r.category||'—',10))+commuteCell((r.outTime||'—')+'-'+(r.inTime||'—'),12)+commuteCell(r.km||0,4)+commuteRecordPhotos(r).length;},function(r){return '· '+SEC.esc(r.date||'—')+' · '+SEC.esc(r.driver||'—')+' · Reason/事由 '+SEC.esc(r.reason||'—')+' · Approver/核可人 '+SEC.esc(r.approver||'—');},10);
+  }
+  if(commuteScopeOn(st,'gate')){
+    var gr=GATE.filter(function(r){return p.has(r.date);}).slice().sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''))||String(a.outTime||'').localeCompare(String(b.outTime||''));});
+    add('🚛 車輛出入閘 / Gate Logs','Date  Plate      Driver       Pax Out-In      KM  Ph',gr,function(r){return commuteCell(commuteShortDate(r.date),6)+SEC.esc(commuteCell(r.plate||'—',11))+SEC.esc(commuteCell(r.driver||'—',13))+commuteCell(r.pax||0,4)+commuteCell((r.outTime||'—')+'-'+(r.inTime||'—'),12)+commuteCell(r.km||0,4)+commuteRecordPhotos(r).length;},function(r){return '· '+SEC.esc(r.date||'—')+' · Passenger/乘客 '+SEC.esc(r.passenger||'—')+' · Dept/部門 '+SEC.esc(r.dept||'—')+' · Reason/原因 '+SEC.esc(r.reason||'—');},10);
+  }
+  if(commuteScopeOn(st,'bike')){
+    var br=BIKE.filter(function(r){return p.has(r.date);}).slice().sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''));});
+    add('🏍 摩托車 / Motorbike','Date   Shop A  Shop B  Total   Photo',br,function(r){return commuteCell(commuteShortDate(r.date),7)+commuteCell(r.a||0,8)+commuteCell(r.b||0,8)+commuteCell(r.total||0,8)+commuteRecordPhotos(r).length;},function(r){return r.note?('· '+SEC.esc(r.date||'—')+' · '+SEC.esc(r.note)):'';},14);
+  }
+  if(commuteScopeOn(st,'late')){
+    var lr=LATE.filter(function(r){return p.has(r.date);}).slice().sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''))||String(a.checkIn||'').localeCompare(String(b.checkIn||''));});
+    add('⏰ 遲到登記 / Late Records','Date  ID        Name         Dept       In    Out   Gate   Ph',lr,function(r){return commuteCell(commuteShortDate(r.date),6)+SEC.esc(commuteCell(r.empId||'—',10))+SEC.esc(commuteCell(r.name||'—',13))+SEC.esc(commuteCell(r.dept||'—',11))+commuteCell((r.checkIn||'—').slice(0,5),6)+commuteCell((r.checkOut||'—').slice(0,5),6)+SEC.esc(commuteCell(r.gate||'—',7))+commuteRecordPhotos(r).length;},function(r){return r.note?('· '+SEC.esc(r.date||'—')+' · '+SEC.esc(r.empId||r.name||'—')+' · '+SEC.esc(r.note)):'';},12);
+  }
+  return defs;
 }
+function commuteSummaryPhotosBase(st){var p=commuteSummaryPeriod(st),out=[];[[CAR,'vehicle'],[BIKE,'bike'],[GATE,'gate'],[LATE,'late']].forEach(function(pair){if(!commuteScopeOn(st,pair[1]))return;pair[0].filter(function(r){return p.has(r.date);}).forEach(function(r){out=out.concat(commuteRecordPhotos(r));});});return out.filter(Boolean).slice(0,4);}
+function commuteSummaryPages(st) { return commuteSummaryPageDefs(st).map(function(x){return x.text;}); }
 function commuteApprovalItems(st) {
   var p = commuteSummaryPeriod(st), out = [];
   function add(arr, kind, nameFn, deptFn, infoFn) {
     if (!commuteScopeOn(st, kind)) return;
     arr.filter(function (r) { return p.has(r.date); }).forEach(function (r) {
+      var ph=commuteRecordPhotos(r);
       out.push({ key:'commute-' + kind + '-' + r.id, id:r.id, name:nameFn(r), dept:deptFn(r), group:kind,
-        kind:'commute-' + kind, date:r.date, period:String(r.date || '').slice(0,7), reason:r.reason || r.note || '', info:infoFn(r), amount:0 });
+        kind:'commute-' + kind, date:r.date, period:String(r.date || '').slice(0,7), reason:r.reason || r.note || '', info:infoFn(r), amount:0,
+        photo:ph[0]||'', photos:ph.slice(0,4) });
     });
   }
-  add(CAR, 'vehicle', function (r) { return r.driver || 'Vehicle dispatch'; }, function (r) { return r.type || 'Vehicle dispatch'; }, function (r) {
-    return 'Departure ' + (r.outTime || '—') + ' · Return ' + (r.inTime || '—') + ' · ' + (r.km || 0) + ' KM';
+  add(CAR, 'vehicle', function (r) { return r.driver || 'Vehicle dispatch'; }, function (r) { return r.type || r.category || 'Vehicle dispatch'; }, function (r) {
+    return 'Plate ' + (r.plate||'—') + ' · Departure ' + (r.outTime || '—') + ' · Return ' + (r.inTime || '—') + ' · ' + (r.km || 0) + ' KM · Approver ' + (r.approver||'—');
   });
   add(BIKE, 'bike', function () { return 'Motorbike parking'; }, function () { return 'Motorbike'; }, function (r) { return 'Building A ' + (r.a || 0) + ' · Building B ' + (r.b || 0) + ' · Total ' + (r.total || 0); });
-  add(GATE, 'gate', function (r) { return r.plate || 'Gate log'; }, function () { return 'Gate log'; }, function (r) { return 'Driver ' + (r.driver || '—') + ' · Out ' + (r.outTime || '—') + ' · In ' + (r.inTime || '—'); });
-  add(LATE, 'late', function (r) { return r.name || 'Late record'; }, function (r) { return r.dept || 'Come late'; }, function (r) { return 'ID ' + (r.empId || '—') + ' · In ' + (r.checkIn || '—'); });
+  add(GATE, 'gate', function (r) { return r.plate || 'Gate log'; }, function (r) { return r.dept || 'Gate log'; }, function (r) { return 'Driver ' + (r.driver || '—') + ' · Passenger ' + (r.passenger||'—') + ' · Pax ' + (r.pax||0) + ' · Out ' + (r.outTime || '—') + ' · In ' + (r.inTime || '—') + ' · ' + (r.km||0) + ' KM'; });
+  add(LATE, 'late', function (r) { return r.name || 'Late record'; }, function (r) { return r.dept || 'Come late'; }, function (r) { return 'ID ' + (r.empId || '—') + ' · In ' + (r.checkIn || '—') + ' · Out ' + (r.checkOut||'—') + ' · Gate ' + (r.gate||'—'); });
   return out;
 }
 function commuteApprovalPreview(st, items) {
-  var p = commuteSummaryPeriod(st), label = SEC.esc(p.label()), cat = commuteScopeLabel(st), l = st.lang || 'zh';
-  var by = {}; items.forEach(function (x) { by[x.dept] = (by[x.dept] || 0) + 1; });
-  var rows = Object.keys(by).map(function (k) { return '· ' + SEC.esc(k) + ': ' + by[k]; }).join('\n');
-  var list = items.slice(0, 12).map(function (x, i) { return (i + 1) + '. ' + SEC.esc(x.name) + ' · ' + SEC.esc(x.date || '') + (x.info ? ' · ' + SEC.esc(x.info) : ''); }).join('\n');
-  return '✅ <b>' + cmt(l,'通勤交通核可請求','Commute approval request') + '</b> · ' + label + ' · ' + SEC.esc(cat) +
-    '\n─────────────\n' + cmt(l,'筆數','Records') + ': <b>' + items.length + '</b>\n<b>' + cmt(l,'分類','Categories') + '</b>\n' + (rows || '—') +
-    (list ? '\n\n<b>' + cmt(l,'明細','Details') + '</b>\n' + list : '') + (items.length > 12 ? '\n… +' + (items.length - 12) + ' more' : '');
+  var p=commuteSummaryPeriod(st),l=st.lang||'zh',by={};items.forEach(function(x){by[x.group||x.dept||'—']=(by[x.group||x.dept||'—']||0)+1;});
+  var txt='✅ <b>'+cmt(l,'通勤交通核可請求','Commute approval request')+'</b> · '+SEC.esc(p.label())+' · '+SEC.esc(commuteScopeLabel(st))+'\n─────────────\n'+commutePre(['Field                Value','Records              '+items.length,'Photos               '+items.reduce(function(n,x){return n+(Array.isArray(x.photos)?x.photos.length:(x.photo?1:0));},0)]);
+  var cats=['Category        Qty'];Object.keys(by).sort().forEach(function(k){cats.push(commuteCell(k,16)+by[k]);});if(cats.length>1)txt+='\n<b>📂 '+cmt(l,'分類','Categories')+'</b>\n'+commutePre(cats);
+  if(items.length){txt+='\n<b>📋 '+cmt(l,'明細','Details')+'</b>';items.slice(0,8).forEach(function(x,i){txt+='\n┌ #'+(i+1)+' '+SEC.esc(x.name||'—')+'\n│ Date      '+SEC.esc(x.date||'—')+'\n│ Category  '+SEC.esc(x.dept||x.group||'—')+'\n│ Info      '+SEC.esc(x.info||'—')+'\n│ Reason    '+SEC.esc(x.reason||'—')+'\n│ Photos    '+(Array.isArray(x.photos)?x.photos.length:(x.photo?1:0))+'\n└';});if(items.length>8)txt+='\n… +'+(items.length-8)+' records';}
+  return txt;
 }
 function commuteApprovalSent(result, st, items) {
   var ids = items.map(function (x) { return x._recordId || x.id; });
   [CAR, BIKE, GATE, LATE].forEach(function (arr) { arr.forEach(function (r) { if (ids.indexOf(r.id) >= 0) { r.approvalBatch = result.batchId || ''; r.approvalStatus = 'pending'; } }); });
   save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'commute-approval-sent', st && st.period || '');
 }
-function commuteSummaryPhotos(st, pageIndex) {
-  if (pageIndex !== 0) return [];
-  var p=commuteSummaryPeriod(st), out=[];
-  [[CAR,'vehicle'],[BIKE,'bike'],[GATE,'gate'],[LATE,'late']].forEach(function(pair){
-    if (!commuteScopeOn(st,pair[1])) return;
-    pair[0].filter(function(r){return p.has(r.date);}).forEach(function(r){out=out.concat(commuteRecordPhotos(r));});
-  });
-  return out.filter(Boolean).slice(0,4);
-}
+function commuteSummaryPhotos(st, pageIndex) { var d=commuteSummaryPageDefs(st)[pageIndex]; return d&&d.photos?d.photos.slice(0,4):[]; }
 function openCommuteTelegram() {
   return SEC.tgOpen({ module:'commute', modalTitle:'通勤交通 Telegram / Commute Telegram', canApprove:true,
     approvalLabel:'通勤交通核可 / Commute approval', approvalNote:'先選分類與期間，再送出通勤交通資料供群組確認；同一筆資料不會因重送而重複建立。',
@@ -1131,7 +1135,7 @@ renderCar=function(){
 var _commuteSummaryPagesOriginal=commuteSummaryPages;
 commuteSummaryPages=function(st){return _commuteSummaryPagesOriginal(st);};
 var _commuteApprovalItemsOriginal=commuteApprovalItems;
-commuteApprovalItems=function(st){var out=_commuteApprovalItemsOriginal(st);out.forEach(function(x){if(x.group==='vehicle'){var r=CAR.filter(function(y){return y.id===x.id;})[0];if(r)x.info='Plate '+(r.plate||'—')+' · Departure '+(r.outTime||'—')+' · Return '+(r.inTime||'—')+' · Approver '+(r.approver||'—')+(ocrPhotoCount(r)?' · Photos '+ocrPhotoCount(r):'');}});return out;};
+commuteApprovalItems=function(st){var out=_commuteApprovalItemsOriginal(st);out.forEach(function(x){if(x.group==='vehicle'){var r=CAR.filter(function(y){return y.id===x.id;})[0];if(r)x.info='Plate '+(r.plate||'—')+' · Departure '+(r.outTime||'—')+' · Return '+(r.inTime||'—')+' · '+(r.km||0)+' KM · Approver '+(r.approver||'—')+(ocrPhotoCount(r)?' · Photos '+ocrPhotoCount(r):'');}});return out;};
 /* 20260820：三種車輛用途、重複接送時程、照片表單與可修改單筆。 */
 var COMMUTE_EDIT_ID='', _commuteOpenAddV17=openAdd, _commuteSaveAddV17=saveAdd;
 function commuteCategoryLabel(v){return v==='shuttle'?carText('shuttle','上下班接送','Commute shuttle','ដឹកជញ្ជូនបុគ្គលិក'):v==='local'?carText('local','平日／短途外出','Regular / local outing','ចេញក្រៅជិត'):v==='long'?carText('long','長途外出','Long-distance outing','ចេញក្រៅឆ្ងាយ'):(v||'—');}
