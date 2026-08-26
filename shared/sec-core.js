@@ -426,6 +426,41 @@ function registerAutoDownloader(tool, fn) {
   if (tool && typeof fn === 'function') SEC_AUTO_DOWNLOADERS[String(tool)] = fn;
 }
 function autoSyncKey(tool) { return 'ac_sec_auto_sync_' + String(tool || ''); }
+function syncTime() {
+  try { return new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', hour12:false }); }
+  catch (e) { return ''; }
+}
+function autoSyncDelay(reason, requested) {
+  var r = String(reason || '').toLowerCase();
+  var d = requested == null ? 900 : Number(requested);
+  if (!isFinite(d) || d < 0) d = 900;
+  /* HRA Pay reliability rule: imports and user-facing commits must start
+     before a mobile tab can be suspended. Ordinary edits stay debounced. */
+  if (/(?:import|telegram|approval|review|restore|file-change|file-delete|summary-sent|approval-sent)/.test(r)) return Math.min(d, 60);
+  if (/(?:batch-save|batch-delete|bulk-delete)/.test(r)) return Math.min(d, 250);
+  return d;
+}
+function autoSyncText(state, detail) {
+  if (state === 'dirty') return '☁ 待同步 / Pending';
+  if (state === 'syncing') return '☁ 同步中… / Syncing…';
+  if (state === 'synced') return '✅ 已同步 / Synced' + (detail ? ' ' + detail : '');
+  if (state === 'offline') return '☁ 離線待傳 / Offline';
+  if (state === 'retry') return '⚠ 待重試 / Retry';
+  if (state === 'checked') return '☁ 已檢查 / Checked' + (detail ? ' ' + detail : '');
+  return '☁ 自動同步 / Auto sync';
+}
+function setAutoSyncState(tool, state, detail) {
+  var el = document.querySelector('.c-state'), dot = document.querySelector('.c-dot');
+  if (el) {
+    el.textContent = autoSyncText(state, detail || '');
+    el.className = 'c-state ' + (state || 'idle');
+    el.title = 'AC Security Auto Sync · ' + autoSyncText(state, detail || '');
+  }
+  if (dot) {
+    dot.className = 'c-dot' + (state === 'syncing' ? ' syncing' : state === 'synced' || state === 'checked' ? ' ok' : state === 'offline' || state === 'retry' ? ' err' : '');
+  }
+  try { G.dispatchEvent(new CustomEvent('ac-sec-autosync-state', { detail:{ tool:String(tool || ''), state:state, detail:detail || '', at:Date.now() } })); } catch (e) {}
+}
 function reportPeriod(period) {
   var m = String(period || '').match(/^(\d{4}-\d{2})(?:-(\d{2}))?/);
   return m ? (m[2] ? m[1] + '-' + m[2] : m[1]) : '';
@@ -458,12 +493,16 @@ async function runAutoCloudSync(tool, marker) {
   tool = String(tool || '');
   if (!tool || SEC_AUTO_BUSY[tool] || !navigator.onLine) {
     if (tool && SEC_AUTO_BUSY[tool]) SEC_AUTO_AGAIN[tool] = marker || { reason:'queued', period:'' };
+    if (tool && !navigator.onLine) setAutoSyncState(tool, 'offline');
     return false;
   }
   var push = SEC_AUTO_UPLOADERS[tool], pull = SEC_AUTO_DOWNLOADERS[tool];
   if (typeof push !== 'function') return false;
+  var priorPending = null;
+  try { priorPending = localStorage.getItem(autoSyncKey(tool)); } catch (e) {}
   SEC_AUTO_BUSY[tool] = true;
   SEC._autoSyncSilent = true;
+  setAutoSyncState(tool, 'syncing');
   try {
     /* HRA Portal style: local data opens first, then changed cloud buckets are
        reconciled before changed local buckets are committed. */
@@ -472,10 +511,20 @@ async function runAutoCloudSync(tool, marker) {
     if (ok !== false) {
       try { localStorage.removeItem(autoSyncKey(tool)); } catch (e) {}
       markSync(tool);
+      setAutoSyncState(tool, 'synced', syncTime());
+    } else if (!priorPending && /^(?:startup-reconcile|reconcile|resume|page-resume|app-resume|network-restored)$/.test(String(marker && marker.reason || ''))) {
+      /* A passive startup check on a new/empty module is not a failed upload. */
+      try { localStorage.removeItem(autoSyncKey(tool)); } catch (e) {}
+      setAutoSyncState(tool, 'checked', syncTime());
+    } else {
+      try { safeStorageSet(autoSyncKey(tool), JSON.stringify(marker || { tool:tool, reason:'retry', period:'', at:Date.now() })); } catch (e) {}
+      setAutoSyncState(tool, 'retry');
     }
     return ok !== false;
   } catch (e) {
     console.warn('[AC SEC auto sync]', tool, e);
+    try { safeStorageSet(autoSyncKey(tool), JSON.stringify(marker || { tool:tool, reason:'retry', period:'', at:Date.now() })); } catch (_) {}
+    setAutoSyncState(tool, 'retry');
     return false;
   } finally {
     SEC._autoSyncSilent = false;
@@ -493,8 +542,9 @@ function scheduleAutoCloudSync(tool, reason, period, delay, updateAt) {
   var marker = { tool:tool, reason:String(reason || 'event'), period:String(period || ''), at:Number(updateAt) || Date.now() };
   queueReportUpdate(tool, marker.reason, marker.period, marker.at);
   try { safeStorageSet(autoSyncKey(tool), JSON.stringify(marker)); } catch (e) {}
+  setAutoSyncState(tool, navigator.onLine ? 'dirty' : 'offline');
   clearTimeout(SEC_AUTO_TIMERS[tool]);
-  SEC_AUTO_TIMERS[tool] = setTimeout(function () { runAutoCloudSync(tool, marker); }, Number(delay) >= 0 ? Number(delay) : 900);
+  SEC_AUTO_TIMERS[tool] = setTimeout(function () { runAutoCloudSync(tool, marker); }, autoSyncDelay(marker.reason, delay));
 }
 function retryAutoCloudSync(tool) {
   tool = String(tool || ''); if (!tool) return;
@@ -507,12 +557,12 @@ function retryAutoCloudSync(tool) {
 }
 function startAutoCloudSync(tool) {
   tool = String(tool || ''); if (!tool) return;
-  if (!retryAutoCloudSync(tool)) scheduleAutoCloudSync(tool, 'startup-reconcile', '', 350);
+  if (!retryAutoCloudSync(tool)) setTimeout(function () { runAutoCloudSync(tool, { tool:tool, reason:'startup-reconcile', period:'', at:Date.now() }); }, 350);
 }
 function resumeAllAutoCloudSync(reason) {
   if (!navigator.onLine) return;
   Object.keys(SEC_AUTO_UPLOADERS).forEach(function (tool) {
-    scheduleAutoCloudSync(tool, reason || 'resume', '', 180);
+    if (!retryAutoCloudSync(tool)) setTimeout(function () { runAutoCloudSync(tool, { tool:tool, reason:reason || 'resume', period:'', at:Date.now() }); }, 180);
   });
 }
 G.addEventListener('online', function () { resumeAllAutoCloudSync('network-restored'); });
@@ -524,6 +574,7 @@ document.addEventListener('visibilitychange', function () {
 /* 雲端上傳（分塊） */
 async function cloudPush(tool, records, summary, extra) {
   var dot = document.querySelector('.c-dot'); if (dot) dot.className = 'c-dot syncing';
+  setAutoSyncState(tool, 'syncing');
   try {
     /* 每次成功上傳都留下版本時間，下載時才能判斷哪一筆較新，不能再用筆數大小猜測。 */
     var syncAt = new Date().toISOString();
@@ -552,17 +603,20 @@ async function cloudPush(tool, records, summary, extra) {
     }
     markSync(tool);
     if (dot) dot.className = 'c-dot ok';
+    setAutoSyncState(tool, 'synced', syncTime());
     if (!SEC._autoSyncSilent) toast('⬆️☁ ' + T().cloudOk + '（' + (records||[]).length + ' ' + T().records + '）', 'ok');
     return true;
   } catch (e) {
     if (dot) dot.className = 'c-dot err';
+    setAutoSyncState(tool, 'retry');
     if (!SEC._autoSyncSilent) toast('❌ ' + T().cloudFail + '：' + e.message, 'err', 5000);
     return false;
   }
 }
 /* 雲端下載 */
-async function cloudPull(tool) {
+async function cloudPull(tool, opts) {
   var dot = document.querySelector('.c-dot'); if (dot) dot.className = 'c-dot syncing';
+  setAutoSyncState(tool, 'syncing');
   try {
     var r = await gasPost({ action:'pull', tool:tool });
     var recs = [];
@@ -575,9 +629,11 @@ async function cloudPull(tool) {
     recs._cloudExtra = (r && r.extra) || {};
     recs._cloudMeta = (r && r.meta) || {};
     if (dot) dot.className = 'c-dot ok';
+    setAutoSyncState(tool, 'synced', syncTime());
     return recs;
   } catch (e) {
     if (dot) dot.className = 'c-dot err';
+    setAutoSyncState(tool, 'retry');
     if (!SEC._autoSyncSilent) toast('❌ ' + T().cloudFail + '：' + e.message, 'err', 5000);
     return null;
   }
@@ -1210,7 +1266,7 @@ function headerHtml(icon, title, sub) {
     '</div>' +
     '<div class="cloud-bar" id="cloudBar">' +
       '<span class="c-dot"></span><span class="c-lbl">☁ Cloud</span>' +
-      '<span class="c-ts">—</span>' +
+      '<span class="c-state">☁ 自動同步 / Auto sync</span><span class="c-ts">—</span>' +
     '</div>' +
   '</div>';
 }
@@ -1343,7 +1399,7 @@ G.SEC = {
   registerAutoUploader:registerAutoUploader, registerAutoDownloader:registerAutoDownloader,
   scheduleAutoCloudSync:scheduleAutoCloudSync, retryAutoCloudSync:retryAutoCloudSync,
   startAutoCloudSync:startAutoCloudSync, runAutoCloudSync:runAutoCloudSync,
-  markSync:markSync, lastSync:lastSync, tgSummary:tgSummary, tgOpen:tgOpen,
+  setAutoSyncState:setAutoSyncState, markSync:markSync, lastSync:lastSync, tgSummary:tgSummary, tgOpen:tgOpen,
   recordKey:recordKey, mergeRecords:mergeRecords, mergeObject:mergeObject,
   blankConflictsObject:blankConflictsObject, confirmBlankMerge:confirmBlankMerge,
   routePickerHtml:routePickerHtml, bindRoutePicker:bindRoutePicker, pickedRoute:pickedRoute,

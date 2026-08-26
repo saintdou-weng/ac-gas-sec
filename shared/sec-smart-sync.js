@@ -218,17 +218,28 @@
     }
     return true;
   }
-  async function smartPull(tool) {
+  async function smartPull(tool, opts) {
+    opts = opts || {};
     statusDot('syncing');
     var remote = await manifest(tool);
     if (!remote.exists && remote.legacy) return legacyAll(tool);
     if (!remote.exists) { var empty = []; empty._cloudExtra = {}; empty._cloudMeta = {}; return empty; }
-    var state = stateRead(tool), previous = state && state.hashes || {}, remoteHashes = remote.hashes || {};
-    var changedKeys = Object.keys(remoteHashes).filter(function (k) { return !state || previous[k] !== remoteHashes[k]; });
+    /* HRA Pay style: compare cloud hashes with the records that are actually
+       present in this browser.  Do not trust only the previous sync marker;
+       local data may have been cleared while that marker remains. */
+    var hasLocal = Array.isArray(opts.localRecords), state = stateRead(tool), previous = state && state.hashes || {};
+    var localRows = normalizeRecords(tool, hasLocal ? opts.localRecords : []);
+    var localBuckets = buildBuckets(tool, localRows, opts.localExtra || {});
+    var remoteHashes = remote.hashes || {};
+    var changedKeys = Object.keys(remoteHashes).filter(function (k) {
+      var lb = localBuckets[k];
+      return !!opts.force || (hasLocal ? (!lb || lb.hash !== remoteHashes[k]) : (!state || previous[k] !== remoteHashes[k]));
+    });
     if (!changedKeys.length) {
       var unchanged = [];
       unchanged._cloudExtra = {};
       unchanged._cloudMeta = Object.assign({}, remote.meta || {}, { unchanged:true, downloadedBuckets:0, missingBuckets:[] });
+      stateWrite(tool, { hashes:remoteHashes, counts:remote.counts || {}, metaHash:remote.metaHash || '', updatedAt:remote.updatedAt || now() });
       statusDot('ok'); SEC.markSync(tool); return unchanged;
     }
     var all = await smartAll(tool, remote, changedKeys), out = all.records;
@@ -243,19 +254,33 @@
     return out;
   }
   SEC.cloudPush = async function (tool, records, summary, extra) {
-    try { return await smartPush(tool, records, summary, extra || {}); }
+    try {
+      if (SEC.setAutoSyncState) SEC.setAutoSyncState(tool, 'syncing');
+      var out = await smartPush(tool, records, summary, extra || {});
+      if (SEC.setAutoSyncState) SEC.setAutoSyncState(tool, 'synced', new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hour12:false}));
+      return out;
+    }
     catch (e) {
       console.warn('[AC SEC smart sync fallback]', e);
       if (!SEC._autoSyncSilent) SEC.toast('ℹ️ 智慧同步暫不可用，改用相容上傳 / Smart sync fallback', 'warn', 4500);
-      return oldPush(tool, records, summary, extra);
+      var legacy = await oldPush(tool, records, summary, extra);
+      if (SEC.setAutoSyncState) SEC.setAutoSyncState(tool, legacy ? 'synced' : 'retry', legacy ? new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hour12:false}) : '');
+      return legacy;
     }
   };
-  SEC.cloudPull = async function (tool) {
-    try { return await smartPull(tool); }
+  SEC.cloudPull = async function (tool, opts) {
+    try {
+      if (SEC.setAutoSyncState) SEC.setAutoSyncState(tool, 'syncing');
+      var out = await smartPull(tool, opts || {});
+      if (SEC.setAutoSyncState) SEC.setAutoSyncState(tool, 'synced', new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hour12:false}));
+      return out;
+    }
     catch (e) {
       console.warn('[AC SEC smart download fallback]', e);
       if (!SEC._autoSyncSilent) SEC.toast('ℹ️ 智慧下載暫不可用，改用相容下載 / Smart download fallback', 'warn', 4500);
-      return oldPull(tool);
+      var legacy = await oldPull(tool, opts || {});
+      if (SEC.setAutoSyncState) SEC.setAutoSyncState(tool, legacy ? 'synced' : 'retry', legacy ? new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hour12:false}) : '');
+      return legacy;
     }
   };
   SEC.smartSyncState = function (tool) { return stateRead(tool); };

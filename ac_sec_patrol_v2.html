@@ -283,8 +283,8 @@
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260826b"></script>
-<script src="./shared/sec-smart-sync.js?v=20260824c"></script>
+<script src="./shared/sec-core.js?v=20260826d"></script>
+<script src="./shared/sec-smart-sync.js?v=20260826d"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -346,7 +346,7 @@ function saveCheck(){ SEC.dbPut(LS_CHECK, CHECK); }
 function saveChip() { SEC.dbPut(LS_CHIP, CHIP); }
 
 /* ═══════════ 初始化 ═══════════ */
- document.getElementById('hdr').innerHTML = SEC.headerHtml('🚨', '保安巡邏 Patrol', 'AC SECURITY · PATROL v2 · 20260826b');
+ document.getElementById('hdr').innerHTML = SEC.headerHtml('🚨', '保安巡邏 Patrol', 'AC SECURITY · PATROL v2 · 20260826d');
 document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
 SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: openPatrolTelegram, onSmartImport: impWand });
 paintPatrolPeriod = SEC.bindPeriodNav('pnav', PER, function () { renderAll(); });
@@ -1549,10 +1549,8 @@ function clearAll() {
   if (!confirm('確定清空全部巡邏資料（含巡邏點命名）？此動作無法復原。')) return;
   SCAN = []; MAN = []; CHECK = []; CHIP = {}; saveScan(); saveMan(); saveCheck(); saveChip(); rebuild();
 }
-async function doUpload(opts) {
-  opts = opts || {};
-  if (!opts.auto && !ensurePatrolCheck()) return false;
-  var recs = SCAN.map(function (s) {
+function patrolCloudRecords() {
+  return SCAN.map(function (s) {
     return { _k:'scan', t:s.t, g:s.g, c:s.c, e:s.e, r:s.r || '', updatedAt:String(s.t || '').replace(' ','T') };
   }).concat(ROUNDS.map(function (r) {
     var TC = roundExpected(r);
@@ -1567,11 +1565,16 @@ async function doUpload(opts) {
       location: r.location, points: 1, expected: 1, status: r.status, manual: true,
       note:r.note || '', photos:Array.isArray(r.photos) ? r.photos.slice(0, 4) : [], updatedAt:r.updatedAt || r.createdAt || '' };
   })).concat(CHECK.map(function (r) { return Object.assign({_k:'check'}, r); }));
+}
+async function doUpload(opts) {
+  opts = opts || {};
+  if (!opts.auto && !ensurePatrolCheck()) return false;
+  var recs = patrolCloudRecords();
   return await SEC.cloudPush(TOOL, recs, { rounds: ROUNDS.length, scans: SCAN.length, checkpoints: totalCp(), confirmations:CHECK.length }, { chip:CHIP });
 }
 async function doDownload(opts) {
   if (!(opts && opts.auto) && !confirm('⬇️☁ 下載會合併巡更棒、人工記錄及巡邏確認；同一時間＋Chip 或同一 ID 不會重複，較新的資料優先。繼續？')) return false;
-  var recs = await SEC.cloudPull(TOOL);
+  var recs = await SEC.cloudPull(TOOL, { force:!(opts && opts.auto), localRecords:patrolCloudRecords(), localExtra:{ chip:CHIP } });
   if (!recs) return false;
   if (recs._cloudMeta && recs._cloudMeta.unchanged) return true;
   var local = SCAN.map(function (s) { return Object.assign({_k:'scan'},s); })

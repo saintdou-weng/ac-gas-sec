@@ -206,8 +206,8 @@
 <button class="btn" onclick="saveEdit()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260826b"></script>
-<script src="./shared/sec-smart-sync.js?v=20260824c"></script>
+<script src="./shared/sec-core.js?v=20260826d"></script>
+<script src="./shared/sec-smart-sync.js?v=20260826d"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -1020,14 +1020,17 @@ function clearAll() {
 }
 
 /* ═══ 雲端 ═══ */
-async function doUpload() {
-  var all = DB.map(function (r) { var o = Object.assign({ _k: 'staff' }, r); o.photo = r.photo || ''; return o; })
+function personnelCloudRecords() {
+  return DB.map(function (r) { var o = Object.assign({ _k: 'staff' }, r); o.photo = r.photo || ''; return o; })
     .concat(CHG.map(function (r) { return Object.assign({ _k: 'chg' }, r); }));
+}
+async function doUpload() {
+  var all = personnelCloudRecords();
   return await SEC.cloudPush(TOOL, all, { staff: DB.length, active: active().length, changes: CHG.length }, { roster: ROSTER });
 }
 async function doDownload(opts) {
   if (!(opts && opts.auto) && !confirm('⬇️☁ 下載會與本機人員資料合併；相同工號以最新資料更新，空白欄位會先確認並保留舊值。繼續？')) return false;
-  var recs = await SEC.cloudPull(TOOL);
+  var recs = await SEC.cloudPull(TOOL, { force:!(opts && opts.auto), localRecords:personnelCloudRecords(), localExtra:{ roster:ROSTER } });
   if (!recs) return false;
   if (recs._cloudMeta && recs._cloudMeta.unchanged) return true;
   var keep = {};

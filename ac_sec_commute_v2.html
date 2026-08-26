@@ -230,8 +230,8 @@
 <button class="btn" onclick="saveDriverManager()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260826b"></script>
-<script src="./shared/sec-smart-sync.js?v=20260824c"></script>
+<script src="./shared/sec-core.js?v=20260826d"></script>
+<script src="./shared/sec-smart-sync.js?v=20260826d"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -909,9 +909,8 @@ function clearAll() {
   if (!confirm('確定清空車輛／摩托車／遲到全部資料？')) return;
   CAR = []; BIKE = []; GATE = []; LATE = []; OCR_SCANS = []; save(); renderAll();
 }
-async function doUpload() {
-  cleanDriverMaster(); save();
-  var all = [].concat(
+function commuteCloudRecords() {
+  return [].concat(
     CAR.map(function (r) { return Object.assign({ _k: 'car' }, r); }),
     BIKE.map(function (r) { return Object.assign({ _k: 'bike' }, r); }),
     GATE.map(function (r) { return Object.assign({ _k: 'gate' }, r); }),
@@ -920,11 +919,15 @@ async function doUpload() {
     [{ _k:'drivers', id:'commute-driver-list', names:DRIVERS.slice(), updatedAt:new Date().toISOString() },
      { _k:'driverProfiles', id:'commute-driver-profiles', profiles:DRIVER_PROFILES.slice(), updatedAt:new Date().toISOString() }]
   );
+}
+async function doUpload() {
+  cleanDriverMaster(); save();
+  var all = commuteCloudRecords();
   return await SEC.cloudPush(TOOL, all, { car: CAR.length, bike: BIKE.length, gate: GATE.length, late: LATE.length, drivers: DRIVERS.length, driverProfiles:DRIVER_PROFILES.length, ocrScans:OCR_SCANS.length });
 }
 async function doDownload(opts) {
   if (!(opts && opts.auto) && !confirm('⬇️☁ 下載會與本機通勤資料合併；相同紀錄以最新資料更新，空白欄位會先確認並保留舊值。繼續？')) return false;
-  var recs = await SEC.cloudPull(TOOL);
+  var recs = await SEC.cloudPull(TOOL, { force:!(opts && opts.auto), localRecords:commuteCloudRecords() });
   if (!recs) return false;
   if (recs._cloudMeta && recs._cloudMeta.unchanged) return true;
   var local = CAR.map(function (r) { return Object.assign({_k:'car'}, r); })

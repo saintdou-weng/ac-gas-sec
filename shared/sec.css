@@ -62,6 +62,11 @@ body{
 .c-dot.ok{background:#4ade80;box-shadow:0 0 6px #4ade80}
 .c-dot.err{background:#f87171}
 .c-dot.syncing{background:#fbbf24;animation:pulse .8s infinite}
+.c-state{display:inline-flex;align-items:center;white-space:nowrap;font-size:11px;line-height:1;padding:4px 8px;border-radius:999px;background:rgba(241,245,249,.13);color:#cbd5e1;border:1px solid rgba(226,232,240,.22)}
+.c-state.syncing{background:rgba(37,99,235,.22);color:#dbeafe;border-color:rgba(191,219,254,.42)}
+.c-state.synced,.c-state.checked{background:rgba(4,120,87,.25);color:#d1fae5;border-color:rgba(167,243,208,.42)}
+.c-state.dirty{background:rgba(180,83,9,.28);color:#fef3c7;border-color:rgba(253,230,138,.42)}
+.c-state.offline,.c-state.retry{background:rgba(194,65,12,.28);color:#ffedd5;border-color:rgba(254,215,170,.42)}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 .c-ts{margin-left:auto;font-family:'DM Mono',monospace;font-size:10px}
 
