@@ -647,6 +647,8 @@ function lastSync(tool) { return localStorage.getItem('ac_sec_sync_' + tool) || 
 /* 雲端／Excel 合併工具：同一筆更新，新增筆保留，絕不因較少資料而清空本機。 */
 function recordKey(tool, r, i) {
   r = r || {};
+  /* 刪除墓碑保存原始穩定鍵，讓另一台裝置能刪掉同一筆，而不是把舊資料合併回來。 */
+  if (r._recordKey) return String(r._recordKey);
   /* CCTV 的穩定識別碼是攝影機編號，不是每次匯入產生的隨機 id；
      舊版本曾因 id 不同，把同一支攝影機重複加入。 */
   if (tool === 'cctv') {
@@ -661,6 +663,16 @@ function recordKey(tool, r, i) {
     }
     if (cctvKey) return tool + '|code|' + cctvKey;
     return tool + '|invalid|' + (r.id || i);
+  }
+  /* 消防 Excel 內不同設備類型可能重複使用 F001；設備身分必須包含
+     類型、廠別、區域、編號與位置，與雲端後端採用相同規則。 */
+  if (tool === 'fire') {
+    var fireCode = String(r.code || '').trim().toUpperCase().replace(/FOO/g, 'F00');
+    var fireType = String(r.type || '').trim().toLowerCase();
+    var fireFactory = String(r.factory || r.plant || r.site || '').trim().toLowerCase();
+    var fireZone = String(r.zone || '').trim().toLowerCase();
+    var fireLoc = String(r.loc || r.location || '').trim().toUpperCase().replace(/\s+/g, ' ');
+    if (fireCode || fireLoc) return tool + '|equipment|' + [fireType, fireFactory, fireZone, fireCode, fireLoc].join('|');
   }
   /* 巡更棒同一時間＋同一 Chip 是唯一打點；必須先於 _k 判定，
      否則不同裝置下載時的陣列順序會造成重複。 */
@@ -702,29 +714,109 @@ function mergeLatestRow(oldRow, newRow) {
   });
   return { row:merged, blanks:blanks, incomingWins:newWins };
 }
-function mergeRecords(tool, local, incoming) {
+var DELETED_KEY = 'ac_sec_deleted_v1_';
+function deletedRows(tool) {
+  try {
+    var a = JSON.parse(localStorage.getItem(DELETED_KEY + tool) || '[]');
+    return Array.isArray(a) ? a.filter(function (r) { return r && r._deleted && r._recordKey; }) : [];
+  } catch (e) { return []; }
+}
+function saveDeletedRows(tool, rows) {
+  var byKey = {};
+  (Array.isArray(rows) ? rows : []).forEach(function (r) {
+    if (!r || !r._deleted || !r._recordKey) return;
+    var old = byKey[r._recordKey];
+    if (!old || recordStamp(r) >= recordStamp(old)) byKey[r._recordKey] = r;
+  });
+  var out = Object.keys(byKey).map(function (k) { return byKey[k]; })
+    .sort(function (a, b) { return recordStamp(b) - recordStamp(a); }).slice(0, 5000);
+  safeStorageSet(DELETED_KEY + tool, JSON.stringify(out));
+  return out;
+}
+function markDeleted(tool, row) {
+  if (!tool || !row || typeof row !== 'object') return null;
+  var key = recordKey(tool, row, 0), tomb = { _deleted:true, _recordKey:key, updatedAt:new Date().toISOString() };
+  /* 保留分桶與舊版後端會使用的純量欄位，但不複製照片或大型內容。 */
+  Object.keys(row).forEach(function (k) {
+    var v = row[k];
+    if (k === '_deleted' || k === '_recordKey' || /photo|image|attach/i.test(k)) return;
+    if (v === null || ['string','number','boolean'].indexOf(typeof v) >= 0) tomb[k] = v;
+  });
+  tomb._deleted = true; tomb._recordKey = key; tomb.updatedAt = new Date().toISOString();
+  var list = deletedRows(tool), replaced = false;
+  list = list.map(function (r) { if (r._recordKey === key) { replaced = true; return tomb; } return r; });
+  if (!replaced) list.push(tomb);
+  saveDeletedRows(tool, list);
+  return tomb;
+}
+function markDeletedMany(tool, rows) {
+  (Array.isArray(rows) ? rows : []).forEach(function (r) { markDeleted(tool, r); });
+}
+function clearDeleted(tool, row) {
+  if (!tool || !row) return;
+  var key = recordKey(tool, row, 0);
+  saveDeletedRows(tool, deletedRows(tool).filter(function (r) { return r._recordKey !== key; }));
+}
+function mergeRecords(tool, local, incoming, opts) {
+  opts = opts || {};
   var out = [], pos = {}, blankConflicts = [], added = 0, updated = 0;
   function apply(r, i, isIncoming) {
+    if (!r || typeof r !== 'object') return;
     var k = recordKey(tool, r, i);
     if (pos[k] === undefined) { pos[k] = out.length; out.push(r); if (isIncoming) added++; }
     else {
-      var m = mergeLatestRow(out[pos[k]], r); out[pos[k]] = m.row;
+      var old = out[pos[k]], m;
+      if (old._deleted || r._deleted) {
+        var oldStamp = recordStamp(old), newStamp = recordStamp(r);
+        /* 時間相同時以後套用者為準；同步呼叫端可用參數順序決定本機或雲端優先。 */
+        m = { row:newStamp >= oldStamp ? r : old, blanks:[] };
+      } else m = mergeLatestRow(old, r);
+      out[pos[k]] = m.row;
       if (isIncoming) { updated++; if (m.blanks.length) blankConflicts.push({ key:k, fields:m.blanks }); }
     }
   }
   (Array.isArray(local) ? local : []).forEach(function (r, i) { apply(r, i, false); });
+  /* 每次合併都帶入本機刪除墓碑。這樣即使使用者離線刪除後先按「下載」，
+     舊的雲端資料也不會在尚未上傳前被補回來。子資料集合亦沿用相同規則。 */
+  if (opts.useStoredTombstones !== false) deletedRows(tool).forEach(function (r, i) { apply(r, i, false); });
   (Array.isArray(incoming) ? incoming : []).forEach(function (r, i) { apply(r, i, true); });
-  return { records: out, added: added, updated: updated,
+  var tombstones = out.filter(function (r) { return r && r._deleted; });
+  /* 保存從其他裝置下載到的刪除狀態；若較新的有效資料勝出，同鍵舊墓碑會在此移除。 */
+  if (opts.persistTombstones !== false) saveDeletedRows(tool, tombstones);
+  return { records: opts.keepTombstones ? out : out.filter(function (r) { return !(r && r._deleted); }),
+    tombstones:tombstones, added: added, updated: updated,
     kept: Math.max(0, out.length - (incoming || []).length), blankConflicts:blankConflicts };
 }
-function mergeObject(local, incoming) {
+function mergeObject(local, incoming, toolPrefix) {
   var out = Object.assign({}, local || {});
   Object.keys(incoming || {}).forEach(function (k) {
-    if (Array.isArray(out[k]) && Array.isArray(incoming[k])) out[k] = mergeRecords('extra-' + k, out[k], incoming[k]).records;
-    else if (incoming[k] && typeof incoming[k] === 'object' && out[k] && typeof out[k] === 'object' && !Array.isArray(incoming[k])) out[k] = mergeObject(out[k], incoming[k]);
+    var childTool = toolPrefix ? toolPrefix + '-' + k : 'extra-' + k;
+    if (incoming[k] && incoming[k].__secReplace === true) {
+      var oldEnv=out[k], oldStamp=oldEnv&&oldEnv.__secReplace===true?recordStamp(oldEnv):0, newStamp=recordStamp(incoming[k]);
+      if(!oldEnv||oldEnv.__secReplace!==true||newStamp>=oldStamp)out[k]=incoming[k];
+    }
+    else if (out[k] && out[k].__secReplace === true) { /* 新格式的完整替換資料不與舊版片段做欄位聯集。 */ }
+    else if (Array.isArray(out[k]) && Array.isArray(incoming[k])) out[k] = mergeRecords(childTool, out[k], incoming[k]).records;
+    else if (incoming[k] && typeof incoming[k] === 'object' && out[k] && typeof out[k] === 'object' && !Array.isArray(incoming[k])) out[k] = mergeObject(out[k], incoming[k], childTool);
     else if (incoming[k] !== undefined && !(blankValue(incoming[k]) && !blankValue(out[k]))) out[k] = incoming[k];
   });
   return out;
+}
+function replaceObject(data, updatedAt){return {__secReplace:true,updatedAt:updatedAt||new Date().toISOString(),data:data&&typeof data==='object'?data:{}};}
+function unwrapObject(value){return value&&value.__secReplace===true?{data:value.data&&typeof value.data==='object'?value.data:{},updatedAt:value.updatedAt||''}:{data:value&&typeof value==='object'?value:{},updatedAt:''};}
+/* 依業務穩定鍵清理跨裝置或重複匯入產生的雙份資料。保留較新的版本，
+   並把較新版本中的空白欄位以舊值補回；呼叫端可將 removedRows 轉成刪除墓碑。 */
+function dedupeBy(rows, keyFn) {
+  var out=[], pos={}, removedRows=[];
+  (Array.isArray(rows)?rows:[]).forEach(function(r,i){
+    if(!r||typeof r!=='object')return;
+    var k='';try{k=String(keyFn(r,i)||'');}catch(e){}
+    if(!k)k='__row__'+i;
+    if(pos[k]===undefined){pos[k]=out.length;out.push(r);return;}
+    var at=pos[k],old=out[at],m=mergeLatestRow(old,r);
+    out[at]=m.row;removedRows.push(m.incomingWins?old:r);
+  });
+  return {records:out,removed:removedRows.length,removedRows:removedRows};
 }
 function blankConflictsObject(local, incoming, path, out) {
   path = path || ''; out = out || [];
@@ -773,7 +865,8 @@ function tgOpen(opt) {
   opt = opt || {};
   var firstType = opt.defaultType || 'month';
   var st = { mode:'summary', ptype:firstType, period:opt.defaultPeriod || '',
-    lang:opt.defaultLang || 'both', scope:opt.defaultScope || (opt.scopeOptions && opt.scopeOptions[0] ? opt.scopeOptions[0].value : '') };
+    lang:opt.defaultLang || 'both', scope:opt.defaultScope || (opt.scopeOptions && opt.scopeOptions[0] ? opt.scopeOptions[0].value : ''),
+    includeDetails:false };
   var mask = document.createElement('div');
   mask.className = 'mask on';
   var scopeHtml = opt.scopeOptions && opt.scopeOptions.length ?
@@ -800,6 +893,9 @@ function tgOpen(opt) {
         '</div>' +
         '<div class="f" style="margin-top:10px"><label>訊息語言 Language</label><select id="tgLang">' + langHtml +
         '</select></div>' +
+        '<div class="f" id="tgDetailBox" style="margin-top:10px"><label style="display:flex;gap:8px;align-items:flex-start">' +
+          '<input id="tgDetails" type="checkbox" style="margin-top:3px"> <span><b>附逐筆明細 / Include record details</b><br>' +
+          '<small>預設只發精簡統計；勾選後，傳送前還會再次確認。 / Compact summary by default; detailed rows require a second confirmation.</small></span></label></div>' +
         '<div class="f" style="margin-top:10px"><label>訊息預覽 Preview</label>' +
           '<pre id="tgPreview" style="white-space:pre-wrap;max-height:330px;overflow:auto;background:#f6f8fb;border:1px solid var(--line);border-radius:9px;padding:11px;font:12px/1.55 system-ui,sans-serif"></pre></div>' +
         '<p id="tgNote" class="hint" style="margin-top:8px">摘要只是通知，不會改變資料狀態。</p>' +
@@ -850,9 +946,13 @@ function tgOpen(opt) {
     return new Period(st.ptype, d).key();
   }
   function note() {
+      var detailBox = q('#tgDetailBox');
+      if (detailBox) detailBox.style.display = st.mode === 'approval' ? 'none' : '';
       q('#tgNote').textContent = st.mode === 'approval'
       ? (opt.approvalNote || '未送核項目會建立新批次；已送出但仍待核可的項目會更新原批次，不會重複建立資料。Telegram 群組會顯示逐筆核可／退件、翻頁、全部核可及關閉批次按鈕。')
-      : '摘要是通知用途，可重複傳送，不會建立核可批次，也不會改變資料狀態。';
+      : (st.includeDetails
+        ? '⚠️ 已選擇逐筆明細；傳送時會再次確認。相同內容與相同照片不會重複送到群組。'
+        : '摘要預設只發統計、異常與必要欄位；相同內容與相同照片不會重複送到群組。');
   }
   function summaryPages() {
     function one(s) {
@@ -911,6 +1011,7 @@ function tgOpen(opt) {
   q('#tgType').onchange = function () { st.ptype = this.value; fillPeriods(true); preview(); };
   q('#tgAnchor').onchange = function () { st.period = readAnchor(); preview(); };
   q('#tgLang').onchange = function () { st.lang = this.value; preview(); };
+  q('#tgDetails').onchange = function () { st.includeDetails = !!this.checked; note(); preview(); };
   if (q('#tgScope')) q('#tgScope').onchange = function () { st.scope = this.value; preview(); };
   mask.querySelectorAll('[data-tg-mode]').forEach(function (b) {
     b.onclick = function () {
@@ -925,6 +1026,10 @@ function tgOpen(opt) {
     try {
       if (st.mode === 'summary') {
         var pages = summaryPages();
+        if (st.includeDetails && typeof G.confirm === 'function' && !G.confirm(
+          '⚠️ 您已選擇「附逐筆明細」。\n\n群組將收到每筆日期、時間與人員資料，訊息可能較長。確定仍要發送？\n\nDetailed rows will be sent to the group. Continue?')) {
+          throw new Error('Transmission cancelled / 已取消傳送');
+        }
         if (typeof opt.beforeSummarySend === 'function') {
           var allowed = await opt.beforeSummarySend(st, pages);
           if (allowed === false) throw new Error('Transmission cancelled / 已取消傳送');
@@ -944,7 +1049,7 @@ function tgOpen(opt) {
            2.5-second Telegram queue, matching HRA Portal and avoiding browser
            requests racing each other into Telegram HTTP 429. */
         var sentResult = await gasPost({ action:'telegramBatch', pages:batchPages, module:opt.module||'', lang:st.lang,
-          mode:'summary', period:st.period, periodType:st.ptype });
+          mode:'summary', period:st.period, periodType:st.ptype, scope:st.scope || '', includeDetails:!!st.includeDetails });
         if (!sentResult || sentResult.sent !== true) {
           var failedPage = sentResult && sentResult.failedPage ? Number(sentResult.failedPage) : 1;
           var reason = sentResult && sentResult.error ? String(sentResult.error) : '';
@@ -952,7 +1057,8 @@ function tgOpen(opt) {
             (reason ? '：' + reason : '；請確認已更新並重新部署 ac_sec.gs'));
         }
         scheduleAutoCloudSync(opt.module || '', 'telegram-summary', st.period || '');
-        toast('✈️ Telegram 摘要已送出' + (pages.length > 1 ? '（' + pages.length + ' 頁）' : ''), 'ok');
+        if (sentResult.skippedDuplicate) toast('♻️ 相同摘要已送過，本次未重複發送 / Duplicate summary skipped', 'warn', 5500);
+        else toast('✈️ Telegram 摘要已送出' + (pages.length > 1 ? '（' + pages.length + ' 頁）' : ''), 'ok');
       } else {
         var items = opt.approvalItems ? (opt.approvalItems(st) || []) : [];
         var result = opt.onApprovalSend
@@ -1400,7 +1506,9 @@ G.SEC = {
   scheduleAutoCloudSync:scheduleAutoCloudSync, retryAutoCloudSync:retryAutoCloudSync,
   startAutoCloudSync:startAutoCloudSync, runAutoCloudSync:runAutoCloudSync,
   setAutoSyncState:setAutoSyncState, markSync:markSync, lastSync:lastSync, tgSummary:tgSummary, tgOpen:tgOpen,
-  recordKey:recordKey, mergeRecords:mergeRecords, mergeObject:mergeObject,
+  recordKey:recordKey, mergeRecords:mergeRecords, mergeObject:mergeObject, dedupeBy:dedupeBy,
+  replaceObject:replaceObject, unwrapObject:unwrapObject,
+  getDeleted:deletedRows, markDeleted:markDeleted, markDeletedMany:markDeletedMany, clearDeleted:clearDeleted,
   blankConflictsObject:blankConflictsObject, confirmBlankMerge:confirmBlankMerge,
   routePickerHtml:routePickerHtml, bindRoutePicker:bindRoutePicker, pickedRoute:pickedRoute,
   sendApproval:sendApproval,

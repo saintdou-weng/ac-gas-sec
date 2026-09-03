@@ -177,8 +177,8 @@
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260826d"></script>
-<script src="./shared/sec-smart-sync.js?v=20260826d"></script>
+<script src="./shared/sec-core.js?v=20260901a"></script>
+<script src="./shared/sec-smart-sync.js?v=20260901a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -195,15 +195,20 @@ if (typeof SEC === 'undefined') {
 }
 
 var LS = 'ac_sec_expense_db', LSB = 'ac_sec_expense_batches';
-var DB = [], BATCH = [], PH = [], PER = new SEC.Period('month'), CH = {}, TOOL = 'expense';
+var DB = [], BATCH = [], PH = [], PER = new SEC.Period('month'), CH = {}, TOOL = 'expense', EXP_EDIT_ID = '';
 
 async function load() {
   DB = await SEC.dbGet(LS, []);
   BATCH = await SEC.dbGet(LSB, []);
   if (!Array.isArray(DB)) DB = [];
   if (!Array.isArray(BATCH)) BATCH = [];
+  if(expenseDedupe())save();
 }
 function save() { SEC.dbPut(LS, DB); SEC.dbPut(LSB, BATCH); }
+function expenseDedupe(){
+  var d=SEC.dedupeBy(DB,function(r){if(r.feeImportKey)return 'fee|'+r.feeImportKey;if(r.src)return 'import|'+[r.date||'',SEC.norm(r.name),SEC.norm(r.vendor),Number(r.amount)||0].join('|');return 'id|'+String(r.id||'');});
+  var ids={};d.records.forEach(function(r){ids[r.id]=1;});d.removedRows.forEach(function(r){if(!ids[r.id])SEC.markDeleted(TOOL,r);});DB=d.records;return d.removed;
+}
 
 document.getElementById('hdr').innerHTML = SEC.headerHtml('💰', '保安費用 Security Expense', 'AC SECURITY · EXPENSE');
 document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
@@ -280,7 +285,7 @@ function renderList() {
         '<td class="num">' + (r.qty || '') + ' ' + SEC.esc(r.unit || '') + '</td>' +
         '<td class="num"><b>' + money(r.amount) + '</b></td>' +
         '<td>' + st + '</td>' +
-        '<td><button class="btn sm err" onclick="delRec(\'' + r.id + '\')">×</button></td>' +
+        '<td><button class="btn sm gh" onclick="editExpense(\'' + r.id + '\')">✏️</button> <button class="btn sm err" onclick="delRec(\'' + r.id + '\')">×</button></td>' +
       '</tr>';
     }).join('');
 }
@@ -311,9 +316,10 @@ function addPhotoRefresh() {
   });
 }
 function saveNew(submit) {
+  var old=EXP_EDIT_ID?DB.filter(function(x){return x.id===EXP_EDIT_ID;})[0]:null;
   var r = {
-    id    : 'E' + Date.now().toString(36),
-    code  : 'EXP-' + SEC.ymd().replace(/-/g, '') + '-' + String(DB.length + 1).padStart(3, '0'),
+    id    : old?old.id:'E' + Date.now().toString(36),
+    code  : old?old.code:'EXP-' + SEC.ymd().replace(/-/g, '') + '-' + String(DB.length + 1).padStart(3, '0'),
     date  : document.getElementById('nDate').value,
     name  : document.getElementById('nName').value.trim(),
     cat   : document.getElementById('nCat').value,
@@ -325,21 +331,29 @@ function saveNew(submit) {
     by    : document.getElementById('nBy').value.trim() || SEC.getCfg().operator,
     reason: document.getElementById('nReason').value.trim(),
     photos: PH.slice(),
-    batchId: '', apprStatus: '',
-    createdAt: SEC.nowStr(),
+    batchId: old?old.batchId||'':'', apprStatus: old?old.apprStatus||'':'',
+    createdAt: old?old.createdAt||SEC.nowStr():SEC.nowStr(), updatedAt:new Date().toISOString(),
   };
   if (!r.name)  { SEC.toast('⚠ 請填項目名稱', 'warn'); return; }
   if (!r.date)  { SEC.toast('⚠ 請選日期', 'warn'); return; }
-  DB.push(r); save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, isSecurityFee(r) ? 'expense-security-fee-save' : 'expense-save', r.date);
+  if(old&&old.batchId){if(!confirm('此筆已進入核可批次；修改後會重設為未送核，需重新送核。繼續？\nThis record is in an approval batch. Editing resets it for re-approval.'))return;r.batchId='';r.apprStatus='';}
+  if(!old){var dup=DB.filter(function(x){return x.date===r.date&&x.name===r.name&&x.vendor===r.vendor&&Number(x.amount)===Number(r.amount);})[0];if(dup&&!confirm('發現同日、同項目、同廠商及同金額的紀錄。仍要另外新增一筆嗎？\nPossible duplicate found. Add another record anyway?'))return;DB.push(r);}else Object.assign(old,r);
+  EXP_EDIT_ID='';save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, isSecurityFee(r) ? 'expense-security-fee-save' : 'expense-save', r.date);
   SEC.toast('✅ 已儲存 ' + r.code, 'ok');
   ['nName','nVendor','nUnit','nPrice','nAmt','nReason'].forEach(function (i) { document.getElementById(i).value = ''; });
   document.getElementById('nQty').value = 1;
   PH = []; document.getElementById('nPhotos').innerHTML = '';
   if (submit) { document.querySelector('.tab[data-p="appr"]').click(); }
 }
+function editExpense(id){
+  var r=DB.filter(function(x){return x.id===id;})[0];if(!r)return;EXP_EDIT_ID=id;
+  [['nDate',r.date],['nName',r.name],['nCat',r.cat],['nVendor',r.vendor],['nQty',r.qty],['nUnit',r.unit],['nPrice',r.price],['nAmt',r.amount],['nBy',r.by],['nReason',r.reason]].forEach(function(x){var el=document.getElementById(x[0]);if(el)el.value=x[1]==null?'':x[1];});
+  PH=Array.isArray(r.photos)?r.photos.slice():[];addPhotoRefresh();var tab=document.querySelector('.tab[data-p="new"]');if(tab)tab.click();SEC.toast('✏️ 已載入 '+(r.code||id)+'；儲存會更新原紀錄','ok');
+}
 function delRec(id) {
   if (!confirm(SEC.T().confirmDel)) return;
   var old = DB.filter(function (r) { return r.id === id; })[0];
+  if(old)SEC.markDeleted(TOOL,old);
   DB = DB.filter(function (r) { return r.id !== id; });
   save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'expense-delete', old && old.date || '');
 }
@@ -507,7 +521,7 @@ var SPEC = {
 };
 function impExcel() {
   SEC.pickExcel(function (sheets) {
-    var added = 0, log = [], importedDates = {};
+    var added = 0, updated = 0, skipped = 0, log = [], importedDates = {};
     sheets.forEach(function (sh) {
       var res = SEC.parseSheet(sh.rows, SPEC, { minScore: 2 });
       if (!res.rows.length) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：未偵測到資料（分數 ' + res.header.score + '）'); return; }
@@ -528,16 +542,17 @@ function impExcel() {
           src: sh.name, createdAt: SEC.nowStr(),
         };
         var old = DB.filter(function (x) { return x.date === row.date && x.name === row.name && x.vendor === row.vendor && Number(x.amount) === Number(row.amount); })[0];
-        if (old) { row.id = old.id; row.code = old.code; Object.assign(old, row); } else DB.push(row);
+        row.updatedAt=new Date().toISOString();
+        if (old) { row.id=old.id;row.code=old.code;if(JSON.stringify([old.cat,old.qty,old.unit,old.price,old.reason])===JSON.stringify([row.cat,row.qty,row.unit,row.price,row.reason]))skipped++;else{row.batchId=old.batchId||'';row.apprStatus=old.apprStatus||'';Object.assign(old,row);updated++;} } else {DB.push(row);added++;}
         importedDates[row.date] = true;
-        n++; added++;
+        n++;
       });
       log.push('· <b>' + SEC.esc(sh.name) + '</b>：匯入 <b>' + n + '</b> 筆（標題第 ' + (res.header.row + 1) + ' 列）');
     });
     save(); renderAll();
     Object.keys(importedDates).forEach(function (d) { SEC.scheduleAutoCloudSync(TOOL, 'expense-import', d); });
     document.getElementById('impLog').innerHTML = '<b>匯入結果</b><br>' + log.join('<br>');
-    SEC.toast(added ? '✅ ' + SEC.T().imported + ' ' + added + ' ' + SEC.T().records : '⚠ 未匯入任何資料', added ? 'ok' : 'warn', 5000);
+    SEC.toast((added||updated) ? '✅ 新增 '+added+'／更新 '+updated+'／略過重複 '+skipped : 'ℹ️ 沒有新資料；略過重複 '+skipped, (added||updated)?'ok':'warn', 5500);
   });
 }
 /* ── 保安服務費申請表專用（security_service_fee_application 格式）──
@@ -545,7 +560,7 @@ function impExcel() {
         各有 name / location / per month / total wk day / total wk hr / total hour / one hour / total pay */
 function impFee() {
   SEC.pickExcel(function (sheets) {
-    var added = 0, log = [], importedPeriods = {};
+    var added = 0, updated = 0, skipped = 0, log = [], importedPeriods = {};
     sheets.forEach(function (sh) {
       var rows = sh.rows;
       var company = '', month = '', days = 0;
@@ -578,17 +593,19 @@ function impFee() {
         var pay = SEC.num(R[8]) || SEC.num(R[3]);
         var hrs = SEC.num(R[6]);
         if (!pay) continue;
-        DB.push({
+        var row={
           id: 'FEE' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
           code: 'SVC-' + per.replace('-', '') + '-' + String(DB.length + 1).padStart(3, '0'),
           date: per + '-01', name: '保安服務費 ' + name,
           cat: '保安服務費 Security Service', vendor: company || 'ICSC',
           qty: 1, unit: '人月', price: pay, amount: pay,
           reason: (shift || '') + (loc ? ' · ' + loc : '') + (hrs ? ' · ' + hrs + ' hr' : ''),
-          photos: [], batchId: '', apprStatus: '', src: sh.name, createdAt: SEC.nowStr(),
-        });
+          photos: [], batchId: '', apprStatus: '', src: sh.name, createdAt: SEC.nowStr(), updatedAt:new Date().toISOString(),
+        };
+        row.feeImportKey=expenseFeeKey(row);var old=DB.filter(function(x){return x.feeImportKey===row.feeImportKey||expenseFeeKey(x)===row.feeImportKey;})[0];
+        if(old){if(Number(old.amount)===Number(row.amount)&&String(old.reason||'')===String(row.reason||''))skipped++;else{row.id=old.id;row.code=old.code;row.photos=old.photos||[];row.batchId='';row.apprStatus='';Object.assign(old,row);updated++;}}else{DB.push(row);added++;}
         importedPeriods[per] = true;
-        n++; added++;
+        n++;
       }
       log.push('· <b>' + SEC.esc(sh.name) + '</b>：匯入 <b>' + n + '</b> 筆' +
                (company ? '（' + SEC.esc(company) + '）' : '') + (month ? ' · ' + SEC.esc(month) : '') +
@@ -597,9 +614,10 @@ function impFee() {
     save(); renderAll();
     Object.keys(importedPeriods).forEach(function (p) { SEC.scheduleAutoCloudSync(TOOL, 'expense-security-fee-import', p); });
     document.getElementById('impLog').innerHTML = '<b>匯入結果</b><br>' + log.join('<br>');
-    SEC.toast(added ? '✅ 保安服務費匯入 ' + added + ' 筆' : '⚠ 未匯入，格式可能不符', added ? 'ok' : 'warn', 5000);
+    SEC.toast((added||updated)?'✅ 保安服務費：新增 '+added+'／更新 '+updated+'／略過重複 '+skipped:'ℹ️ 沒有新資料；略過重複 '+skipped,(added||updated)?'ok':'warn',5500);
   });
 }
+function expenseFeeKey(r){var reason=String((r&&r.reason)||'').split(' · ').slice(0,2).join(' · ');return [String((r&&r.date)||'').slice(0,7),SEC.norm((r&&r.name)||''),SEC.norm((r&&r.vendor)||''),SEC.norm(reason)].join('|');}
 
 function expExcel() {
   var list = inPeriod();
@@ -614,12 +632,15 @@ function restore() {
   SEC.restoreJson(function (o) {
     if (o.records) DB = o.records;
     if (o.batches) BATCH = o.batches;
-    save(); renderAll();
+    var at=new Date().toISOString();DB.forEach(function(r){r.updatedAt=at;SEC.clearDeleted(TOOL,r);});
+    save(); renderAll();SEC.scheduleAutoCloudSync(TOOL,'expense-restore','all');
   });
 }
 function clearAll() {
   if (!confirm('確定清空所有費用資料？')) return;
+  SEC.markDeletedMany(TOOL,DB);
   DB = []; BATCH = []; save(); renderAll();
+  SEC.scheduleAutoCloudSync(TOOL,'expense-clear-all','all');
 }
 
 /* ═══ 雲端 / Telegram ═══ */
@@ -627,6 +648,7 @@ function expenseCloudRecords() {
   return DB.map(function (r) { var o = Object.assign({}, r); o.photos = (r.photos || []).length; return o; });
 }
 async function doUpload() {
+  if(expenseDedupe())save();
   var slim = expenseCloudRecords();
   return await SEC.cloudPush(TOOL, slim, { total: DB.length, amount: DB.reduce(function (s, r) { return s + (+r.amount || 0); }, 0) });
 }
@@ -638,7 +660,7 @@ async function doDownload(opts) {
     recs = recs.map(function (r) { if (typeof r.photos === 'number') r.photos = []; return r; });
     var m = SEC.mergeRecords(TOOL, DB, recs);
     if (!(opts && opts.auto) && !SEC.confirmBlankMerge(m.blankConflicts, '費用資料雲端下載確認')) return false;
-    DB = m.records;
+    DB = m.records;expenseDedupe();
     save(); renderAll(); if (!(opts && opts.silent)) SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新，保留 ' + DB.length + ' 筆', 'ok', 5000);
   }
   return !!recs;
@@ -666,7 +688,7 @@ function securityFeeRows(st) {
 }
 
 function expCell(v,n){v=String(v==null?'':v).replace(/\s+/g,' ').trim();if(v.length>n)v=v.slice(0,Math.max(1,n-1))+'…';while(v.length<n)v+=' ';return v;}
-function expPre(lines){return '<pre>'+lines.join('\n')+'</pre>';}
+function expPre(lines){return '<blockquote>'+lines.join('\n')+'</blockquote>';}
 function expenseStatusShort(r){return !isSecurityFee(r)?'N/A':r.apprStatus==='approved'?'APP':r.apprStatus==='rejected'?'REJ':(r.apprStatus==='pending'||r.batchId)?'PEND':'NEW';}
 function expenseSummary(st) {
   var p=expenseSummaryPeriod(st),list=DB.filter(function(r){return p.has(r.date);}),amt=list.reduce(function(s,r){return s+(+r.amount||0);},0),fee=list.filter(isSecurityFee),pending=fee.filter(function(r){return !r.batchId&&r.apprStatus!=='pending';}),waiting=fee.filter(function(r){return r.apprStatus==='pending'||!!r.batchId;}),approved=fee.filter(function(r){return r.apprStatus==='approved';}),rejected=fee.filter(function(r){return r.apprStatus==='rejected';}),byC={};
@@ -682,11 +704,11 @@ function expenseSummary(st) {
     'Rejected             '+rejected.length
   ]);
   var ks=Object.keys(byC).sort(function(a,b){return byC[b].a-byC[a].a;});if(ks.length){var cl=['Category             Qty   Amount'];ks.forEach(function(k){cl.push(expCell(k,21)+expCell(byC[k].n,6)+money(byC[k].a));});txt+='\n\n<b>🏷 '+ett(st.lang,'分類明細','Category breakdown','តាមប្រភេទ')+'</b>\n'+expPre(cl);}
-  txt+='\n\n<i>'+ett(st.lang,'下一頁逐筆列出日期、編號、分類、項目、供應商、數量、單價、金額、申請人、核可狀態、原因、照片。只有 Security Fee 進入核可流程。','Next pages list date, code, category, item, vendor, quantity, unit price, amount, applicant, approval status, reason and photos. Only Security Fee enters approval.','ទំព័របន្ទាប់បង្ហាញព័ត៌មានចំណាយលម្អិត និងរូបថត។')+'</i>';
+  txt+='\n\n<i>'+(st.includeDetails?ett(st.lang,'已勾選逐筆明細；下一頁列出完整費用欄位與照片。只有 Security Fee 進入核可流程。','Record details selected; next pages list full expense fields and photos. Only Security Fee enters approval.','បានជ្រើសព័ត៌មានលម្អិត; ទំព័របន្ទាប់បង្ហាញចំណាយពេញ។'):ett(st.lang,'目前為精簡摘要；完整費用資料仍保留於平台與 Excel 匯出。只有 Security Fee 進入核可流程。','Compact summary; full expense data remains in the platform and Excel export. Only Security Fee enters approval.','សេចក្តីសង្ខេបខ្លី; ទិន្នន័យពេញនៅតែមានក្នុងប្រព័ន្ធ និង Excel។'))+'</i>';
   return txt;
 }
 
-function expenseSummaryPageDefs(st){var p=expenseSummaryPeriod(st),list=DB.filter(function(r){return p.has(r.date);}).slice().sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''))||String(a.code||'').localeCompare(String(b.code||''));}),all=[];list.forEach(function(r){all=all.concat(r.photos||[]);});var defs=[{text:expenseSummary(st),photos:all.filter(Boolean).slice(0,4)}];for(var i=0;i<list.length;i+=8){var b=list.slice(i,i+8),lines=['Date  Code         Category     Item          Qty    Price    Amount    St Ph'];b.forEach(function(r){lines.push(expCell(String(r.date||'').slice(5),6)+SEC.esc(expCell(r.code||r.id||'—',13))+SEC.esc(expCell(r.cat||'—',13))+SEC.esc(expCell(r.name||'—',14))+expCell((r.qty||0)+' '+(r.unit||''),7)+expCell(r.price||0,9)+expCell((+r.amount||0).toFixed(2),10)+expCell(expenseStatusShort(r),4)+(r.photos||[]).length);});var pg='<b>💰 費用逐筆明細 / Expense Details</b> · '+SEC.esc(p.label())+'\n'+expPre(lines);b.forEach(function(r){pg+='\n· '+SEC.esc(r.code||r.id||'—')+' · Vendor/供應商 '+SEC.esc(r.vendor||'—')+' · Applicant/申請人 '+SEC.esc(r.by||'—')+(r.reason?' · Reason/原因 '+SEC.esc(r.reason):'')+(r.batchId?' · Batch '+SEC.esc(r.batchId):'');});var ph=[];b.forEach(function(r){ph=ph.concat(r.photos||[]);});defs.push({text:pg,photos:ph.filter(Boolean).slice(0,4)});}return defs;}
+function expenseSummaryPageDefs(st){var p=expenseSummaryPeriod(st),list=DB.filter(function(r){return p.has(r.date);}).slice().sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''))||String(a.code||'').localeCompare(String(b.code||''));}),all=[];list.forEach(function(r){all=all.concat(r.photos||[]);});var defs=[{text:expenseSummary(st),photos:st.includeDetails?all.filter(Boolean).slice(0,4):[]}];if(!st.includeDetails)return defs;for(var i=0;i<list.length;i+=8){var b=list.slice(i,i+8),lines=['Date  Code         Category     Item          Qty    Price    Amount    St Ph'];b.forEach(function(r){lines.push(expCell(String(r.date||'').slice(5),6)+SEC.esc(expCell(r.code||r.id||'—',13))+SEC.esc(expCell(r.cat||'—',13))+SEC.esc(expCell(r.name||'—',14))+expCell((r.qty||0)+' '+(r.unit||''),7)+expCell(r.price||0,9)+expCell((+r.amount||0).toFixed(2),10)+expCell(expenseStatusShort(r),4)+(r.photos||[]).length);});var pg='<b>💰 費用逐筆明細 / Expense Details</b> · '+SEC.esc(p.label())+'\n'+expPre(lines);b.forEach(function(r){pg+='\n· '+SEC.esc(r.code||r.id||'—')+' · Vendor/供應商 '+SEC.esc(r.vendor||'—')+' · Applicant/申請人 '+SEC.esc(r.by||'—')+(r.reason?' · Reason/原因 '+SEC.esc(r.reason):'')+(r.batchId?' · Batch '+SEC.esc(r.batchId):'');});var ph=[];b.forEach(function(r){ph=ph.concat(r.photos||[]);});defs.push({text:pg,photos:ph.filter(Boolean).slice(0,4)});}return defs;}
 function expenseSummaryPages(st){return expenseSummaryPageDefs(st).map(function(x){return x.text;});}
 function expenseSummaryPhotos(st,pageIndex){var d=expenseSummaryPageDefs(st)[pageIndex];return d&&d.photos?d.photos.slice(0,4):[];}
 function expenseApprovalItems(st) {

@@ -136,8 +136,8 @@
     return { records:normal, extra:extra };
   }
   function mergeLocal(tool, local, remote, localExtra, remoteExtra) {
-    var m = SEC.mergeRecords(tool, remote || [], local || []);
-    var ex = SEC.mergeObject(remoteExtra || {}, localExtra || {});
+    var m = SEC.mergeRecords(tool, remote || [], local || [], { keepTombstones:true });
+    var ex = SEC.mergeObject(remoteExtra || {}, localExtra || {}, tool);
     return { records:m.records, extra:ex };
   }
   async function legacyAll(tool) { return oldPull(tool); }
@@ -171,7 +171,9 @@
   async function smartPush(tool, records, summary, extra, depth) {
     depth = depth || 0;
     statusDot('syncing');
-    var remote = await manifest(tool), local = { records:normalizeRecords(tool, withStamps(records)), extra:extra || {} }, migrated = false;
+    var live = Array.isArray(records) ? records.slice() : [];
+    if (SEC.getDeleted) live = live.concat(SEC.getDeleted(tool));
+    var remote = await manifest(tool), local = { records:normalizeRecords(tool, withStamps(live)), extra:extra || {} }, migrated = false;
     if (!remote.exists && remote.legacy) {
       var old = await legacyAll(tool), oldExtra = old && old._cloudExtra || {};
       local = mergeLocal(tool, local.records, normalizeRecords(tool, old || []), local.extra, oldExtra);
@@ -228,7 +230,9 @@
        present in this browser.  Do not trust only the previous sync marker;
        local data may have been cleared while that marker remains. */
     var hasLocal = Array.isArray(opts.localRecords), state = stateRead(tool), previous = state && state.hashes || {};
-    var localRows = normalizeRecords(tool, hasLocal ? opts.localRecords : []);
+    var pullLocal = hasLocal ? opts.localRecords.slice() : [];
+    if (SEC.getDeleted) pullLocal = pullLocal.concat(SEC.getDeleted(tool));
+    var localRows = normalizeRecords(tool, pullLocal);
     var localBuckets = buildBuckets(tool, localRows, opts.localExtra || {});
     var remoteHashes = remote.hashes || {};
     var changedKeys = Object.keys(remoteHashes).filter(function (k) {
@@ -263,7 +267,9 @@
     catch (e) {
       console.warn('[AC SEC smart sync fallback]', e);
       if (!SEC._autoSyncSilent) SEC.toast('ℹ️ 智慧同步暫不可用，改用相容上傳 / Smart sync fallback', 'warn', 4500);
-      var legacy = await oldPush(tool, records, summary, extra);
+      var legacyRows = Array.isArray(records) ? records.slice() : [];
+      if (SEC.getDeleted) legacyRows = legacyRows.concat(SEC.getDeleted(tool));
+      var legacy = await oldPush(tool, legacyRows, summary, extra);
       if (SEC.setAutoSyncState) SEC.setAutoSyncState(tool, legacy ? 'synced' : 'retry', legacy ? new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hour12:false}) : '');
       return legacy;
     }

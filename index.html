@@ -147,26 +147,26 @@ body::before{
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260826d"></script>
-<script src="./shared/sec-smart-sync.js?v=20260826d"></script>
+<script src="./shared/sec-core.js?v=20260901a"></script>
+<script src="./shared/sec-smart-sync.js?v=20260901a"></script>
 <script>
 /* ═══ 模組定義（含本機筆數） ═══ */
 var MODS = [
-  { id:'patrol',    u:'ac_sec_patrol_v2.html?v=20260826d',    ic:'🚨', zh:'保安巡邏', en:'Patrol',     km:'ល្បាត',
+  { id:'patrol',    u:'ac_sec_patrol_v2.html?v=20260901b',    ic:'🚨', zh:'保安巡邏', en:'Patrol',     km:'ល្បាត',
     sub:'PATROL',    keys:['ac_sec_patrol_db','ac_sec_patrol_scan','ac_sec_chipmap'] },
-  { id:'cctv',      u:'ac_sec_cctv_v2.html?v=20260826d',         ic:'📷', zh:'CCTV 監控', en:'CCTV',      km:'កាមេរ៉ា',
+  { id:'cctv',      u:'ac_sec_cctv_v2.html?v=20260901b',         ic:'📷', zh:'CCTV 監控', en:'CCTV',      km:'កាមេរ៉ា',
     sub:'CCTV',      keys:['ac_sec_cctv_db','ac_sec_cctv_log'] },
-  { id:'container', u:'ac_sec_container_v2.html?v=20260826d',    ic:'🚛', zh:'貨櫃出入', en:'Container',  km:'កុងតឺន័រ',
+  { id:'container', u:'ac_sec_container_v2.html?v=20260901b',    ic:'🚛', zh:'貨櫃出入', en:'Container',  km:'កុងតឺន័រ',
     sub:'CONTAINER', keys:['vrt_truck_v2','vr-container-inspections','vrt_v2'] },
-  { id:'expense',   u:'ac_sec_expense_v1.html?v=20260826d',   ic:'💰', zh:'保安費用', en:'Expense',    km:'ចំណាយ',
+  { id:'expense',   u:'ac_sec_expense_v1.html?v=20260901b',   ic:'💰', zh:'保安費用', en:'Expense',    km:'ចំណាយ',
     sub:'EXPENSE',   keys:['ac_sec_expense_db'] },
-  { id:'attendance',u:'ac_sec_attendance_v2.html?v=20260826d',   ic:'🕐', zh:'保安出勤', en:'Attendance', km:'វត្តមាន',
+  { id:'attendance',u:'ac_sec_attendance_v2.html?v=20260901b',   ic:'🕐', zh:'保安出勤', en:'Attendance', km:'វត្តមាន',
     sub:'ATTENDANCE',keys:['ac_sec_att_db'] },
-  { id:'commute',   u:'ac_sec_commute_v2.html?v=20260826d',   ic:'🏍', zh:'通勤交通', en:'Commute',    km:'ដំណើរ',
+  { id:'commute',   u:'ac_sec_commute_v2.html?v=20260901b',   ic:'🏍', zh:'通勤交通', en:'Commute',    km:'ដំណើរ',
     sub:'COMMUTE',   keys:['ac_sec_car_db','ac_sec_bike_db','ac_sec_gate_db','ac_sec_late_db'] },
-  { id:'fire',      u:'ac_sec_fire_v1.html?v=20260826d',          ic:'🧯', zh:'消防設施', en:'Fire & Map', km:'ពន្លត់ភ្លើង',
+  { id:'fire',      u:'ac_sec_fire_v1.html?v=20260901b',          ic:'🧯', zh:'消防設施', en:'Fire & Map', km:'ពន្លត់ភ្លើង',
     sub:'FIRE / MAP',keys:['ac_sec_fire_db'] },
-  { id:'personnel', u:'ac_sec_personnel_v1.html?v=20260826d', ic:'👮', zh:'保安人員', en:'Personnel',  km:'បុគ្គលិក',
+  { id:'personnel', u:'ac_sec_personnel_v1.html?v=20260901b', ic:'👮', zh:'保安人員', en:'Personnel',  km:'បុគ្គលិក',
     sub:'PERSONNEL', keys:['ac_sec_personnel_db'] },
 ];
 
@@ -192,7 +192,7 @@ async function renderGrid() {
       '<span class="mb-t1">' + (m[L] || m.zh) + '</span>' +
       '<span class="mb-t2">' + m.sub + '</span></a>';
   }).join('') +
-  '<a class="mod-btn full" href="ac_sec_patrol_v2.html?v=20260826d">' +
+  '<a class="mod-btn full" href="ac_sec_patrol_v2.html?v=20260901b">' +
     '<span class="mb-ic">🌙</span>' +
     '<span><span class="mb-t1">' +
       (L === 'en' ? 'Night Patrol Compliance' : L === 'km' ? 'ត្រួតពិនិត្យល្បាតយប់' : '夜間巡邏達標檢查') +
