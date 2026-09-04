@@ -283,8 +283,8 @@
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260901a"></script>
-<script src="./shared/sec-smart-sync.js?v=20260901a"></script>
+<script src="./shared/sec-core.js?v=20260904b"></script>
+<script src="./shared/sec-smart-sync.js?v=20260904b"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -314,10 +314,13 @@ var paintPatrolPeriod;
 var CP_BASELINE_APPLIED = '';
 /* 由使用者提供的 2026-08 巡邏檔核出的最新 12 個 checkpoint。
    只在本機已有 2026-08 資料時自動提出一次差異確認；未有 8 月資料時仍以匯入檔為準。 */
+var PATROL_CP_REPLACEMENT = '0F004E86D9';
+var PATROL_CP_REPLACEMENT_TYPO = 'OF004E86D9';
+var PATROL_CP_REPLACED_OLD = '3300A5DD3B';
 var ATTACHMENT_LATEST_CP = ['0F004EBEFC','3A0073B8C6','3300A5D392','3300A5CD4C','3300A635E9','3300A5A761',
-  'OF004E86D9','3300A542BE','3300A5554E','3300A585AB','3300A5E151','3300A5E13D'];
+  PATROL_CP_REPLACEMENT,'3300A542BE','3300A5554E','3300A585AB','3300A5E151','3300A5E13D'];
 var ATTACHMENT_PREVIOUS_CP = ['0F004EBEFC','3A0073B8C6','3300A5D392','3300A5CD4C','3300A635E9','3300A5A761',
-  '3300A5DD3B','3300A542BE','3300A5554E','3300A585AB','3300A5E151','3300A5E13D'];
+  PATROL_CP_REPLACED_OLD,'3300A542BE','3300A5554E','3300A585AB','3300A5E151','3300A5E13D'];
 
 /* 建議名稱（依 VRT 保安崗位清單，可自行改） */
 var SUGGEST = ['大門崗哨 Front Gate','A棟前 Front Building A','A棟 Building A',
@@ -340,6 +343,7 @@ async function load() {
     if (!CHIP[c] || typeof CHIP[c] !== 'object' || Array.isArray(CHIP[c])) CHIP[c] = {};
     if (CHIP[c].active === undefined) CHIP[c].active = true;
   });
+  if (repairPatrolCheckpointAlias()) saveChip();
   if(patrolDedupe()){saveScan();saveMan();saveCheck();}
 }
 function saveScan() { SEC.dbPut(LS_SCAN, SCAN); }
@@ -353,7 +357,7 @@ function patrolDedupe(){
 }
 
 /* ═══════════ 初始化 ═══════════ */
- document.getElementById('hdr').innerHTML = SEC.headerHtml('🚨', '保安巡邏 Patrol', 'AC SECURITY · PATROL v2 · 20260901a');
+ document.getElementById('hdr').innerHTML = SEC.headerHtml('🚨', '保安巡邏 Patrol', 'AC SECURITY · PATROL v2 · 20260904b');
 document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
 SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: openPatrolTelegram, onSmartImport: impWand });
 paintPatrolPeriod = SEC.bindPeriodNav('pnav', PER, function () { renderAll(); });
@@ -389,10 +393,38 @@ function chipSeq(c)  { return (CHIP[c] && CHIP[c].seq) || 999; }
 function chipOrder() {
   return allChipOrder().filter(chipIsActive);
 }
+/* RFID Chip ID 是十六進位，不會含英文字母 O。舊基準將第 7 點的數字 0
+   誤寫為 O，會讓每一圈的 12 點都只被認成 11 點。2026-08 起舊、新第 7 點
+   是同一個位置的替換，只算一點，不會增加為 13 點。 */
+function patrolCanonicalChip(chip, date) {
+  var c = String(chip == null ? '' : chip).replace(/[\u3000\s]+/g, '').toUpperCase();
+  if (c === PATROL_CP_REPLACEMENT_TYPO) c = PATROL_CP_REPLACEMENT;
+  if (String(date || '') >= '2026-08-01' && c === PATROL_CP_REPLACED_OLD) c = PATROL_CP_REPLACEMENT;
+  return c;
+}
+function repairPatrolCheckpointAlias() {
+  var typo = CHIP[PATROL_CP_REPLACEMENT_TYPO];
+  if (!typo) return false;
+  var before = JSON.stringify({ good:CHIP[PATROL_CP_REPLACEMENT] || null, typo:typo });
+  var good = CHIP[PATROL_CP_REPLACEMENT] || {};
+  ['name','seq','seqLocked','first','last'].forEach(function (k) { if ((good[k] === undefined || good[k] === '') && typo[k] !== undefined) good[k] = typo[k]; });
+  good.n = Math.max(Number(good.n) || 0, Number(typo.n) || 0);
+  if (good.active === undefined) good.active = typo.active === undefined ? true : typo.active;
+  else if (typo.active === true) good.active = true;
+  CHIP[PATROL_CP_REPLACEMENT] = good;
+  typo.active = false;
+  typo.replacedBy = PATROL_CP_REPLACEMENT;
+  typo.retiredFrom = typo.retiredFrom || '2026-08-01';
+  return before !== JSON.stringify({ good:CHIP[PATROL_CP_REPLACEMENT], typo:typo });
+}
 function checkpointOrderForDate(date) {
-  /* 2026-08 起第 7 點由 3300A5DD3B 換為 OF004E86D9；舊月份仍用舊 12 點。 */
+  /* 2026-08 起第 7 點由 3300A5DD3B 換為 0F004E86D9；舊月份仍用舊 12 點。 */
   if (String(date || '') < '2026-08-01') return ATTACHMENT_PREVIOUS_CP.slice();
-  return chipOrder();
+  var seen = {};
+  return chipOrder().map(function (c) { return patrolCanonicalChip(c, date); }).filter(function (c) {
+    if (!c || seen[c]) return false;
+    seen[c] = true; return true;
+  });
 }
 function roundExpected(r) { return (r && r.expected) || totalCp(r && r.date); }
 function roundComplete(r) { return !!r && r.chips.length >= roundExpected(r); }
@@ -412,15 +444,17 @@ function inferChips() {
     var list = byG[g].slice().sort(function (a, b) { return a.t < b.t ? -1 : 1; });
     var pos = 0, seen = {};
     list.forEach(function (s) {
-      if (seen[s.c]) { pos = 0; seen = {}; }
-      pos++; seen[s.c] = 1;
-      seq[s.c] = (seq[s.c] || 0) + pos; seqN[s.c] = (seqN[s.c] || 0) + 1;
+      var c = patrolCanonicalChip(s.c, String(s.t || '').slice(0, 10));
+      if (seen[c]) { pos = 0; seen = {}; }
+      pos++; seen[c] = 1;
+      seq[c] = (seq[c] || 0) + pos; seqN[c] = (seqN[c] || 0) + 1;
     });
   });
   SCAN.forEach(function (s) {
-    cnt[s.c] = (cnt[s.c] || 0) + 1;
-    if (!first[s.c] || s.t < first[s.c]) first[s.c] = s.t;
-    if (!last[s.c]  || s.t > last[s.c])  last[s.c]  = s.t;
+    var c = patrolCanonicalChip(s.c, String(s.t || '').slice(0, 10));
+    cnt[c] = (cnt[c] || 0) + 1;
+    if (!first[c] || s.t < first[c]) first[c] = s.t;
+    if (!last[c]  || s.t > last[c])  last[c]  = s.t;
   });
   var chips = Object.keys(cnt);
   chips.sort(function (a, b) { return (seq[a] / seqN[a]) - (seq[b] / seqN[b]); });
@@ -436,7 +470,17 @@ function inferChips() {
 
 function buildRounds() {
   var gap = (parseInt(document.getElementById('gapMin').value, 10) || 20) * 60000;
-  var all = SCAN.slice().sort(function (a, b) { return a.g === b.g ? (a.t < b.t ? -1 : 1) : (a.g < b.g ? -1 : 1); });
+  var scanSeen = {};
+  var all = SCAN.map(function (s) {
+    var x = Object.assign({}, s);
+    x.c = patrolCanonicalChip(s.c, String(s.t || '').slice(0, 10));
+    return x;
+  }).filter(function (s) {
+    /* 別名修正前後若雲端同時有 O/0 兩筆，同時間同點只算一次。 */
+    var k = s.t + '|' + s.c;
+    if (scanSeen[k]) return false;
+    scanSeen[k] = true; return true;
+  }).sort(function (a, b) { return a.g === b.g ? (a.t < b.t ? -1 : 1) : (a.g < b.g ? -1 : 1); });
   var out = [], cur = null;
   all.forEach(function (s) {
     var ts = new Date(s.t.replace(' ', 'T')).getTime();
@@ -1093,13 +1137,13 @@ function wandHeaderMap(rows) {
   return best;
 }
 function wandChip(v) {
-  return SEC.str(v).replace(/[\u3000\s]+/g, '').toUpperCase();
+  return patrolCanonicalChip(SEC.str(v), '');
 }
 function impWand() {
   SEC.pickExcel(function (sheets) {
     var seen = {}, added = 0, dup = 0, badTime = 0, badChip = 0, log = [], importedDates = {},
       incomingOrder = [], incomingNames = {};
-    SCAN.forEach(function (s) { seen[s.t + '|' + wandChip(s.c)] = 1; });
+    SCAN.forEach(function (s) { seen[s.t + '|' + patrolCanonicalChip(s.c, String(s.t || '').slice(0, 10))] = 1; });
     sheets.forEach(function (sh) {
       var rows = sh.rows, hdr = wandHeaderMap(rows), hr = hdr.row, map = hdr.map;
       if (hr < 0 || map.time === undefined || map.chip === undefined) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：找不到巡檢時間／Chip ID 欄位，略過'); return; }
@@ -1109,7 +1153,7 @@ function impWand() {
         var R = rows[i] || [];
         var t = wandTime(R[map.time]);
         if (!t) { sheetBadTime++; badTime++; continue; }
-        var chip = wandChip(R[map.chip]); if (!chip) { sheetBadChip++; badChip++; continue; }
+        var chip = patrolCanonicalChip(wandChip(R[map.chip]), t.slice(0, 10)); if (!chip) { sheetBadChip++; badChip++; continue; }
         var g = SEC.str(R[map.person]);
         importedDates[t.slice(0, 10)] = (importedDates[t.slice(0, 10)] || 0) + 1;
         if (incomingOrder.indexOf(chip) < 0) incomingOrder.push(chip);
@@ -1407,6 +1451,13 @@ function patrolScopeMatch(st, r, manual) {
   var night = manual ? r.shift === 'N' : !!r.night;
   return st.scope === 'night' ? night : !night;
 }
+/* 「全天」完成確認同時適用於日班與夜班摘要。舊邏輯在選夜班時
+   只找 N，導致明明有 all 確認，群組卻看不到門窗水電勾選。 */
+function patrolCheckScopeMatch(st, r) {
+  if (!st.scope || st.scope === 'all') return true;
+  if (r.shift === 'all') return true;
+  return st.scope === 'night' ? r.shift === 'N' : r.shift === 'D';
+}
 function patrolScopeLabel(st) {
   return st.scope === 'night' ? '🌙 夜班 / Night shift' : st.scope === 'day' ? '☀️ 日班 / Day shift' : '全天 / All day';
 }
@@ -1416,7 +1467,7 @@ function patrolSummary(st) {
   var night = list.filter(function (r) { return r.night; }).length, issues = manual.filter(function (r) { return r.status === 'issue'; });
   var byG = {}, byD = {};
   list.forEach(function (r) { byG[r.g || '—'] = (byG[r.g || '—'] || 0) + 1; byD[r.date] = (byD[r.date] || 0) + 1; });
-  var checks = CHECK.filter(function (r) { return p.has(r.date) && (!st.scope || st.scope === 'all' || (st.scope === 'night' ? r.shift === 'N' : r.shift === 'D')); });
+  var checks = CHECK.filter(function (r) { return p.has(r.date) && patrolCheckScopeMatch(st, r); });
   var badChecks = checks.filter(function (r) { return patrolCheckHasIssue(r) || patrolCheckMissing(r).length || r.note; });
   var lang = st.lang || 'zh';
   var txt = '🚨 <b>' + patrolBi(lang, '巡邏摘要', 'Patrol Summary', 'សេចក្តីសង្ខេបល្បាត') + '</b> · ' + SEC.esc(p.label()) + '\n' +
@@ -1432,6 +1483,7 @@ function patrolSummary(st) {
     'Checkpoints          ' + patrolCell(TC, 5) + '—',
     'Manual entries       ' + patrolCell(manual.length, 5) + '—',
     'Manual issues        ' + patrolCell(issues.length, 5) + '—',
+    'Confirmations        ' + patrolCell(checks.length, 5) + '—',
     'Check exceptions     ' + patrolCell(badChecks.length, 5) + '—'
   ]) + '\n';
   if (!list.length && !manual.length && (ROUNDS.length || MAN.length)) {
@@ -1444,6 +1496,23 @@ function patrolSummary(st) {
     var gl = ['Guard            Rounds'];
     gk.slice(0, 12).forEach(function (k) { gl.push(SEC.esc(patrolCell(k || '—', 16)) + patrolCell(byG[k], 6)); });
     txt += '\n<b>👮 ' + patrolBi(lang, '巡邏員', 'Guards', 'អ្នកយាម') + '</b>\n' + patrolPre(gl) + '\n';
+  }
+  /* 精簡摘要仍固定顯示六項結果，不再因「無異常」而把整段隱藏。
+     多筆期間摘要以最嚴重狀態匯總：任一異常=❌，任一未勾=⚠️，否則=✅。 */
+  function patrolCheckMark(key) {
+    if (!checks.length) return '⚠️';
+    if (checks.some(function (r) { return patrolCheckValue(r, key) === 'issue'; })) return '❌';
+    if (checks.some(function (r) { return !patrolCheckValue(r, key); })) return '⚠️';
+    return '✅';
+  }
+  txt += '\n<b>✅ ' + patrolBi(lang, '巡邏確認', 'Completion Check', 'ការបញ្ជាក់ល្បាត') + '</b>\n' +
+    '🚪 門/Doors ' + patrolCheckMark('doors') + ' · 🪟 窗/Windows ' + patrolCheckMark('windows') + '\n' +
+    '💧 水/Water ' + patrolCheckMark('water') + ' · ⚡ 電/Electricity ' + patrolCheckMark('electric') + '\n' +
+    '💡 照明/Lighting ' + patrolCheckMark('lights') + ' · 🧯 消防通道/Fire route ' + patrolCheckMark('fireway') + '\n' +
+    patrolBi(lang, '確認表', 'Forms', 'បែបបទ') + '：<b>' + checks.length + '</b> · ' +
+    patrolBi(lang, '異常／未勾', 'Issues / unchecked', 'បញ្ហា/មិនបានគូស') + '：<b>' + badChecks.length + '</b>\n';
+  if (!checks.length) {
+    txt += '⚠️ ' + patrolBi(lang, '所選日期／班別尚未儲存巡邏確認', 'No saved confirmation for the selected date / shift', 'គ្មានការបញ្ជាក់ដែលបានរក្សាទុក') + '\n';
   }
   if (Object.keys(byD).length && st.ptype !== 'day') {
     var dl = ['Date   Rounds'];
@@ -1465,15 +1534,13 @@ function patrolSummary(st) {
         (missing.length ? ' · ⚠️ ' + missing.map(function(k){return PC_LABELS[k];}).join(', ') : '') +
         (r.note ? ' · ' + SEC.esc(r.note) : '') + '\n';
     });
-  } else if (checks.length) {
-    txt += '\n✅ ' + patrolBi(lang, '完成確認無異常', 'Completion checks all OK', 'ការបញ្ជាក់ទាំងអស់ធម្មតា') + ' · ' + checks.length + '\n';
   }
   if (st.ptype === 'week') {
     var nightPhotoCount = CHECK.filter(function(r){return p.has(r.date) && (r.shift === 'N' || r.shift === 'all');})
       .reduce(function(n,r){return n + (Array.isArray(r.photos) ? r.photos.length : 0);},0);
     txt += '\n📸 ' + patrolBi(lang,'夜班巡邏照片','Night-shift patrol photos','រូបថតល្បាតវេនយប់') + '：<b>' + nightPhotoCount + '</b> / 2–4\n';
   }
-  txt += '\n<i>' + patrolBi(lang, st.includeDetails?'已選擇附逐圈／逐筆明細；傳送前會再次確認。':'摘要不逐圈列巡邏時間；只顯示總數、巡邏員統計與異常／漏點。', st.includeDetails?'Round-level details selected; a second confirmation is required.':'Individual patrol times are omitted; only totals, guard counts and exceptions are shown.', 'បង្ហាញតែសរុប និងបញ្ហា។') + '</i>';
+  txt += '\n<i>' + patrolBi(lang, st.includeDetails?'已選擇附逐圈／逐筆明細；傳送前會再次確認。':'摘要不逐圈列巡邏時間；顯示總數、巡邏員、六項確認及異常／漏點。', st.includeDetails?'Round-level details selected; a second confirmation is required.':'Individual patrol times are omitted; totals, guards, six checks and exceptions are shown.', 'បង្ហាញតែសរុប និងបញ្ហា។') + '</i>';
   return txt;
 }
 
@@ -1484,7 +1551,7 @@ function patrolSummaryPageDefs(st){
   for(var i=0;i<rr.length;i+=12){var b=rr.slice(i,i+12),lines=['Date  Time        S Guard         CP     Min Result'];b.forEach(function(r){var TC=roundExpected(r),miss=roundMissing(r).map(chipName);lines.push(patrolCell(patrolShortDate(r.date),6)+patrolCell(r.start.slice(11,16)+'-'+r.end.slice(11,16),12)+patrolCell(r.night?'N':'D',2)+SEC.esc(patrolCell(r.g||'—',14))+patrolCell(r.chips.length+'/'+TC,7)+patrolCell(r.dur,4)+(miss.length?'MISS '+miss.length:'OK'));});var pg='<b>🔄 巡邏明細 / Patrol Records</b> · '+patrolScopeLabel(st)+'\n'+patrolPre(lines);b.forEach(function(r){var miss=roundMissing(r).map(chipName);if(miss.length)pg+='\n· '+SEC.esc(r.date+' '+r.start.slice(11,16))+' · '+SEC.esc(r.g||'—')+' · Miss/漏點：'+miss.map(SEC.esc).join('、');});defs.push({text:pg,photos:[]});}
   var man=MAN.filter(function(r){return p.has(r.date)&&patrolScopeMatch(st,r,true);}).slice().sort(function(a,b){return(b.date+b.time).localeCompare(a.date+a.time);});
   for(var j=0;j<man.length;j+=10){var mb=man.slice(j,j+10),ml=['Date  Time  S Guard         Status Location        Ph'];mb.forEach(function(r){ml.push(patrolCell(patrolShortDate(r.date),6)+patrolCell((r.time||'').slice(0,5),6)+patrolCell(r.shift==='N'?'N':'D',2)+SEC.esc(patrolCell(r.guard||'—',14))+patrolCell(r.status==='issue'?'ISSUE':'OK',7)+SEC.esc(patrolCell(r.location||'—',16))+(r.photos||[]).length);});var mp='<b>📝 人工巡邏 / Manual Patrol</b>\n'+patrolPre(ml);mb.forEach(function(r){if(r.note)mp+='\n· '+SEC.esc(r.date+' '+(r.time||'')+' · '+(r.guard||'—')+' · '+r.note);});var mph=[];mb.forEach(function(r){mph=mph.concat(r.photos||[]);});defs.push({text:mp,photos:mph.filter(Boolean).slice(0,4)});}
-  var checks=CHECK.filter(function(r){return p.has(r.date)&&(!st.scope||st.scope==='all'||(st.scope==='night'?(r.shift==='N'||r.shift==='all'):(r.shift==='D'||r.shift==='all')));}).slice().sort(function(a,b){return b.date.localeCompare(a.date);});
+  var checks=CHECK.filter(function(r){return p.has(r.date)&&patrolCheckScopeMatch(st,r);}).slice().sort(function(a,b){return b.date.localeCompare(a.date);});
   for(var k=0;k<checks.length;k+=8){var cb=checks.slice(k,k+8),cl=['Date  S Guard         D W Wa E L F  Result Ph'];cb.forEach(function(r){function v(x){return x==='ok'?'✓':x==='issue'?'X':'-';}var bad=PC_KEYS.filter(function(q){return patrolCheckValue(r,q)==='issue';}),missing=patrolCheckMissing(r);cl.push(patrolCell(patrolShortDate(r.date),6)+patrolCell(r.shift||'A',2)+SEC.esc(patrolCell(r.guard||'—',14))+patrolCell(v(patrolCheckValue(r,'doors')),2)+patrolCell(v(patrolCheckValue(r,'windows')),2)+patrolCell(v(patrolCheckValue(r,'water')),3)+patrolCell(v(patrolCheckValue(r,'electric')),2)+patrolCell(v(patrolCheckValue(r,'lights')),2)+patrolCell(v(patrolCheckValue(r,'fireway')),3)+patrolCell(bad.length?'ISSUE':missing.length?'MISS':'OK',7)+(r.photos||[]).length);});var cp='<b>✅ 巡邏確認 / Completion Check</b>\n'+patrolPre(cl)+'\n<i>D=Doors 門 · W=Windows 窗 · Wa=Water 水 · E=Electricity 電 · L=Lighting 照明 · F=Fire route 消防通道</i>';cb.forEach(function(r){var bad=PC_KEYS.filter(function(q){return patrolCheckValue(r,q)==='issue';}),missing=patrolCheckMissing(r);if(bad.length||missing.length||r.note)cp+='\n· '+SEC.esc(r.date+' · '+(r.guard||'—'))+(bad.length?' · ❌ '+bad.map(function(q){return PC_LABELS[q];}).join(', '):'')+(missing.length?' · ⚠️ '+missing.map(function(q){return PC_LABELS[q];}).join(', '):'')+(r.note?' · '+SEC.esc(r.note):'');});cb.forEach(function(r){var pn=Array.isArray(r.photoNotes)?r.photoNotes.filter(function(x){return String(x||'').trim();}):[];if(pn.length)cp+='\n· '+SEC.esc(r.date+' · '+(r.guard||'—'))+' · Photo/照片：'+pn.map(SEC.esc).join('；');});var cph=[];cb.forEach(function(r){cph=cph.concat(r.photos||[]);});defs.push({text:cp,photos:cph.filter(Boolean).slice(0,4)});}
   return defs;
 }
@@ -1571,6 +1638,7 @@ function restore() {
     if (o.records && !o.manual) MAN = o.records;
     if (o.chip) CHIP = o.chip;
     if (o.confirmations) CHECK = o.confirmations;
+    repairPatrolCheckpointAlias();
     var at=new Date().toISOString();
     SCAN.forEach(function(r){r.updatedAt=at;SEC.clearDeleted(TOOL,Object.assign({_k:'scan'},r));});
     MAN.forEach(function(r){r.updatedAt=at;SEC.clearDeleted(TOOL,Object.assign({_k:'manual'},r));});
@@ -1635,7 +1703,8 @@ async function doDownload(opts) {
   CHECK = m.records.filter(function (r) { return r._k === 'check'; }).map(function (r) { var x=Object.assign({},r); delete x._k; return x; });
   patrolDedupe();
   var ex=recs._cloudExtra||{},remoteChip=SEC.unwrapObject(ex.chip||{}),chipMerged=SEC.mergeObject({chip:SEC.replaceObject(CHIP,CHIP_REV||'1970-01-01T00:00:00.000Z')},{chip:SEC.replaceObject(remoteChip.data,remoteChip.updatedAt||(recs._cloudMeta&&recs._cloudMeta.updatedAt)||'1970-01-01T00:00:00.000Z')},TOOL).chip,chipOut=SEC.unwrapObject(chipMerged);CHIP=chipOut.data;CHIP_REV=chipOut.updatedAt||CHIP_REV;
-  saveScan(); saveMan(); saveCheck(); rebuild();
+  var chipAliasFixed=repairPatrolCheckpointAlias();
+  saveScan(); saveMan(); saveCheck(); if(chipAliasFixed)saveChip(); rebuild();
   if (recs._cloudMeta && recs._cloudMeta.missingBuckets && recs._cloudMeta.missingBuckets.length) SEC.scheduleAutoCloudSync(TOOL,'repair-missing-cloud-bucket','');
   if (!(opts && opts.silent)) SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新；巡更棒 ' + SCAN.length + ' 筆、確認 ' + CHECK.length + ' 筆', 'ok', 6000);
   return true;
