@@ -329,8 +329,8 @@
 <button class="btn" onclick="tkSaveEdit()" data-zh="儲存並執行" data-en="Save & process" data-km="រក្សាទុក និងដំណើរការ">儲存並執行</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260901a"></script>
-<script src="./shared/sec-smart-sync.js?v=20260901a"></script>
+<script src="./shared/sec-core.js?v=20260904c"></script>
+<script src="./shared/sec-smart-sync.js?v=20260904c"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -388,7 +388,7 @@ function containerDedupe(){
 }
 
 /* ═══════════ 初始化 ═══════════ */
-document.getElementById('hdr').innerHTML = SEC.headerHtml('🚛', '貨櫃出入 Container', 'AC SECURITY · CONTAINER');
+document.getElementById('hdr').innerHTML = SEC.headerHtml('🚛', '貨櫃出入 Container', 'AC SECURITY · CONTAINER · 20260904c');
 document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
 SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: openContainerTelegram, onSmartImport: tkImp });
 SEC.bindPeriodNav('pnav', PER, renderAll);
@@ -496,19 +496,24 @@ function renderTruckPhotos() {
 }
 function truckLiveHash(o, phase) {
   function photoSig(list) { return (list || []).map(function (x) { x=String(x||''); return x.length + ':' + x.slice(-28); }).join('|'); }
-  return JSON.stringify([phase,o.date,o.name,o.containerNo,o.truckNo,o.company,o.timeIn,o.timeOut,o.signIn,o.signOut,o.remark,
-    photoSig(o.entryPhotos),photoSig(o.exitPhotos)]);
+  /* Protocol marker invalidates receipts made by the older text-only exit path,
+     so opening that saved record and pressing Save once can repair its photos. */
+  return JSON.stringify(['container-live-photo-20260904c',phase,o.date,o.name,o.containerNo,o.truckNo,o.company,o.timeIn,o.timeOut,o.signIn,o.signOut,o.remark,
+    photoSig(Array.isArray(o.entryPhotos)?o.entryPhotos:o.photos),photoSig(o.exitPhotos)]);
 }
 async function sendTruckLiveUpdate(o, phase) {
   var hash = truckLiveHash(o, phase);
   if (o.tgLastHash === hash && o.tgLiveStatus === phase) return { skipped:true, sent:true, messageId:o.tgMessageId || '' };
-  var photos = [], entryCount = Number(o.tgEntryPhotoSentCount) || 0, exitCount = Number(o.tgExitPhotoSentCount) || 0;
+  var photos = [];
   function sig(list) { return (list || []).map(function (x) { x=String(x||''); return x.length + ':' + x.slice(-28); }).join('|'); }
-  var entrySig = sig(o.entryPhotos), exitSig = sig(o.exitPhotos);
-  if (phase === 'entry') photos = entrySig !== o.tgEntryPhotoHash ? (o.entryPhotos || []).slice() : (o.entryPhotos || []).slice(entryCount);
-  else if (phase === 'exit') photos = exitSig !== o.tgExitPhotoHash ? (o.exitPhotos || []).slice() : (o.exitPhotos || []).slice(exitCount);
-  else photos = (entrySig !== o.tgEntryPhotoHash ? (o.entryPhotos || []).slice() : (o.entryPhotos || []).slice(entryCount))
-    .concat(exitSig !== o.tgExitPhotoHash ? (o.exitPhotos || []).slice() : (o.exitPhotos || []).slice(exitCount));
+  function unique(list) { var out=[];(list||[]).filter(Boolean).forEach(function(x){if(out.indexOf(x)<0)out.push(x);});return out; }
+  var entryPhotos = Array.isArray(o.entryPhotos) ? o.entryPhotos.slice() : (Array.isArray(o.photos) ? o.photos.slice() : []);
+  var exitPhotos = Array.isArray(o.exitPhotos) ? o.exitPhotos.slice() : [];
+  var entrySig = sig(entryPhotos), exitSig = sig(exitPhotos);
+  /* A completed update must carry the photos already saved on the record. The
+     old exit branch selected exitPhotos only, so a record with two entry photos
+     appeared as "Photos 2" in the table but sent a text-only Telegram update. */
+  photos = phase === 'entry' ? unique(entryPhotos) : unique(entryPhotos.concat(exitPhotos));
   var result = await SEC.gasPost({ action:'containerLiveUpdate', phase:phase, record:o,
     messageId:o.tgMessageId || '', photos:photos.slice(0, 8), lang:SEC.lang() });
   if (!result || result.sent !== true || !result.messageId) throw new Error(result && result.error ? result.error :
@@ -518,9 +523,8 @@ async function sendTruckLiveUpdate(o, phase) {
   o.tgLastHash = hash;
   o.tgLastSentAt = new Date().toISOString();
   o.tgEntryPhotoHash = entrySig; o.tgExitPhotoHash = exitSig;
-  if (phase === 'entry') o.tgEntryPhotoSentCount = (o.entryPhotos || []).length;
-  else if (phase === 'exit') o.tgExitPhotoSentCount = (o.exitPhotos || []).length;
-  else { o.tgEntryPhotoSentCount = (o.entryPhotos || []).length; o.tgExitPhotoSentCount = (o.exitPhotos || []).length; }
+  if (phase === 'entry') o.tgEntryPhotoSentCount = entryPhotos.length;
+  else { o.tgEntryPhotoSentCount = entryPhotos.length; o.tgExitPhotoSentCount = exitPhotos.length; }
   return result;
 }
 async function tkSaveEdit() {
@@ -545,8 +549,10 @@ async function tkSaveEdit() {
     if (phase) {
       var result = await sendTruckLiveUpdate(old, phase);
       saveTk(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'container-telegram-' + phase, o.date);
-      SEC.toast(result.skipped ? '✅ 已儲存；內容未變更，未重複發送 / Saved; duplicate send skipped' :
-        (result.edited ? '✅ 已更新群組原訊息 / Original Telegram message updated' : '✅ 已發送貨櫃即時訊息 / Live container message sent'), 'ok', 5500);
+      var photoStatus = result.photoSent ? (' · 📷 ' + result.photoSent + ' 張已發送 / photos sent') :
+        (result.skippedDuplicatePhotos ? ' · 📷 照片已發過，未重複 / photos already sent' : '');
+      SEC.toast((result.skipped ? '✅ 已儲存；內容未變更，未重複發送 / Saved; duplicate send skipped' :
+        (result.edited ? '✅ 已更新群組原訊息 / Original Telegram message updated' : '✅ 已發送貨櫃即時訊息 / Live container message sent')) + photoStatus, 'ok', 5500);
     } else if (o.notifyMode === 'complete') {
       SEC.toast('✅ 已儲存；填入出廠時間後才會發送一次 / Saved; sends once after Time Out is entered', 'ok', 5500);
     } else SEC.toast('✅ 已儲存 / Saved', 'ok');
@@ -1038,13 +1044,28 @@ function containerSummary(st) {
     ci.filter(function(r){return r.result!=='pass';}).slice(0,8).forEach(function(r){fl.push(SEC.esc(containerCell(r.containerNo||'—',15))+SEC.esc(containerCell(r.company||'—',15))+SEC.esc(containerCell(r.by||'—',12))+'FAIL');});
     txt+='\n<b>⚠️ '+containerBi(lang,'異常檢查','Inspection exceptions','បញ្ហាត្រួតពិនិត្យ')+'</b>\n'+containerPre(fl)+'\n';
   }
-  txt += '\n<i>' + containerBi(lang,st.includeDetails?'已選擇附逐櫃／逐筆明細；傳送前會再次確認。':'摘要只顯示總數、公司統計與異常；正常貨櫃、出門單及照片不逐筆重複發送。',st.includeDetails?'Container-level details selected; a second confirmation is required.':'Only totals, company counts and exceptions are shown; normal records and photos are not repeated.','បង្ហាញតែសរុប និងបញ្ហា។') + '</i>';
+  txt += '\n<i>' + containerBi(lang,st.includeDetails?'已選擇附逐櫃／逐筆明細；傳送前會再次確認。':'摘要只顯示總數、公司統計與異常；另附本期間最近最多 4 張照片，不展開逐筆正常紀錄。',st.includeDetails?'Container-level details selected; a second confirmation is required.':'Only totals, company counts and exceptions are shown; up to four recent photos are attached without expanding normal records.','បង្ហាញតែសរុប និងបញ្ហា។') + '</i>';
   return txt;
+}
+
+function containerPhotoStamp(r){return String(r.updatedAt||((r.date||'')+'T'+(r.timeOut||r.timeIn||r.time||'00:00')));}
+function containerCompactPhotos(p){
+  var rows=[];
+  TK.filter(function(r){return p.has(r.date);}).forEach(function(r){
+    var entry=(Array.isArray(r.entryPhotos)&&r.entryPhotos.length)?r.entryPhotos:(Array.isArray(r.photos)?r.photos:[]);
+    rows.push({at:containerPhotoStamp(r),photos:entry.concat(r.exitPhotos||[])});
+  });
+  CI.filter(function(r){return p.has(r.date);}).forEach(function(r){rows.push({at:containerPhotoStamp(r),photos:r.photos||[]});});
+  GD.filter(function(r){return p.has(r.date);}).forEach(function(r){rows.push({at:containerPhotoStamp(r),photos:r.photos||[]});});
+  rows.sort(function(a,b){return b.at.localeCompare(a.at);});
+  var out=[];
+  rows.some(function(r){return (r.photos||[]).some(function(x){x=String(x||'');if(x&&out.indexOf(x)<0)out.push(x);return out.length>=4;});});
+  return out;
 }
 
 function containerSummaryPageDefs(st){
   var p=summaryPeriod(st),pages=[];
-  pages.push({text:containerSummary(st),photos:[]});
+  pages.push({text:containerSummary(st),photos:containerCompactPhotos(p)});
   if(!st.includeDetails)return pages;
   var tk=TK.filter(function(r){return p.has(r.date);}).slice().sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''))||String(a.timeIn||'').localeCompare(String(b.timeIn||''));});
   for(var i=0;i<tk.length;i+=10){var batch=tk.slice(i,i+10),lines=['Date  Dir Container/ID  Truck      Company      In-Out      Ph'];batch.forEach(function(r){var dir=r.isImport&&r.isExport?'I/E':r.isImport?'IMP':'EXP',id=r.containerNo||r.truckNo||r.id||'—',ph=(r.entryPhotos||r.photos||[]).length+(r.exitPhotos||[]).length;lines.push(containerCell(containerShortDate(r.date),6)+containerCell(dir,4)+SEC.esc(containerCell(id,14))+SEC.esc(containerCell(r.truckNo||'—',11))+SEC.esc(containerCell(r.company||'—',13))+containerCell((r.timeIn||'—')+'-'+(r.timeOut||'—'),12)+ph);});var pg='<b>🚛 進出口逐櫃明細 / Container Details</b> · '+SEC.esc(p.label())+'\n'+containerPre(lines);batch.forEach(function(r){var id=r.containerNo||r.truckNo||r.id||'—';pg+='\n· '+SEC.esc(id)+' · Driver/司機 '+SEC.esc(r.name||'—')+' · Guard/門衛 '+SEC.esc(r.signIn||'—')+' → '+SEC.esc(r.signOut||'—')+(r.remark?' · Note/備註 '+SEC.esc(r.remark):'');});var ph=[];batch.forEach(function(r){ph=ph.concat(r.entryPhotos||r.photos||[],r.exitPhotos||[]);});pages.push({text:pg,photos:ph.filter(Boolean).slice(0,4)});}
