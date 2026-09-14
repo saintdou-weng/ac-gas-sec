@@ -230,7 +230,7 @@
 <button class="btn" onclick="saveDriverManager()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260901a"></script>
+<script src="./shared/sec-core.js?v=20260912a"></script>
 <script src="./shared/sec-smart-sync.js?v=20260901a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
@@ -1073,15 +1073,7 @@ function commuteSummaryPhotosBase(st){if(!st.includeDetails)return [];var p=comm
 function commuteSummaryPages(st) { return commuteSummaryPageDefs(st).map(function(x){return x.text;}); }
 function commuteApprovalItems(st) {
   var p = commuteSummaryPeriod(st), out = [];
-  function add(arr, kind, nameFn, deptFn, infoFn) {
-    if (!commuteScopeOn(st, kind)) return;
-    arr.filter(function (r) { return p.has(r.date); }).forEach(function (r) {
-      var ph=commuteRecordPhotos(r);
-      out.push({ key:'commute-' + kind + '-' + r.id, id:r.id, name:nameFn(r), dept:deptFn(r), group:kind,
-        kind:'commute-' + kind, date:r.date, period:String(r.date || '').slice(0,7), reason:r.reason || r.note || '', info:infoFn(r), amount:0,
-        photo:ph[0]||'', photos:ph.slice(0,4) });
-    });
-  }
+  if (st.scope !== 'vehicle') return out;
   if(commuteScopeOn(st,'vehicle')){
     commuteVehicleGroups(CAR.filter(function(r){return p.has(r.date);})).forEach(function(g){
       var memberKey=g.recordIds.join('|')||g.key,groupId='VG-'+commuteHash(memberKey);
@@ -1091,33 +1083,30 @@ function commuteApprovalItems(st) {
         amount:0,photo:g.photos[0]||'',photos:g.photos.slice(0,4)});
     });
   }
-  add(BIKE, 'bike', function () { return 'Motorbike parking'; }, function () { return 'Motorbike'; }, function (r) { return 'Building A ' + (r.a || 0) + ' · Building B ' + (r.b || 0) + ' · Total ' + (r.total || 0); });
-  add(GATE, 'gate', function (r) { return r.plate || 'Gate log'; }, function (r) { return r.dept || 'Gate log'; }, function (r) { return 'Driver ' + (r.driver || '—') + ' · Passenger ' + (r.passenger||'—') + ' · Pax ' + (r.pax||0) + ' · Out ' + (r.outTime || '—') + ' · In ' + (r.inTime || '—') + ' · ' + (r.km||0) + ' KM'; });
-  add(LATE, 'late', function (r) { return r.name || 'Late record'; }, function (r) { return r.dept || 'Come late'; }, function (r) { return 'ID ' + (r.empId || '—') + ' · In ' + (r.checkIn || '—') + ' · Out ' + (r.checkOut||'—') + ' · Gate ' + (r.gate||'—'); });
   return out;
 }
 function commuteApprovalPreview(st, items) {
   var p=commuteSummaryPeriod(st),l=st.lang||'zh',by={};items.forEach(function(x){by[x.group||x.dept||'—']=(by[x.group||x.dept||'—']||0)+1;});
-  var txt='✅ <b>'+cmt(l,'通勤交通核可請求','Commute approval request')+'</b> · '+SEC.esc(p.label())+' · '+SEC.esc(commuteScopeLabel(st))+'\n─────────────\n'+commutePre(['Field                Value','Records              '+items.length,'Photos               '+items.reduce(function(n,x){return n+(Array.isArray(x.photos)?x.photos.length:(x.photo?1:0));},0)]);
+  var txt='✅ <b>'+cmt(l,'車輛派遣核可請求','Vehicle dispatch approval request')+'</b> · '+SEC.esc(p.label())+' · '+SEC.esc(commuteScopeLabel(st))+'\n─────────────\n'+commutePre(['Field                Value','Records              '+items.length,'Photos               '+items.reduce(function(n,x){return n+(Array.isArray(x.photos)?x.photos.length:(x.photo?1:0));},0)]);
   var cats=['Category        Qty'];Object.keys(by).sort().forEach(function(k){cats.push(commuteCell(k,16)+by[k]);});if(cats.length>1)txt+='\n<b>📂 '+cmt(l,'分類','Categories')+'</b>\n'+commutePre(cats);
   if(items.length){txt+='\n<b>📋 '+cmt(l,'明細','Details')+'</b>';items.slice(0,8).forEach(function(x,i){txt+='\n┌ #'+(i+1)+' '+SEC.esc(x.name||'—')+'\n│ Date      '+SEC.esc(x.date||'—')+'\n│ Category  '+SEC.esc(x.dept||x.group||'—')+'\n│ Info      '+SEC.esc(x.info||'—')+'\n│ Reason    '+SEC.esc(x.reason||'—')+'\n│ Photos    '+(Array.isArray(x.photos)?x.photos.length:(x.photo?1:0))+'\n└';});if(items.length>8)txt+='\n… +'+(items.length-8)+' records';}
   return txt;
 }
 function commuteApprovalSent(result, st, items) {
-  var ids = [];items.forEach(function(x){if(Array.isArray(x._recordIds))ids=ids.concat(x._recordIds);else ids.push(x._recordId||x.id);});
-  [CAR, BIKE, GATE, LATE].forEach(function (arr) { arr.forEach(function (r) { if (ids.indexOf(r.id) >= 0) { r.approvalBatch = result.batchId || ''; r.approvalStatus = 'pending'; } }); });
+  var ids = [];items.filter(function(x){return x.kind==='commute-vehicle'&&x.group==='vehicle';}).forEach(function(x){if(Array.isArray(x._recordIds))ids=ids.concat(x._recordIds);else ids.push(x._recordId||x.id);});
+  [CAR].forEach(function (arr) { arr.forEach(function (r) { if (ids.indexOf(r.id) >= 0) { r.approvalBatch = result.batchId || ''; r.approvalStatus = 'pending'; } }); });
   save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'commute-approval-sent', st && st.period || '');
 }
 function commuteSummaryPhotos(st, pageIndex) { var d=commuteSummaryPageDefs(st)[pageIndex]; return d&&d.photos?d.photos.slice(0,4):[]; }
 function openCommuteTelegram() {
-  return SEC.tgOpen({ module:'commute', modalTitle:'通勤交通 Telegram / Commute Telegram', canApprove:true,
-    approvalLabel:'通勤交通核可 / Commute approval', approvalNote:'先選分類與期間，再送出通勤交通資料供群組確認；同一筆資料不會因重送而重複建立。',
+  return SEC.tgOpen({ module:'commute', modalTitle:'通勤交通 Telegram / Commute Telegram', canApprove:function(st){return st.scope==='vehicle';},
+    approvalLabel:'車輛派遣核可 / Vehicle dispatch approval', approvalNote:'只有車輛派遣需要核可；摩托車、出入閘及遲到登記只傳送摘要。 / Approval applies to vehicle dispatch only.',
     defaultType:PER.mode, defaultPeriod:PER.key(), periods:commutePeriods,
     currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); },
     scopeOptions:[{value:'all',label:'全部分類 / All categories'},{value:'vehicle',label:'車輛派遣 / Vehicle dispatch'},
       {value:'bike',label:'摩托車 / Motorbike'},{value:'gate',label:'車輛出入閘 / Gate log'},{value:'late',label:'遲到登記 / Come late'}],
     summaryPages:commuteSummaryPages, summaryPhotos:commuteSummaryPhotos, approvalItems:commuteApprovalItems, approvalPreview:commuteApprovalPreview,
-    approvalTitle:'Commute & Motor ' + PER.key(), onApprovalSent:commuteApprovalSent });
+    approvalTitle:'Vehicle dispatch ' + PER.key(), onApprovalSent:commuteApprovalSent });
 }
 function pushSummary() { return openCommuteTelegram(); }
 /* 20260817: mobile-friendly repeat entry for vehicle dispatch and Come Late. */

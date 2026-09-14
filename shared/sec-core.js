@@ -876,7 +876,7 @@ function tgOpen(opt) {
   var langHtml = '<option value="both">繁中 + English</option><option value="zh">繁體中文</option><option value="en">English</option><option value="km">ខ្មែរ</option>';
   mask.innerHTML =
     '<div class="modal" style="max-width:560px">' +
-      '<div class="mh"><span>✈️</span><b>' + esc(opt.modalTitle || 'Telegram 摘要／核可') + '</b>' +
+      '<div class="mh"><span>✈️</span><b>' + esc(opt.modalTitle || (opt.canApprove ? 'Telegram 摘要／核可' : 'Telegram 摘要 / Summary')) + '</b>' +
         '<button class="x" data-tg-close>×</button></div>' +
       '<div class="mb">' +
         '<div class="f"><label>傳送模式 Mode</label><div class="row" id="tgMode">' +
@@ -982,7 +982,19 @@ function tgOpen(opt) {
     }
     return out;
   }
+  function canApproveNow() {
+    return (opt.module === 'expense' || opt.module === 'commute') &&
+      (typeof opt.canApprove === 'function' ? !!opt.canApprove(st) : !!opt.canApprove);
+  }
+  function syncApprovalMode() {
+    var allowed=canApproveNow(), button=q('[data-tg-mode="approval"]');
+    if (button) { button.hidden=!allowed; button.style.display=allowed?'':'none'; button.disabled=!allowed; }
+    if (!allowed && st.mode === 'approval') st.mode='summary';
+    mask.querySelectorAll('[data-tg-mode]').forEach(function(b){b.classList.toggle('on',b.dataset.tgMode===st.mode);});
+    note();
+  }
   function preview() {
+    syncApprovalMode();
     var text = '';
     try {
       if (st.mode === 'approval') {
@@ -1015,6 +1027,7 @@ function tgOpen(opt) {
   if (q('#tgScope')) q('#tgScope').onchange = function () { st.scope = this.value; preview(); };
   mask.querySelectorAll('[data-tg-mode]').forEach(function (b) {
     b.onclick = function () {
+      if (b.dataset.tgMode === 'approval' && !canApproveNow()) return;
       st.mode = b.dataset.tgMode;
       mask.querySelectorAll('[data-tg-mode]').forEach(function (x) { x.classList.toggle('on', x === b); });
       note(); preview();
@@ -1061,6 +1074,7 @@ function tgOpen(opt) {
         else toast('✈️ Telegram 摘要已送出' + (pages.length > 1 ? '（' + pages.length + ' 頁）' : ''), 'ok');
       } else {
         var items = opt.approvalItems ? (opt.approvalItems(st) || []) : [];
+        if (!canApproveNow() || !approvalItemsAllowed(opt.module, items)) throw new Error('此類記錄不需核可，請傳送摘要 / These records are summary-only');
         var result = opt.onApprovalSend
           ? await opt.onApprovalSend(st, items)
           : await sendApproval({ module:opt.module, period:st.period, title:opt.approvalTitle || '', route:opt.route,
@@ -1103,7 +1117,21 @@ function pickedRoute(id) {
   var on = el && el.querySelector('.route-opt.on');
   return on ? on.dataset.r : (getCfg().route || 'review');
 }
+/* SEC approval policy: operational logs are summary-only. */
+function approvalItemsAllowed(module, items) {
+  if (!Array.isArray(items) || !items.length) return false;
+  return items.every(function(it) {
+    if (!it) return false;
+    if (module === 'expense') return /security\s*(service\s*)?fee|保安服務費|保安費|security service/i.test(String(it.dept || it.category || it.name || ''));
+    if (module !== 'commute') return false;
+    var kind=String(it.kind || '').toLowerCase(), group=String(it.group || '').toLowerCase();
+    if (kind && !/^commute[-_]vehicle$/.test(kind)) return false;
+    if (group && group !== 'vehicle') return false;
+    return /^commute[-_]vehicle$/.test(kind) || group === 'vehicle' || /^(vehicle dispatch|車輛派遣)$/i.test(String(it.dept || it.category || ''));
+  });
+}
 async function sendApproval(opt) {
+  if (!approvalItemsAllowed(opt.module, opt.items)) throw new Error('此類記錄不需核可，請傳送摘要 / These records are summary-only');
   var c = getCfg();
   var body = {
     action : 'approvalRequest',
