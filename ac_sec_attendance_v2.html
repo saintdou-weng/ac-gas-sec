@@ -67,6 +67,9 @@
         <span class="sp">
           <label style="font-size:11px;color:var(--ink2)">每班時數</label>
           <input type="number" id="hrDay" value="12" min="1" max="24" style="width:56px" onchange="renderAll()">
+          <button class="btn sm gh" onclick="addOnePerson()">➕ <span data-zh="新增人員" data-en="Add person" data-km="បន្ថែមបុគ្គលិក">新增人員</span></button>
+          <button class="btn sm gh" onclick="manageAttendancePeople()">👥 <span data-zh="名冊管理" data-en="Manage roster" data-km="គ្រប់គ្រងបញ្ជី">名冊管理</span></button>
+          <button class="btn sm gh" onclick="saveGrid(false)">💾 <span data-zh="儲存／更新" data-en="Save / sync" data-km="រក្សាទុក / ធ្វើសមកាលកម្ម">儲存／更新</span></button>
           <button class="btn sm gh" onclick="syncStaff()">🔄 <span data-zh="同步人員名冊" data-en="Sync roster" data-km="ធ្វើសមកាលកម្ម">同步人員名冊</span></button>
           <button class="btn sm gh" onclick="fillMonth()">📅 <span data-zh="整月填出勤" data-en="Fill month" data-km="បំពេញខែ">整月填出勤</span></button>
           <button class="btn sm" onclick="saveGrid(true)">💾✈️ <span data-zh="儲存並推送" data-en="Save & push" data-km="ផ្ញើ">儲存並推送</span></button>
@@ -201,7 +204,8 @@
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260912a"></script>
+<script src="./shared/sec-core.js?v=20260914a"></script>
+<script src="./shared/sec-personnel.js?v=20260914a"></script>
 <script src="./shared/sec-smart-sync.js?v=20260901a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
@@ -234,32 +238,82 @@ var CODE = {
   H: { zh:'國定假',en:'Holiday', hr:0 },
 };
 
+var ALL_STAFF=[], ATT_INFO={}, LS_INFO='ac_sec_att_staff_info_v1';
+function attendanceMonthStaff(month){
+  var out=SEC.Personnel.list(ALL_STAFF,month),map=ATT[month]||{};
+  Object.keys(map).forEach(function(k){
+    if(!Object.keys(map[k]||{}).some(function(d){return !!CODE[map[k][d]];}))return;
+    if(out.some(function(r){return key(r)===k;}))return;
+    var saved=ATT_INFO[attMetaKey(month,k)],master=ALL_STAFF.filter(function(r){return (saved&&r.id===saved.id)||key(r)===k||r.empId===k||r.name===k;})[0];
+    var r=master?SEC.Personnel.snapshot(master,month):saved;
+    r=r||saved||{id:'att-'+k,name:k,_attKey:k};
+    if(SEC.Personnel.validName(r.name))out.push(Object.assign({},r,{_attKey:k,_archived:true}));
+  });
+  return out;
+}
+function captureAttendanceInfo(){
+  Object.keys(ATT||{}).forEach(function(m){Object.keys(ATT[m]||{}).forEach(function(k){
+    var mk=attMetaKey(m,k);if(ATT_INFO[mk])return;
+    var person=ALL_STAFF.map(function(r){return SEC.Personnel.snapshot(r,m);}).filter(function(r){return r&&(key(r)===k||r.empId===k||r.name===k);})[0];
+    if(!person){var raw=ATT_LOG.filter(function(r){return String(r.date||'').slice(0,7)===m&&(r.empId===k||r.name===k);})[0];person=raw||{name:k};}
+    ATT_INFO[mk]=Object.assign({},SEC.Personnel.fields(person),{id:person.id||'',_attKey:k});
+  });});
+}
+function attendancePeriodStaff(p){
+  var range=p.range(),cursor=new Date(range.fromD.getFullYear(),range.fromD.getMonth(),1),seen={};
+  while(SEC.ymd(cursor)<=range.to){var m=SEC.ymd(cursor).slice(0,7);attendanceMonthStaff(m).forEach(function(r){seen[r.id||key(r)]=r;});cursor.setMonth(cursor.getMonth()+1);}
+  return Object.keys(seen).map(function(k){return seen[k];});
+}
+async function attendanceCommitPerson(input,opt){
+  captureAttendanceInfo();await save();
+  var data=await SEC.Personnel.read(),result=SEC.Personnel.apply(data.db,data.changes,input,opt);
+  var saved=await SEC.Personnel.persist(data.db,data.changes);ALL_STAFF=saved.db;STAFF=attendanceMonthStaff(ym());renderAll();
+  SEC.scheduleAutoCloudSync('personnel','personnel-change',opt.date);
+  if(!await doUpload())throw Error('名冊已儲存，雲端尚未成功；請按更新重試 / Saved locally; retry cloud update');
+  if(opt.send){var change=result.change||saved.changes.filter(function(r){return r.personId===result.row.id&&r.effectiveMonth===opt.month&&SEC.Personnel.unsent(r);})[0];if(change)await SEC.Personnel.notify(change);}
+  SEC.toast(SEC.Personnel.tr('✅ 名冊已儲存並更新'+(opt.send?'；異動已發送或已送過':''),'✅ Roster saved and synced'+(opt.send?'; change sent or already delivered':''),'✅ បានរក្សាទុក និងធ្វើសមកាលកម្ម'),'ok');return result;
+}
+function editAttendancePerson(id,remove){
+  var orphan=id&&!ALL_STAFF.some(function(r){return r.id===id;})?STAFF.filter(function(r){return r.id===id;})[0]:null;
+  return SEC.Personnel.openEditor({id:orphan?undefined:id,seed:orphan,attKey:orphan?key(orphan):undefined,db:ALL_STAFF,month:ym(),remove:!!remove,onSave:attendanceCommitPerson});
+}
+function manageAttendancePeople(){
+  var mask=document.createElement('div');mask.className='mask on';
+  var rows=SEC.Personnel.list(ALL_STAFF,ym(),true);
+  mask.innerHTML='<div class="modal" style="max-width:650px"><div class="mh"><b>👥 '+SEC.esc(ym())+' · '+SEC.Personnel.tr('名冊管理','Roster management','គ្រប់គ្រងបញ្ជី')+'</b><button class="x">×</button></div><div class="mb"><p class="hint">'+SEC.Personnel.tr('新增、離職及移除從選定月份起生效，之前月份保留。','Changes apply from the selected month; earlier months are preserved.','ការផ្លាស់ប្តូរអនុវត្តចាប់ពីខែដែលបានជ្រើស។')+'</p><div class="tw"><table><thead><tr><th>ID</th><th>'+SEC.Personnel.tr('姓名','Name','ឈ្មោះ')+'</th><th>'+SEC.Personnel.tr('狀態','Status','ស្ថានភាព')+'</th><th></th></tr></thead><tbody>'+rows.map(function(r){return '<tr><td>'+SEC.esc(r.empId||'—')+'</td><td>'+SEC.esc(r.name)+'</td><td>'+SEC.esc(r.status)+'</td><td><button class="btn sm gh" data-edit="'+SEC.esc(r.id)+'">✏️ '+SEC.T().edit+'</button></td></tr>';}).join('')+'</tbody></table></div></div><div class="mf"><button class="btn" data-add>➕ '+SEC.T().add+'</button></div></div>';
+  document.body.appendChild(mask);mask.querySelector('.x').onclick=function(){mask.remove();};mask.querySelector('[data-add]').onclick=function(){mask.remove();editAttendancePerson();};mask.querySelectorAll('[data-edit]').forEach(function(b){b.onclick=function(){mask.remove();editAttendancePerson(b.dataset.edit);};});return mask;
+}
+SEC.registerAutoUploader('personnel',SEC.Personnel.upload);
+SEC.registerAutoDownloader('personnel',SEC.Personnel.pull);
+window.addEventListener('sec-personnel-updated',function(){SEC.Personnel.read().then(function(d){ALL_STAFF=d.db;renderAll();});});
+
 async function load() {
   ATT = await SEC.dbGet(LS, {});
   ATT_LOG = await SEC.dbGet(LS_RAW, []);
   ATT_META = await SEC.dbGet(LS_META, {});
-  await loadStaff();
+  ATT_INFO=await SEC.dbGet(LS_INFO,{});
+  await loadStaff();captureAttendanceInfo();await save();
 }
 async function loadStaff() {
-  var s = await SEC.dbGet(LS_STAFF, []);
-  STAFF = (Array.isArray(s) ? s : []).filter(function (r) { return r.status !== 'resigned'; });
+  var data=await SEC.Personnel.read();ALL_STAFF=Array.isArray(data.db)?data.db:[];
+  STAFF=attendanceMonthStaff(ym());
 }
-function save() { SEC.dbPut(LS, ATT); SEC.dbPut(LS_RAW, ATT_LOG); SEC.dbPut(LS_META, ATT_META); }
+function save() { return Promise.all([SEC.dbPut(LS,ATT),SEC.dbPut(LS_RAW,ATT_LOG),SEC.dbPut(LS_META,ATT_META),SEC.dbPut(LS_INFO,ATT_INFO)]); }
 function normEmpId(v) {
   var s = String(v == null ? '' : v).trim().toUpperCase();
   if (/^A?\d+$/.test(s)) return s.replace(/^A/, '').replace(/^0+(?=\d)/, '');
   return SEC.norm(s);
 }
-function key(r) { return String(r.empId || r.name || r.id); }
+function key(r) { return String(r._attKey || r.empId || r.name || r.id); }
 function attMetaKey(month, staffKey) { return String(month || '') + '|' + String(staffKey || ''); }
-function attStaffForKey(staffKey) {
-  return STAFF.filter(function (r) { return key(r) === String(staffKey) || String(r.empId || '') === String(staffKey) || r.name === String(staffKey); })[0] || null;
+function attStaffForKey(staffKey,month) {
+  return SEC.Personnel.list(ALL_STAFF,month||ym(),true).filter(function (r) { return key(r) === String(staffKey) || String(r.empId || '') === String(staffKey) || r.name === String(staffKey); })[0] || ATT_INFO[attMetaKey(month||ym(),staffKey)] || null;
 }
 function attendanceRowRecord(month, staffKey, detail) {
-  var st = attStaffForKey(staffKey), who = st ? (st.empId || st.name) : staffKey;
+  var st = attStaffForKey(staffKey,month), who = st ? (st.empId || st.name) : staffKey;
   var rec = { month:month, empId:st ? (st.empId || '') : '', name:st ? (st.name || '') : String(staffKey || ''),
-    shift:st ? (st.shift || '') : '', post:st ? (st.post || '') : '', _attKey:String(staffKey || ''),
-    detail:Object.assign({}, detail || {}), _recordKey:TOOL + '|month|' + month + '|' + String(who || staffKey) };
+    shift:st ? (st.shift || '') : '', post:st ? (st.post || '') : '', _personId:st ? st.id||'' : '', _attKey:String(staffKey || ''),
+    detail:Object.assign({}, detail || {}), _recordKey:TOOL + '|month|' + month + '|' + String(staffKey) };
   var stamp = ATT_META[attMetaKey(month, staffKey)]; if (stamp) rec.updatedAt = stamp;
   return rec;
 }
@@ -279,11 +333,10 @@ function attendanceCloudRecords() {
   ATT_LOG.forEach(function (r) { rows.push(Object.assign({ _k:'raw' }, r)); });
   return rows;
 }
-function ym() { return PER.key().slice(0, 7); }
+function ym() { return SEC.ymd(PER.at).slice(0,7); }
 function monthMap() { if (!ATT[ym()]) ATT[ym()] = {}; return ATT[ym()]; }
 function daysInMonth() {
-  var d = PER.range().toD;
-  return d.getDate();
+  return new Date(PER.at.getFullYear(),PER.at.getMonth()+1,0).getDate();
 }
 function hrDay() { return Number(document.getElementById('hrDay').value) || 12; }
 
@@ -305,37 +358,18 @@ window.onmouseup = function () { DRAGGING = false; };
 window.onLangChange = renderAll;
 SEC.dataReady().then(load).then(function () { renderAll(); }).catch(SEC.bootError);
 
-async function addOnePerson() {
-  var nm = prompt('輸入保安姓名：'); if (!nm) return;
-  nm = nm.trim();
-  if (STAFF.some(function (r) { return SEC.norm(r.name) === SEC.norm(nm); })) { SEC.toast('⚠ 此姓名已在人員名冊中，未重複新增', 'warn'); return; }
-  var sh = prompt('班別（A 早班 / B 中班 / C 夜班，可留空）：') || '';
-  var newId = 'A' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-  var stamp = new Date().toISOString();
-  STAFF.push({ id: newId, empId: '', name: nm,
-    shift: sh.trim().toUpperCase().replace(/[^ABC]/g, '').slice(0, 1), post: '', status: 'active', _fromAtt: true,
-    createdAt:stamp, updatedAt:stamp });
-  var full = await SEC.dbGet(LS_STAFF, []);
-  full = Array.isArray(full) ? full : [];
-  var added = { id: newId, name: nm,
-    shift: sh.trim().toUpperCase().replace(/[^ABC]/g, '').slice(0, 1),
-    position: '保安員 Security Guard', status: 'active', remark: '（由出勤表建立）', createdAt:stamp, updatedAt:stamp };
-  full.push(added); SEC.clearDeleted('personnel', added);
-  await SEC.dbPut(LS_STAFF, full);
-  SEC.scheduleAutoCloudSync('personnel', 'attendance-add-person', '');
-  renderAll(); SEC.toast('✅ 已新增 ' + nm + '，並排入人員雲端同步', 'ok');
-}
+function addOnePerson() { return editAttendancePerson(); }
 function setBrush(s) {
   BRUSH = s;
   document.querySelectorAll('.pb').forEach(function (b) { b.classList.toggle('on', b.dataset.s === s); });
 }
 async function syncStaff() {
-  await loadStaff(); renderAll();
-  SEC.toast(STAFF.length ? '🔄 已同步 ' + STAFF.length + ' 位在職保安' : '⚠ 人員名冊是空的，請先到「保安人員」模組匯入', STAFF.length ? 'ok' : 'warn', 5000);
+  try{await SEC.Personnel.pull({auto:false});await loadStaff();captureAttendanceInfo();await save();renderAll();SEC.toast('✅ '+ym()+' · '+STAFF.length+' '+SEC.Personnel.tr('位人員已更新','people updated','បុគ្គលិកបានធ្វើបច្ចុប្បន្នភាព'),'ok');}
+  catch(e){SEC.toast('⚠️ '+e.message,'warn');}
 }
 
 /* ═══ 排班表 ═══ */
-function renderAll() { renderGrid(); renderSum(); renderFee(); renderRaw(); renderAna(); }
+function renderAll() { STAFF=attendanceMonthStaff(ym()); renderGrid(); renderSum(); renderFee(); renderRaw(); renderAna(); }
 
 function renderGrid() {
   var t = document.getElementById('gridT');
@@ -351,23 +385,25 @@ function renderGrid() {
     var w = dt.getDay();
     head += '<th class="dh' + (w === 0 || w === 6 ? ' we' : '') + '">' + d + '</th>';
   }
-  head += '<th class="sum">工時</th></tr></thead>';
+  head += '<th class="sum">工時</th><th>'+SEC.T().edit+'</th></tr></thead>';
 
   var body = '<tbody>' + STAFF.map(function (r) {
     var k = key(r), row = M[k] || {};
     var h = '<tr><td class="nm">' + SEC.esc(r.name || '') +
-      '<span style="font-weight:400;color:var(--ink2)"> · ' + (r.shift || '—') + '</span></td>';
+      '<span style="font-weight:400;color:var(--ink2)"> · ' + (r.shift || '—') + '</span>'+(r._archived?'<br><small>'+SEC.Personnel.tr('已移出名冊・保留已記錄出勤','Inactive · recorded attendance retained','អសកម្ម · រក្សាវត្តមាន')+'</small>':'')+'</td>';
     var hrs = 0;
     for (var d = 1; d <= nd; d++) {
       var dd = SEC.p2(d), v = row[dd] || '';
       if (v && CODE[v]) hrs += CODE[v].hr * hrDay();
       h += '<td class="cell c-' + v + '" data-k="' + SEC.esc(k) + '" data-d="' + dd + '">' + v + '</td>';
     }
-    h += '<td class="sum"><b>' + hrs + '</b></td></tr>';
+    h += '<td class="sum"><b>' + hrs + '</b></td><td><button class="btn sm gh" data-edit-person="'+SEC.esc(r.id||'')+'">✏️</button> <button class="btn sm err" data-remove-person="'+SEC.esc(r.id||'')+'">➖</button></td></tr>';
     return h;
   }).join('') + '</tbody>';
   t.innerHTML = head + body;
 
+  t.querySelectorAll('[data-edit-person]').forEach(function(b){b.onclick=function(){editAttendancePerson(b.dataset.editPerson);};});
+  t.querySelectorAll('[data-remove-person]').forEach(function(b){b.onclick=function(){editAttendancePerson(b.dataset.removePerson,true);};});
   t.querySelectorAll('.cell').forEach(function (el) {
     el.onmousedown = function () { DRAGGING = true; paint(el); };
     el.onmouseenter = function () { if (DRAGGING) paint(el); };
@@ -398,7 +434,7 @@ function fillMonth() {
   if (!STAFF.length) { SEC.toast('⚠ 尚無人員', 'warn'); return; }
   if (!confirm('把本月所有人的空白格全部填為「' + (CODE[BRUSH] ? CODE[BRUSH].zh : '清除') + '」？已填的不動。')) return;
   var nd = daysInMonth(), M = monthMap();
-  STAFF.forEach(function (r) {
+  STAFF.filter(function(r){return !r._archived;}).forEach(function (r) {
     var k = key(r), changed = false; if (!M[k]) M[k] = {};
     for (var d = 1; d <= nd; d++) {
       var dd = SEC.p2(d);
@@ -427,11 +463,9 @@ function renderKpi() {
   document.getElementById('k3').textContent = thr.toLocaleString();
   document.getElementById('k4').textContent = ta;
 }
-function saveGrid(push) {
-  save();
-  SEC.scheduleAutoCloudSync(TOOL, 'attendance-save', ym());
-  SEC.toast('💾 已儲存', 'ok');
-  if (push) pushSummary();
+async function saveGrid(push) {
+  try{captureAttendanceInfo();await save();if(!await doUpload())throw Error('雲端更新失敗 / Cloud update failed');SEC.toast('✅ '+SEC.Personnel.tr('已儲存並更新雲端','Saved and synced','បានរក្សាទុក និងធ្វើសមកាលកម្ម'),'ok');if(push)pushSummary();}
+  catch(e){SEC.toast('⚠️ '+e.message+' · '+SEC.Personnel.tr('已保留本機資料','Local data retained','រក្សាទុកទិន្នន័យក្នុងម៉ាស៊ីន'),'warn',6000);}
 }
 
 /* ═══ 彙總 ═══ */
@@ -644,6 +678,8 @@ function normalizeShift(v, fileName) {
   return '';
 }
 function sheetPeriod(sh) {
+  var explicit=String(sh.name||'').match(/(20\d{2})[-/年](0?[1-9]|1[0-2])(?:月|\b)/);
+  if(explicit)return explicit[1]+'-'+SEC.p2(Number(explicit[2]));
   var text = (sh.rows || []).slice(0, 8).map(function (r) { return (r || []).join(' '); }).join(' ');
   function monthIndex(v) {
     var s = String(v || '');
@@ -656,6 +692,7 @@ function sheetPeriod(sh) {
   var mon = monthIndex(sh.name);
   if (mon < 0) mon = monthIndex(text);
   if (mon < 0) mon = monthIndex(sh.fileName);
+  if (mon < 0) { var numeric=(String(sh.fileName||'')+' '+text).match(/(20\d{2})[-/年](0?[1-9]|1[0-2])(?:月|\b)/);if(numeric)return numeric[1]+'-'+SEC.p2(Number(numeric[2])); }
   if (mon < 0) mon = PER.at.getMonth();
   var yrm = (String(sh.name || '') + ' ' + text + ' ' + String(sh.fileName || '')).match(/20\d{2}/);
   var yr = yrm ? yrm[0] : String(PER.at.getFullYear());
@@ -664,7 +701,8 @@ function sheetPeriod(sh) {
 function normalizePunch(v) {
   var raw = SEC.str(v), status = '';
   if (!raw) return { raw:'', status:'', inTime:'', outTime:'' };
-  if (/dayoff|rest|例休|休息|\b(?:r)\s*:?\s*\d*/i.test(raw)) status = 'R';
+  if (/^[WORLAH]$/i.test(raw)) status=raw.toUpperCase();
+  else if (/dayoff|rest|例休|休息|\b(?:r)\s*:?\s*\d*/i.test(raw)) status = 'R';
   else if (/holiday|國定|假日|change\s*holiday|khmer\s*new\s*year|public\s*holiday/i.test(raw)) status = 'H';
   else if (/\b(?:pl|sl|ml|al|fl)\s*:?\s*\d*/i.test(raw)) status = 'L';
   var ms = raw.match(/\b\d{1,2}:\d{2}\s*(?:AM|PM)?/ig) || [];
@@ -720,7 +758,8 @@ function jumpToImportedMonth(months) {
   if (m) { PER.at = new Date(+m[1], +m[2] - 1, 1); if (paintPeriodNav) paintPeriodNav(); }
 }
 function impExcel() {
-  SEC.pickExcel(function (sheets) {
+  SEC.pickExcel(async function (sheets) {
+    var personData=await SEC.Personnel.read();ALL_STAFF=personData.db;
     var added = 0, rawAdded = 0, rawUpdated = 0, rawSkipped = 0, newStaff = 0, log = [], importedMonths = {};
     sheets.forEach(function (sh) {
       var rows = sh.rows;
@@ -732,32 +771,16 @@ function impExcel() {
       for (var i = h.row + 1; i < rows.length; i++) {
         var R2 = rows[i] || [];
         var nm = SEC.str(R2[h.map.name]); if (!nm) continue;
-        if (/^total|合計|小計$/i.test(SEC.norm(nm))) continue;
+        if (!SEC.Personnel.validName(nm)) continue;
         var empId = h.map.id === undefined ? '' : SEC.str(R2[h.map.id]);
-        /* 對到名冊；沒有就即時建立一個臨時人員（因為現場只有真實出勤、沒有事先排班） */
-        var st = STAFF.filter(function (x) {
-          return (empId && normEmpId(x.empId) === normEmpId(empId)) || x.name === nm || String(x.empId) === nm ||
-                 SEC.norm(x.name) === SEC.norm(nm);
-        })[0];
-        if (!st) {
-          var staffStamp = new Date().toISOString();
-          st = { id: 'A' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
-                 empId: empId, name: nm, shift: shift, post: '', status: 'active', _fromAtt: true,
-                 createdAt:staffStamp, updatedAt:staffStamp };
-          STAFF.push(st); newStaff++;
-        } else {
-          /* 舊版可能把 No. 流水號存成 empId；以本次真實 ID 修正並搬移既有月份資料。 */
-          var oldStaffKey = key(st);
-          if (empId && String(st.empId || '') !== empId) st.empId = empId;
-          if (!st.shift && shift) st.shift = shift;
-          var newStaffKey = key(st);
-          if (oldStaffKey !== newStaffKey && M[oldStaffKey]) {
-            SEC.markDeleted(TOOL, attendanceRowRecord(targetYm, oldStaffKey, M[oldStaffKey]));
-            if (!M[newStaffKey]) M[newStaffKey] = M[oldStaffKey];
-            if (ATT_META[attMetaKey(targetYm, oldStaffKey)]) ATT_META[attMetaKey(targetYm, newStaffKey)] = ATT_META[attMetaKey(targetYm, oldStaffKey)];
-            delete ATT_META[attMetaKey(targetYm, oldStaffKey)]; delete M[oldStaffKey];
-          }
-        }
+        var oldPerson=personData.db.filter(function(x){var v=SEC.Personnel.snapshot(x,targetYm)||x;return SEC.Personnel.same(v,{empId:empId,name:nm});})[0];
+        var beforePerson=oldPerson?(SEC.Personnel.snapshot(oldPerson,targetYm)||SEC.Personnel.fields(oldPerson)):{};
+        var nextPerson=Object.assign({},beforePerson,{name:nm,empId:empId||beforePerson.empId||'',shift:shift||beforePerson.shift||'',status:beforePerson.status||'active'});
+        var applied;
+        try{applied=SEC.Personnel.apply(personData.db,personData.changes,nextPerson,{id:oldPerson&&oldPerson.id,month:targetYm,date:targetYm+'-01',reason:'Attendance Excel / 出勤匯入'});}
+        catch(e){log.push('⚠ '+SEC.esc(nm)+' · '+SEC.esc(e.message));continue;}
+        if(applied.isNew)newStaff++;
+        var st=SEC.Personnel.snapshot(applied.row,targetYm);
         var k = key(st);
         if (!M[k]) M[k] = {};
         Object.keys(h.days).forEach(function (c) {
@@ -783,25 +806,11 @@ function impExcel() {
       }
       log.push('· <b>' + SEC.esc(sh.name) + '</b>：寫入 <b>' + targetYm + '</b>、' + n + ' 格（標題第 ' + (h.row + 1) + ' 列）');
     });
-    /* 匯入時自動建立的人員寫回名冊，讓下次不用重建 */
-    if (newStaff) {
-      SEC.dbGet(LS_STAFF, []).then(function (full) {
-        full = Array.isArray(full) ? full : [];
-        STAFF.filter(function (x) { return x._fromAtt; }).forEach(function (x) {
-          if (!full.some(function (y) { return y.name === x.name; })) {
-            var staffRow = { id: x.id, empId: x.empId, name: x.name, shift: x.shift, post: x.post,
-              position: '保安員 Security Guard', status: 'active', remark: '（由出勤表自動建立）',
-              createdAt:x.createdAt || new Date().toISOString(), updatedAt:x.updatedAt || new Date().toISOString() };
-            full.push(staffRow); SEC.clearDeleted('personnel', staffRow);
-          }
-        });
-        SEC.scheduleAutoCloudSync('personnel', 'attendance-excel-new-staff', '');
-        return SEC.dbPut(LS_STAFF, full);
-      }).catch(function () {});
-    }
+    var stored=await SEC.Personnel.persist(personData.db,personData.changes);ALL_STAFF=stored.db;captureAttendanceInfo();
+    Object.keys(importedMonths).forEach(function(m){SEC.scheduleAutoCloudSync('personnel','personnel-change',m+'-01');});
     jumpToImportedMonth(importedMonths);
     ATT_LOG.sort(function (a, b) { return String(b.date + b.inTime).localeCompare(String(a.date + a.inTime)); });
-    save(); renderAll();
+    await save(); renderAll();
     Object.keys(importedMonths).forEach(function (p) { SEC.scheduleAutoCloudSync(TOOL, 'attendance-excel-import', p); });
     document.getElementById('impLog').innerHTML = '<b>匯入結果（寫入 ' + ym() + '）</b><br>' + log.join('<br>') +
       (newStaff ? '<br>➕ 自動建立 <b>' + newStaff + '</b> 位新人員（已寫回名冊）' : '');
@@ -823,12 +832,13 @@ function expGrid() {
   });
   SEC.exportExcel([{ name: 'Roster_' + ym(), rows: aoa }], 'AC_SEC_Attendance_' + ym() + '.xlsx');
 }
-function doBackup() { SEC.backupJson({ attendance: ATT, raw: ATT_LOG, meta:ATT_META }, 'attendance_backup_' + SEC.ymd() + '.json'); }
+function doBackup() { SEC.backupJson({ attendance: ATT, raw: ATT_LOG, meta:ATT_META, staffInfo:ATT_INFO, personnel:ALL_STAFF }, 'attendance_backup_' + SEC.ymd() + '.json'); }
 function restore() {
-  SEC.restoreJson(function (o) {
-    if (o.attendance) ATT = o.attendance; if (o.raw) ATT_LOG = o.raw; if (o.meta) ATT_META = o.meta;
-    attendanceCloudRecords().forEach(function (r) { SEC.clearDeleted(TOOL, r); });
-    save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'attendance-restore', '');
+  SEC.restoreJson(async function (o) {
+    if (o.attendance) ATT = o.attendance; if (o.raw) ATT_LOG = o.raw; if (o.meta) ATT_META = o.meta; if(o.staffInfo)ATT_INFO=o.staffInfo;
+    if(Array.isArray(o.personnel)){var people=await SEC.Personnel.read();var stored=await SEC.Personnel.persist(o.personnel,people.changes);ALL_STAFF=stored.db;}
+    captureAttendanceInfo();attendanceCloudRecords().forEach(function (r) { SEC.clearDeleted(TOOL, r); });
+    await save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'attendance-restore', '');
   });
 }
 function clearMonth() {
@@ -842,11 +852,13 @@ function clearMonth() {
   save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'attendance-clear-month', cleared);
 }
 async function doUpload() {
+  if(!await SEC.Personnel.upload())return false;
+  await loadStaff();captureAttendanceInfo();
   var now = new Date().toISOString();
   Object.keys(ATT || {}).forEach(function (month) { Object.keys(ATT[month] || {}).forEach(function (staffKey) {
     if (!ATT_META[attMetaKey(month, staffKey)]) ATT_META[attMetaKey(month, staffKey)] = now;
   }); });
-  ATT_LOG.forEach(function (r) { if (!r.updatedAt) r.updatedAt = now; }); save();
+  ATT_LOG.forEach(function (r) { if (!r.updatedAt) r.updatedAt = now; }); await save();
   var M = monthMap(), current = [];
   STAFF.forEach(function (r) {
     var s = stats(r);
@@ -860,6 +872,7 @@ async function doUpload() {
 }
 async function doDownload(opts) {
   if (!(opts && opts.auto) && !confirm('⬇️☁ 下載會與本機出勤資料合併；相同月份／人員以最新資料更新，空白欄位會先確認並保留舊值。繼續？')) return false;
+  await SEC.Personnel.pull({auto:!!(opts&&opts.auto)});await loadStaff();captureAttendanceInfo();
   var local = attendanceCloudRecords();
   var recs = await SEC.cloudPull(TOOL, { force:!(opts && opts.auto), localRecords:local });
   if (!recs) return false;
@@ -873,20 +886,21 @@ async function doDownload(opts) {
   var merged = SEC.mergeRecords(TOOL, local, incoming);
   var conflicts = merged.blankConflicts || [];
   if (!(opts && opts.auto) && !SEC.confirmBlankMerge(conflicts, '出勤雲端下載確認')) return false;
-  var nextAtt = {}, nextRaw = [], nextMeta = {};
+  var nextAtt = {}, nextRaw = [], nextMeta = {},nextInfo=Object.assign({},ATT_INFO);
   merged.records.forEach(function (r) {
     if (r && r.month && r.detail && typeof r.detail === 'object') {
       var staffKey = String(r._attKey || r.empId || r.name || ''); if (!staffKey) return;
       if (!nextAtt[r.month]) nextAtt[r.month] = {};
       nextAtt[r.month][staffKey] = Object.assign({}, r.detail);
+      nextInfo[attMetaKey(r.month,staffKey)]={id:r._personId||'',empId:r.empId||'',name:r.name||staffKey,shift:r.shift||'',post:r.post||'',_attKey:staffKey};
       if (r.updatedAt) nextMeta[attMetaKey(r.month, staffKey)] = r.updatedAt;
     } else if (r && (r._k === 'raw' || /^AR-/.test(String(r.id || '')))) {
       var raw = Object.assign({}, r); delete raw._k; delete raw._recordKey; delete raw._deleted; nextRaw.push(raw);
     }
   });
-  ATT = nextAtt; ATT_META = nextMeta;
+  ATT = nextAtt; ATT_META = nextMeta; ATT_INFO=nextInfo;
   ATT_LOG = nextRaw.sort(function (a, b) { return String(b.date + (b.inTime || '')).localeCompare(String(a.date + (a.inTime || ''))); });
-  save(); renderAll(); if (!(opts && opts.silent)) SEC.toast('⬇️☁ 已合併雲端出勤與原始打卡資料，共 ' + ATT_LOG.length + ' 筆明細', 'ok', 5000);
+  await save(); renderAll(); if (!(opts && opts.silent)) SEC.toast('⬇️☁ 已合併雲端出勤與原始打卡資料，共 ' + ATT_LOG.length + ' 筆明細', 'ok', 5000);
   return true;
 }
 function attSummaryPeriod(st) {
@@ -939,18 +953,18 @@ function attShortDate(d){return String(d||'').slice(5);}
 function attendanceSummary(st) {
   var p = attSummaryPeriod(st), raw = ATT_LOG.filter(function (r) { return p.has(r.date); });
   var total = { W:0, O:0, R:0, L:0, A:0, H:0 }, hours = 0, details = [];
-  STAFF.forEach(function (r) {
+  attendancePeriodStaff(p).forEach(function (r) {
     var s = attendanceStatsFor(r, p);
     Object.keys(total).forEach(function (k) { total[k] += s.c[k]; }); hours += s.hrs;
     details.push({ r:r, s:s });
   });
   var work = total.W + total.O, byShift = { A:0, B:0, C:0, '':0 };
-  STAFF.forEach(function (r) { byShift[r.shift || ''] = (byShift[r.shift || ''] || 0) + 1; });
+  attendancePeriodStaff(p).forEach(function (r) { byShift[r.shift || ''] = (byShift[r.shift || ''] || 0) + 1; });
   var txt = '🕐 <b>' + attT(st.lang, '保安出勤摘要', 'Security Attendance Summary', 'សេចក្តីសង្ខេបវត្តមានសន្តិសុខ') + '</b> · ' + SEC.esc(p.label()) + '\n' +
     '🛡️ AC Security · VRT Sihanoukville\n━━━━━━━━━━━━━━━━\n' +
     '<b>📊 ' + attT(st.lang,'總覽','Overview','ទិដ្ឋភាពទូទៅ') + '</b>\n' + attPre([
       'Item                 Qty',
-      'Active staff         ' + STAFF.length,
+      'Active staff         ' + attendancePeriodStaff(p).length,
       'Work man-days        ' + work,
       'Total hours          ' + hours.toLocaleString() + ' hr',
       'Leave                ' + total.L,
@@ -978,7 +992,7 @@ function attendanceSummary(st) {
 }
 function attendanceSummaryPages(st) {
   var p = attSummaryPeriod(st), list=[];
-  STAFF.slice().sort(function(a,b){return String(a.name||'').localeCompare(String(b.name||''));}).forEach(function(r){list.push({r:r,s:attendanceStatsFor(r,p)});});
+  attendancePeriodStaff(p).slice().sort(function(a,b){return String(a.name||'').localeCompare(String(b.name||''));}).forEach(function(r){list.push({r:r,s:attendanceStatsFor(r,p)});});
   var pages=[attendanceSummary(st)];
   if(!st.includeDetails) return pages;
   for(var i=0;i<list.length;i+=8){

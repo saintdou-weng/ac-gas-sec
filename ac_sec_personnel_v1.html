@@ -50,8 +50,9 @@
           <select id="fShift" style="width:auto" onchange="renderRos()">
             <option value="">全部班別</option><option value="A">A 早班</option><option value="B">B 中班</option><option value="C">C 夜班</option></select>
           <select id="fStat" style="width:auto" onchange="renderRos()">
-            <option value="active">在職</option><option value="resigned">已離職</option><option value="">全部</option></select>
+            <option value="active">在職</option><option value="resigned">已離職</option><option value="removed">移出 / Removed</option><option value="">全部</option></select>
           <input id="q" placeholder="搜尋姓名/工號…" style="width:150px" oninput="renderRos()">
+          <button class="btn sm gh" onclick="openPersonnelTelegram()">✈️ <span data-zh="本期異動摘要" data-en="Changes summary" data-km="សង្ខេបការផ្លាស់ប្តូរ">本期異動摘要</span></button>
           <button class="btn sm" onclick="openEdit()">➕ <span data-zh="新增人員" data-en="Add" data-km="បន្ថែម">新增人員</span></button>
         </span></h3>
       <div class="tw"><table><thead><tr>
@@ -76,7 +77,7 @@
         <div class="f"><label data-zh="異動類型" data-en="Change Type" data-km="ប្រភេទ">異動類型</label>
           <select id="cKind" onchange="onKind()">
             <option value="join">🟢 新進到職 New Hire</option>
-            <option value="resign">🔴 離職 Resignation</option>
+            <option value="resign">🔴 離職 Resignation</option><option value="remove">➖ 移出名冊 Roster removal</option>
             <option value="transfer">🔄 調動 Transfer</option>
             <option value="shift">🕐 班別異動 Shift Change</option>
             <option value="promote">⬆️ 升遷 Promotion</option>
@@ -161,7 +162,7 @@
         <button class="btn gh" onclick="expExcel()">📊 <span data-t="expExcel">匯出 Excel</span></button>
         <button class="btn gh" onclick="SEC.backupJson({staff:DB,changes:CHG,roster:ROSTER},'personnel_backup_'+SEC.ymd()+'.json')">💾 <span data-t="backup">備份 JSON</span></button>
         <button class="btn gh" onclick="restore()">📂 <span data-t="restore">還原 JSON</span></button>
-        <button class="btn err" onclick="clearAll()">🗑 <span data-zh="清空" data-en="Clear" data-km="សម្អាត">清空</span></button>
+        <button class="btn err" onclick="clearAll()">🗑 <span data-zh="移出本月名冊" data-en="Remove month roster" data-km="ដកចេញពីបញ្ជីខែ">移出本月名冊</span></button>
       </div>
       <div class="sep"></div>
       <p class="hint">
@@ -206,7 +207,8 @@
 <button class="btn" onclick="saveEdit()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260912a"></script>
+<script src="./shared/sec-core.js?v=20260914a"></script>
+<script src="./shared/sec-personnel.js?v=20260914a"></script>
 <script src="./shared/sec-smart-sync.js?v=20260901a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
@@ -224,7 +226,7 @@ if (typeof SEC === 'undefined') {
 }
 
 var LS = 'ac_sec_personnel_db', LSC = 'ac_sec_personnel_chg', LS_ROSTER = 'ac_sec_roster_schedule', LS_ROSTER_REV='ac_sec_roster_schedule_rev_v1', PER = new SEC.Period('month');
-var DB = [], CHG = [], ROSTER = {}, ROSTER_REV='', CH = {}, TOOL = 'personnel', EDIT_ID = '', EDIT_CHANGE_ID = '';
+var DB = [], CHG = [], ROSTER = {}, ROSTER_REV='', CH = {}, TOOL = 'personnel', EDIT_ID = '', EDIT_CHANGE_ID = '', CHANGE_BUSY=false;
 
 async function load() {
   DB = await SEC.dbGet(LS, []);
@@ -236,10 +238,10 @@ async function load() {
   if (!ROSTER || typeof ROSTER !== 'object' || Array.isArray(ROSTER)) ROSTER = {};
   if (dedupePersonnelRecords()) save();
 }
-function save(touchRoster) { if(touchRoster)ROSTER_REV=new Date().toISOString();SEC.dbPut(LS, DB); SEC.dbPut(LSC, CHG); SEC.dbPut(LS_ROSTER, ROSTER);SEC.dbPut(LS_ROSTER_REV,ROSTER_REV); }
+async function save(touchRoster) { if(touchRoster)ROSTER_REV=new Date().toISOString();var data=await SEC.Personnel.persist(DB,CHG);DB=data.db;CHG=data.changes;await Promise.all([SEC.dbPut(LS_ROSTER,ROSTER),SEC.dbPut(LS_ROSTER_REV,ROSTER_REV)]); }
 function dedupePersonnelRecords() {
   var sd=SEC.dedupeBy(DB,function(r){var eid=normEmpId(r.empId);return eid?'id|'+eid:'name|'+SEC.norm(r.name||r.id);});
-  var cd=SEC.dedupeBy(CHG,function(r){return [r.date||'',r.kind||'',normEmpId(r.empId)||SEC.norm(r.name),r.fromShift||'',r.toShift||'',r.fromPost||'',r.toPost||''].join('|');});
+  var cd=SEC.dedupeBy(CHG,function(r){return r.id||[r.date||'',r.kind||'',normEmpId(r.empId)||SEC.norm(r.name),r.fromShift||'',r.toShift||'',r.fromPost||'',r.toPost||''].join('|');});
   var staffIds={};sd.records.forEach(function(r){staffIds[r.id]=1;});sd.removedRows.forEach(function(r){if(!staffIds[r.id])SEC.markDeleted(TOOL,r);});
   var changeIds={};cd.records.forEach(function(r){changeIds[r.id]=1;});cd.removedRows.forEach(function(r){if(!changeIds[r.id])SEC.markDeleted(TOOL,Object.assign({_k:'chg'},r));});
   DB=sd.records;CHG=cd.records;return sd.removed+cd.removed;
@@ -255,10 +257,11 @@ document.getElementById('tabs').addEventListener('click', function (e) {
   b.classList.add('on');
   document.querySelectorAll('.page').forEach(function (p) { p.style.display = 'none'; });
   document.getElementById('p-' + b.dataset.p).style.display = '';
-  document.getElementById('pnavHost').style.display = (b.dataset.p === 'ros' || b.dataset.p === 'data') ? 'none' : '';
+  document.getElementById('pnavHost').style.display = (b.dataset.p === 'data') ? 'none' : '';
   renderAll();
 });
 document.getElementById('cDate').value = SEC.ymd();
+document.getElementById('cDate').onchange=function(){fillSelects();fillFrom();};
 window.onLangChange = renderAll;
 SEC.dataReady().then(load).then(function () { renderAll(); }).catch(SEC.bootError);
 
@@ -268,15 +271,16 @@ var KIND = {
   transfer:{ icon:'🔄', zh:'調動',     en:'Transfer' },
   shift  : { icon:'🕐', zh:'班別異動', en:'Shift Change' },
   promote: { icon:'⬆️', zh:'升遷',     en:'Promotion' },
+  remove : { icon:'➖', zh:'移出名冊', en:'Roster removal' },
   update : { icon:'✏️', zh:'資料更新', en:'Update' },
 };
 
 function renderAll() { renderRos(); renderChg(); renderShift(); renderRosterSchedule(); renderAna(); fillSelects(); }
 
 /* ═══ 名冊 ═══ */
-function active() { return DB.filter(function (r) { return r.status !== 'resigned'; }); }
+function active() { return SEC.Personnel.list(DB,personnelMonth()); }
 function renderRos() {
-  var list = DB.slice();
+  var list = SEC.Personnel.list(DB,personnelMonth(),true);
   var st = document.getElementById('fStat').value;
   var sf = document.getElementById('fShift').value;
   var q = (document.getElementById('q').value || '').toLowerCase();
@@ -299,7 +303,7 @@ function renderRos() {
       '<td>' + SEC.esc(r.post || '') + '</td>' +
       '<td>' + SEC.esc(r.joinDate || '') + '</td>' +
       '<td>' + SEC.esc(r.phone || '') + '</td>' +
-      '<td>' + (r.status === 'resigned' ? '<span class="tag err">離職</span>' : '<span class="tag ok">在職</span>') + '</td>' +
+      '<td>' + (r.status !== 'active' ? '<span class="tag err">'+(r.status==='removed'?'移出 / Removed':'離職 / Resigned')+'</span>' : '<span class="tag ok">在職</span>') + '</td>' +
       '<td><button class="btn sm gh" onclick="openEdit(\'' + r.id + '\')">✏️</button> ' +
       '<button class="btn sm err" onclick="delRec(\'' + r.id + '\')">×</button></td></tr>';
   }).join('') : '<tr><td colspan="10" class="empty">' + SEC.T().noData + '</td></tr>';
@@ -307,7 +311,7 @@ function renderRos() {
 
 function fillSelects() {
   var sel = document.getElementById('cEmp'), cur = sel.value;
-  sel.innerHTML = '<option value="">— 選擇既有人員 —</option>' + DB.map(function (r) {
+  sel.innerHTML = '<option value="">— 選擇既有人員 —</option>' + SEC.Personnel.list(DB,document.getElementById('cDate').value.slice(0,7)||personnelMonth(),true).map(function (r) {
     return '<option value="' + r.id + '">' + SEC.esc((r.empId ? r.empId + ' ' : '') + (r.name || '')) + '</option>';
   }).join('');
   sel.value = cur;
@@ -325,16 +329,9 @@ function avatarHtml(r) {
                  : '<div class="avt-ph">👤</div>';
 }
 function openEdit(id) {
-  EDIT_ID = id || '';
-  var r = id ? DB.filter(function (x) { return x.id === id; })[0] : {};
-  if (!r) r = {};
-  EDIT_PHOTO = r.photo || '';
-  document.getElementById('mTitle').textContent = id ? '編輯人員' : '新增人員';
-  EFIELDS.forEach(function (f) { document.getElementById('e_' + f).value = r[f] || (f === 'status' ? 'active' : ''); });
-  if (!id) document.getElementById('e_joinDate').value = SEC.ymd();
-  paintAvatar();
-  SEC.openModal('mEdit');
+  return SEC.Personnel.openEditor({id:id,db:DB,month:personnelMonth(),onSave:personnelCommitPerson});
 }
+
 function paintAvatar() {
   document.getElementById('e_photoBox').innerHTML = EDIT_PHOTO
     ? '<img class="avt-lg" src="' + EDIT_PHOTO + '">' : '<div class="avt-ph" style="width:110px;height:130px">👤</div>';
@@ -342,28 +339,13 @@ function paintAvatar() {
 function pickAvatar() { SEC.pickPhoto(function (d) { EDIT_PHOTO = d; paintAvatar(); }, 380); }
 function clearAvatar() { EDIT_PHOTO = ''; paintAvatar(); }
 function saveEdit() {
-  var o = {};
-  EFIELDS.forEach(function (f) { o[f] = document.getElementById('e_' + f).value.trim(); });
-  if (!o.name) { SEC.toast('⚠ 請填姓名', 'warn'); return; }
-  o.photo = EDIT_PHOTO;
-  o.updatedAt = new Date().toISOString();
-  if (EDIT_ID) {
-    DB.forEach(function (r) { if (r.id === EDIT_ID) Object.assign(r, o); });
-  } else {
-    var dup=DB.filter(function(r){return (o.empId&&normEmpId(r.empId)===normEmpId(o.empId))||(!o.empId&&!r.empId&&SEC.norm(r.name)===SEC.norm(o.name));})[0];
-    if(dup){o.id=dup.id;o.createdAt=dup.createdAt||SEC.nowStr();Object.assign(dup,o);SEC.toast('ℹ️ 已更新相同工號／姓名的人員，未重複新增','warn',4500);}
-    else{o.id = 'S' + Date.now().toString(36);o.createdAt = SEC.nowStr();DB.push(o);}
-  }
-  save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'personnel-save', o.empId || o.name || ''); SEC.closeModal('mEdit'); SEC.toast('✅ 已儲存', 'ok');
-}
-function delRec(id) {
-  if (!confirm(SEC.T().confirmDel)) return;
-  var old=DB.filter(function(r){return r.id===id;})[0];if(old)SEC.markDeleted(TOOL,old);
-  DB = DB.filter(function (r) { return r.id !== id; });
-  save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'personnel-delete', id);
+  var input={};EFIELDS.forEach(function(f){input[f]=document.getElementById('e_'+f).value.trim();});input.photo=EDIT_PHOTO;
+  return personnelCommitPerson(input,{id:EDIT_ID,month:personnelMonth(),date:personnelMonth()+'-01'}).catch(function(e){SEC.toast(e.message,'err');});
 }
 
+function delRec(id) { return SEC.Personnel.openEditor({id:id,db:DB,month:personnelMonth(),remove:true,onSave:personnelCommitPerson}); }
 /* ═══ 異動 ═══ */
+
 function onKind() {
   var k = document.getElementById('cKind').value;
   /* 新進：清空 from 欄位 */
@@ -371,7 +353,7 @@ function onKind() {
 }
 function fillFrom() {
   var id = document.getElementById('cEmp').value;
-  var r = DB.filter(function (x) { return x.id === id; })[0];
+  var raw = DB.filter(function (x) { return x.id === id; })[0],r=raw?SEC.Personnel.snapshot(raw,document.getElementById('cDate').value.slice(0,7)):null;
   if (!r) return;
   document.getElementById('cId').value = r.empId || '';
   document.getElementById('cName').value = r.name || '';
@@ -380,63 +362,18 @@ function fillFrom() {
   document.getElementById('cFromPost').value = r.post || '';
 }
 async function submitChange(silent) {
-  var kind = document.getElementById('cKind').value;
-  var oldChange=EDIT_CHANGE_ID?CHG.filter(function(x){return x.id===EDIT_CHANGE_ID;})[0]:null;
-  var rec = {
-    id      : oldChange?oldChange.id:'C' + Date.now().toString(36),
-    kind    : kind,
-    date    : document.getElementById('cDate').value,
-    empId   : document.getElementById('cId').value.trim(),
-    name    : document.getElementById('cName').value.trim(),
-    position: document.getElementById('cPos').value.trim(),
-    fromShift: document.getElementById('cFromShift').value.trim(),
-    toShift  : document.getElementById('cToShift').value.trim(),
-    fromPost : document.getElementById('cFromPost').value.trim(),
-    toPost   : document.getElementById('cToPost').value.trim(),
-    reason  : document.getElementById('cReason').value.trim(),
-    by      : document.getElementById('cBy').value.trim() || SEC.getCfg().operator,
-    notified: false,
-    createdAt: oldChange?oldChange.createdAt||SEC.nowStr():SEC.nowStr(),updatedAt:new Date().toISOString(),
-  };
-  if (!rec.name) { SEC.toast('⚠ 請填姓名', 'warn'); return; }
-  if (!rec.date) { SEC.toast('⚠ 請選生效日', 'warn'); return; }
-
-  /* ① 同步更新名冊 */
-  var linkId = document.getElementById('cEmp').value;
-  var st = linkId ? DB.filter(function (x) { return x.id === linkId; })[0] : null;
-  if (!st && rec.empId) st = DB.filter(function (x) { return String(x.empId) === rec.empId; })[0];
-  if (kind === 'join' && !st) {
-    st = { id: 'S' + Date.now().toString(36), empId: rec.empId, name: rec.name, position: rec.position,
-           shift: rec.toShift, post: rec.toPost, joinDate: rec.date, status: 'active', createdAt: SEC.nowStr(),updatedAt:new Date().toISOString() };
-    DB.push(st);
-  } else if (st) {
-    if (kind === 'resign') { st.status = 'resigned'; st.resignDate = rec.date; }
-    else if(oldChange&&oldChange.kind==='resign'){st.status='active';st.resignDate='';}
-    if (rec.toShift) st.shift = rec.toShift;
-    if (rec.toPost)  st.post  = rec.toPost;
-    if (kind === 'promote' && rec.position) st.position = rec.position;
-    st.updatedAt=new Date().toISOString();
-  }
-
-  /* ② 寫入異動記錄 */
-  if(oldChange)Object.assign(oldChange,rec);else CHG.unshift(rec);
-  save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'personnel-change', rec.date);
-
-  if (silent) { SEC.toast('✅ 已登錄（未通知）', 'ok'); clearChangeForm(); return; }
-
-  /* ③ 即時推送 Telegram */
-  try {
-    await SEC.gasPost({
-      action: 'personnelChange', kind: kind, lang: SEC.lang(),
-      empId: rec.empId, name: rec.name, position: rec.position, date: rec.date,
-      fromShift: rec.fromShift, toShift: rec.toShift,
-      fromPost: rec.fromPost, toPost: rec.toPost,
-      reason: rec.reason, by: rec.by,
-    });
-    rec.notified = true; save(); renderChg();
-    SEC.toast('✅ 已登錄並通知群組', 'ok');
+  if(CHANGE_BUSY)return;CHANGE_BUSY=true;
+  try{
+    var kind=document.getElementById('cKind').value,date=document.getElementById('cDate').value,id=document.getElementById('cEmp').value;
+    var old=DB.filter(function(r){return r.id===id;})[0],base=old?(SEC.Personnel.snapshot(old,date.slice(0,7))||SEC.Personnel.fields(old)):{};
+    var input=Object.assign({},base,{empId:document.getElementById('cId').value.trim(),name:document.getElementById('cName').value.trim()});
+    var pos=document.getElementById('cPos').value.trim(),shift=document.getElementById('cToShift').value.trim(),post=document.getElementById('cToPost').value.trim();
+    input.remark=document.getElementById('cReason').value.trim()||input.remark||'';
+    if(pos)input.position=pos;if(shift)input.shift=shift;if(post)input.post=post;
+    if(kind==='remove')input.status='removed';else if(kind==='resign')input.status='resigned';else if(kind==='join'){input.status='active';input.joinDate=date;}
+    await personnelCommitPerson(input,{id:id||undefined,changeId:EDIT_CHANGE_ID||undefined,kind:kind,date:date,month:date.slice(0,7),reason:document.getElementById('cReason').value.trim(),by:document.getElementById('cBy').value.trim(),send:!silent});
     clearChangeForm();
-  } catch (e) { SEC.toast('⚠ 已登錄，但通知失敗：' + e.message, 'warn', 6000); }
+  }catch(e){SEC.toast('⚠️ '+e.message,'warn',6000);}finally{CHANGE_BUSY=false;}
 }
 function clearChangeForm() {
   ['cId','cName','cPos','cFromShift','cToShift','cFromPost','cToPost','cReason'].forEach(function (i) {
@@ -460,23 +397,18 @@ function renderChg() {
       '<td><b>' + SEC.esc(r.name) + '</b></td>' +
       '<td>' + (det.join('　') || '—') + '</td>' +
       '<td>' + SEC.esc(r.by || '') + '</td>' +
-      '<td>' + (r.notified ? '<span class="tag ok">✅ 已通知</span>' : '<span class="tag gray">未通知</span>') + '</td>' +
-      '<td>' + (r.notified ? '' : '<button class="btn sm" onclick="renotify(\'' + r.id + '\')">✈️</button>') + ' <button class="btn sm gh" onclick="editChange(\''+r.id+'\')">✏️</button> <button class="btn sm err" onclick="deleteChange(\''+r.id+'\')">×</button></td></tr>';
+      '<td>' + (!SEC.Personnel.unsent(r) ? '<span class="tag ok">✅ 已通知</span>' : '<span class="tag gray">未通知</span>') + '</td>' +
+      '<td>' + (!SEC.Personnel.unsent(r) ? '' : '<button class="btn sm" onclick="renotify(\'' + r.id + '\')">✈️</button>') + ' <button class="btn sm gh" onclick="editChange(\''+r.id+'\')">✏️</button> <button class="btn sm err" onclick="deleteChange(\''+r.id+'\')">×</button></td></tr>';
   }).join('') : '<tr><td colspan="8" class="empty">尚無異動記錄</td></tr>';
 }
 function editChange(id){
-  var r=CHG.filter(function(x){return x.id===id;})[0];if(!r)return;EDIT_CHANGE_ID=id;var tab=document.querySelector('.tab[data-p="chg"]');if(tab)tab.click();[['cKind',r.kind],['cDate',r.date],['cId',r.empId],['cName',r.name],['cPos',r.position],['cFromShift',r.fromShift],['cToShift',r.toShift],['cFromPost',r.fromPost],['cToPost',r.toPost],['cReason',r.reason],['cBy',r.by]].forEach(function(x){var el=document.getElementById(x[0]);if(el)el.value=x[1]||'';});var person=DB.filter(function(x){return (r.empId&&String(x.empId)===String(r.empId))||String(x.name||'')===String(r.name||'');})[0];if(person)document.getElementById('cEmp').value=person.id;SEC.toast('✏️ 已載入異動紀錄；儲存會更新原紀錄。名冊會依新內容更新，但不會自動還原其他歷史異動。','ok',6000);
+  var r=CHG.filter(function(x){return x.id===id;})[0];if(!r)return;EDIT_CHANGE_ID=id;var tab=document.querySelector('.tab[data-p="chg"]');if(tab)tab.click();[['cKind',r.kind],['cDate',r.date],['cId',r.empId],['cName',r.name],['cPos',r.position],['cFromShift',r.fromShift],['cToShift',r.toShift],['cFromPost',r.fromPost],['cToPost',r.toPost],['cReason',r.reason],['cBy',r.by]].forEach(function(x){var el=document.getElementById(x[0]);if(el)el.value=x[1]||'';});var person=DB.filter(function(x){return x.id===r.personId;})[0]||DB.filter(function(x){return (r.empId&&String(x.empId)===String(r.empId))||String(x.name||'')===String(r.name||'');})[0];fillSelects();if(person)document.getElementById('cEmp').value=person.id;SEC.toast('✏️ 已載入異動紀錄；儲存會更新原紀錄。名冊會依新內容更新，但不會自動還原其他歷史異動。','ok',6000);
 }
 function deleteChange(id){var r=CHG.filter(function(x){return x.id===id;})[0];if(!r||!confirm('刪除此異動歷史？目前人員名冊不會自動回復。\nDelete this change log? Current personnel data will not be reverted.'))return;SEC.markDeleted(TOOL,Object.assign({_k:'chg'},r));CHG=CHG.filter(function(x){return x.id!==id;});save();renderAll();SEC.scheduleAutoCloudSync(TOOL,'personnel-change-delete',r.date||'');}
 async function renotify(id) {
-  var r = CHG.filter(function (x) { return x.id === id; })[0]; if (!r) return;
-  try {
-    await SEC.gasPost({ action: 'personnelChange', kind: r.kind, lang: SEC.lang(),
-      empId: r.empId, name: r.name, position: r.position, date: r.date,
-      fromShift: r.fromShift, toShift: r.toShift, fromPost: r.fromPost, toPost: r.toPost,
-      reason: r.reason, by: r.by });
-    r.notified = true;r.updatedAt=new Date().toISOString(); save(); renderChg(); SEC.toast('✅ 已通知', 'ok');
-  } catch (e) { SEC.toast('❌ ' + e.message, 'err'); }
+  var r=CHG.filter(function(x){return x.id===id;})[0];if(!r)return;
+  try{await save();if(!await doUpload())throw Error('Cloud update failed / 雲端更新失敗');await SEC.Personnel.notify(r);var d=await SEC.Personnel.read();DB=d.db;CHG=d.changes;renderChg();SEC.toast('✅ '+SEC.Personnel.tr('異動已送達','Change delivered','បានផ្ញើការផ្លាស់ប្តូរ'),'ok');}
+  catch(e){SEC.toast('⚠️ '+e.message,'warn',6000);}
 }
 function expChange() {
   SEC.exportExcel([{ name: 'Changes', rows: CHG.map(function (r) {
@@ -761,20 +693,14 @@ async function readCards(file) {
         status: 'active', remark: remark.join('｜'), photo: ph,
         src: sn, createdAt: SEC.nowStr(),
       };
-      /* 同工號／同姓名 → 更新而非重複新增 */
-      var old = DB.filter(function (x) {
-        return (rec.empId && String(x.empId) === String(rec.empId)) ||
-               (!rec.empId && x.name === rec.name);
-      })[0];
-      if (old) { var oid = old.id; Object.assign(old, rec, { id: oid }); }
-      else DB.push(rec);
+      upsertStaff(rec,personnelMonth());
       preview.push(rec);
       n++; added++;
     });
     log.push('· <b>' + SEC.esc(sn) + '</b>：讀到 <b>' + n + '</b> 張資料卡，圖片 ' + imgs.length + ' 張');
   }
 
-  save(); renderAll();
+  await save(); renderAll();SEC.scheduleAutoCloudSync(TOOL,'personnel-change',personnelMonth()+'-01');
   var ph = preview.filter(function (r) { return r.photo; }).length;
   document.getElementById('impLog').innerHTML =
     '<b>資料卡匯入結果</b>：共 <b>' + added + '</b> 人，含照片 <b>' + ph + '</b> 張<br>' + log.join('<br>') +
@@ -879,6 +805,8 @@ function rosterShift(v) {
 }
 var ROSTER_MONTHS = ['january','february','march','april','may','june','july','august','september','october','november','december'];
 function rosterSheetPeriod(sh) {
+  var explicit=String(sh.name||'').match(/(20\d{2})[-/年](0?[1-9]|1[0-2])(?:月|\b)/);
+  if(explicit)return explicit[1]+'-'+SEC.p2(Number(explicit[2]));
   var text = (sh.rows || []).slice(0, 10).map(function (r) { return (r || []).join(' '); }).join(' ');
   function monthIndex(v) {
     var s = String(v || '');
@@ -891,6 +819,7 @@ function rosterSheetPeriod(sh) {
   var mi = monthIndex(sh.name);
   if (mi < 0) mi = monthIndex(text);
   if (mi < 0) mi = monthIndex(sh.fileName);
+  if (mi < 0) { var numeric=(String(sh.fileName||'')+' '+text).match(/(20\d{2})[-/年](0?[1-9]|1[0-2])(?:月|\b)/);if(numeric)return numeric[1]+'-'+SEC.p2(Number(numeric[2])); }
   if (mi < 0) mi = PER.at.getMonth();
   var ym = (String(sh.name || '') + ' ' + text + ' ' + String(sh.fileName || '')).match(/20\d{2}/);
   return (ym ? ym[0] : String(PER.at.getFullYear())) + '-' + String(mi + 1).padStart(2, '0');
@@ -921,20 +850,13 @@ function normEmpId(v) {
   return SEC.norm(s);
 }
 function staffKey(r) { return String(r && (r.empId || SEC.norm(r.name) || r.id) || ''); }
-function upsertStaff(row) {
-  var old = DB.filter(function (x) {
-    return (row.empId && normEmpId(x.empId) === normEmpId(row.empId)) || SEC.norm(x.name) === SEC.norm(row.name);
-  })[0];
-  if (old) {
-    var oid = old.id, photo = old.photo || '';
-    Object.assign(old, row, { id: oid, photo: photo,updatedAt:new Date().toISOString() });
-    return old;
-  }
-  row.id = row.id || ('X' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
-  row.updatedAt=row.updatedAt||new Date().toISOString();
-  DB.push(row);
-  return row;
+function upsertStaff(row,effectiveMonth) {
+  var m=effectiveMonth||personnelMonth(),old=DB.filter(function(x){return SEC.Personnel.same(SEC.Personnel.snapshot(x,m)||x,row);})[0];
+  var base=old?(SEC.Personnel.snapshot(old,m)||SEC.Personnel.fields(old)):{},input=Object.assign({},base);
+  Object.keys(row).forEach(function(k){if(row[k]!==''&&row[k]!=null)input[k]=row[k];});
+  return SEC.Personnel.apply(DB,CHG,input,{id:old&&old.id,month:m,date:m+'-01',reason:'Excel import / Excel 匯入'}).row;
 }
+
 function saveRosterSheet(sh, h, log) {
   var targetYm = rosterSheetPeriod(sh), month = ROSTER[targetYm] || (ROSTER[targetYm] = {}), n = 0;
   for (var i = h.row + 1; i < sh.rows.length; i++) {
@@ -948,7 +870,8 @@ function saveRosterSheet(sh, h, log) {
       empId: empId, name: name, position: '保安員 Security Guard', shift: shift, post: post,
       company: company, joinDate: '', phone: '', status: 'active',
       remark: company ? '保安公司 ' + company : '', src: sh.name, createdAt: SEC.nowStr(),
-    });
+    },targetYm);
+    row=SEC.Personnel.snapshot(row,targetYm);
     var days = {};
     Object.keys(h.days).forEach(function (c) {
       var v = SEC.str(R[c]); if (!v) return;
@@ -965,7 +888,7 @@ function saveRosterSheet(sh, h, log) {
   return n;
 }
 function importRosterFile(forceRoster) {
-  SEC.pickExcel(function (sheets) {
+  SEC.pickExcel(async function (sheets) {
     var added = 0, log = [], rosterSheets = 0;
     sheets.forEach(function (sh) {
       var rh = findRosterScheduleHeader(sh.rows);
@@ -979,7 +902,7 @@ function importRosterFile(forceRoster) {
       if (!res.rows.length) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：未偵測到人員資料（分數 ' + res.header.score + '）'); return; }
       var n = 0;
       res.rows.forEach(function (o) {
-        var name = SEC.str(o.name); if (!name) return;
+        var name = SEC.str(o.name); if (!SEC.Personnel.validName(name)) return;
         var jd = SEC.parseD(o.joinDate);
         var sf = rosterShift(o.shift);
         var row = {
@@ -995,7 +918,7 @@ function importRosterFile(forceRoster) {
       });
       log.push('· <b>' + SEC.esc(sh.name) + '</b>：匯入 <b>' + n + '</b> 筆（標題第 ' + (res.header.row + 1) + ' 列，比對 ' + res.header.score + ' 欄）');
     });
-    save(rosterSheets>0); renderAll();
+    await save(rosterSheets>0); renderAll();SEC.scheduleAutoCloudSync(TOOL,'personnel-change',personnelMonth()+'-01');
     document.getElementById('impLog').innerHTML = '<b>匯入結果</b><br>' + log.join('<br>') +
       (rosterSheets ? '<br>✅ 請到「🕐 班別崗位」查看每月 Security Roaster 排班明細。' : '');
     SEC.toast(added ? '✅ 匯入 ' + added + ' 人' + (rosterSheets ? '，已保存 Security Roaster 每日排班' : '') : '⚠ 未匯入，請看偵測記錄', added ? 'ok' : 'warn', 6000);
@@ -1027,20 +950,19 @@ function expExcel() {
   ], 'AC_SEC_Personnel_' + SEC.ymd() + '.xlsx');
 }
 function restore() {
-  SEC.restoreJson(function (o) {
+  SEC.restoreJson(async function (o) {
     if (o.staff) DB = o.staff;
     if (o.changes) CHG = o.changes;
     if (o.roster) ROSTER = o.roster;
     var at=new Date().toISOString();DB.forEach(function(r){r.updatedAt=at;SEC.clearDeleted(TOOL,r);});
     CHG.forEach(function(r){r.updatedAt=at;SEC.clearDeleted(TOOL,Object.assign({_k:'chg'},r));});
-    save(true); renderAll();SEC.scheduleAutoCloudSync(TOOL,'personnel-restore','all');
+    await save(true); renderAll();SEC.scheduleAutoCloudSync(TOOL,'personnel-restore','all');
   });
 }
-function clearAll() {
-  if (!confirm('確定清空人員名冊與異動記錄？')) return;
-  SEC.markDeletedMany(TOOL,DB);SEC.markDeletedMany(TOOL,CHG.map(function(r){return Object.assign({_k:'chg'},r);}));
-  DB = []; CHG = []; ROSTER = {}; save(true); renderAll();
-  SEC.scheduleAutoCloudSync(TOOL,'personnel-clear-all','all');
+async function clearAll() {
+  if(!confirm(personnelMonth()+'：將本月在職人員移出名冊，保留之前月份與出勤。 / Remove current roster; keep history?'))return;
+  SEC.Personnel.list(DB,personnelMonth()).forEach(function(r){SEC.Personnel.apply(DB,CHG,Object.assign({},r,{status:'removed'}),{id:r.id,month:personnelMonth(),date:personnelMonth()+'-01',kind:'remove',reason:'Roster cleared / 移出本月名冊'});});
+  await save();renderAll();SEC.scheduleAutoCloudSync(TOOL,'personnel-change',personnelMonth()+'-01');
 }
 
 /* ═══ 雲端 ═══ */
@@ -1049,9 +971,9 @@ function personnelCloudRecords() {
     .concat(CHG.map(function (r) { return Object.assign({ _k: 'chg' }, r); }));
 }
 async function doUpload() {
-  if(dedupePersonnelRecords())save();
+  if(dedupePersonnelRecords())await save();
   var all = personnelCloudRecords();
-  if(!ROSTER_REV&&Object.keys(ROSTER).length){ROSTER_REV=new Date().toISOString();save(false);}
+  if(!ROSTER_REV&&Object.keys(ROSTER).length){ROSTER_REV=new Date().toISOString();await save(false);}
   return await SEC.cloudPush(TOOL, all, { staff: DB.length, active: active().length, changes: CHG.length }, { roster: SEC.replaceObject(ROSTER,ROSTER_REV||'1970-01-01T00:00:00.000Z') });
 }
 async function doDownload(opts) {
@@ -1075,7 +997,7 @@ async function doDownload(opts) {
   CHG = cm.records;
   dedupePersonnelRecords();
   var rosterOut=SEC.unwrapObject(rosterMerged);ROSTER=rosterOut.data;ROSTER_REV=rosterOut.updatedAt||ROSTER_REV;
-  save(); renderAll(); if (!(opts && opts.silent)) SEC.toast('⬇️☁ 已合併人員 ' + sm.added + ' 新增／' + sm.updated + ' 更新，保留 ' + DB.length + ' 人', 'ok', 5000);
+  await save(); renderAll(); if (!(opts && opts.silent)) SEC.toast('⬇️☁ 已合併人員 ' + sm.added + ' 新增／' + sm.updated + ' 更新，保留 ' + DB.length + ' 人', 'ok', 5000);
   return true;
 }
 function personnelSummaryPeriod(st) {
@@ -1108,7 +1030,7 @@ function personnelPeople(st) {
 
 function perCell(v,n){v=String(v==null?'':v).replace(/\s+/g,' ').trim();if(v.length>n)v=v.slice(0,Math.max(1,n-1))+'…';while(v.length<n)v+=' ';return v;}
 function perPre(lines){return '<blockquote>'+lines.join('\n')+'</blockquote>';}
-function personnelSummary(st) {
+function personnelRosterSummary(st) {
   var p=personnelSummaryPeriod(st),a=active(),resigned=DB.filter(function(r){return r.status==='resigned';}),changes=CHG.filter(function(r){return r.date&&p.has(r.date);}),roster=personnelPeople(st),byS={},byPost={};
   a.forEach(function(r){var s=r.shift||'—';byS[s]=(byS[s]||0)+1;var q=r.post||'—';byPost[q]=(byPost[q]||0)+1;});
   var txt='👮 <b>'+perText(st.lang,'保安人員摘要','Security Personnel Summary')+'</b> · '+SEC.esc(p.label())+'\n🛡️ AC Security · Personnel / Security Staff\n━━━━━━━━━━━━━━━━\n'+perPre(['Item                 Qty','Active staff          '+a.length,'Resigned              '+resigned.length,'Roster records        '+roster.length,'Changes in period     '+changes.length]);
@@ -1119,14 +1041,51 @@ function personnelSummary(st) {
   return txt;
 }
 
-function personnelSummaryPageDefs(st){var p=personnelSummaryPeriod(st),list=personnelPeople(st).slice().sort(function(a,b){return String(a.shift||'').localeCompare(String(b.shift||''))||String(a.name||'').localeCompare(String(b.name||''));}),all=[];list.forEach(function(r){if(r.photo)all.push(r.photo);});var defs=[{text:personnelSummary(st),photos:st.includeDetails?all.slice(0,4):[]}];if(!st.includeDetails)return defs;for(var i=0;i<list.length;i+=12){var b=list.slice(i,i+12),lines=['ID        Name          Sh  Post          Position      Company    St Ph'];b.forEach(function(r){lines.push(perCell(r.empId||'—',10)+perCell(r.name||'—',14)+perCell(r.shift||'—',4)+perCell(r.post||'—',14)+perCell(r.position||'Security Guard',14)+perCell(r.company||'—',11)+perCell(r.status==='resigned'?'RES':'ACT',4)+(r.photo?1:0));});var pg='👮 <b>人員明細 / Personnel Details</b> · '+SEC.esc(p.label())+'\n'+perPre(lines);b.forEach(function(r){if(r.remark)pg+='\n· '+SEC.esc(r.empId||r.name||'—')+' · '+SEC.esc(r.remark);});defs.push({text:pg,photos:b.filter(function(r){return r.photo;}).map(function(r){return r.photo;}).slice(0,4)});}return defs;}
-function personnelSummaryPages(st) { return personnelSummaryPageDefs(st).map(function(x){return x.text;}); }
-function personnelSummaryPhotos(st, pageIndex) { var d=personnelSummaryPageDefs(st)[pageIndex]; return d&&d.photos?d.photos.slice(0,4):[]; }
-function openPersonnelTelegram() {
-  return SEC.tgOpen({ module:'personnel', defaultType:PER.mode, defaultPeriod:PER.key(),
-    periods:personnelPeriods, currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); },
-    summaryPages:personnelSummaryPages, summaryPhotos:personnelSummaryPhotos });
+function personnelRosterSummaryPageDefs(st){var p=personnelSummaryPeriod(st),list=personnelPeople(st).slice().sort(function(a,b){return String(a.shift||'').localeCompare(String(b.shift||''))||String(a.name||'').localeCompare(String(b.name||''));}),all=[];list.forEach(function(r){if(r.photo)all.push(r.photo);});var defs=[{text:personnelRosterSummary(st),photos:st.includeDetails?all.slice(0,4):[]}];if(!st.includeDetails)return defs;for(var i=0;i<list.length;i+=12){var b=list.slice(i,i+12),lines=['ID        Name          Sh  Post          Position      Company    St Ph'];b.forEach(function(r){lines.push(perCell(r.empId||'—',10)+perCell(r.name||'—',14)+perCell(r.shift||'—',4)+perCell(r.post||'—',14)+perCell(r.position||'Security Guard',14)+perCell(r.company||'—',11)+perCell(r.status==='resigned'?'RES':'ACT',4)+(r.photo?1:0));});var pg='👮 <b>人員明細 / Personnel Details</b> · '+SEC.esc(p.label())+'\n'+perPre(lines);b.forEach(function(r){if(r.remark)pg+='\n· '+SEC.esc(r.empId||r.name||'—')+' · '+SEC.esc(r.remark);});defs.push({text:pg,photos:b.filter(function(r){return r.photo;}).map(function(r){return r.photo;}).slice(0,4)});}return defs;}
+function personnelRosterSummaryPages(st) { return personnelRosterSummaryPageDefs(st).map(function(x){return x.text;}); }
+function personnelRosterSummaryPhotos(st, pageIndex) { var d=personnelRosterSummaryPageDefs(st)[pageIndex]; return d&&d.photos?d.photos.slice(0,4):[]; }
+function personnelMonth(){return SEC.ymd(PER.at).slice(0,7);}
+async function personnelCommitPerson(input,opt){
+  var result=SEC.Personnel.apply(DB,CHG,input,opt);await save();renderAll();
+  SEC.scheduleAutoCloudSync(TOOL,'personnel-change',opt.date);
+  if(!await doUpload())throw Error('已儲存，雲端更新失敗，請重試 / Saved locally; cloud update failed');
+  if(opt.send){var rec=result.change||CHG.filter(function(r){return r.personId===result.row.id&&r.effectiveMonth===opt.month&&SEC.Personnel.unsent(r);})[0];if(rec)await SEC.Personnel.notify(rec);var data=await SEC.Personnel.read();DB=data.db;CHG=data.changes;renderAll();}
+  SEC.toast('✅ '+SEC.Personnel.tr('已儲存並更新'+(opt.send?'，異動已發送或已送過':''),'Saved and synced'+(opt.send?'; change delivered or already sent':''),'បានរក្សាទុក និងធ្វើសមកាលកម្ម'),'ok');return result;
 }
+function personnelChanges(st){
+  var p=personnelSummaryPeriod(st);
+  return CHG.filter(function(r){return SEC.Personnel.validName(r.name)&&r.date&&p.has(r.date)&&(st.scope==='allChanges'||SEC.Personnel.unsent(r));}).slice().sort(function(a,b){return String(a.date).localeCompare(String(b.date))||String(a.id).localeCompare(String(b.id));});
+}
+function personnelChangeDefs(st){
+  var list=personnelChanges(st),p=personnelSummaryPeriod(st),title='👮 <b>'+perText(st.lang,'人員異動摘要','Personnel changes')+'</b> · '+SEC.esc(p.label());
+  var counts={join:0,resign:0,remove:0,update:0};list.forEach(function(r){counts[r.kind in counts?r.kind:'update']++;});
+  var head=title+'\n🟢 '+perText(st.lang,'新進','Joined')+' '+counts.join+' · 🔴 '+perText(st.lang,'離職','Resigned')+' '+counts.resign+' · ➖ '+perText(st.lang,'移出','Removed')+' '+counts.remove+' · ✏️ '+perText(st.lang,'更新','Updated')+' '+counts.update;
+  if(!list.length)return [{text:head+'\n'+perText(st.lang,'本期沒有待發異動。','No pending changes in this period.'),photos:[]}];
+  var defs=[],lines=[],photos=[],size=0,seen={};
+  function flush(){if(lines.length){defs.push({text:(defs.length?title:head)+'\n'+lines.join('\n'),photos:photos});lines=[];photos=[];size=0;}}
+  list.forEach(function(r){var kind=KIND[r.kind]||KIND.update,after=r.after||{},before=r.before||{},details=[];
+    [['empId','ID'],['name','Name'],['position','Position'],['shift','Shift'],['post','Post'],['phone','Phone'],['company','Company'],['joinDate','Join']].forEach(function(a){var old=before[a[0]]||'',now=after[a[0]]||'';if(r.after&&old!==now)details.push(a[1]+' '+(old||'—')+' → '+(now||'—'));});
+    if(!r.after){if(r.fromShift||r.toShift)details.push('Shift '+(r.fromShift||'—')+' → '+(r.toShift||'—'));if(r.fromPost||r.toPost)details.push('Post '+(r.fromPost||'—')+' → '+(r.toPost||'—'));}
+    // Name/ID already appear in the row; for a join only list useful extra fields.
+    if(r.kind==='join')details=details.filter(function(x){return !/^(Name|ID) /.test(x);});
+    var line=kind.icon+' '+SEC.esc(r.date)+' · '+SEC.esc(perText(st.lang,kind.zh,kind.en))+' · <b>'+SEC.esc((r.empId?r.empId+' ':'')+r.name)+'</b>'+(details.length?' · '+SEC.esc(details.join(' · ')):'')+(r.reason?' · '+SEC.esc(r.reason):'')+' · '+perText(st.lang,'經辦','By')+' '+SEC.esc(r.by||'—');
+    line=line.replace(/[\r\n]+/g,' ');var photo=st.includeDetails&&(after.photo||r.photo),ph=photo&&!seen[photo]?[photo]:[];if(photo)seen[photo]=true;
+    if(lines.length&&(lines.length>=8||size+line.length>2300||photos.length+ph.length>4))flush();lines.push(line);photos=photos.concat(ph);size+=line.length;
+  });flush();return defs;
+}
+function personnelSummaryPageDefs(st){return personnelChangeDefs(st);}
+function personnelSummary(st){return personnelChangeDefs(st)[0].text;}
+function personnelSummaryPages(st){return personnelChangeDefs(st).map(function(d){return d.text;});}
+function personnelSummaryPhotos(st,i){var d=personnelChangeDefs(st)[i];return d?d.photos:[];}
+function openPersonnelTelegram(){
+  var selected=[];
+  return SEC.tgOpen({module:'personnel',reportKind:'masterChanges',modalTitle:SEC.Personnel.tr('人員異動摘要','Personnel change summary','សង្ខេបការផ្លាស់ប្តូរបុគ្គលិក'),defaultType:PER.mode,defaultPeriod:PER.key(),defaultScope:'changes',periods:personnelPeriods,currentPeriod:function(type){return new SEC.Period(type,PER.at).key();},
+    scopeOptions:[{value:'changes',label:'未送異動 / Unsent changes / ការផ្លាស់ប្តូរមិនទាន់ផ្ញើ'},{value:'allChanges',label:'本期全部異動 / All changes in period / ការផ្លាស់ប្តូរក្នុងរយៈពេល'}],
+    summaryPages:personnelSummaryPages,summaryPhotos:personnelSummaryPhotos,canSendSummary:function(st){return personnelChanges(st).length>0;},
+    beforeSummarySend:async function(st){selected=personnelChanges(st).map(function(r){return {id:r.id,signature:SEC.Personnel.signature(r)};});if(!selected.length)return false;await save();if(!await doUpload())throw Error('Cloud save failed / 雲端更新失敗');},
+    onSummarySent:async function(){var data=await SEC.Personnel.markSent(selected);DB=data.db;CHG=data.changes;renderAll();}});
+}
+
 function pushSummary() { return openPersonnelTelegram(); }
 SEC.registerAutoUploader(TOOL, function (opts) { return doUpload(opts); });
 SEC.registerAutoDownloader(TOOL, function (opts) { return doDownload(opts); });

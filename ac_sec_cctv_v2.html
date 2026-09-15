@@ -134,7 +134,7 @@
           <select id="fStatus" style="width:auto" onchange="renderList()"><option value="">狀態／Status</option><option value="ok">✅ 正常 / Normal</option><option value="off">🔴 離線 / Offline</option><option value="blur">🟡 模糊 / Blurry</option><option value="fault">⛔ 故障 / Fault</option><option value="dis">⚪ 停用 / Disabled</option></select>
           <input id="q" data-zh="搜尋編號／位置…" data-en="Search code / location…" data-km="ស្វែងរកលេខ / ទីតាំង…" placeholder="搜尋編號／位置…" style="width:150px" oninput="renderList()">
           <button class="btn sm" onclick="openEdit()">➕ <span data-t="add">新增</span></button>
-          <button class="btn sm gh" onclick="expExcel()">📊 Excel</button>
+          <button class="btn sm" onclick="openCctvChangesTelegram()">✈️ <span data-zh="設備異動摘要" data-en="Camera changes" data-km="សង្ខេបការផ្លាស់ប្តូរកាមេរ៉ា">設備異動摘要</span></button><button class="btn sm gh" onclick="expExcel()">📊 Excel</button>
         </span></h3>
       <div class="tw"><table><thead><tr>
         <th data-zh="編號" data-en="Code" data-km="លេខ">編號</th>
@@ -228,7 +228,7 @@
 <!-- 編輯 Modal -->
 <div class="mask" id="mEdit"><div class="modal"><div class="mh"><span>📷</span><b id="mTitle">新增攝影機</b>
 <button class="x" onclick="SEC.closeModal('mEdit')">×</button></div>
-<div class="mb"><div class="grid g2">
+<div class="mb"><div class="grid g2"><div class="f"><label data-zh="異動日期" data-en="Change date" data-km="ថ្ងៃផ្លាស់ប្តូរ">異動日期</label><input type="date" id="e_assetDate"></div><div class="f"><label data-zh="異動方式" data-en="Change type" data-km="ប្រភេទផ្លាស់ប្តូរ">異動方式</label><select id="e_assetKind"><option value="update">更新資料 / Update details</option><option value="replace">更換新品 / Replace equipment</option></select></div>
   <div class="f"><label data-zh="編號" data-en="Code" data-km="លេខកូដ">編號 Code</label><input id="e_code"></div>
   <div class="f"><label data-zh="名稱／位置" data-en="Name / Location" data-km="ឈ្មោះ / ទីតាំង">名稱／位置 Name</label><input id="e_name"></div>
   <div class="f"><label data-zh="廠區" data-en="Factory" data-km="រោងចក្រ">廠區 Factory</label><select id="e_factory">
@@ -256,7 +256,8 @@
 <button class="btn" onclick="saveEdit()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260912a"></script>
+<script src="./shared/sec-core.js?v=20260914a"></script>
+<script src="./shared/sec-asset-changes.js?v=20260914a"></script>
 <script src="./shared/sec-smart-sync.js?v=20260901a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
@@ -381,7 +382,9 @@ function cctvNormaliseLog(r) {
   return o;
 }
 
+var ASSET_CHANGES=[], LS_ASSET='ac_sec_cctv_asset_changes_v1';
 async function load() {
+  ASSET_CHANGES=await SEC.dbGet(LS_ASSET,[]);if(!Array.isArray(ASSET_CHANGES))ASSET_CHANGES=[];
   DB = await SEC.dbGet(LS, []);
   LOG = await SEC.dbGet(LSL, []);
   if (!Array.isArray(DB)) DB = [];
@@ -398,16 +401,16 @@ async function load() {
   }
 }
 function ensureCctvSyncKeys(){var n=0;DB.forEach(function(r,i){if(r&&!r._recordKey){r._recordKey=SEC.recordKey(TOOL,r,i);n++;}});return n;}
-function save() { SEC.dbPut(LS, DB); SEC.dbPut(LSL, LOG); }
+function save() { SEC.AssetChanges.refreshStates(TOOL,DB); return Promise.all([SEC.dbPut(LS, DB),SEC.dbPut(LSL, LOG),SEC.dbPut(LS_ASSET,ASSET_CHANGES)]); }
 function setCctvSyncStatus(text, kind) {
   var el = document.getElementById('cctvSyncStatus'); if (!el) return;
   el.dataset.live = '1';
   el.textContent = text; el.style.color = kind === 'err' ? 'var(--err)' : kind === 'warn' ? 'var(--warn)' : 'var(--ink2)';
 }
 
-document.getElementById('hdr').innerHTML = SEC.headerHtml('📷', 'CCTV 監控', 'AC SECURITY · CCTV · 20260901b');
+document.getElementById('hdr').innerHTML = SEC.headerHtml('📷', 'CCTV 監控', 'AC SECURITY · CCTV · 20260914a');
 document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
-SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: openCctvTelegram, onSmartImport: impExcel });
+SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: function(){return document.querySelector('#tabs .tab.on[data-p="list"]')?openCctvChangesTelegram():openCctvTelegram();}, onSmartImport: impExcel });
 paintCctvPeriod = SEC.bindPeriodNav('pnav', PER, renderAll);
 document.getElementById('tabs').addEventListener('click', function (e) {
   var b = SEC.closest(e.target, '.tab'); if (!b) return;
@@ -640,12 +643,12 @@ function saveDay(push) {
   var live = n - c.dis;
   var rec = { id: 'L' + d, date: d, by: by, note: note, n: n, ok: c.ok, off: c.off, blur: c.blur, fault: c.fault, dis: c.dis,
               uptime: live ? Math.round(c.ok / live * 100) : 0, badList: badList, st: Object.assign({}, TODAY),
-              photos: TODAY_PHOTOS.slice(0, 4), updatedAt: new Date().toISOString() };
+              photos: TODAY_PHOTOS.slice(0, 4), cameras:DB.map(function(c){return {id:c.id,code:c.code,name:c.name,factory:c.factory,zone:c.zone,type:c.type};}), updatedAt: new Date().toISOString() };
   LOG = LOG.filter(function (l) { return l.date !== d; });
   LOG.unshift(rec);
   SEC.clearDeleted('cctv-log',rec);
   LOG.sort(function (a, b) { return b.date.localeCompare(a.date); });
-  if (LOG.length > 400) LOG.length = 400;
+  // Keep prior years of inspection history.
   save(); renderAll();
   SEC.scheduleAutoCloudSync(TOOL, 'cctv-save', d);
   SEC.toast('✅ 已儲存 ' + d + ' 巡檢（可用率 ' + rec.uptime + '%）', badList.length ? 'warn' : 'ok', 5000);
@@ -763,7 +766,7 @@ function cctvSummary(st) {
     a = cctvAudit(rawList), rec = cctvCurrentRecord(p), logs = LOG.filter(function (r) { return p.has(r.date); }),
     overall = cctvStats(list, rec),
     uptime = overall.pending || !(overall.ok + overall.off + overall.blur + overall.fault) ? null : Math.round(overall.ok / Math.max(1, overall.ok + overall.off + overall.blur + overall.fault) * 100),
-    lang = st.lang || 'zh', txt = '📷 <b>' + cctvBi(lang, 'CCTV 監控摘要', 'CCTV Monitoring Summary') + '</b> · ' + SEC.esc(p.label()) + '\n' +
+    lang = st.lang || 'zh', txt = '📷 <b>' + cctvBi(lang, 'CCTV 巡檢摘要', 'CCTV Inspection Summary') + '</b> · ' + SEC.esc(p.label()) + '\n' +
       cctvBi(lang, '範圍', 'Scope') + '：' + SEC.esc(cctvScopeLabel(st, 'zh')) + ' / ' + SEC.esc(cctvScopeLabel(st, 'en')) + '\n' +
       '🛡️ AC Security · VRT Sihanoukville\n━━━━━━━━━━━━━━━━\n';
   var issueTotal = (overall.off || 0) + (overall.blur || 0) + (overall.fault || 0);
@@ -835,7 +838,7 @@ async function cctvBeforeSummarySend(st) {
   return true;
 }
 function openCctvTelegram(defaultType, defaultPeriod) {
-  return SEC.tgOpen({ module:'cctv', forceBilingual:true, defaultType:defaultType || PER.mode, defaultPeriod:defaultPeriod || PER.key(), periods:cctvPeriods,
+  return SEC.tgOpen({ module:'cctv', reportKind:'inspection', modalTitle:'CCTV 巡檢摘要 / CCTV inspection summary', forceBilingual:true, defaultType:defaultType || PER.mode, defaultPeriod:defaultPeriod || PER.key(), periods:cctvPeriods,
     currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); }, scopeOptions:cctvScopeOptions(), defaultScope:'all',
     summaryPages:cctvSummaryPages, summaryPhotos:cctvSummaryPhotos, beforeSummarySend:cctvBeforeSummarySend });
 }
@@ -884,7 +887,7 @@ function openEdit(id) {
   });
   renderEditPhotos();
   if (!id) { var letter = DB.filter(function (x) { return factoryOf(x) === 'a'; }).length <= DB.filter(function (x) { return factoryOf(x) === 'b'; }).length ? 'A' : 'B'; document.getElementById('e_code').value = 'CCTV ' + letter + '-' + String(DB.filter(function (x) { return factoryOf(x) === (letter === 'A' ? 'a' : 'b'); }).length + 1).padStart(2, '0'); }
-  SEC.openModal('mEdit');
+  SEC.AssetChanges.resetEditor(id);SEC.openModal('mEdit');
 }
 function addCameraPhoto() {
   if (EDIT_PHOTOS.length >= 4) { SEC.toast('⚠ 每台攝影機最多 4 張照片', 'warn'); return; }
@@ -901,6 +904,7 @@ function renderEditPhotos() {
   });
 }
 function saveEdit() {
+  var before=SEC.AssetChanges.clone(DB),changeOpt;try{changeOpt=SEC.AssetChanges.editorOptions(EDIT_ID);}catch(e){SEC.toast(e.message,'warn');return;}
   var o = {};
   EF.forEach(function (f) { o[f] = document.getElementById('e_' + f).value.trim(); });
   o.photos = EDIT_PHOTOS.slice(0, 4);
@@ -908,16 +912,17 @@ function saveEdit() {
   var cp = cctvCodeParts(o);
   if (!cp) { SEC.toast('⚠ 請使用正式編號 CCTV A-01 或 CCTV B-01；沒有正式編號的列不會計入', 'warn', 6000); return; }
   o.code = cp.code; o.factory = cp.factory;
+  if(DB.some(function(c){return c.id!==EDIT_ID&&cctvIdentity(c)===cctvIdentity(o);})){SEC.toast('攝影機編號已存在，請編輯原攝影機 / Camera code already exists','warn');return;}
   if (!EDIT_ID && DB.length >= CCTV_MAX) { SEC.toast('⚠ 已達 CCTV 41 支上限，不能再新增', 'warn'); return; }
   if (EDIT_ID) DB.forEach(function (c,i) { if (c.id === EDIT_ID) {if(!c._recordKey)c._recordKey=SEC.recordKey(TOOL,c,i);Object.assign(c, o);SEC.clearDeleted(TOOL,c);} });
   else { o.id = 'C' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); DB.push(o);ensureCctvSyncKeys();SEC.clearDeleted(TOOL,o); }
-  save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'cctv-camera-save', o.code); SEC.closeModal('mEdit'); SEC.toast('✅ 已儲存', 'ok');
+  SEC.AssetChanges.capture(TOOL,ASSET_CHANGES,before,DB,changeOpt);save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'cctv-camera-save', o.code); SEC.closeModal('mEdit'); SEC.toast('✅ 已儲存', 'ok');
 }
 function delCam() {
   if (!EDIT_ID) { SEC.closeModal('mEdit'); return; }
   if (!confirm('確定刪除此攝影機？')) return;
-  var old=DB.filter(function(c){return c.id===EDIT_ID;})[0];if(old)SEC.markDeleted(TOOL,old);DB = DB.filter(function (c) { return c.id !== EDIT_ID; });
-  save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'cctv-camera-delete', EDIT_ID); SEC.closeModal('mEdit');
+  var before=SEC.AssetChanges.clone(DB);var old=DB.filter(function(c){return c.id===EDIT_ID;})[0];if(old)SEC.markDeleted(TOOL,old);DB = DB.filter(function (c) { return c.id !== EDIT_ID; });
+  SEC.AssetChanges.capture(TOOL,ASSET_CHANGES,before,DB,{date:document.getElementById('e_assetDate').value||SEC.ymd()});save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'cctv-camera-delete', EDIT_ID); SEC.closeModal('mEdit');
 }
 
 /* ═══ 紀錄 / 統計 ═══ */
@@ -1055,6 +1060,7 @@ var SPEC = {
 };
 function impExcel() {
   SEC.pickExcel(function (sheets) {
+    var before=SEC.AssetChanges.clone(DB);
     var added = 0, log = [];
     sheets.forEach(function (sh) {
       var res = SEC.parseSheet(sh.rows, SPEC, { minScore: 2 });
@@ -1093,7 +1099,7 @@ function impExcel() {
     var clean = cctvDeduplicate(DB); DB = clean.records;
     LOG = LOG.filter(function (r) { return r && r.date; }).map(cctvNormaliseLog)
       .sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
-    save(); loadDay(); renderAll();
+    SEC.AssetChanges.capture(TOOL,ASSET_CHANGES,before,DB,{source:'import'});save(); loadDay(); renderAll();SEC.scheduleAutoCloudSync(TOOL,'cctv-camera-import',SEC.ymd());
     document.getElementById('impLog').innerHTML = '<b>匯入結果</b><br>' + log.join('<br>');
     SEC.toast(added ? '✅ 匯入 ' + added + ' 支攝影機' : '⚠ 未匯入，請看偵測記錄', added ? 'ok' : 'warn', 5000);
   });
@@ -1117,6 +1123,7 @@ function impCamJson() {
   inp.click();
 }
 function loadCamArray(arr) {
+  var before=SEC.AssetChanges.clone(DB);
   var added = 0, ignored = 0;
   arr.forEach(function (c) {
     var parts = cctvCodeParts({ code:SEC.str(c.code), name:SEC.str(c.name) });
@@ -1142,7 +1149,7 @@ function loadCamArray(arr) {
     added++;
   });
   var clean = cctvDeduplicate(DB); DB = clean.records; ignored += clean.ignored + clean.overflow;
-  save(); renderAll();
+  SEC.AssetChanges.capture(TOOL,ASSET_CHANGES,before,DB,{source:'import'});save(); renderAll();SEC.scheduleAutoCloudSync(TOOL,'cctv-camera-import',SEC.ymd());
   var noVid = DB.filter(function (c) { return c.status === 'off'; }).length;
   document.getElementById('impLog').innerHTML = '<b>匯入結果</b>：' + added + ' 支相機，忽略 ' + ignored + ' 列（其中 ' + noVid + ' 支標記為無畫面 🔴）';
   SEC.toast('✅ 匯入 ' + added + ' 支相機；忽略 ' + ignored + ' 列', ignored ? 'warn' : 'ok', 6000);
@@ -1187,6 +1194,7 @@ function migrateOld() {
 }
 
 function genCams() {
+  var before=SEC.AssetChanges.clone(DB);
   var n = parseInt(document.getElementById('genN').value, 10) || 0;
   if (!n) return;
   if (DB.length && !confirm('已有 ' + DB.length + ' 支，會「追加」而非覆蓋。繼續？')) return;
@@ -1202,7 +1210,7 @@ function genCams() {
       name: '', factory: fk, zone: zs[i % zs.length], type: 'dome',
       nvr: 'NVR-' + (Math.floor(i / 32) + 1), ch: String((i % 32) + 1), ip: '', status: 'ok', remark: '',updatedAt:new Date().toISOString() });
   }
-  save(); renderAll(); SEC.toast('🏭 已產生 ' + n + ' 支，請逐支補上名稱與區域', 'ok', 5000);
+  SEC.AssetChanges.capture(TOOL,ASSET_CHANGES,before,DB);save(); renderAll();SEC.scheduleAutoCloudSync(TOOL,'cctv-camera-save',SEC.ymd());SEC.toast('🏭 已產生 ' + n + ' 支，請逐支補上名稱與區域', 'ok', 5000);
 }
 function expExcel() {
   var TY = { dome:'半球', bullet:'槍型', ptz:'球機', fisheye:'魚眼', other:'其他' };
@@ -1219,11 +1227,12 @@ function expLog() {
       '可用率 Uptime%': l.uptime, '巡檢備註 Note': l.note || '', '異常機號': (l.badList || []).join('；') };
   }) }], 'AC_SEC_CCTV_Log_' + PER.key() + '.xlsx');
 }
-function doBackup() { SEC.backupJson({ cameras: DB, log: LOG }, 'cctv_backup_' + SEC.ymd() + '.json'); }
+function doBackup() { SEC.backupJson({ cameras: DB, log: LOG, assetChanges:ASSET_CHANGES }, 'cctv_backup_' + SEC.ymd() + '.json'); }
 function restore() {
   SEC.restoreJson(function (o) {
     if (o.cameras) DB = o.cameras;
     if (o.log) LOG = o.log;
+    if(Array.isArray(o.assetChanges))ASSET_CHANGES=SEC.mergeRecords('cctv-changes',ASSET_CHANGES,o.assetChanges).records;
     var at=new Date().toISOString();DB.forEach(function(r){r.updatedAt=at;});LOG.forEach(function(r){r.updatedAt=at;});
     DB=cctvDeduplicate(DB).records;ensureCctvSyncKeys();DB.forEach(function(r){SEC.clearDeleted(TOOL,r);});LOG.forEach(function(r){SEC.clearDeleted('cctv-log',r);});
     save(); loadDay(); renderAll();SEC.scheduleAutoCloudSync(TOOL,'cctv-restore','all');
@@ -1244,7 +1253,7 @@ async function doUpload() {
   var slim = LOG.map(cctvNormaliseLog).concat(SEC.getDeleted('cctv-log'));
   setCctvSyncStatus('Uploading… / 上傳中…', 'warn');
   var ok = await SEC.cloudPush(TOOL, DB, { total: DB.length, logs: LOG.length,
-    lastUptime: LOG.length ? LOG[0].uptime : null }, { log: slim });
+    lastUptime: LOG.length ? LOG[0].uptime : null }, { log: slim, assetChanges:ASSET_CHANGES });
   setCctvSyncStatus(ok ? '⬆️ Upload complete / 上傳完成 · ' + SEC.lastSync(TOOL) + ' · ' + DB.length + ' cameras' : '❌ Upload failed / 上傳失敗', ok ? '' : 'err');
   if (clean.ignored || clean.overflow) SEC.toast('☁️ 已上傳正式 CCTV 編號；忽略非攝影機列 ' + clean.ignored + '，超過 41 支未上傳 ' + clean.overflow, 'warn', 7000);
   return ok;
@@ -1252,7 +1261,7 @@ async function doUpload() {
 async function doDownload(opts) {
   if (!(opts && opts.auto) && !confirm('⬇️☁ 下載只接受 CCTV A-01／CCTV B-01 類正式編號，最多 41 支；摘要列及超出上限的資料不會納入。相同機號只保留一支，空白欄位會先確認並保留舊值。繼續？')) return false;
   setCctvSyncStatus('Downloading… / 下載中…', 'warn');
-  var recs = await SEC.cloudPull(TOOL, { force:!(opts && opts.auto), localRecords:DB, localExtra:{ log:LOG.map(cctvNormaliseLog).concat(SEC.getDeleted('cctv-log')) } });
+  var recs = await SEC.cloudPull(TOOL, { force:!(opts && opts.auto), localRecords:DB, localExtra:{ assetChanges:ASSET_CHANGES, log:LOG.map(cctvNormaliseLog).concat(SEC.getDeleted('cctv-log')) } });
   if (!recs) { setCctvSyncStatus('❌ Download failed / 下載失敗', 'err'); return false; }
   if (recs._cloudMeta && recs._cloudMeta.unchanged) { setCctvSyncStatus('✅ Cloud is current / 雲端已是最新'); return true; }
   if (recs) {
@@ -1262,6 +1271,7 @@ async function doDownload(opts) {
     var clean = cctvDeduplicate(m.records);
     DB = clean.records;
     var ex = recs._cloudExtra || {};
+    ASSET_CHANGES=SEC.mergeRecords('cctv-changes',ASSET_CHANGES,ex.assetChanges||[]).records;
     if (Array.isArray(ex.log)) {
       var lm = SEC.mergeRecords('cctv-log', LOG, ex.log);
       if (!(opts && opts.auto) && !SEC.confirmBlankMerge(lm.blankConflicts, 'CCTV 巡檢紀錄下載確認')) return false;
@@ -1274,6 +1284,10 @@ async function doDownload(opts) {
   }
   return true;
 }
+
+function cctvAssetEvents(){return ASSET_CHANGES.concat(SEC.AssetChanges.inspectionEvents('cctv',LOG,DB,ASSET_CHANGES));}
+function openCctvChangesTelegram(){return SEC.AssetChanges.open({tool:'cctv',period:PER,events:cctvAssetEvents,scopeOptions:cctvScopeOptions(),match:cctvScopeMatch,save:save,upload:doUpload});}
+
 SEC.registerAutoUploader(TOOL, function (opts) { return doUpload(opts); });
 SEC.registerAutoDownloader(TOOL, function (opts) { return doDownload(opts); });
 window.addEventListener('load', function () { setTimeout(function () { SEC.startAutoCloudSync(TOOL); }, 350); });

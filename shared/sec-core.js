@@ -712,6 +712,9 @@ function mergeLatestRow(oldRow, newRow) {
       merged[k] = other[k]; blanks.push(k);
     }
   });
+  if(oldRow._assetState||newRow._assetState){merged._assetState=mergeObject({state:oldRow._assetState},{state:newRow._assetState},'asset-state').state;Object.assign(merged,unwrapObject(merged._assetState).data);}
+  if(oldRow._rosterHistory||newRow._rosterHistory)merged._rosterHistory=mergeObject(oldRow._rosterHistory||{},newRow._rosterHistory||{},'personnel-months');
+  if(oldRow._personnelDelivery||newRow._personnelDelivery)merged._personnelDelivery=mergeObject({delivery:oldRow._personnelDelivery},{delivery:newRow._personnelDelivery},'personnel-notice').delivery;
   return { row:merged, blanks:blanks, incomingWins:newWins };
 }
 var DELETED_KEY = 'ac_sec_deleted_v1_';
@@ -910,6 +913,7 @@ function tgOpen(opt) {
   mask.onclick = function (e) { if (e.target === mask) close(); };
   q('#tgType').value = firstType;
   q('#tgLang').value = st.lang;
+  if(opt.hideDetails)q('#tgDetailBox').style.display='none';
   if (q('#tgScope')) q('#tgScope').value = st.scope;
 
   function currentKey() {
@@ -947,7 +951,7 @@ function tgOpen(opt) {
   }
   function note() {
       var detailBox = q('#tgDetailBox');
-      if (detailBox) detailBox.style.display = st.mode === 'approval' ? 'none' : '';
+      if (detailBox) detailBox.style.display = st.mode === 'approval' || opt.hideDetails ? 'none' : '';
       q('#tgNote').textContent = st.mode === 'approval'
       ? (opt.approvalNote || '未送核項目會建立新批次；已送出但仍待核可的項目會更新原批次，不會重複建立資料。Telegram 群組會顯示逐筆核可／退件、翻頁、全部核可及關閉批次按鈕。')
       : (st.includeDetails
@@ -1014,7 +1018,7 @@ function tgOpen(opt) {
       } else {
         var pages = summaryPages();
         text = pages.length > 1 ? pages.map(function (x, i) { return '【' + (i + 1) + '/' + pages.length + '】\n' + x; }).join('\n\n') : pages[0];
-        q('#tgSend').disabled = false;
+        q('#tgSend').disabled = typeof opt.canSendSummary === 'function' && !opt.canSendSummary(st);
       }
     } catch (e) { text = '⚠️ ' + e.message; q('#tgSend').disabled = true; }
     /* Telegram uses HTML markup; render the same markup in the preview so tags such as <b> do not appear as raw text. */
@@ -1034,10 +1038,13 @@ function tgOpen(opt) {
     };
   });
   q('[data-tg-mode="summary"]').classList.add('on');
+  var sending=false;
   q('#tgSend').onclick = async function () {
+    if(sending)return;sending=true;
     var btn = this; btn.disabled = true; btn.textContent = '⏳ 傳送中…';
     try {
       if (st.mode === 'summary') {
+        if(typeof opt.canSendSummary==='function'&&!opt.canSendSummary(st))throw new Error('沒有待發資料 / No records to send');
         var pages = summaryPages();
         if (st.includeDetails && typeof G.confirm === 'function' && !G.confirm(
           '⚠️ 您已選擇「附逐筆明細」。\n\n群組將收到每筆日期、時間與人員資料，訊息可能較長。確定仍要發送？\n\nDetailed rows will be sent to the group. Continue?')) {
@@ -1062,14 +1069,15 @@ function tgOpen(opt) {
            2.5-second Telegram queue, matching HRA Portal and avoiding browser
            requests racing each other into Telegram HTTP 429. */
         var sentResult = await gasPost({ action:'telegramBatch', pages:batchPages, module:opt.module||'', lang:st.lang,
-          mode:'summary', period:st.period, periodType:st.ptype, scope:st.scope || '', includeDetails:!!st.includeDetails });
+          mode:'summary', reportKind:opt.reportKind||'', period:st.period, periodType:st.ptype, scope:st.scope || '', includeDetails:!!st.includeDetails });
         if (!sentResult || sentResult.sent !== true) {
           var failedPage = sentResult && sentResult.failedPage ? Number(sentResult.failedPage) : 1;
           var reason = sentResult && sentResult.error ? String(sentResult.error) : '';
           throw new Error('Telegram page ' + failedPage + '/' + pages.length + ' was not delivered / 第 ' + failedPage + ' 頁未送達群組' +
             (reason ? '：' + reason : '；請確認已更新並重新部署 ac_sec.gs'));
         }
-        scheduleAutoCloudSync(opt.module || '', 'telegram-summary', st.period || '');
+        if(typeof opt.onSummarySent==='function')await opt.onSummarySent(st,sentResult);
+        scheduleAutoCloudSync(opt.module || '', opt.reportKind==='masterChanges'?'master-summary':'telegram-summary', st.period || '');
         if (sentResult.skippedDuplicate) toast('♻️ 相同摘要已送過，本次未重複發送 / Duplicate summary skipped', 'warn', 5500);
         else toast('✈️ Telegram 摘要已送出' + (pages.length > 1 ? '（' + pages.length + ' 頁）' : ''), 'ok');
       } else {
@@ -1086,7 +1094,7 @@ function tgOpen(opt) {
     } catch (e) {
       toast('❌ ' + e.message, 'err', 6000);
       btn.disabled = false; btn.textContent = '✈️ 確認傳送 Send';
-    }
+    } finally {sending=false;}
   };
   q('#tgType').value = firstType;
   fillPeriods(); note(); preview();

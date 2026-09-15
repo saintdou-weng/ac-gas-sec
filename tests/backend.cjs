@@ -12,6 +12,8 @@ function runtime(initial='2026-09-05T01:15:00Z'){
  ctx.tgEdit=()=>true;ctx.tgPhoto=()=>({message_id:99});ctx.answerCb=(id,text)=>{ctx.answer=text;};ctx.isApprover=()=>true;
  return {c:ctx,props,disk,messages,writes,setDate:s=>{clock=Date.parse(s);},setLocked:v=>{locked=v;}};
 }
+module.exports={runtime};
+if(require.main===module){
 const clean=x=>JSON.parse(JSON.stringify(x));
 {
  const r=runtime(),c=r.c;
@@ -69,4 +71,6 @@ const clean=x=>JSON.parse(JSON.stringify(x));
  c.handleTgSummaryBatch_({...body,period:'2026-10'});assert.equal(sends,n+3,'abnormal evidence remains attachable in another month');
  const count=sends;assert.throws(()=>c.handleTgSummaryBatch_({...body,pages:Array.from({length:25},()=>({text:'row'}))}),/24/);assert.equal(sends,count,'no silently dropped pages');
  console.log('PASS: fire text/photo delivery, same-report dedupe, monthly abnormal attachments and over-limit rejection before delivery');
+}
+
 }
