@@ -845,16 +845,18 @@ function impBike() {
 }
 
 /* ── ③ 遲到登記：Come_Late_Register 格式（英/中/柬三層標題） ── */
+/* 2026-09-25: Come Late 實際 Excel 欄名相容。
+   現場表使用 DPT / TIME IN / TIME OUT / SECURITY / OTHER；舊版沒有這些別名，
+   因此姓名與工號可匯入，但到廠時間等欄位會變成空白。 */
 var LATE_SPEC = {
   date    : ['date','日期','កាលបរិច្ឆេទ'],
-  empId   : ['companyid','来宾证号码','អត្តលេខ','id','vrtcode','factoryid','工號','編號'],
+  empId   : ['companyid','employeeid','empid','来宾证号码','អត្តលេខ','id','vrtcode','factoryid','工號','編號'],
   name    : ['name','姓名','ឈ្មោះ','surenamename','englishname','គោត្តនាមនិងនាម'],
-  dept    : ['dept','部門','ផ្នែក','department','身份证','section'],
-  late    : ['comelate','遲到','មកយឺត'],
-  checkIn : ['checkin','入廠时间','入廠時間','ពេលវេលាចូលរោងចក្រ','ពេលវេលាចូល'],
-  checkOut: ['checkout','退出时间','退出時間','ពេលវេលាចេញ'],
-  gate    : ['signbygatekeeper','门卫','門衛','ស៊ីញ៉េដោយសន្តិសុខ','gatekeeper','signby'],
-  note    : ['hour','小时','小時','ចំនួនម៉ោង','remark','備註','reason'],
+  dept    : ['dpt','dept','部門','ផ្នែក','department','身份证','section'],
+  checkIn : ['timein','intime','checkintime','checkin','入廠时间','入廠時間','ពេលវេលាចូលរោងចក្រ','ពេលវេលាចូល'],
+  checkOut: ['timeout','outtime','checkouttime','checkout','退出时间','退出時間','ពេលវេលាចេញ'],
+  gate    : ['security','securityguard','signbygatekeeper','门卫','門衛','ស៊ីញ៉េដោយសន្តិសុខ','gatekeeper','signby'],
+  note    : ['other','others','hour','小时','小時','ចំនួនម៉ោង','remark','備註','reason'],
 };
 function impLate() {
   SEC.pickExcel(function (sheets) {
@@ -882,11 +884,15 @@ function impLate() {
 }
 function fmtTime(v) {
   if (v === '' || v == null) return '';
-  if (typeof v === 'number' && v > 0 && v < 1) {
-    var m = Math.round(v * 1440);
-    return SEC.p2(Math.floor(m / 60)) + ':' + SEC.p2(m % 60);
+  /* SheetJS 依儲存格格式可能回傳 Date、0~1 的時間小數，或帶日期的 Excel 序號。 */
+  if (v instanceof Date && !isNaN(v)) return SEC.p2(v.getHours()) + ':' + SEC.p2(v.getMinutes());
+  if (typeof v === 'number' && isFinite(v)) {
+    var frac = ((v % 1) + 1) % 1;
+    var mins = Math.round(frac * 1440) % 1440;
+    return SEC.p2(Math.floor(mins / 60)) + ':' + SEC.p2(mins % 60);
   }
   var s = String(v).trim();
+  if (/^\d+(?:\.\d+)?$/.test(s)) return fmtTime(Number(s));
   var m2 = s.match(/(\d{1,2})[:：](\d{2})/);
   return m2 ? SEC.p2(+m2[1]) + ':' + m2[2] : '';
 }
@@ -1242,7 +1248,7 @@ function commuteOcrStableKey(kind,r){
   var d=String(r&&r.date||'');if(!d)return '';
   if(kind==='car'){var cp=commuteOcrNorm(r.plate),cd=commuteOcrNorm(r.driver);if(!cp&&!cd)return '';return [kind,d,cp,cd,String(r.outTime||'')].join('|');}
   if(kind==='gate'){var gp=commuteOcrNorm(r.plate),gd=commuteOcrNorm(r.driver||r.passenger);if(!gp&&!gd)return '';return [kind,d,gp,gd,String(r.outTime||'')].join('|');}
-  if(kind==='late'){var who=commuteOcrNorm(r.empId||r.name);if(!who)return '';return [kind,d,who,String(r.checkIn||'')].join('|');}
+  if(kind==='late'){/* 同一人同一天視為同一筆；重新匯入可補回 TIME IN，而不是因時間從空白變有值就新增重複。 */var lid=commuteOcrNorm(r.empId),lname=commuteOcrNorm(r.name),who=lid&&lname?(lid+'@'+lname):(lid||lname);if(!who)return '';return [kind,d,who].join('|');}
   return kind+'|'+d;
 }
 function commuteFindDuplicate(kind,row){var key=commuteOcrStableKey(kind,row);if(!key)return null;return commuteOcrArray(kind).filter(function(x){return commuteOcrStableKey(kind,x)===key;})[0]||null;}
