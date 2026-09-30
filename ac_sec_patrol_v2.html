@@ -7,9 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
-<script src="./shared/xlsx.full.min.js?v=20260815c"></script>
+<script src="./shared/xlsx.full.min.js?v=20260929a"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="stylesheet" href="./shared/sec.css?v=20260808g">
+<link rel="stylesheet" href="./shared/sec.css?v=20260929a">
 <style>
 .rd-bar{display:flex;gap:2px;align-items:center}
 .rd-dot{width:11px;height:11px;border-radius:3px;background:#e2e8f0;flex-shrink:0}
@@ -31,78 +31,93 @@
 .pc-choice.ok{background:#ecfdf5;color:#15803d}.pc-choice.bad{background:#fff1f2;color:#be123c}
 .pc-photo-entry{display:grid;grid-template-columns:auto minmax(180px,1fr);align-items:center;gap:10px;margin-top:8px;padding:8px;border:1px solid var(--line);border-radius:10px;background:#f8fafc}
 .pc-photo-entry .photo-list{margin:0}.pc-photo-entry input{width:100%}
+/* 分頁列：手機上可橫向捲動，右側漸層＋細捲軸提示還有更多分頁 */
+.tabs-wrap{position:sticky;top:0;z-index:40;background:#fff}
+.tabs-wrap .tabs{position:relative;top:auto;scrollbar-width:thin;scroll-behavior:smooth}
+.tabs-wrap .tabs::-webkit-scrollbar{display:block;height:4px}
+.tabs-wrap .tabs::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
+.tabs-wrap::after{content:'›';position:absolute;right:0;top:0;bottom:1px;width:30px;display:flex;align-items:center;justify-content:flex-end;
+  padding-right:4px;font-weight:800;color:var(--n2);background:linear-gradient(90deg,rgba(255,255,255,0),#fff 70%);pointer-events:none;transition:opacity .2s}
+.tabs-wrap.at-end::after{opacity:0}
+.tab-sep{flex:0 0 1px;background:var(--line);margin:6px 4px 8px}
+@media(max-width:640px){.tabs-wrap .tab{padding:8px 10px}}
+.edit-banner{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;
+  border-radius:10px;padding:8px 11px;margin-bottom:10px;font-size:12.5px;font-weight:700}
+.edit-banner .btn{margin-left:auto}
+.btn.busy{opacity:.6;pointer-events:none}
 @media(max-width:640px){.pc-check{width:100%}.pc-check>span{flex:1}.pc-photo-entry{grid-template-columns:1fr}.pc-photo-entry .photo-item{margin:auto}}
 </style>
 </head>
 <body>
 <div id="hdr"></div>
 
+<div class="tabs-wrap" id="tabsWrap">
 <div class="tabs" id="tabs">
-  <button class="tab on" data-p="round" data-zh="🔄 巡邏圈" data-en="🔄 Rounds"    data-km="🔄 ជុំល្បាត">🔄 巡邏圈</button>
-  <button class="tab"    data-p="cp"    data-zh="📍 巡邏點" data-en="📍 Checkpoints" data-km="📍 ចំណុច">📍 巡邏點</button>
-  <button class="tab"    data-p="night" data-zh="🌙 夜巡檢查" data-en="🌙 Night"   data-km="🌙 ល្បាតយប់">🌙 夜巡檢查</button>
-  <button class="tab"    data-p="new"   data-zh="➕ 線上登錄" data-en="➕ Manual"  data-km="➕ បញ្ចូល">➕ 線上登錄</button>
-  <button class="tab"    data-p="iss"   data-zh="🚨 異常通報" data-en="🚨 Issues"  data-km="🚨 បញ្ហា">🚨 異常通報</button>
+  <button class="tab on" data-p="check" data-zh="✅ 巡邏確認" data-en="✅ Check" data-km="✅ បញ្ជាក់">✅ 巡邏確認</button>
+  <button class="tab"    data-p="new"   data-zh="➕ 線上登錄" data-en="➕ Log patrol" data-km="➕ កត់ត្រា">➕ 線上登錄</button>
+  <button class="tab"    data-p="iss"   data-zh="🚨 異常通報" data-en="🚨 Issue" data-km="🚨 បញ្ហា">🚨 異常通報</button>
+  <span class="tab-sep" aria-hidden="true"></span>
+  <button class="tab"    data-p="round" data-zh="🔄 巡邏圈" data-en="🔄 Rounds" data-km="🔄 ជុំល្បាត">🔄 巡邏圈</button>
+  <button class="tab"    data-p="night" data-zh="🌙 夜巡檢查" data-en="🌙 Night check" data-km="🌙 ល្បាតយប់">🌙 夜巡檢查</button>
+  <button class="tab"    data-p="cp"    data-zh="📍 巡邏點" data-en="📍 Checkpoints" data-km="📍 ចំណុចល្បាត">📍 巡邏點</button>
   <button class="tab"    data-p="ana"   data-zh="📊 統計分析" data-en="📊 Analytics" data-km="📊 វិភាគ">📊 統計分析</button>
-  <button class="tab"    data-p="data"  data-zh="💾 資料管理" data-en="💾 Data"    data-km="💾 ទិន្នន័យ">💾 資料管理</button>
+  <button class="tab"    data-p="data"  data-zh="💾 資料管理" data-en="💾 Data" data-km="💾 ទិន្នន័យ">💾 資料管理</button>
+</div>
 </div>
 
 <div class="wrap">
   <div id="pnavHost"></div>
 
-  <!-- ═══ 巡邏圈 ═══ -->
-  <div class="page" id="p-round">
+  <!-- ═══ 巡邏確認（保安每日第一步） ═══ -->
+  <div class="page" id="p-check">
     <div class="card" id="patrolConfirmCard">
-      <h3>✅ <span data-zh="巡邏完成確認" data-en="Patrol completion confirmation" data-km="បញ្ជាក់ការល្បាត">巡邏完成確認</span>
-        <span class="sp"><button class="btn sm ok" onclick="togglePatrolAllOk()">✅ All OK / 全部正常</button><button class="btn sm" onclick="savePatrolCheck()">💾 Save / 儲存</button><button class="btn sm err" onclick="deletePatrolCheck()">🗑 Delete / 刪除</button></span></h3>
-      <p class="hint" style="margin-bottom:10px">發送每日摘要前，巡邏員姓名及每一項都必須選 ✅ 正常或 ❌ 異常；有異常必須寫備註，附照片時每張都要說明。 / Before sending a daily summary, enter the guard, mark every item OK or issue, and caption every photo.</p>
+      <h3>✅ <span data-zh="巡邏完成確認" data-en="Patrol completion check" data-km="បញ្ជាក់ការបញ្ចប់ការល្បាត">巡邏完成確認</span>
+        <span class="sp"><button class="btn sm ok" onclick="togglePatrolAllOk()">✅ <span data-zh="全部正常" data-en="All OK" data-km="ធម្មតាទាំងអស់">全部正常</span></button><button class="btn sm" id="pcSaveBtn" onclick="savePatrolCheck()">💾 <span data-zh="儲存" data-en="Save" data-km="រក្សាទុក">儲存</span></button><button class="btn sm err" onclick="deletePatrolCheck()">🗑 <span data-zh="刪除" data-en="Delete" data-km="លុប">刪除</span></button></span></h3>
+      <p class="hint" style="margin-bottom:10px" data-zh="發送每日摘要前，巡邏員姓名及每一項都必須選 ✅ 正常或 ❌ 異常；有異常必須寫備註，附照片時每張都要說明。" data-en="Before sending a daily summary, enter the guard, mark every item OK or issue, and caption every photo." data-km="មុនផ្ញើសេចក្តីសង្ខេបប្រចាំថ្ងៃ សូមបញ្ចូលឈ្មោះអ្នកល្បាត ជ្រើស ✅ ធម្មតា ឬ ❌ មានបញ្ហា គ្រប់ចំណុច សរសេរកំណត់ចំណាំពេលមានបញ្ហា និងពិពណ៌នារូបថតនីមួយៗ។">發送每日摘要前，巡邏員姓名及每一項都必須選 ✅ 正常或 ❌ 異常；有異常必須寫備註，附照片時每張都要說明。</p>
       <div class="grid g3">
-        <div class="f"><label>Date / 日期</label><input id="pcDate" type="date" onchange="renderPatrolCheck()"></div>
-        <div class="f"><label>Shift / 班別</label><select id="pcShift" onchange="renderPatrolCheck()"><option value="all">全天 All day</option><option value="D">日班 Day</option><option value="N">夜班 Night</option></select></div>
-        <div class="f"><label>Guard / 巡邏員</label><input id="pcGuard" list="guardList"></div>
+        <div class="f"><label data-zh="日期" data-en="Date" data-km="កាលបរិច្ឆេទ">日期</label><input id="pcDate" type="date" onchange="loadPatrolCheckForm()"></div>
+        <div class="f"><label data-zh="班別" data-en="Shift" data-km="វេន">班別</label><select id="pcShift" onchange="loadPatrolCheckForm()"><option value="all" data-zh="全天" data-en="All day" data-km="ពេញមួយថ្ងៃ">全天</option><option value="D" data-zh="日班" data-en="Day shift" data-km="វេនថ្ងៃ">日班</option><option value="N" data-zh="夜班" data-en="Night shift" data-km="វេនយប់">夜班</option></select></div>
+        <div class="f"><label data-zh="巡邏員" data-en="Guard" data-km="អ្នកល្បាត">巡邏員</label><input id="pcGuard" list="guardList" autocomplete="off"></div>
       </div>
       <div class="row" id="pcItems" style="margin-top:10px;gap:8px;flex-wrap:wrap">
-        <div class="pc-check" data-pc-key="doors"><span>🚪 Doors / 門</span><label class="pc-choice ok"><input type="radio" name="pc_doors" value="ok">✅</label><label class="pc-choice bad"><input type="radio" name="pc_doors" value="issue">❌</label></div>
-        <div class="pc-check" data-pc-key="windows"><span>🪟 Windows / 窗</span><label class="pc-choice ok"><input type="radio" name="pc_windows" value="ok">✅</label><label class="pc-choice bad"><input type="radio" name="pc_windows" value="issue">❌</label></div>
-        <div class="pc-check" data-pc-key="water"><span>💧 Water / 水</span><label class="pc-choice ok"><input type="radio" name="pc_water" value="ok">✅</label><label class="pc-choice bad"><input type="radio" name="pc_water" value="issue">❌</label></div>
-        <div class="pc-check" data-pc-key="electric"><span>⚡ Electricity / 電</span><label class="pc-choice ok"><input type="radio" name="pc_electric" value="ok">✅</label><label class="pc-choice bad"><input type="radio" name="pc_electric" value="issue">❌</label></div>
-        <div class="pc-check" data-pc-key="lights"><span>💡 Lighting / 照明</span><label class="pc-choice ok"><input type="radio" name="pc_lights" value="ok">✅</label><label class="pc-choice bad"><input type="radio" name="pc_lights" value="issue">❌</label></div>
-        <div class="pc-check" data-pc-key="fireway"><span>🧯 Fire route / 消防通道</span><label class="pc-choice ok"><input type="radio" name="pc_fireway" value="ok">✅</label><label class="pc-choice bad"><input type="radio" name="pc_fireway" value="issue">❌</label></div>
+        <div class="pc-check" data-pc-key="doors"><span data-zh="🚪 門" data-en="🚪 Doors" data-km="🚪 ទ្វារ">🚪 門</span><label class="pc-choice ok"><input type="radio" name="pc_doors" value="ok">✅</label><label class="pc-choice bad"><input type="radio" name="pc_doors" value="issue">❌</label></div>
+        <div class="pc-check" data-pc-key="windows"><span data-zh="🪟 窗" data-en="🪟 Windows" data-km="🪟 បង្អួច">🪟 窗</span><label class="pc-choice ok"><input type="radio" name="pc_windows" value="ok">✅</label><label class="pc-choice bad"><input type="radio" name="pc_windows" value="issue">❌</label></div>
+        <div class="pc-check" data-pc-key="water"><span data-zh="💧 水" data-en="💧 Water" data-km="💧 ទឹក">💧 水</span><label class="pc-choice ok"><input type="radio" name="pc_water" value="ok">✅</label><label class="pc-choice bad"><input type="radio" name="pc_water" value="issue">❌</label></div>
+        <div class="pc-check" data-pc-key="electric"><span data-zh="⚡ 電" data-en="⚡ Electricity" data-km="⚡ អគ្គិសនី">⚡ 電</span><label class="pc-choice ok"><input type="radio" name="pc_electric" value="ok">✅</label><label class="pc-choice bad"><input type="radio" name="pc_electric" value="issue">❌</label></div>
+        <div class="pc-check" data-pc-key="lights"><span data-zh="💡 照明" data-en="💡 Lighting" data-km="💡 ភ្លើងបំភ្លឺ">💡 照明</span><label class="pc-choice ok"><input type="radio" name="pc_lights" value="ok">✅</label><label class="pc-choice bad"><input type="radio" name="pc_lights" value="issue">❌</label></div>
+        <div class="pc-check" data-pc-key="fireway"><span data-zh="🧯 消防通道" data-en="🧯 Fire route" data-km="🧯 ផ្លូវសង្គ្រោះអគ្គិភ័យ">🧯 消防通道</span><label class="pc-choice ok"><input type="radio" name="pc_fireway" value="ok">✅</label><label class="pc-choice bad"><input type="radio" name="pc_fireway" value="issue">❌</label></div>
       </div>
-      <div class="f" style="margin-top:10px"><label>Issue note / 異常備註</label><textarea id="pcNote" rows="2"></textarea></div>
-      <div class="f" style="margin-top:9px"><label>Photos / 照片</label><div class="photo-drop" onclick="addPatrolCheckPhoto()">📷 Take photo or choose image / 拍照或選圖</div><div id="pcPhotos"></div></div>
+      <div class="f" style="margin-top:10px"><label data-zh="異常備註" data-en="Issue note" data-km="កំណត់ចំណាំបញ្ហា">異常備註</label><textarea id="pcNote" rows="2"></textarea></div>
+      <div class="f" style="margin-top:9px"><label data-zh="照片" data-en="Photos" data-km="រូបថត">照片</label><div class="photo-drop" onclick="addPatrolCheckPhoto()">📷 <span data-zh="拍照或選圖" data-en="Take photo or choose image" data-km="ថតរូប ឬជ្រើសរូបភាព">拍照或選圖</span></div><div id="pcPhotos"></div></div>
       <div id="pcSaved" class="hint" style="margin-top:8px"></div>
     </div>
+  </div>
+
+  <!-- ═══ 巡邏圈 ═══ -->
+  <div class="page" id="p-round" style="display:none">
     <div class="grid g4" style="margin-bottom:12px">
-      <div class="kpi"><div class="v" id="k1">0</div><div class="l" data-zh="巡邏圈數" data-en="Rounds" data-km="ជុំ">巡邏圈數</div></div>
-      <div class="kpi ok"><div class="v" id="k2">0</div><div class="l" data-zh="完整圈" data-en="Complete" data-km="ពេញលេញ">完整圈</div></div>
-      <div class="kpi err"><div class="v" id="k3">0</div><div class="l" data-zh="漏點圈" data-en="Incomplete" data-km="ខ្វះ">漏點圈</div></div>
-      <div class="kpi warn"><div class="v" id="k4">—</div><div class="l" data-zh="完整率" data-en="Completion rate" data-km="អត្រា">完整率</div></div>
+      <div class="kpi"><div class="v" id="k1">0</div><div class="l" data-zh="巡邏圈數" data-en="Rounds" data-km="ចំនួនជុំ">巡邏圈數</div></div>
+      <div class="kpi ok"><div class="v" id="k2">0</div><div class="l" data-zh="完整圈" data-en="Complete" data-km="ជុំពេញលេញ">完整圈</div></div>
+      <div class="kpi err"><div class="v" id="k3">0</div><div class="l" data-zh="漏點圈" data-en="Incomplete" data-km="ជុំខ្វះចំណុច">漏點圈</div></div>
+      <div class="kpi warn"><div class="v" id="k4">—</div><div class="l" data-zh="完整率" data-en="Completion rate" data-km="អត្រាពេញលេញ">完整率</div></div>
     </div>
     <div class="card">
       <h3>🔄 <span data-zh="巡邏圈明細" data-en="Patrol Rounds" data-km="ជុំល្បាតលម្អិត">巡邏圈明細</span>
         <span class="sp">
-          <select id="fGuard" style="width:auto" onchange="renderRounds()"><option value="">全部人員</option></select>
+          <select id="fGuard" style="width:auto" onchange="renderRounds()"><option value="" data-zh="全部人員" data-en="All guards" data-km="អ្នកល្បាតទាំងអស់">全部人員</option></select>
           <select id="fShift" style="width:auto" onchange="renderRounds()">
-            <option value="">全部班別</option><option value="N">🌙 夜班</option><option value="D">☀️ 日班</option></select>
-          <label style="font-size:11px;color:var(--ink2)">只看漏點</label>
+            <option value="" data-zh="全部班別" data-en="All shifts" data-km="វេនទាំងអស់">全部班別</option><option value="N" data-zh="🌙 夜班" data-en="🌙 Night shift" data-km="🌙 វេនយប់">🌙 夜班</option><option value="D" data-zh="☀️ 日班" data-en="☀️ Day shift" data-km="☀️ វេនថ្ងៃ">☀️ 日班</option></select>
+          <label style="font-size:11px;color:var(--ink2)" for="onlyBad" data-zh="只看漏點" data-en="Incomplete only" data-km="តែជុំខ្វះ">只看漏點</label>
           <input type="checkbox" id="onlyBad" style="width:auto" onchange="renderRounds()">
-          <button class="btn sm gh" onclick="openPatrolTelegram()">✈️ Telegram 摘要</button>
+          <button class="btn sm gh" onclick="guardClick('tg',openPatrolTelegram)">✈️ <span data-zh="Telegram 摘要" data-en="Telegram summary" data-km="សង្ខេប Telegram">Telegram 摘要</span></button>
           <button class="btn sm gh" onclick="expRounds()">📊 Excel</button>
         </span></h3>
       <p class="hint" style="margin-bottom:9px">
-        一圈 = 同一人連續打點、間隔不超過 <input type="number" id="gapMin" value="20" min="5" max="90" style="width:56px;display:inline-block;padding:3px 6px" onchange="rebuild()"> 分鐘。
-        綠格＝有打到，紅格＝該圈漏掉的巡邏點。
+        <span data-zh="一圈 = 同一人連續打點、間隔不超過" data-en="One round = consecutive scans by the same guard, no more than" data-km="មួយជុំ = ការស្កេនបន្តបន្ទាប់ដោយអ្នកល្បាតតែមួយ មិនលើស">一圈 = 同一人連續打點、間隔不超過</span>
+        <input type="number" id="gapMin" value="20" min="5" max="90" style="width:56px;display:inline-block;padding:3px 6px" onchange="rebuild()">
+        <span data-zh="分鐘。綠格＝有打到，紅格＝該圈漏掉的巡邏點。" data-en="minutes apart. Green = scanned, red = checkpoint missed in that round." data-km="នាទីពីគ្នា។ បៃតង = បានស្កេន ក្រហម = ចំណុចដែលខកខានក្នុងជុំនោះ។">分鐘。綠格＝有打到，紅格＝該圈漏掉的巡邏點。</span>
       </p>
-      <div class="tw"><table><thead id="roundHead"><tr>
-        <th data-zh="日期" data-en="Date" data-km="កាល">日期</th>
-        <th data-zh="起訖" data-en="Time" data-km="ម៉ោង">起訖</th>
-        <th data-zh="班別" data-en="Shift" data-km="វេន">班別</th>
-        <th data-zh="巡邏員" data-en="Guard" data-km="អ្នកយាម">巡邏員</th>
-        <th class="num" data-zh="耗時" data-en="Dur." data-km="រយៈពេល">耗時</th>
-        <th data-zh="打點狀況" data-en="Checkpoints" data-km="ចំណុច">打點狀況</th>
-        <th data-zh="判定" data-en="Result" data-km="លទ្ធផល">判定</th>
-      </tr></thead><tbody id="tbRound"></tbody></table></div>
+      <div class="tw"><table><thead id="roundHead"></thead><tbody id="tbRound"></tbody></table></div>
       <p class="hint" style="margin-top:8px" id="roundMore"></p>
     </div>
   </div>
@@ -110,25 +125,17 @@
   <!-- ═══ 巡邏點 ═══ -->
   <div class="page" id="p-cp" style="display:none">
     <div class="card">
-      <h3>📍 <span data-zh="巡邏點命名對照表" data-en="Checkpoint Naming" data-km="តារាងឈ្មោះចំណុច">巡邏點命名對照表</span>
+      <h3>📍 <span data-zh="巡邏點命名對照表" data-en="Checkpoint Naming" data-km="តារាងឈ្មោះចំណុចល្បាត">巡邏點命名對照表</span>
         <span class="sp">
-          <button class="btn sm" onclick="autoName()">✨ <span data-zh="套用建議名稱" data-en="Apply suggested" data-km="ប្រើឈ្មោះស្នើ">套用建議名稱</span></button>
-          <button class="btn sm gh" onclick="saveChips()">💾 <span data-t="save">儲存</span></button>
+          <button class="btn sm" onclick="autoName()">✨ <span data-zh="套用建議名稱" data-en="Apply suggested names" data-km="ប្រើឈ្មោះដែលបានស្នើ">套用建議名稱</span></button>
+          <button class="btn sm gh" onclick="saveChips()">💾 <span data-zh="儲存" data-en="Save" data-km="រក្សាទុក">儲存</span></button>
         </span></h3>
-      <p class="hint" style="margin-bottom:11px">
-        ⚠️ 巡更棒裡的「巡检点」欄位目前是<b>「未设置」</b> — 機器沒設定名稱。這裡用 Chip ID 對照，命名一次以後所有報表都會顯示中文名。
-        <b>每次匯入新巡邏檔如有新增、停用或順序變動，都會先列出差異要求確認</b>；舊紀錄保留，已停用點不再列入新的漏點計算。
-      </p>
+      <p class="hint" style="margin-bottom:11px" id="cpHelp"></p>
       <div class="grid g3" id="cpList"></div>
     </div>
     <div class="card">
-      <h3>📊 <span data-zh="各巡邏點漏打統計" data-en="Miss Rate by Checkpoint" data-km="អត្រាខកខាន">各巡邏點漏打統計</span></h3>
-      <div class="tw"><table><thead id="nightHead"><tr>
-        <th>#</th><th data-zh="巡邏點" data-en="Checkpoint" data-km="ចំណុច">巡邏點</th>
-        <th class="num" data-zh="應打" data-en="Expected" data-km="គួរ">應打</th>
-        <th class="num" data-zh="實打" data-en="Actual" data-km="ពិត">實打</th>
-        <th class="num" data-zh="漏打" data-en="Missed" data-km="ខកខាន">漏打</th>
-        <th data-zh="達成率" data-en="Rate" data-km="អត្រា">達成率</th></tr></thead>
+      <h3>📊 <span data-zh="各巡邏點漏打統計" data-en="Miss Rate by Checkpoint" data-km="អត្រាខកខានតាមចំណុច">各巡邏點漏打統計</span></h3>
+      <div class="tw"><table><thead id="cpStatHead"></thead>
         <tbody id="tbCpStat"></tbody></table></div>
     </div>
   </div>
@@ -136,27 +143,20 @@
   <!-- ═══ 夜巡檢查 ═══ -->
   <div class="page" id="p-night" style="display:none">
     <div class="card">
-      <h3>🌙 <span data-zh="夜間巡邏達標檢查" data-en="Night Patrol Compliance" data-km="ត្រួតពិនិត្យល្បាតយប់">夜間巡邏達標檢查</span>
+      <h3>🌙 <span data-zh="夜間巡邏達標檢查" data-en="Night Patrol Compliance" data-km="ត្រួតពិនិត្យការល្បាតពេលយប់">夜間巡邏達標檢查</span>
         <span class="sp">
-          <label style="font-size:11px;color:var(--ink2)">每晚最少圈數</label>
+          <label style="font-size:11px;color:var(--ink2)" for="nightMin" data-zh="每晚最少圈數" data-en="Min. rounds per night" data-km="ជុំអប្បបរមាក្នុងមួយយប់">每晚最少圈數</label>
           <input type="number" id="nightMin" value="12" min="1" max="30" style="width:60px" onchange="renderNight()">
-          <button class="btn sm" onclick="pushNight()">✈️ <span data-zh="推送結果" data-en="Push" data-km="ផ្ញើ">推送結果</span></button>
+          <button class="btn sm" onclick="guardClick('tg',pushNight)">✈️ <span data-zh="推送結果" data-en="Send result" data-km="ផ្ញើលទ្ធផល">推送結果</span></button>
         </span></h3>
-      <p class="hint" style="margin-bottom:10px">夜間時段 22:00–06:00（或巡更棒事件標記 Night Shift）。低於門檻或當晚完全沒有巡邏記錄，都會列為不足並可推送群組。</p>
+      <p class="hint" style="margin-bottom:10px" data-zh="夜間時段 22:00–06:00（或巡更棒事件標記 Night Shift）。低於門檻或當晚完全沒有巡邏記錄，都會列為不足並可推送群組。" data-en="Night hours are 22:00–06:00 (or wand events marked Night Shift). Nights below the minimum, or with no patrol at all, are listed as short and can be sent to the group." data-km="ម៉ោងយប់ 22:00–06:00 (ឬព្រឹត្តិការណ៍ដែលសម្គាល់ Night Shift)។ យប់ដែលមិនគ្រប់ចំនួន ឬគ្មានការល្បាតសោះ នឹងត្រូវបានរាយជាមិនគ្រប់ ហើយអាចផ្ញើទៅក្រុម។">夜間時段 22:00–06:00（或巡更棒事件標記 Night Shift）。低於門檻或當晚完全沒有巡邏記錄，都會列為不足並可推送群組。</p>
       <div class="grid g4" style="margin-bottom:12px">
-        <div class="kpi"><div class="v" id="nk1">0</div><div class="l" data-zh="夜巡總圈數" data-en="Night rounds" data-km="ជុំយប់">夜巡總圈數</div></div>
-        <div class="kpi ok"><div class="v" id="nk2">0</div><div class="l" data-zh="達標夜數" data-en="Compliant nights" data-km="យប់គ្រប់">達標夜數</div></div>
+        <div class="kpi"><div class="v" id="nk1">0</div><div class="l" data-zh="夜巡總圈數" data-en="Night rounds" data-km="ជុំយប់សរុប">夜巡總圈數</div></div>
+        <div class="kpi ok"><div class="v" id="nk2">0</div><div class="l" data-zh="達標夜數" data-en="Compliant nights" data-km="យប់គ្រប់ចំនួន">達標夜數</div></div>
         <div class="kpi err"><div class="v" id="nk3">0</div><div class="l" data-zh="不足夜數" data-en="Short nights" data-km="យប់មិនគ្រប់">不足夜數</div></div>
         <div class="kpi warn"><div class="v" id="nk4">—</div><div class="l" data-zh="最長無巡邏間隔" data-en="Longest gap" data-km="គម្លាតវែងបំផុត">最長無巡邏間隔</div></div>
       </div>
-      <div class="tw"><table><thead><tr>
-        <th data-zh="夜別" data-en="Night" data-km="យប់">夜別</th>
-        <th data-zh="值班人員" data-en="Guards" data-km="អ្នកយាម">值班人員</th>
-        <th class="num" data-zh="圈數" data-en="Rounds" data-km="ជុំ">圈數</th>
-        <th class="num" data-zh="門檻" data-en="Min" data-km="អប្ប">門檻</th>
-        <th class="num" data-zh="漏點圈" data-en="Incomplete" data-km="ខ្វះ">漏點圈</th>
-        <th data-zh="最長空檔" data-en="Max gap" data-km="គម្លាត">最長空檔</th>
-        <th data-zh="判定" data-en="Result" data-km="លទ្ធផល">判定</th></tr></thead>
+      <div class="tw"><table><thead id="nightHead"></thead>
         <tbody id="tbNight"></tbody></table></div>
     </div>
   </div>
@@ -164,30 +164,32 @@
   <!-- ═══ 線上登錄 ═══ -->
   <div class="page" id="p-new" style="display:none">
     <div class="card">
-      <h3>➕ <span data-zh="人工巡邏登錄（免核可，與巡更棒資料並存）" data-en="Manual Patrol Entry (no approval)" data-km="បញ្ចូលដោយដៃ">➕ 人工巡邏登錄（免核可，與巡更棒資料並存）</span></h3>
+      <h3>➕ <span data-zh="人工巡邏登錄（免核可，與巡更棒資料並存）" data-en="Manual patrol entry (no approval needed)" data-km="បញ្ចូលការល្បាតដោយដៃ (មិនត្រូវការអនុម័ត)">人工巡邏登錄（免核可，與巡更棒資料並存）</span></h3>
+      <div class="edit-banner" id="manEditBanner" style="display:none">✏️ <span id="manEditText"></span>
+        <button class="btn sm gh" type="button" onclick="cancelManEdit()">✖ <span data-zh="取消編輯" data-en="Cancel edit" data-km="បោះបង់ការកែ">取消編輯</span></button></div>
       <div class="grid g3">
-        <div class="f"><label data-zh="日期" data-en="Date" data-km="កាល">日期</label><input type="date" id="nDate"></div>
+        <div class="f"><label data-zh="日期" data-en="Date" data-km="កាលបរិច្ឆេទ">日期</label><input type="date" id="nDate"></div>
         <div class="f"><label data-zh="時間" data-en="Time" data-km="ម៉ោង">時間</label><input type="time" id="nTime"></div>
         <div class="f"><label data-zh="班別" data-en="Shift" data-km="វេន">班別</label>
-          <select id="nShift"><option value="D">☀️ 日班 Day Shift</option><option value="N">🌙 夜班 Night Shift</option></select></div>
-        <div class="f"><label data-zh="巡邏員" data-en="Guard" data-km="អ្នកយាម">巡邏員</label><input id="nGuard" list="guardList"><datalist id="guardList"></datalist></div>
-        <div class="f"><label data-zh="巡邏點" data-en="Checkpoint" data-km="ចំណុច">巡邏點</label>
+          <select id="nShift"><option value="D" data-zh="☀️ 日班" data-en="☀️ Day shift" data-km="☀️ វេនថ្ងៃ">☀️ 日班</option><option value="N" data-zh="🌙 夜班" data-en="🌙 Night shift" data-km="🌙 វេនយប់">🌙 夜班</option></select></div>
+        <div class="f"><label data-zh="巡邏員" data-en="Guard" data-km="អ្នកល្បាត">巡邏員</label><input id="nGuard" list="guardList" autocomplete="off"><datalist id="guardList"></datalist></div>
+        <div class="f"><label data-zh="巡邏點" data-en="Checkpoint" data-km="ចំណុចល្បាត">巡邏點</label>
           <select id="nLoc"></select></div>
         <div class="f"><label data-zh="狀態" data-en="Status" data-km="ស្ថានភាព">狀態</label>
-          <select id="nStat"><option value="ok">✅ 正常 Normal</option><option value="issue">⚠️ 異常 Abnormal</option></select></div>
+          <select id="nStat"><option value="ok" data-zh="✅ 正常" data-en="✅ Normal" data-km="✅ ធម្មតា">✅ 正常</option><option value="issue" data-zh="⚠️ 異常" data-en="⚠️ Abnormal" data-km="⚠️ មិនប្រក្រតី">⚠️ 異常</option></select></div>
       </div>
       <div class="f" style="margin-top:9px"><label data-zh="備註" data-en="Remark" data-km="កំណត់ចំណាំ">備註</label><textarea id="nNote" rows="2"></textarea></div>
-      <div class="f" style="margin-top:9px"><label data-zh="照片" data-en="Photos" data-km="រូបភាព">照片</label>
-        <div class="photo-drop" onclick="addPhoto('n')">📷 <span data-zh="點此拍照或選擇圖片" data-en="Tap to add photos" data-km="ចុចដើម្បីថត">點此拍照或選擇圖片</span></div>
+      <div class="f" style="margin-top:9px"><label data-zh="照片" data-en="Photos" data-km="រូបថត">照片</label>
+        <div class="photo-drop" onclick="addPhoto('n')">📷 <span data-zh="點此拍照或選擇圖片" data-en="Tap to add photos" data-km="ចុចដើម្បីថតរូប ឬជ្រើសរូបភាព">點此拍照或選擇圖片</span></div>
         <div id="nPhotos"></div></div>
       <div class="row" style="margin-top:12px">
-        <button class="btn" onclick="saveNew()">💾 <span data-zh="儲存" data-en="Save" data-km="រក្សាទុក">儲存</span></button>
-        <button class="btn gh" onclick="saveNew(true)">💾✈️ <span data-zh="儲存並通報群組" data-en="Save & Notify" data-km="រក្សាទុក និងជូនដំណឹង">儲存並通報群組</span></button>
+        <button class="btn" id="nSaveBtn" onclick="saveNew()">💾 <span data-zh="儲存" data-en="Save" data-km="រក្សាទុក">儲存</span></button>
+        <button class="btn gh" id="nSaveNotifyBtn" onclick="saveNew(true)">💾✈️ <span data-zh="儲存並通報群組" data-en="Save & notify group" data-km="រក្សាទុក និងជូនដំណឹងក្រុម">儲存並通報群組</span></button>
       </div>
     </div>
     <div class="card">
-      <h3>📋 <span data-zh="人工登錄記錄" data-en="Manual Records" data-km="កំណត់ត្រាដោយដៃ">人工登錄記錄</span></h3>
-      <div class="tw"><table><thead id="manualHead"><tr><th>日期</th><th>時間</th><th>班別</th><th>巡邏員</th><th>巡邏點</th><th>狀態</th><th>備註</th><th></th></tr></thead>
+      <h3>📋 <span data-zh="人工登錄記錄" data-en="Manual Records" data-km="កំណត់ត្រាបញ្ចូលដោយដៃ">人工登錄記錄</span></h3>
+      <div class="tw"><table><thead id="manualHead"></thead>
       <tbody id="tbManual"></tbody></table></div>
     </div>
   </div>
@@ -195,69 +197,64 @@
   <!-- ═══ 異常通報 ═══ -->
   <div class="page" id="p-iss" style="display:none">
     <div class="card">
-      <h3>🚨 <span data-zh="異常事項通報（即時推送群組，免核可）" data-en="Issue Report (instant push)" data-km="របាយការណ៍បញ្ហា">🚨 異常事項通報（即時推送群組，免核可）</span></h3>
+      <h3>🚨 <span data-zh="異常事項通報（即時推送群組，免核可）" data-en="Issue report (sent to the group immediately)" data-km="រាយការណ៍បញ្ហា (ផ្ញើទៅក្រុមភ្លាមៗ)">異常事項通報（即時推送群組，免核可）</span></h3>
       <div class="grid g3">
-        <div class="f"><label data-zh="日期" data-en="Date" data-km="កាល">日期</label><input type="date" id="iDate"></div>
+        <div class="f"><label data-zh="日期" data-en="Date" data-km="កាលបរិច្ឆេទ">日期</label><input type="date" id="iDate"></div>
         <div class="f"><label data-zh="時間" data-en="Time" data-km="ម៉ោង">時間</label><input type="time" id="iTime"></div>
         <div class="f"><label data-zh="嚴重度" data-en="Level" data-km="កម្រិត">嚴重度</label>
-          <select id="iLevel"><option value="normal">⚠️ 一般 Normal</option><option value="urgent">🚨 緊急 Urgent（同時私訊主管）</option></select></div>
+          <select id="iLevel"><option value="normal" data-zh="⚠️ 一般" data-en="⚠️ Normal" data-km="⚠️ ធម្មតា">⚠️ 一般</option><option value="urgent" data-zh="🚨 緊急（同時私訊主管）" data-en="🚨 Urgent (also messages the manager)" data-km="🚨 បន្ទាន់ (ផ្ញើទៅអ្នកគ្រប់គ្រងផង)">🚨 緊急（同時私訊主管）</option></select></div>
         <div class="f"><label data-zh="地點" data-en="Location" data-km="ទីតាំង">地點</label><select id="iLoc"></select></div>
         <div class="f"><label data-zh="班別" data-en="Shift" data-km="វេន">班別</label>
-          <select id="iShift"><option value="D">☀️ 日班</option><option value="N">🌙 夜班</option></select></div>
-        <div class="f"><label data-zh="通報人" data-en="Reporter" data-km="អ្នករាយការណ៍">通報人</label><input id="iBy" list="guardList"></div>
+          <select id="iShift"><option value="D" data-zh="☀️ 日班" data-en="☀️ Day shift" data-km="☀️ វេនថ្ងៃ">☀️ 日班</option><option value="N" data-zh="🌙 夜班" data-en="🌙 Night shift" data-km="🌙 វេនយប់">🌙 夜班</option></select></div>
+        <div class="f"><label data-zh="通報人" data-en="Reporter" data-km="អ្នករាយការណ៍">通報人</label><input id="iBy" list="guardList" autocomplete="off"></div>
       </div>
-      <div class="f" style="margin-top:9px"><label data-zh="事項標題" data-en="Title" data-km="ចំណងជើង">事項標題</label><input id="iTitle" placeholder="例：B棟後門鎖損壞"></div>
-      <div class="f" style="margin-top:9px"><label data-zh="詳細說明" data-en="Detail" data-km="លម្អិត">詳細說明</label><textarea id="iDetail" rows="3"></textarea></div>
-      <div class="f" style="margin-top:9px"><label data-zh="照片" data-en="Photo" data-km="រូបភាព">照片</label>
-        <div class="photo-drop" onclick="addPhoto('i')">📷 <span data-zh="點此拍照（會一併傳到 Telegram）" data-en="Tap to add (sent to Telegram)" data-km="ចុចដើម្បីថត">點此拍照（會一併傳到 Telegram）</span></div>
+      <div class="f" style="margin-top:9px"><label data-zh="事項標題" data-en="Title" data-km="ចំណងជើង">事項標題</label><input id="iTitle" data-ph-zh="例：B棟後門鎖損壞" data-ph-en="e.g. Building B back door lock broken" data-ph-km="ឧ. សោទ្វារក្រោយអគារ B ខូច"></div>
+      <div class="f" style="margin-top:9px"><label data-zh="詳細說明" data-en="Detail" data-km="ព័ត៌មានលម្អិត">詳細說明</label><textarea id="iDetail" rows="3"></textarea></div>
+      <div class="f" style="margin-top:9px"><label data-zh="照片" data-en="Photos" data-km="រូបថត">照片</label>
+        <div class="photo-drop" onclick="addPhoto('i')">📷 <span data-zh="點此拍照（會一併傳到 Telegram）" data-en="Tap to add photos (sent to Telegram)" data-km="ចុចដើម្បីថតរូប (ផ្ញើទៅ Telegram ផង)">點此拍照（會一併傳到 Telegram）</span></div>
         <div id="iPhotos"></div></div>
-      <div class="row" style="margin-top:12px"><button class="btn err" onclick="sendIssue()">🚨 <span data-zh="送出通報" data-en="Send" data-km="ផ្ញើ">送出通報</span></button></div>
+      <div class="row" style="margin-top:12px"><button class="btn err" id="iSendBtn" onclick="sendIssue()">🚨 <span data-zh="送出通報" data-en="Send report" data-km="ផ្ញើរបាយការណ៍">送出通報</span></button></div>
     </div>
     <div class="card">
       <h3>📌 <span data-zh="異常事項清單" data-en="Issue List" data-km="បញ្ជីបញ្ហា">異常事項清單</span>
         <span class="sp"><button class="btn sm gh" onclick="loadIssues()">🔄 <span data-zh="重新整理" data-en="Refresh" data-km="ផ្ទុកឡើងវិញ">重新整理</span></button></span></h3>
-      <div class="tw"><table><thead><tr><th>ID</th><th>日期</th><th>地點</th><th>事項</th><th>通報人</th><th>狀態</th><th></th></tr></thead>
-      <tbody id="tbIss"><tr><td colspan="7" class="empty">點「重新整理」從雲端載入</td></tr></tbody></table></div>
+      <div class="tw"><table><thead id="issHead"></thead>
+      <tbody id="tbIss"></tbody></table></div>
     </div>
   </div>
 
   <!-- ═══ 統計分析 ═══ -->
   <div class="page" id="p-ana" style="display:none">
-    <div class="card"><h3>📈 <span data-zh="每日巡邏圈數趨勢" data-en="Daily Rounds" data-km="និន្នាការ">每日巡邏圈數趨勢</span></h3>
+    <div class="card"><h3>📈 <span data-zh="每日巡邏圈數趨勢" data-en="Daily Rounds" data-km="និន្នាការជុំប្រចាំថ្ងៃ">每日巡邏圈數趨勢</span></h3>
       <div style="height:250px"><canvas id="ch1"></canvas></div></div>
     <div class="grid g2">
-      <div class="card"><h3>🕐 <span data-zh="每小時打點分佈" data-en="By Hour" data-km="តាមម៉ោង">每小時打點分佈</span></h3>
+      <div class="card"><h3>🕐 <span data-zh="每小時打點分佈" data-en="Scans by Hour" data-km="ការស្កេនតាមម៉ោង">每小時打點分佈</span></h3>
         <div style="height:240px"><canvas id="ch2"></canvas></div></div>
-      <div class="card"><h3>👮 <span data-zh="巡邏員圈數" data-en="Rounds by Guard" data-km="តាមអ្នកយាម">巡邏員圈數</span></h3>
+      <div class="card"><h3>👮 <span data-zh="巡邏員圈數" data-en="Rounds by Guard" data-km="ជុំតាមអ្នកល្បាត">巡邏員圈數</span></h3>
         <div style="height:240px"><canvas id="ch3"></canvas></div></div>
     </div>
     <div class="card">
-      <h3>🗓 <span data-zh="巡邏覆蓋熱區圖（日 × 時）" data-en="Coverage Heatmap (day × hour)" data-km="ផែនទីកម្តៅ">巡邏覆蓋熱區圖（日 × 時）</span></h3>
-      <p class="hint" style="margin-bottom:8px">🔴 該時段完全沒有巡邏　🟡 僅 1 圈　🟢 2 圈以上。紅格連成一片＝該時段長期無人巡邏。</p>
+      <h3>🗓 <span data-zh="巡邏覆蓋熱區圖（日 × 時）" data-en="Coverage Heatmap (day × hour)" data-km="ផែនទីគ្របដណ្តប់ (ថ្ងៃ × ម៉ោង)">巡邏覆蓋熱區圖（日 × 時）</span></h3>
+      <p class="hint" style="margin-bottom:8px" data-zh="🔴 該時段完全沒有巡邏　🟡 僅 1 圈　🟢 2 圈以上。紅格連成一片＝該時段長期無人巡邏。" data-en="🔴 no patrol in that hour　🟡 only 1 round　🟢 2 or more rounds. A block of red = that time is regularly left unpatrolled." data-km="🔴 គ្មានការល្បាតក្នុងម៉ោងនោះ　🟡 តែ 1 ជុំ　🟢 2 ជុំឡើងទៅ។ ក្រហមជាប់គ្នា = ម៉ោងនោះគ្មានអ្នកល្បាតជាប្រចាំ។">🔴 該時段完全沒有巡邏　🟡 僅 1 圈　🟢 2 圈以上。紅格連成一片＝該時段長期無人巡邏。</p>
       <div class="tw"><table class="heat" id="heat"></table></div>
     </div>
     <div class="card">
-      <h3>👮 <span data-zh="巡邏員績效" data-en="Guard Performance" data-km="សមិទ្ធផល">巡邏員績效</span></h3>
-      <div class="tw"><table><thead><tr><th>巡邏員</th><th class="num">總圈數</th><th class="num">完整圈</th><th class="num">漏點圈</th>
-      <th class="num">夜巡圈</th><th class="num">平均耗時</th><th>完整率</th></tr></thead><tbody id="tbGuard"></tbody></table></div>
+      <h3>👮 <span data-zh="巡邏員績效" data-en="Guard Performance" data-km="សមិទ្ធផលអ្នកល្បាត">巡邏員績效</span></h3>
+      <div class="tw"><table><thead id="guardHead"></thead><tbody id="tbGuard"></tbody></table></div>
     </div>
   </div>
 
   <!-- ═══ 資料管理 ═══ -->
   <div class="page" id="p-data" style="display:none">
     <div class="card">
-      <h3>📥 <span data-zh="巡更棒資料匯入" data-en="Patrol Wand Import" data-km="នាំចូល">巡更棒資料匯入</span></h3>
+      <h3>📥 <span data-zh="巡更棒資料匯入" data-en="Patrol Wand Import" data-km="នាំចូលទិន្នន័យឧបករណ៍ល្បាត">巡更棒資料匯入</span></h3>
       <button class="btn" style="width:100%;justify-content:center;padding:14px" onclick="impWand()">
-        📡 <span data-zh="匯入巡更棒匯出檔（.xls / .xlsx）" data-en="Import Patrol Wand Export" data-km="នាំចូលឯកសារល្បាត">匯入巡更棒匯出檔（.xls / .xlsx）</span>
+        📡 <span data-zh="匯入巡更棒匯出檔（.xls / .xlsx）" data-en="Import patrol wand export (.xls / .xlsx)" data-km="នាំចូលឯកសារពីឧបករណ៍ល្បាត (.xls / .xlsx)">匯入巡更棒匯出檔（.xls / .xlsx）</span>
       </button>
-      <p class="hint" style="margin-top:9px">
-        支援欄位：巡检时间 Patrol Time／巡检器 ReaderNum／人员 Person／巡检点 Checkpoint／事件 Event／编号 Chip ID。<br>
-        ✅ 自動處理：多工作表（整月表 + 每日表）<b>自動去重</b>、Excel 序號日期、巡邏點「未设置」改用 Chip ID 辨識。<br>
-        匯入後請到「📍 巡邏點」分頁替 Chip ID 命名一次。
-      </p>
+      <p class="hint" style="margin-top:9px" id="wandHelp"></p>
       <div class="sep"></div>
       <div class="row">
-        <button class="btn gh" onclick="impGeneric()">📄 <span data-zh="匯入一般巡邏表" data-en="Import generic sheet" data-km="នាំចូលធម្មតា">匯入一般巡邏表</span></button>
+        <button class="btn gh" onclick="impGeneric()">📄 <span data-zh="匯入一般巡邏表" data-en="Import generic sheet" data-km="នាំចូលតារាងល្បាតធម្មតា">匯入一般巡邏表</span></button>
         <button class="btn gh" onclick="expExcel()">📊 <span data-t="expExcel">匯出 Excel</span></button>
         <button class="btn gh" onclick="doBackup()">💾 <span data-t="backup">備份 JSON</span></button>
         <button class="btn gh" onclick="restore()">📂 <span data-t="restore">還原 JSON</span></button>
@@ -266,15 +263,15 @@
       <div id="impLog" class="hint"></div>
     </div>
     <div class="card">
-      <h3>☁ <span data-zh="雲端同步" data-en="Cloud Sync" data-km="សមកាលកម្ម">雲端同步</span></h3>
+      <h3>☁ <span data-zh="雲端同步" data-en="Cloud Sync" data-km="ធ្វើសមកាលកម្មពពក">雲端同步</span></h3>
       <div class="row">
-        <button class="btn" onclick="doUpload()">⬆️☁ <span data-t="upload">上傳雲端</span></button>
-        <button class="btn gh" onclick="doDownload()">⬇️☁ <span data-t="download">下載雲端</span></button>
+        <button class="btn" onclick="guardClick('up',doUpload)">⬆️☁ <span data-t="upload">上傳雲端</span></button>
+        <button class="btn gh" onclick="guardClick('down',doDownload)">⬇️☁ <span data-t="download">下載雲端</span></button>
       </div>
-      <p class="hint" style="margin-top:8px">上傳的是「巡邏圈摘要」（每圈一筆），不是原始 8 千筆打點，避免超量。群組 <code>/patrol</code>、<code>/night</code>、<code>/anomaly</code> 讀的就是這份。</p>
+      <p class="hint" style="margin-top:8px"><span data-zh="上傳的是「巡邏圈摘要」（每圈一筆），不是原始 8 千筆打點，避免超量。群組指令讀的就是這份：" data-en="Uploads a round summary (one row per round) rather than thousands of raw scans. Group commands read this data:" data-km="ផ្ទុកឡើងសេចក្តីសង្ខេបជុំ (មួយជួរក្នុងមួយជុំ) មិនមែនការស្កេនដើមរាប់ពាន់ទេ។ ពាក្យបញ្ជាក្រុមអានទិន្នន័យនេះ៖">上傳的是「巡邏圈摘要」（每圈一筆），不是原始 8 千筆打點，避免超量。群組指令讀的就是這份：</span> <code>/patrol</code> <code>/night</code> <code>/anomaly</code></p>
       <div class="sep"></div>
       <div class="row">
-        <button class="btn err" onclick="clearScans()">🗑 <span data-zh="清空巡更棒資料" data-en="Clear wand data" data-km="សម្អាត">清空巡更棒資料</span></button>
+        <button class="btn err" onclick="clearScans()">🗑 <span data-zh="清空巡更棒資料" data-en="Clear wand data" data-km="សម្អាតទិន្នន័យឧបករណ៍ល្បាត">清空巡更棒資料</span></button>
         <button class="btn err" onclick="clearAll()">🗑 <span data-zh="全部清空" data-en="Clear all" data-km="សម្អាតទាំងអស់">全部清空</span></button>
       </div>
       <p class="hint" style="margin-top:8px" id="dbInfo"></p>
@@ -283,8 +280,8 @@
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260914a"></script>
-<script src="./shared/sec-smart-sync.js?v=20260904b"></script>
+<script src="./shared/sec-core.js?v=20260929a"></script>
+<script src="./shared/sec-smart-sync.js?v=20260929a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -308,8 +305,73 @@ var LS_CP_BASELINE = 'ac_sec_patrol_cp_baseline';
 var LS_CHECK = 'ac_sec_patrol_confirmations';
 var SCAN = [], MAN = [], CHECK = [], CHIP = {}, CHIP_REV='', ROUNDS = [], PC_PHOTOS = [], PC_PHOTO_NOTES = [];
 var PC_KEYS = ['doors','windows','water','electric','lights','fireway'];
-var PC_LABELS = { doors:'Doors / 門', windows:'Windows / 窗', water:'Water / 水', electric:'Electricity / 電', lights:'Lighting / 照明', fireway:'Fire route / 消防通道' };
-var PH = { n: [], i: [] }, PER = new SEC.Period('month'), CH = {}, TOOL = 'patrol', MAN_EDIT_ID = '';
+var PC_LABELS = {
+  doors:{zh:'門',en:'Doors',km:'ទ្វារ'}, windows:{zh:'窗',en:'Windows',km:'បង្អួច'}, water:{zh:'水',en:'Water',km:'ទឹក'},
+  electric:{zh:'電',en:'Electricity',km:'អគ្គិសនី'}, lights:{zh:'照明',en:'Lighting',km:'ភ្លើងបំភ្លឺ'}, fireway:{zh:'消防通道',en:'Fire route',km:'ផ្លូវសង្គ្រោះអគ្គិភ័យ'} };
+var PH = { n: [], i: [] }, PER = new SEC.Period('month'), CH = {}, TOOL = 'patrol', MAN_EDIT_ID = '', PC_DIRTY = false;
+var LS_LAST_GUARD = 'ac_sec_patrol_last_guard';
+/* ── 三語：頁面用 t()（依目前介面語言），Telegram 用 pt(lang,…)（依摘要選擇的語言） ── */
+function t(zh, en, km) { return SEC.L(zh, en, km); }
+function pt(lang, zh, en, km) { return lang === 'en' ? en : lang === 'km' ? (km || en) : zh; }
+function pcLabel(k, lang) { var x = PC_LABELS[k] || { zh:k, en:k, km:k }; return lang ? pt(lang, x.zh, x.en, x.km) : SEC.L(x); }
+/* 巡邏點名稱常為「中文 English」雙語資料；英文／高棉文介面只顯示非中文部分。 */
+function dispName(name, lang) {
+  var s = String(name == null ? '' : name), l = lang || SEC.lang();
+  if (l === 'zh' || !/[㐀-鿿豈-﫿]/.test(s)) return s;
+  var rest = s.split(/\s+/).filter(function (w) { return w && !/[㐀-鿿豈-﫿]/.test(w); }).join(' ').trim();
+  return rest || s;
+}
+function shiftLabel(code, lang) {
+  return code === 'N' ? pt(lang || SEC.lang(), '夜班', 'Night shift', 'វេនយប់')
+       : code === 'all' ? pt(lang || SEC.lang(), '全天', 'All day', 'ពេញមួយថ្ងៃ')
+       : pt(lang || SEC.lang(), '日班', 'Day shift', 'វេនថ្ងៃ');
+}
+function defaultGuard() {
+  var last = ''; try { last = SEC.safeStorageGet(LS_LAST_GUARD) || ''; } catch (e) { last = ''; }
+  return String(last || SEC.getCfg().operator || '').trim();
+}
+function rememberGuard(name) { name = String(name || '').trim(); if (name) try { SEC.safeStorageSet(LS_LAST_GUARD, name); } catch (e) {} }
+/* 連點保護：同一顆按鈕在前一次動作完成前不會重複執行。 */
+var BUSY = {};
+function guardClick(key, fn) {
+  if (BUSY[key]) return false;
+  BUSY[key] = true;
+  var done = function () { BUSY[key] = false; };
+  /* 使用者點擊時：動作完成後再鎖 600ms 擋掉連點；程式呼叫（非點擊）只鎖執行期間。 */
+  var fromClick = !!(typeof window !== 'undefined' && window.event && /click|touch|pointer|key/.test(window.event.type || ''));
+  try {
+    var out = fn();
+    if (out && typeof out.then === 'function') { out.then(done, done); return out; }
+    if (fromClick) setTimeout(done, 600); else done();
+    return out;
+  } catch (e) { done(); throw e; }
+}
+function batchClearDeleted(tool, rows) {
+  rows = Array.isArray(rows) ? rows : [];
+  if (!rows.length) return;
+  if (typeof SEC.clearDeletedMany === 'function') { SEC.clearDeletedMany(tool, rows); return; }
+  /* 只對真的有刪除墓碑的鍵呼叫 clearDeleted，避免數千筆逐筆讀寫 localStorage。 */
+  var dead = {}; (SEC.getDeleted(tool) || []).forEach(function (r) { dead[r._recordKey] = 1; });
+  if (!Object.keys(dead).length) return;
+  rows.forEach(function (r) { if (dead[SEC.recordKey(tool, r, 0)]) SEC.clearDeleted(tool, r); });
+}
+/* 時間：Excel 序號／小數 → HH:MM（共用 SEC.parseTime 優先）。 */
+function localParseTime(v) {
+  if (v === '' || v == null) return '';
+  if (typeof v === 'number' && isFinite(v) && v >= 0) {
+    var m = Math.round((v - Math.floor(v)) * 1440) % 1440;
+    return SEC.p2(Math.floor(m / 60)) + ':' + SEC.p2(m % 60);
+  }
+  if (v instanceof Date && !isNaN(v)) return SEC.p2(v.getHours()) + ':' + SEC.p2(v.getMinutes());
+  var s = String(v).trim();
+  if (/^\d+(\.\d+)?$/.test(s)) return localParseTime(Number(s));
+  var m2 = s.match(/(\d{1,2})[:：](\d{2})(?:[:：]\d{2})?\s*(AM|PM)?/i);
+  if (!m2) return '';
+  var h = +m2[1], ap = (m2[3] || '').toUpperCase();
+  if (ap === 'PM' && h < 12) h += 12; if (ap === 'AM' && h === 12) h = 0;
+  return h > 23 ? '' : SEC.p2(h) + ':' + m2[2];
+}
+function parseTimeHM(v) { var f = (typeof SEC.parseTime === 'function') ? SEC.parseTime : localParseTime; var out = f(v); return out || localParseTime(v); }
 var paintPatrolPeriod;
 var CP_BASELINE_APPLIED = '';
 /* 由使用者提供的 2026-08 巡邏檔核出的最新 12 個 checkpoint。
@@ -345,6 +407,47 @@ async function load() {
   });
   if (repairPatrolCheckpointAlias()) saveChip();
   if(patrolDedupe()){saveScan();saveMan();saveCheck();}
+  if (patrolScanDedupe()) saveScan();
+}
+/* ── 巡更棒打點去重：同一 Chip、時間相差 ≤59 秒、同一巡邏員（或其中一筆沒有巡邏員）視為同一筆（分鐘精度）。
+   舊版以 cellDates:true 匯入的時間可能差幾秒，新版以序號換算；重新匯入同一檔案不會重複。
+   整月表有時沒有人員欄、每日表有，所以空白人員可與任何人員配對；兩位不同巡邏員同時打同一點則各自保留。 */
+var SCAN_TOL_SEC = 59;
+function scanSec(t) {
+  var m = String(t || '').match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)) / 1000 : NaN;
+}
+function ScanIndex() { this.m = {}; }
+ScanIndex.prototype.find = function (t, c, g) {
+  var s = scanSec(t); if (isNaN(s)) return null;
+  var min = Math.floor(s / 60), gg = String(g || '').trim().toLowerCase();
+  for (var d = -1; d <= 1; d++) {
+    var a = this.m[c + '|' + (min + d)];
+    if (a) for (var i = 0; i < a.length; i++) {
+      if (Math.abs(a[i].s - s) > SCAN_TOL_SEC) continue;
+      var og = String(a[i].row && a[i].row.g || '').trim().toLowerCase();
+      if (!gg || !og || gg === og) return a[i].row;
+    }
+  }
+  return null;
+};
+ScanIndex.prototype.add = function (t, c, row) {
+  var s = scanSec(t); if (isNaN(s)) return;
+  var k = c + '|' + Math.floor(s / 60);
+  (this.m[k] = this.m[k] || []).push({ s:s, row:row || true });
+};
+function scanChip(s) { return patrolCanonicalChip(s.c, String(s.t || '').slice(0, 10)); }
+function patrolScanDedupe() {
+  var idx = new ScanIndex(), keep = [], dead = [];
+  SCAN.forEach(function (s) {
+    if (!s || !s.t) return;
+    var c = scanChip(s), hit = idx.find(s.t, c, s.g);
+    if (hit) { if (!(hit.t === s.t && hit.c === s.c)) dead.push(Object.assign({ _k:'scan' }, s)); return; }
+    idx.add(s.t, c, s); keep.push(s);
+  });
+  if (!dead.length && keep.length === SCAN.length) return 0;
+  if (dead.length) SEC.markDeletedMany(TOOL, dead);
+  var removed = SCAN.length - keep.length; SCAN = keep; return removed;
 }
 function saveScan() { SEC.dbPut(LS_SCAN, SCAN); }
 function saveMan()  { SEC.dbPut(LS_MAN, MAN); }
@@ -352,31 +455,78 @@ function saveCheck(){ SEC.dbPut(LS_CHECK, CHECK); }
 function saveChip(touch) { if(touch!==false)CHIP_REV=new Date().toISOString();SEC.dbPut(LS_CHIP, CHIP);SEC.dbPut(LS_CHIP_REV,CHIP_REV); }
 function patrolDedupe(){
   var md=SEC.dedupeBy(MAN,function(r){return [r.date||'',r.time||'',SEC.norm(r.guard),SEC.norm(r.location)].join('|');}),cd=SEC.dedupeBy(CHECK,function(r){return String(r.id||[r.date,r.shift].join('|'));}),ids={};
-  md.records.forEach(function(r){ids[r.id]=1;});md.removedRows.forEach(function(r){if(!ids[r.id])SEC.markDeleted(TOOL,Object.assign({_k:'manual'},r));});
-  ids={};cd.records.forEach(function(r){ids[r.id]=1;});cd.removedRows.forEach(function(r){if(!ids[r.id])SEC.markDeleted(TOOL,Object.assign({_k:'check'},r));});MAN=md.records;CHECK=cd.records;return md.removed+cd.removed;
+  var dead=[];md.records.forEach(function(r){ids[r.id]=1;});md.removedRows.forEach(function(r){if(!ids[r.id])dead.push(Object.assign({_k:'manual'},r));});
+  ids={};cd.records.forEach(function(r){ids[r.id]=1;});cd.removedRows.forEach(function(r){if(!ids[r.id])dead.push(Object.assign({_k:'check'},r));});
+  if(dead.length)SEC.markDeletedMany(TOOL,dead);MAN=md.records;CHECK=cd.records;return md.removed+cd.removed;
 }
 
 /* ═══════════ 初始化 ═══════════ */
- document.getElementById('hdr').innerHTML = SEC.headerHtml('🚨', '保安巡邏 Patrol', 'AC SECURITY · PATROL v2 · 20260904b');
+document.getElementById('hdr').innerHTML = SEC.headerHtml('🚨', '保安巡邏', 'AC SECURITY · PATROL v2');
 document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
-SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: openPatrolTelegram, onSmartImport: impWand });
+SEC.bindHeader(TOOL, { onUpload: function () { return guardClick('up', doUpload); }, onDownload: function () { return guardClick('down', doDownload); }, onTelegram: function () { return guardClick('tg', openPatrolTelegram); }, onSmartImport: impWand });
 paintPatrolPeriod = SEC.bindPeriodNav('pnav', PER, function () { renderAll(); });
+/* 期間導覽只影響清單／統計；表單日期一律是今天。 */
+var PNAV_TABS = { round:1, night:1, cp:1, ana:1, 'new':1 };
+function currentTab() { var b = document.querySelector('#tabs .tab.on'); return b ? b.dataset.p : 'check'; }
+function showTab(p) {
+  document.querySelectorAll('#tabs .tab').forEach(function (x) { x.classList.toggle('on', x.dataset.p === p); });
+  document.querySelectorAll('.page').forEach(function (pg) { pg.style.display = pg.id === 'p-' + p ? '' : 'none'; });
+  document.getElementById('pnavHost').style.display = PNAV_TABS[p] ? '' : 'none';
+  var b = document.querySelector('#tabs .tab[data-p="' + p + '"]');
+  if (b && b.scrollIntoView) try { b.scrollIntoView({ block:'nearest', inline:'nearest' }); } catch (e) {}
+}
 document.getElementById('tabs').addEventListener('click', function (e) {
   var b = SEC.closest(e.target, '.tab'); if (!b) return;
-  document.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('on'); });
-  b.classList.add('on');
-  document.querySelectorAll('.page').forEach(function (p) { p.style.display = 'none'; });
-  document.getElementById('p-' + b.dataset.p).style.display = '';
-  document.getElementById('pnavHost').style.display = (b.dataset.p === 'new' || b.dataset.p === 'iss' || b.dataset.p === 'data' || b.dataset.p === 'cp') ? 'none' : '';
+  /* #18：切換分頁（含重按「線上登錄」）一律清除編輯狀態，避免下一筆新增覆蓋舊紀錄。 */
+  if (MAN_EDIT_ID) resetManForm();
+  showTab(b.dataset.p);
   renderAll();
 });
-['nDate','iDate','pcDate'].forEach(function (i) { document.getElementById(i).value = SEC.ymd(); });
-['nTime','iTime'].forEach(function (i) { document.getElementById(i).value = SEC.hm(); });
-window.onLangChange = renderAll;
+(function () {
+  var tabs = document.getElementById('tabs'), wrap = document.getElementById('tabsWrap');
+  function edge() { wrap.classList.toggle('at-end', tabs.scrollLeft + tabs.clientWidth >= tabs.scrollWidth - 4); }
+  tabs.addEventListener('scroll', edge, { passive:true }); window.addEventListener('resize', edge); setTimeout(edge, 50);
+})();
+document.getElementById('pcDate').value = SEC.ymd();
+resetManForm(); resetIssueForm();
+['pcGuard'].forEach(function (i) { document.getElementById(i).value = defaultGuard(); });
+document.getElementById('patrolConfirmCard').addEventListener('input', function () { PC_DIRTY = true; });
+document.getElementById('patrolConfirmCard').addEventListener('change', function (e) { if (e.target && e.target.type === 'radio') PC_DIRTY = true; });
+function applyPatrolLang() {
+  var l = SEC.lang(), h = document.querySelector('.hdr-t1');
+  if (h) h.textContent = t('保安巡邏', 'Security Patrol', 'ការល្បាតសន្តិសុខ');
+  document.title = t('保安巡邏', 'Security Patrol', 'ការល្បាតសន្តិសុខ') + ' | AC Security';
+  document.querySelectorAll('[data-ph-zh]').forEach(function (el) {
+    el.placeholder = el.getAttribute('data-ph-' + l) || el.getAttribute('data-ph-en') || el.getAttribute('data-ph-zh');
+  });
+  document.getElementById('cpHelp').innerHTML = t(
+    '⚠️ 巡更棒匯出檔的「巡點名稱」欄（原始欄名：<code>巡检点</code>）目前是<b>「未設定」</b>（原始值：<code>未设置</code>）— 機器沒設定名稱。這裡用 Chip ID 對照，命名一次以後所有報表都會顯示名稱。<b>每次匯入新巡邏檔如有新增、停用或順序變動，都會先列出差異要求確認</b>；舊紀錄保留，已停用點不再列入新的漏點計算。',
+    '⚠️ The wand export\'s checkpoint-name column is <b>not set</b> on the device, so checkpoints are matched by Chip ID. Name each one once and every report will use that name. <b>Whenever a new patrol file adds, retires or reorders checkpoints, the differences are listed for confirmation first</b>; old records are kept and retired checkpoints are no longer counted as missed.',
+    '⚠️ ឈ្មោះចំណុចល្បាតក្នុងឯកសារពីឧបករណ៍ <b>មិនទាន់កំណត់</b> ដូច្នេះប្រព័ន្ធប្រើ Chip ID។ ដាក់ឈ្មោះម្តង របាយការណ៍ទាំងអស់នឹងប្រើឈ្មោះនោះ។ <b>ពេលឯកសារថ្មីបន្ថែម បិទ ឬប្តូរលំដាប់ចំណុច ប្រព័ន្ធនឹងបង្ហាញភាពខុសគ្នាឱ្យបញ្ជាក់ជាមុន</b>។ កំណត់ត្រាចាស់ត្រូវរក្សាទុក ហើយចំណុចដែលបានបិទមិនត្រូវរាប់ជាខកខានទៀតទេ។');
+  document.getElementById('wandHelp').innerHTML = t(
+    '支援欄位（巡更棒原始欄名）：<code>巡检时间</code> Patrol Time／<code>巡检器</code> ReaderNum／<code>人员</code> Person／<code>巡检点</code> Checkpoint／<code>事件</code> Event／<code>编号</code> Chip ID。<br>✅ 自動處理：多工作表（整月表 + 每日表）<b>自動去重</b>（同一 Chip 一分鐘內只算一筆）、Excel 序號日期、巡邏點名稱未設定時改用 Chip ID 辨識。<br>匯入後請到「📍 巡邏點」分頁替 Chip ID 命名一次。',
+    'Supported columns: Patrol Time / ReaderNum / Person / Checkpoint / Event / Chip ID (Chinese headers from the wand are also recognised).<br>✅ Handled automatically: several sheets (monthly + daily) are <b>de-duplicated</b> (one scan per chip per minute), Excel serial dates, and unnamed checkpoints matched by Chip ID.<br>After importing, name each Chip ID once on the 📍 Checkpoints tab.',
+    'ជួរឈរដែលគាំទ្រ៖ Patrol Time / ReaderNum / Person / Checkpoint / Event / Chip ID (ក៏ស្គាល់ចំណងជើងជាភាសាចិនពីឧបករណ៍ផងដែរ)។<br>✅ ដំណើរការស្វ័យប្រវត្តិ៖ សន្លឹកច្រើន (ប្រចាំខែ + ប្រចាំថ្ងៃ) <b>លុបស្ទួន</b> (មួយការស្កេនក្នុងមួយ Chip ក្នុងមួយនាទី) កាលបរិច្ឆេទជាលេខ Excel និងចំណុចគ្មានឈ្មោះប្រើ Chip ID។<br>បន្ទាប់ពីនាំចូល សូមដាក់ឈ្មោះ Chip ID នីមួយៗម្តងនៅផ្ទាំង 📍 ចំណុចល្បាត។');
+  var tb = document.getElementById('tbIss');
+  if (tb && !tb.dataset.loaded) tb.innerHTML = '<tr><td colspan="7" class="empty">' + SEC.esc(t('點「重新整理」從雲端載入', 'Tap Refresh to load from the cloud', 'ចុច «ផ្ទុកឡើងវិញ» ដើម្បីទាញពីពពក')) + '</td></tr>';
+  document.getElementById('issHead').innerHTML = '<tr><th>ID</th><th>' + t('日期', 'Date', 'កាលបរិច្ឆេទ') + '</th><th>' + t('地點', 'Location', 'ទីតាំង') + '</th><th>' +
+    t('事項', 'Issue', 'បញ្ហា') + '</th><th>' + t('通報人', 'Reporter', 'អ្នករាយការណ៍') + '</th><th>' + t('狀態', 'Status', 'ស្ថានភាព') + '</th><th></th></tr>';
+  if (ISSUES_CACHE) paintIssues(ISSUES_CACHE);
+  paintManEditBanner();
+}
+/* 期間導覽的按鈕文字在切換語言時重新套用（共用元件只在建立時套用一次）。 */
+function repaintPnavLang() {
+  var T = SEC.T(), el = document.getElementById('pnav'); if (!el) return;
+  el.querySelectorAll('.pmode button').forEach(function (b) { if (T[b.dataset.m]) b.textContent = T[b.dataset.m]; });
+  var td = el.querySelector('.ptoday'); if (td) td.textContent = T.today;
+}
+window.onLangChange = function () { applyPatrolLang(); repaintPnavLang(); var il = document.getElementById('impLog'); if (il) il.innerHTML = ''; renderAll(); paintPatrolCheckPhotos(); };
+applyPatrolLang();
 SEC.dataReady().then(load).then(function () {
   applyAttachmentCheckpointBaseline();
   jumpPatrolToLatest();
   rebuild();
+  loadPatrolCheckForm();
   if (paintPatrolPeriod) paintPatrolPeriod();
 }).catch(SEC.bootError);
 
@@ -388,7 +538,12 @@ function allChipOrder() {
     return sa === sb ? a.localeCompare(b) : sa - sb;
   });
 }
-function chipName(c) { return (CHIP[c] && CHIP[c].name) || ('未命名 ' + String(c).slice(-4)); }
+function chipName(c, lang) {
+  var l = lang || SEC.lang();
+  return (CHIP[c] && CHIP[c].name) ? dispName(CHIP[c].name, l) : (pt(l, '未命名', 'Unnamed', 'គ្មានឈ្មោះ') + ' ' + String(c).slice(-4));
+}
+/* 儲存到紀錄（人工登錄地點）時保留原始名稱，不依介面語言改寫資料。 */
+function chipRawName(c) { return (CHIP[c] && CHIP[c].name) || String(c); }
 function chipSeq(c)  { return (CHIP[c] && CHIP[c].seq) || 999; }
 function chipOrder() {
   return allChipOrder().filter(chipIsActive);
@@ -470,16 +625,15 @@ function inferChips() {
 
 function buildRounds() {
   var gap = (parseInt(document.getElementById('gapMin').value, 10) || 20) * 60000;
-  var scanSeen = {};
-  var all = SCAN.map(function (s) {
+  var scanSeen = new ScanIndex();
+  var all = SCAN.filter(function (s) { return s && s.t; }).map(function (s) {
     var x = Object.assign({}, s);
     x.c = patrolCanonicalChip(s.c, String(s.t || '').slice(0, 10));
     return x;
   }).filter(function (s) {
-    /* 別名修正前後若雲端同時有 O/0 兩筆，同時間同點只算一次。 */
-    var k = s.t + '|' + s.c;
-    if (scanSeen[k]) return false;
-    scanSeen[k] = true; return true;
+    /* 別名修正前後若雲端同時有 O/0 兩筆，或新舊匯入差幾秒，同一分鐘同點只算一次。 */
+    if (scanSeen.find(s.t, s.c, s.g)) return false;
+    scanSeen.add(s.t, s.c, s); return true;
   }).sort(function (a, b) { return a.g === b.g ? (a.t < b.t ? -1 : 1) : (a.g < b.g ? -1 : 1); });
   var out = [], cur = null;
   all.forEach(function (s) {
@@ -583,24 +737,8 @@ function patrolPeriodSummary(type, guard, shift) {
 
 /* ═══════════ 渲染 ═══════════ */
 function renderAll() {
-  syncPatrolCheckDateFromPeriod();
   fillGuards(); fillLocs(); renderRounds(); renderCp(); renderNight();
-  renderManual(); renderAna(); renderDbInfo(); renderPatrolCheck();
-}
-function patrolDatesInSelectedPeriod() {
-  var out = {};
-  ROUNDS.forEach(function (r) { if (r.date && PER.has(r.date)) out[r.date] = 1; });
-  MAN.forEach(function (r) { if (r.date && PER.has(r.date)) out[r.date] = 1; });
-  CHECK.forEach(function (r) { if (r.date && PER.has(r.date)) out[r.date] = 1; });
-  return Object.keys(out).sort();
-}
-function syncPatrolCheckDateFromPeriod() {
-  var el = document.getElementById('pcDate'); if (!el) return;
-  if (PER.mode === 'day') el.value = PER.key();
-  else {
-    var dates = patrolDatesInSelectedPeriod();
-    el.value = dates.length ? dates[dates.length - 1] : PER.range().from;
-  }
+  renderManual(); renderAna(); renderDbInfo(); renderPatrolCheckStatus();
 }
 function patrolLatestDate() {
   var dates = [];
@@ -609,7 +747,7 @@ function patrolLatestDate() {
   return dates.filter(function (d) { return /^\d{4}-\d{2}-\d{2}$/.test(d); }).sort().pop() || SEC.ymd();
 }
 function patrolCheckCurrent() {
-  var d = document.getElementById('pcDate').value || patrolLatestDate(), sh = document.getElementById('pcShift').value || 'all';
+  var d = document.getElementById('pcDate').value || SEC.ymd(), sh = document.getElementById('pcShift').value || 'all';
   return CHECK.filter(function (x) { return x.date === d && x.shift === sh; }).sort(function (a,b) { return String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')); })[0] || null;
 }
 function patrolCheckValue(rec, key) {
@@ -631,59 +769,82 @@ function pcFormValue(key) {
 function setPcFormValue(key, value) {
   document.querySelectorAll('input[name="pc_' + key + '"]').forEach(function (x) { x.checked = x.value === value; });
 }
-function renderPatrolCheck() {
+/* 只在切換日期／班別、儲存、刪除或開頁時重新載入表單；語言切換與重畫不會清掉尚未儲存的輸入。 */
+function loadPatrolCheckForm() {
   var date = document.getElementById('pcDate'); if (!date) return;
-  if (!date.value) syncPatrolCheckDateFromPeriod();
+  if (!date.value) date.value = SEC.ymd();
   var rec = patrolCheckCurrent();
   PC_KEYS.forEach(function (k) { setPcFormValue(k, patrolCheckValue(rec, k)); });
-  document.getElementById('pcGuard').value = rec && rec.guard || '';
+  document.getElementById('pcGuard').value = rec ? (rec.guard || '') : defaultGuard();
   document.getElementById('pcNote').value = rec && rec.note || '';
   PC_PHOTOS = rec && Array.isArray(rec.photos) ? rec.photos.slice(0,4) : [];
   PC_PHOTO_NOTES = rec && Array.isArray(rec.photoNotes) ? rec.photoNotes.slice(0,4) : [];
   while (PC_PHOTO_NOTES.length < PC_PHOTOS.length) PC_PHOTO_NOTES.push('');
+  PC_DIRTY = false;
   paintPatrolCheckPhotos();
-  document.getElementById('pcSaved').textContent = rec ? '✅ Saved / 已確認：' + (rec.updatedAt || rec.date) : '⚠️ Not confirmed / 尚未確認';
+  renderPatrolCheckStatus();
 }
+function renderPatrolCheckStatus() {
+  var el = document.getElementById('pcSaved'); if (!el) return;
+  var rec = patrolCheckCurrent();
+  el.textContent = rec ? '✅ ' + t('已確認：', 'Confirmed: ', 'បានបញ្ជាក់៖ ') + String(rec.updatedAt || rec.date).replace('T', ' ').slice(0, 16)
+                       : '⚠️ ' + t('尚未確認', 'Not confirmed yet', 'មិនទាន់បញ្ជាក់');
+}
+function renderPatrolCheck() { loadPatrolCheckForm(); }
 function togglePatrolAllOk() {
   var all = PC_KEYS.every(function (k) { return pcFormValue(k) === 'ok'; });
   PC_KEYS.forEach(function (k) { setPcFormValue(k, all ? '' : 'ok'); });
-  SEC.toast(all ? '↩️ 已清除全部項目 / Cleared all checks' : '✅ 已標記全部正常 / All items marked OK', 'ok');
+  PC_DIRTY = true;
+  SEC.toast(all ? '↩️ ' + t('已清除全部項目', 'Cleared all checks', 'បានសម្អាតការជ្រើសទាំងអស់') : '✅ ' + t('已標記全部正常', 'All items marked OK', 'បានសម្គាល់ធម្មតាទាំងអស់'), 'ok');
 }
 function addPatrolCheckPhoto() {
-  if (PC_PHOTOS.length >= 4) return SEC.toast('Maximum 4 photos / 最多 4 張','warn');
-  SEC.pickPhoto(function (d) { if (PC_PHOTOS.length < 4) { PC_PHOTOS.push(d); PC_PHOTO_NOTES.push(''); } paintPatrolCheckPhotos(); }, 760, 4-PC_PHOTOS.length);
+  if (PC_PHOTOS.length >= 4) return SEC.toast(t('最多 4 張照片', 'Maximum 4 photos', 'អតិបរមា 4 រូប'), 'warn');
+  SEC.pickPhoto(function (d) { if (PC_PHOTOS.length < 4) { PC_PHOTOS.push(d); PC_PHOTO_NOTES.push(''); PC_DIRTY = true; } paintPatrolCheckPhotos(); }, 760, 4-PC_PHOTOS.length);
 }
 function paintPatrolCheckPhotos() {
   var box = document.getElementById('pcPhotos'); if (!box) return;
   box.innerHTML = PC_PHOTOS.map(function (p, i) {
     return '<div class="pc-photo-entry" data-pc-photo="' + i + '">' + SEC.photoListHtml([p], true) +
-      '<div class="f"><label>Photo note ' + (i + 1) + ' / 照片說明 ' + (i + 1) + '</label>' +
-      '<input data-pc-photo-note="' + i + '" value="' + SEC.esc(PC_PHOTO_NOTES[i] || '') + '" placeholder="What is shown? / 照片內容、地點或異常"></div></div>';
+      '<div class="f"><label>' + SEC.esc(t('照片說明 ', 'Photo note ', 'ពិពណ៌នារូបថត ') + (i + 1)) + '</label>' +
+      '<input data-pc-photo-note="' + i + '" value="' + SEC.esc(PC_PHOTO_NOTES[i] || '') + '" placeholder="' +
+      SEC.esc(t('照片內容、地點或異常', 'What is shown? Location or issue', 'រូបនេះបង្ហាញអ្វី? ទីតាំង ឬបញ្ហា')) + '"></div></div>';
   }).join('');
-  box.querySelectorAll('.del').forEach(function (b) { b.onclick=function(){var i=+b.closest('[data-pc-photo]').dataset.pcPhoto;PC_PHOTOS.splice(i,1);PC_PHOTO_NOTES.splice(i,1);paintPatrolCheckPhotos();}; });
+  box.querySelectorAll('.del').forEach(function (b) { b.onclick=function(){var i=+b.closest('[data-pc-photo]').dataset.pcPhoto;PC_PHOTOS.splice(i,1);PC_PHOTO_NOTES.splice(i,1);PC_DIRTY=true;paintPatrolCheckPhotos();}; });
   box.querySelectorAll('[data-pc-photo-note]').forEach(function (x) { x.oninput=function(){PC_PHOTO_NOTES[+x.dataset.pcPhotoNote]=x.value;}; });
 }
-function savePatrolCheck() {
+function pcLabelList(keys, lang) { return keys.map(function (k) { return pcLabel(k, lang); }).join(lang === 'zh' || (!lang && SEC.lang() === 'zh') ? '、' : ', '); }
+function savePatrolCheck() { holdLayout(); return guardClick('pcSave', savePatrolCheckNow); }
+function savePatrolCheckNow() {
   var checks = {}, date = document.getElementById('pcDate').value, shift = document.getElementById('pcShift').value;
   PC_KEYS.forEach(function (k) { checks[k] = pcFormValue(k); });
-  if (!date || !document.getElementById('pcGuard').value.trim()) return SEC.toast('請填日期及巡邏員 / Date and guard required','warn');
+  if (!date || !document.getElementById('pcGuard').value.trim()) return SEC.toast(t('請填日期及巡邏員', 'Date and guard are required', 'ត្រូវបញ្ចូលកាលបរិច្ឆេទ និងអ្នកល្បាត'),'warn');
   var missing = PC_KEYS.filter(function (k) { return !checks[k]; });
-  if (missing.length) return SEC.toast('請逐項選 ✅ 或 ❌：' + missing.map(function(k){return PC_LABELS[k];}).join('、') + ' / Mark every item','warn',7000);
+  if (missing.length) return SEC.toast(t('請逐項選 ✅ 或 ❌：', 'Mark every item ✅ or ❌: ', 'សូមជ្រើស ✅ ឬ ❌ គ្រប់ចំណុច៖ ') + pcLabelList(missing),'warn',7000);
   var note = document.getElementById('pcNote').value.trim();
-  if (PC_KEYS.some(function (k) { return checks[k] === 'issue'; }) && !note) return SEC.toast('有 ❌ 異常時必須填寫 Issue note / 異常備註','warn',7000);
+  if (PC_KEYS.some(function (k) { return checks[k] === 'issue'; }) && !note) return SEC.toast(t('有 ❌ 異常時必須填寫異常備註', 'An issue note is required when any item is ❌', 'ត្រូវសរសេរកំណត់ចំណាំពេលមាន ❌'),'warn',7000);
   var photoNotes = PC_PHOTO_NOTES.slice(0, PC_PHOTOS.length).map(function (x) { return String(x || '').trim(); });
-  if (PC_PHOTOS.length && photoNotes.some(function (x) { return !x; })) return SEC.toast('每張照片都要填寫說明 / Add a note for every photo','warn',7000);
-  var id = date + '|' + shift;
+  if (PC_PHOTOS.length && photoNotes.some(function (x) { return !x; })) return SEC.toast(t('每張照片都要填寫說明', 'Add a note for every photo', 'សូមពិពណ៌នារូបថតនីមួយៗ'),'warn',7000);
+  var id = date + '|' + shift, guard = document.getElementById('pcGuard').value.trim();
   CHECK = CHECK.filter(function (x) { return x.id !== id; });
-  var saved={ id:id, date:date, shift:shift, guard:document.getElementById('pcGuard').value.trim(), checks:checks,
+  var saved={ id:id, date:date, shift:shift, guard:guard, checks:checks,
     note:note, photos:PC_PHOTOS.slice(0,4), photoNotes:photoNotes, updatedAt:new Date().toISOString() };
   CHECK.push(saved);SEC.clearDeleted(TOOL,Object.assign({_k:'check'},saved));
-  saveCheck(); renderPatrolCheck(); SEC.scheduleAutoCloudSync(TOOL,'patrol-confirmation',date); SEC.toast('✅ 巡邏確認已儲存','ok');
+  rememberGuard(guard);
+  saveCheck(); PC_DIRTY = false; renderPatrolCheckStatus(); SEC.scheduleAutoCloudSync(TOOL,'patrol-confirmation',date);
+  SEC.toast('✅ ' + t('巡邏確認已儲存', 'Patrol check saved', 'បានរក្សាទុកការបញ្ជាក់ការល្បាត'),'ok');
 }
 function deletePatrolCheck(){
-  var rec=patrolCheckCurrent();if(!rec){SEC.toast('ℹ️ 此日期／班別沒有可刪除的確認紀錄','warn');return;}
-  if(!confirm('刪除此日期／班別的巡邏完成確認？巡更棒及人工巡邏資料仍會保留。\nDelete this completion confirmation? Patrol records remain.'))return;
-  SEC.markDeleted(TOOL,Object.assign({_k:'check'},rec));CHECK=CHECK.filter(function(x){return x.id!==rec.id;});saveCheck();renderPatrolCheck();SEC.scheduleAutoCloudSync(TOOL,'patrol-confirmation-delete',rec.date);SEC.toast('🗑 已刪除巡邏確認並排入雲端同步','ok');
+  var rec=patrolCheckCurrent();if(!rec){SEC.toast('ℹ️ '+t('此日期／班別沒有可刪除的確認紀錄','There is no saved check for this date / shift','គ្មានការបញ្ជាក់សម្រាប់កាលបរិច្ឆេទ / វេននេះទេ'),'warn');return;}
+  if(!confirm(t('刪除此日期／班別的巡邏完成確認？巡更棒及人工巡邏資料仍會保留。','Delete this completion check? Patrol records remain.','លុបការបញ្ជាក់នេះមែនទេ? កំណត់ត្រាល្បាតនៅតែរក្សាទុក។')))return;
+  SEC.markDeleted(TOOL,Object.assign({_k:'check'},rec));CHECK=CHECK.filter(function(x){return x.id!==rec.id;});saveCheck();loadPatrolCheckForm();SEC.scheduleAutoCloudSync(TOOL,'patrol-confirmation-delete',rec.date);
+  SEC.toast('🗑 '+t('已刪除巡邏確認並排入雲端同步','Check deleted; cloud sync queued','បានលុប ហើយនឹងធ្វើសមកាលកម្មពពក'),'ok');
+}
+function goToPatrolCheck(date) {
+  showTab('check');
+  var el = document.getElementById('pcDate');
+  if (date && el.value !== date) { el.value = date; loadPatrolCheckForm(); }
+  var card = document.getElementById('patrolConfirmCard');
+  if (card && card.scrollIntoView) try { card.scrollIntoView({behavior:'smooth',block:'start'}); } catch (e) {}
 }
 function ensurePatrolCheck() {
   var latest = patrolLatestDate(), found = CHECK.some(function (x) {
@@ -691,33 +852,41 @@ function ensurePatrolCheck() {
       !(Array.isArray(x.photos) && x.photos.length && (!Array.isArray(x.photoNotes) || x.photoNotes.slice(0,x.photos.length).some(function(n){return !String(n||'').trim();})));
   });
   if (found || (!SCAN.length && !MAN.length)) return true;
-  document.getElementById('pcDate').value = latest; renderPatrolCheck();
-  document.getElementById('patrolConfirmCard').scrollIntoView({behavior:'smooth',block:'start'});
-  SEC.toast('⚠️ 請先完成 ' + latest + ' 巡邏確認：姓名、六項結果、異常備註及照片說明 / Complete patrol confirmation first','warn',8000);
+  goToPatrolCheck(latest);
+  SEC.toast('⚠️ ' + t('請先完成 ' + latest + ' 巡邏確認：姓名、六項結果、異常備註及照片說明', 'Complete the ' + latest + ' patrol check first: guard, six items, issue note and photo notes', 'សូមបញ្ចប់ការបញ្ជាក់ការល្បាត ' + latest + ' ជាមុនសិន'),'warn',8000);
   return false;
 }
 function fillGuards() {
   var g = {};
-  SCAN.forEach(function (s) { g[s.g] = 1; });
+  SCAN.forEach(function (s) { if (s.g) g[s.g] = 1; });
   MAN.forEach(function (r) { if (r.guard) g[r.guard] = 1; });
   var ks = Object.keys(g).sort();
   var sel = document.getElementById('fGuard'), cur = sel.value;
-  sel.innerHTML = '<option value="">全部人員</option>' + ks.map(function (k) { return '<option>' + SEC.esc(k) + '</option>'; }).join('');
+  sel.innerHTML = '<option value="">' + SEC.esc(t('全部人員', 'All guards', 'អ្នកល្បាតទាំងអស់')) + '</option>' + ks.map(function (k) { return '<option>' + SEC.esc(k) + '</option>'; }).join('');
   sel.value = cur;
   document.getElementById('guardList').innerHTML = ks.map(function (k) { return '<option value="' + SEC.esc(k) + '">'; }).join('');
 }
 function fillLocs() {
   var opts = chipOrder().map(function (c) {
-    return '<option value="' + SEC.esc(chipName(c)) + '">' + (chipSeq(c) < 999 ? chipSeq(c) + '. ' : '') + SEC.esc(chipName(c)) + '</option>';
+    return '<option value="' + SEC.esc(chipRawName(c)) + '">' + (chipSeq(c) < 999 ? chipSeq(c) + '. ' : '') + SEC.esc(chipName(c)) + '</option>';
   }).join('');
-  if (!opts) opts = SUGGEST.map(function (s) { return '<option>' + SEC.esc(s) + '</option>'; }).join('');
+  var empty = !opts;
+  if (empty) opts = SUGGEST.map(function (s) { return '<option value="' + SEC.esc(s) + '">' + SEC.esc(dispName(s)) + '</option>'; }).join('');
   ['nLoc','iLoc'].forEach(function (id) {
     var el = document.getElementById(id), cur = el.value;
-    el.innerHTML = opts + '<option value="__other">— 其他（自行輸入）—</option>';
+    var extra = [];
+    /* 編輯舊紀錄時，原地點不在清單內也要保留 */
+    Array.prototype.forEach.call(el.options, function (o) { if (o.dataset.keep) extra.push('<option data-keep="1" value="' + SEC.esc(o.value) + '">' + SEC.esc(o.textContent) + '</option>'); });
+    el.innerHTML = (empty ? '<option value="" disabled>' + SEC.esc(t('（尚無巡邏點：請先到「💾 資料管理」匯入巡更棒檔，以下為建議地點）', '(No checkpoints yet — import a wand file on the 💾 Data tab; suggested places below)', '(មិនទាន់មានចំណុចល្បាត — សូមនាំចូលឯកសារនៅផ្ទាំង 💾 ទិន្នន័យ; ខាងក្រោមជាទីតាំងស្នើ)')) + '</option>' : '') +
+      opts + extra.join('') + '<option value="__other">— ' + SEC.esc(t('其他（自行輸入）', 'Other (type it in)', 'ផ្សេងទៀត (វាយបញ្ចូល)')) + ' —</option>';
     el.value = cur;
+    if (!el.value && !empty) { var first = Array.prototype.filter.call(el.options, function (o) { return !o.disabled; })[0]; if (first) el.value = first.value; }
+    if (!el.value && empty) el.selectedIndex = 0;   /* 顯示引導文字，需自行選擇 */
   });
 }
 
+function nightLabel(r) { return r.night ? '🌙 ' + t('夜', 'Night', 'យប់') : '☀️ ' + t('日', 'Day', 'ថ្ងៃ'); }
+function listJoin(arr) { return arr.join(SEC.lang() === 'zh' ? '、' : ', '); }
 function renderRounds() {
   var list = inPeriodR();
   var fg = document.getElementById('fGuard').value;
@@ -733,23 +902,24 @@ function renderRounds() {
 
   var head = document.getElementById('roundHead');
   if (PER.mode === 'month' || PER.mode === 'year') {
-    head.innerHTML = '<tr><th>期間 Period</th><th class="num">巡邏圈 Rounds</th><th class="num">完整 Complete</th>' +
-      '<th class="num">漏點 Incomplete</th><th>完整率 Rate</th><th class="num">夜巡 Night</th>' +
-      '<th>人員 Guards</th><th>人工／異常 Manual / Issues</th></tr>';
+    head.innerHTML = '<tr><th>' + t('期間', 'Period', 'រយៈពេល') + '</th><th class="num">' + t('巡邏圈', 'Rounds', 'ជុំ') + '</th><th class="num">' + t('完整', 'Complete', 'ពេញលេញ') + '</th>' +
+      '<th class="num">' + t('漏點', 'Incomplete', 'ខ្វះចំណុច') + '</th><th>' + t('完整率', 'Rate', 'អត្រា') + '</th><th class="num">' + t('夜巡', 'Night', 'យប់') + '</th>' +
+      '<th>' + t('人員', 'Guards', 'អ្នកល្បាត') + '</th><th>' + t('人工／異常', 'Manual / Issues', 'ដោយដៃ / បញ្ហា') + '</th></tr>';
     var sums = patrolPeriodSummary(PER.mode, fg, fs);
     document.getElementById('tbRound').innerHTML = sums.map(function (s) {
       var active = s.key === PER.key();
-      return '<tr' + (active ? ' style="background:#eef8fc;font-weight:700"' : '') + ' onclick="jumpPatrolPeriod(\'' + SEC.esc(s.key) + '\')" title="點選切換期間 / Click to open">' +
+      return '<tr' + (active ? ' style="background:#eef8fc;font-weight:700"' : '') + ' onclick="jumpPatrolPeriod(\'' + SEC.esc(s.key) + '\')" title="' + SEC.esc(t('點選切換期間', 'Click to open', 'ចុចដើម្បីបើក')) + '">' +
         '<td><b>' + SEC.esc(s.key) + '</b>' + (active ? ' ◀' : '') + '</td><td class="num">' + s.rounds + '</td>' +
         '<td class="num" style="color:var(--ok)">' + s.full + '</td><td class="num" style="color:' + (s.bad ? 'var(--err)' : 'inherit') + '">' + s.bad + '</td>' +
         '<td><span class="tag ' + (s.rate >= 90 ? 'ok' : s.rate >= 70 ? 'warn' : 'err') + '">' + s.rate + '%</span></td>' +
-        '<td class="num">' + s.night + '</td><td>' + SEC.esc(s.guards.join('、') || '—') + '</td>' +
+        '<td class="num">' + s.night + '</td><td>' + SEC.esc(listJoin(s.guards) || '—') + '</td>' +
         '<td>' + s.manual + (s.issues ? ' · <span class="tag err">⚠ ' + s.issues + '</span>' : '') + '</td></tr>';
     }).join('') || '<tr><td colspan="8" class="empty">' + SEC.T().noData + '</td></tr>';
-    document.getElementById('roundMore').textContent = '月／年列表顯示各期間合計；點選列可切換到該期間。 / Monthly and yearly totals; click a row to open it.';
+    document.getElementById('roundMore').textContent = t('月／年列表顯示各期間合計；點選列可切換到該期間。', 'Monthly and yearly totals; click a row to open that period.', 'សរុបប្រចាំខែ / ឆ្នាំ; ចុចលើជួរដើម្បីបើករយៈពេលនោះ។');
     return;
   }
-  head.innerHTML = '<tr><th>日期</th><th>起訖</th><th>班別</th><th>巡邏員</th><th class="num">耗時</th><th>打點狀況</th><th>判定</th></tr>';
+  head.innerHTML = '<tr><th>' + t('日期', 'Date', 'កាលបរិច្ឆេទ') + '</th><th>' + t('起訖', 'Time', 'ម៉ោង') + '</th><th>' + t('班別', 'Shift', 'វេន') + '</th><th>' +
+    t('巡邏員', 'Guard', 'អ្នកល្បាត') + '</th><th class="num">' + t('耗時', 'Dur.', 'រយៈពេល') + '</th><th>' + t('打點狀況', 'Checkpoints', 'ចំណុច') + '</th><th>' + t('判定', 'Result', 'លទ្ធផល') + '</th></tr>';
 
   var show = bad ? list.filter(function (r) { return !roundComplete(r); }) : list;
   show = show.slice().sort(function (a, b) { return a.start < b.start ? 1 : -1; });
@@ -759,26 +929,27 @@ function renderRounds() {
     var order = r.expectedChips || checkpointOrderForDate(r.date), TC = roundExpected(r);
     var dots = order.map(function (c) {
       var hit = r.chips.indexOf(c) >= 0;
-      return '<span class="rd-dot ' + (hit ? 'hit' : 'miss') + '" title="' + SEC.esc(chipName(c)) + (hit ? ' ✅' : ' ❌漏打') + '"></span>';
+      return '<span class="rd-dot ' + (hit ? 'hit' : 'miss') + '" title="' + SEC.esc(chipName(c)) + (hit ? ' ✅' : ' ❌ ' + SEC.esc(t('漏打', 'missed', 'ខកខាន'))) + '"></span>';
     }).join('');
     var ok = roundComplete(r);
     return '<tr' + (ok ? '' : ' style="background:#fff8f8"') + '>' +
       '<td>' + r.date + '</td>' +
       '<td>' + r.start.slice(11, 16) + '–' + r.end.slice(11, 16) + '</td>' +
-      '<td>' + (r.night ? '🌙 夜' : '☀️ 日') + '</td>' +
+      '<td>' + nightLabel(r) + '</td>' +
       '<td>' + SEC.esc(r.g) + '</td>' +
       '<td class="num">' + r.dur + '′</td>' +
       '<td><div class="rd-bar">' + dots + ' <b style="margin-left:5px;font-size:11px">' + r.chips.length + '/' + TC + '</b></div></td>' +
-      '<td>' + (ok ? '<span class="tag ok">✅ 完整</span>'
-                   : '<span class="tag err">⛔ 漏 ' + (TC - r.chips.length) + ' 點</span>') + '</td></tr>';
+      '<td>' + (ok ? '<span class="tag ok">✅ ' + t('完整', 'Complete', 'ពេញលេញ') + '</span>'
+                   : '<span class="tag err">⛔ ' + t('漏 ' + (TC - r.chips.length) + ' 點', (TC - r.chips.length) + ' missed', 'ខកខាន ' + (TC - r.chips.length)) + '</span>') + '</td></tr>';
   }).join('') : '<tr><td colspan="7" class="empty">' + SEC.T().noData + '</td></tr>';
-  document.getElementById('roundMore').textContent = show.length > 300 ? ('僅顯示最近 300 圈，共 ' + show.length + ' 圈。可用「匯出 Excel」取得完整清單。') : '';
+  document.getElementById('roundMore').textContent = show.length > 300 ? t('僅顯示最近 300 圈，共 ' + show.length + ' 圈。可用「匯出 Excel」取得完整清單。',
+    'Showing the latest 300 of ' + show.length + ' rounds. Use Excel export for the full list.', 'បង្ហាញ 300 ជុំចុងក្រោយ ក្នុងចំណោម ' + show.length + '។ នាំចេញ Excel ដើម្បីទទួលបញ្ជីពេញ។') : '';
 }
 
 function renderCp() {
   var order = allChipOrder();
   var box = document.getElementById('cpList');
-  if (!order.length) { box.innerHTML = '<div class="empty">尚未匯入巡更棒資料。請到「💾 資料管理」匯入。</div>'; return; }
+  if (!order.length) { box.innerHTML = '<div class="empty">' + SEC.esc(t('尚未匯入巡更棒資料。請到「💾 資料管理」匯入。', 'No wand data yet. Import it on the 💾 Data tab.', 'មិនទាន់មានទិន្នន័យឧបករណ៍ល្បាត។ សូមនាំចូលនៅផ្ទាំង 💾 ទិន្នន័យ។')) + '</div>'; renderCpStat(); return; }
   box.innerHTML = order.map(function (c) {
     var o = CHIP[c];
     var active = o.active !== false;
@@ -789,15 +960,15 @@ function renderCp() {
         '<span class="cp-seq">' + o.seq + '</span>' +
         '<span class="cp-chip">' + SEC.esc(c) + '</span>' +
         '<span style="margin-left:auto;font-size:11px;color:' + (active ? 'var(--ok)' : 'var(--ink2)') + '">' +
-          (active ? '啟用 Active' : '已停用 Inactive') + ' · ' + (o.n || 0) + ' 次</span>' +
+          (active ? t('啟用', 'Active', 'កំពុងប្រើ') : t('已停用', 'Inactive', 'បានបិទ')) + ' · ' + t((o.n || 0) + ' 次', (o.n || 0) + ' scans', (o.n || 0) + ' ដង') + '</span>' +
       '</div>' +
-      '<input value="' + SEC.esc(draft) + '" placeholder="輸入巡邏點名稱…" data-c="' + SEC.esc(c) + '" class="cpn">' +
-      '<div class="hint" style="margin-top:5px">首見 ' + String(o.first || '').slice(5, 16) +
-        (history ? ' · 歷史資料保留' : '') + '</div>' +
+      '<input value="' + SEC.esc(draft) + '" placeholder="' + SEC.esc(t('輸入巡邏點名稱…', 'Checkpoint name…', 'ឈ្មោះចំណុចល្បាត…')) + '" data-c="' + SEC.esc(c) + '" class="cpn">' +
+      '<div class="hint" style="margin-top:5px">' + t('首見 ', 'First seen ', 'ឃើញដំបូង ') + String(o.first || '').slice(5, 16) +
+        (history ? ' · ' + t('歷史資料保留', 'history kept', 'រក្សាប្រវត្តិ') : '') + '</div>' +
       '<div class="row" style="margin-top:7px;gap:6px">' +
         '<button class="btn sm ' + (active ? 'err' : '') + ' cp-toggle" data-c="' + SEC.esc(c) + '">' +
-          (active ? '⏸ 停用' : '↩ 啟用') + '</button>' +
-        (!history ? '<button class="btn sm err cp-delete" data-c="' + SEC.esc(c) + '">🗑 刪除</button>' : '') +
+          (active ? '⏸ ' + t('停用', 'Disable', 'បិទ') : '↩ ' + t('啟用', 'Enable', 'បើកប្រើ')) + '</button>' +
+        (!history ? '<button class="btn sm err cp-delete" data-c="' + SEC.esc(c) + '">🗑 ' + t('刪除', 'Delete', 'លុប') + '</button>' : '') +
       '</div>' +
     '</div>';
   }).join('');
@@ -809,6 +980,8 @@ function renderCp() {
   renderCpStat();
 }
 function renderCpStat() {
+  document.getElementById('cpStatHead').innerHTML = '<tr><th>#</th><th>' + t('巡邏點', 'Checkpoint', 'ចំណុចល្បាត') + '</th><th class="num">' + t('應打', 'Expected', 'គួរស្កេន') + '</th>' +
+    '<th class="num">' + t('實打', 'Actual', 'បានស្កេន') + '</th><th class="num">' + t('漏打', 'Missed', 'ខកខាន') + '</th><th>' + t('達成率', 'Rate', 'អត្រា') + '</th></tr>';
   var list = inPeriodR();
   var order = chipOrder();
   var tb = document.getElementById('tbCpStat');
@@ -827,16 +1000,18 @@ function renderCpStat() {
 function autoName() {
   var order = chipOrder();
   var changes = order.filter(function (c) { return !CHIP[c].name; }).map(function (c, i) {
-    return { c:c, name:SUGGEST[i] || ('巡邏點 ' + (i + 1)) };
+    return { c:c, name:SUGGEST[i] || (t('巡邏點 ', 'Checkpoint ', 'ចំណុចល្បាត ') + (i + 1)) };
   });
-  if (!changes.length) { SEC.toast('ℹ️ 目前啟用的 checkpoint 都已有名稱', 'warn'); return; }
-  var msg = '確認套用以下 checkpoint 建議名稱？名稱變更會影響之後的摘要與報表，但歷史打點不會刪除。\n\n' +
-    changes.map(function (x) { return '· ' + x.c + ' → ' + x.name; }).join('\n');
+  if (!changes.length) { SEC.toast('ℹ️ ' + t('目前啟用的巡邏點都已有名稱', 'All active checkpoints already have names', 'ចំណុចល្បាតទាំងអស់មានឈ្មោះរួចហើយ'), 'warn'); return; }
+  var msg = t('確認套用以下巡邏點建議名稱？名稱變更會影響之後的摘要與報表，但歷史打點不會刪除。',
+    'Apply these suggested checkpoint names? Names affect future summaries and reports; scan history is not deleted.',
+    'ប្រើឈ្មោះស្នើខាងក្រោមមែនទេ? ឈ្មោះនឹងប្រើក្នុងរបាយការណ៍បន្ទាប់ ប្រវត្តិស្កេនមិនត្រូវលុបទេ។') + '\n\n' +
+    changes.map(function (x) { return '· ' + x.c + ' → ' + dispName(x.name); }).join('\n');
   if (!confirm(msg)) return;
   changes.forEach(function (x) { CHIP[x.c].name = x.name; });
   saveChip(); renderCp(); fillLocs();
-  notifyCheckpointChange({ type:'rename', added:[], removed:[], renamed:changes }, '套用建議名稱');
-  SEC.toast('✨ 已套用建議名稱並儲存', 'ok');
+  notifyCheckpointChange({ type:'rename', added:[], removed:[], renamed:changes }, 'suggested');
+  SEC.toast('✨ ' + t('已套用建議名稱並儲存', 'Suggested names applied and saved', 'បានប្រើឈ្មោះស្នើ និងរក្សាទុក'), 'ok');
 }
 function saveChips() {
   var changes = [];
@@ -845,38 +1020,40 @@ function saveChips() {
     if (o.pendingName === undefined || o.pendingName === (o.name || '')) return;
     changes.push({ c:c, from:o.name || '', name:o.pendingName });
   });
-  if (!changes.length) { SEC.toast('ℹ️ 沒有待儲存的 checkpoint 名稱變更', 'warn'); return; }
-  var msg = '確認儲存 checkpoint 名稱變更？\n\n' + changes.map(function (x) {
-    return '· ' + x.c + '：' + (x.from || '（空白）') + ' → ' + (x.name || '（空白）');
+  if (!changes.length) { SEC.toast('ℹ️ ' + t('沒有待儲存的巡邏點名稱變更', 'No checkpoint name changes to save', 'គ្មានការប្តូរឈ្មោះត្រូវរក្សាទុកទេ'), 'warn'); return; }
+  var blank = t('（空白）', '(blank)', '(ទទេ)');
+  var msg = t('確認儲存巡邏點名稱變更？', 'Save these checkpoint name changes?', 'រក្សាទុកការប្តូរឈ្មោះចំណុចល្បាតមែនទេ?') + '\n\n' + changes.map(function (x) {
+    return '· ' + x.c + ': ' + (dispName(x.from) || blank) + ' → ' + (dispName(x.name) || blank);
   }).join('\n');
   if (!confirm(msg)) return;
   changes.forEach(function (x) { CHIP[x.c].name = x.name; delete CHIP[x.c].pendingName; });
   saveChip(); rebuild();
-  notifyCheckpointChange({ type:'rename', added:[], removed:[], renamed:changes }, '手動命名儲存');
-  SEC.toast('💾 checkpoint 名稱已儲存', 'ok');
+  notifyCheckpointChange({ type:'rename', added:[], removed:[], renamed:changes }, 'manual-rename');
+  SEC.toast('💾 ' + t('巡邏點名稱已儲存', 'Checkpoint names saved', 'បានរក្សាទុកឈ្មោះចំណុចល្បាត'), 'ok');
 }
 function toggleChip(c) {
   var o = CHIP[c]; if (!o) return;
   var next = o.active === false;
   var history = SCAN.filter(function (s) { return s.c === c; }).length;
   var msg = next ?
-    '確認重新啟用 checkpoint ' + c + '？它會重新列入新的應打點數。' :
-    '確認停用 checkpoint ' + c + '？' + (history ? '\n已有 ' + history + ' 筆歷史打點，系統不會刪除，只是不再列入新的漏點計算。' : '') +
-    '\n變更會寫入本機並通知保安群組。';
+    t('確認重新啟用巡邏點 ' + c + '？它會重新列入新的應打點數。', 'Re-enable checkpoint ' + c + '? It will count toward expected scans again.', 'បើកប្រើចំណុច ' + c + ' ឡើងវិញមែនទេ? វានឹងត្រូវរាប់ម្តងទៀត។') :
+    t('確認停用巡邏點 ' + c + '？', 'Disable checkpoint ' + c + '?', 'បិទចំណុច ' + c + ' មែនទេ?') +
+      (history ? '\n' + t('已有 ' + history + ' 筆歷史打點，系統不會刪除，只是不再列入新的漏點計算。', history + ' past scans are kept; it is simply no longer counted as missed.', 'ការស្កេនចាស់ ' + history + ' ត្រូវរក្សាទុក តែលែងរាប់ជាខកខាន។') : '') +
+      '\n' + t('變更會寫入本機並通知保安群組。', 'The change is saved and the security group is notified.', 'ការផ្លាស់ប្តូរនឹងរក្សាទុក ហើយជូនដំណឹងក្រុមសន្តិសុខ។');
   if (!confirm(msg)) return;
   o.active = next;
   saveChip(); rebuild();
-  notifyCheckpointChange({ type:next ? 'reactivate' : 'deactivate', added:next ? [c] : [], removed:next ? [] : [c], renamed:[] }, next ? '手動重新啟用' : '手動停用');
-  SEC.toast(next ? '✅ checkpoint 已重新啟用' : '⏸ checkpoint 已停用（歷史保留）', 'ok');
+  notifyCheckpointChange({ type:next ? 'reactivate' : 'deactivate', added:next ? [c] : [], removed:next ? [] : [c], renamed:[] }, next ? 'manual-enable' : 'manual-disable');
+  SEC.toast(next ? '✅ ' + t('巡邏點已重新啟用', 'Checkpoint re-enabled', 'បានបើកប្រើចំណុចឡើងវិញ') : '⏸ ' + t('巡邏點已停用（歷史保留）', 'Checkpoint disabled (history kept)', 'បានបិទចំណុច (រក្សាប្រវត្តិ)'), 'ok');
 }
 function deleteChip(c) {
   var o = CHIP[c]; if (!o) return;
   var history = SCAN.some(function (s) { return s.c === c; });
   if (history) { toggleChip(c); return; }
-  if (!confirm('確認永久刪除尚無巡邏紀錄的 checkpoint ' + c + '？此動作無法復原。')) return;
+  if (!confirm(t('確認永久刪除尚無巡邏紀錄的巡邏點 ' + c + '？此動作無法復原。', 'Permanently delete checkpoint ' + c + ' (no scans yet)? This cannot be undone.', 'លុបចំណុច ' + c + ' ជាអចិន្ត្រៃយ៍មែនទេ? មិនអាចត្រឡប់វិញបានទេ។'))) return;
   delete CHIP[c]; saveChip(); rebuild();
-  notifyCheckpointChange({ type:'delete', added:[], removed:[c], renamed:[] }, '手動刪除');
-  SEC.toast('🗑 checkpoint 已刪除', 'ok');
+  notifyCheckpointChange({ type:'delete', added:[], removed:[c], renamed:[] }, 'manual-delete');
+  SEC.toast('🗑 ' + t('巡邏點已刪除', 'Checkpoint deleted', 'បានលុបចំណុចល្បាត'), 'ok');
 }
 function checkpointNameUseful(v) {
   var s = SEC.str(v).trim();
@@ -893,12 +1070,14 @@ function checkpointDiff(incomingOrder) {
 function reconcileCheckpoints(incomingOrder, incomingNames, source) {
   var diff = checkpointDiff(incomingOrder);
   if (!diff.added.length && !diff.removed.length && !diff.orderChanged) return { changed:false, confirmed:true, diff:diff };
-  var lines = ['最新巡邏檔：' + source, '現行啟用 checkpoint：' + chipOrder().length + ' 個', '檔案 checkpoint：' + incomingOrder.length + ' 個'];
-  if (diff.added.length) lines.push('新增／重新啟用：\n· ' + diff.added.join('\n· '));
-  if (diff.removed.length) lines.push('將停用（歷史資料保留，不再列入新漏點）：\n· ' + diff.removed.join('\n· '));
-  if (diff.orderChanged) lines.push('順序：檔案順序與目前順序不同，將以最新檔案順序為準。');
-  lines.push('確認後才會更新 checkpoint 標準；取消則只匯入打點，不改現行標準。');
-  if (!confirm('⚠️ CHECKPOINT 有變動，請確認\n\n' + lines.join('\n'))) return { changed:true, confirmed:false, diff:diff };
+  var lines = [t('最新巡邏檔：', 'Latest patrol file: ', 'ឯកសារល្បាតចុងក្រោយ៖ ') + source,
+    t('現行啟用巡邏點：' + chipOrder().length + ' 個', 'Active checkpoints now: ' + chipOrder().length, 'ចំណុចកំពុងប្រើ៖ ' + chipOrder().length),
+    t('檔案巡邏點：' + incomingOrder.length + ' 個', 'Checkpoints in file: ' + incomingOrder.length, 'ចំណុចក្នុងឯកសារ៖ ' + incomingOrder.length)];
+  if (diff.added.length) lines.push(t('新增／重新啟用：', 'Added / re-enabled:', 'បន្ថែម / បើកឡើងវិញ៖') + '\n· ' + diff.added.join('\n· '));
+  if (diff.removed.length) lines.push(t('將停用（歷史資料保留，不再列入新漏點）：', 'Will be disabled (history kept, no longer counted as missed):', 'នឹងបិទ (រក្សាប្រវត្តិ លែងរាប់ជាខកខាន)៖') + '\n· ' + diff.removed.join('\n· '));
+  if (diff.orderChanged) lines.push(t('順序：檔案順序與目前順序不同，將以最新檔案順序為準。', 'Order: the file order differs and will become the new order.', 'លំដាប់៖ លំដាប់ក្នុងឯកសារខុសពីបច្ចុប្បន្ន ហើយនឹងក្លាយជាលំដាប់ថ្មី។'));
+  lines.push(t('確認後才會更新巡邏點標準；取消則只匯入打點，不改現行標準。', 'Confirm to update the checkpoint standard; Cancel imports scans only and keeps the current standard.', 'បញ្ជាក់ដើម្បីធ្វើបច្ចុប្បន្នភាព; បោះបង់ = នាំចូលតែការស្កេន ហើយរក្សាស្តង់ដារបច្ចុប្បន្ន។'));
+  if (!confirm('⚠️ ' + t('巡邏點有變動，請確認', 'Checkpoint changes — please confirm', 'មានការផ្លាស់ប្តូរចំណុចល្បាត — សូមបញ្ជាក់') + '\n\n' + lines.join('\n'))) return { changed:true, confirmed:false, diff:diff };
   incomingOrder.forEach(function (c, i) {
     if (!CHIP[c]) CHIP[c] = { name:'', n:0, active:true };
     CHIP[c].active = true; CHIP[c].seq = i + 1; CHIP[c].seqLocked = true;
@@ -909,29 +1088,37 @@ function reconcileCheckpoints(incomingOrder, incomingNames, source) {
   notifyCheckpointChange({ type:'import', added:diff.added, removed:diff.removed, renamed:[], orderChanged:diff.orderChanged }, source);
   return { changed:true, confirmed:true, diff:diff };
 }
+/* 巡邏點變更通知：以目前介面語言發送單一語言訊息。 */
 function notifyCheckpointChange(change, source) {
-  var added = (change.added || []).map(function (c) { return chipName(c) + ' [' + c + ']'; });
-  var removed = (change.removed || []).map(function (c) { return chipName(c) + ' [' + c + ']'; });
-  var renamed = (change.renamed || []).map(function (x) { return x.c + '：' + (x.from || '') + ' → ' + (x.name || ''); });
-  var lines = ['⚠️ <b>Patrol checkpoint change / 巡邏點變更</b>', '來源 Source：' + SEC.esc(source || 'Patrol'), '現行啟用 Active：' + chipOrder().length];
-  if (added.length) lines.push('➕ 新增／啟用 Added：\n· ' + added.join('\n· '));
-  if (removed.length) lines.push('⏸ 停用 Disabled（歷史保留）：\n· ' + removed.join('\n· '));
-  if (renamed.length) lines.push('✏️ 名稱 Renamed：\n· ' + renamed.join('\n· '));
-  if (change.orderChanged) lines.push('↕️ 順序已按最新巡邏檔更新。');
+  var l = SEC.lang();
+  var SRC = { suggested:pt(l,'套用建議名稱','Suggested names applied','ប្រើឈ្មោះស្នើ'), 'manual-rename':pt(l,'手動命名儲存','Manual rename','ប្តូរឈ្មោះដោយដៃ'),
+    'manual-enable':pt(l,'手動重新啟用','Manually re-enabled','បើកឡើងវិញដោយដៃ'), 'manual-disable':pt(l,'手動停用','Manually disabled','បិទដោយដៃ'), 'manual-delete':pt(l,'手動刪除','Manually deleted','លុបដោយដៃ') };
+  var added = (change.added || []).map(function (c) { return chipName(c, l) + ' [' + c + ']'; });
+  var removed = (change.removed || []).map(function (c) { return chipName(c, l) + ' [' + c + ']'; });
+  var renamed = (change.renamed || []).map(function (x) { return x.c + ': ' + dispName(x.from || '', l) + ' → ' + dispName(x.name || '', l); });
+  var lines = ['⚠️ <b>' + pt(l, '巡邏點變更', 'Patrol checkpoint change', 'ការផ្លាស់ប្តូរចំណុចល្បាត') + '</b>',
+    pt(l, '來源：', 'Source: ', 'ប្រភព៖ ') + SEC.esc(SRC[source] || source || 'Patrol'), pt(l, '現行啟用：', 'Active: ', 'កំពុងប្រើ៖ ') + chipOrder().length];
+  if (added.length) lines.push('➕ ' + pt(l, '新增／啟用：', 'Added:', 'បន្ថែម៖') + '\n· ' + added.map(SEC.esc).join('\n· '));
+  if (removed.length) lines.push('⏸ ' + pt(l, '停用（歷史保留）：', 'Disabled (history kept):', 'បានបិទ (រក្សាប្រវត្តិ)៖') + '\n· ' + removed.map(SEC.esc).join('\n· '));
+  if (renamed.length) lines.push('✏️ ' + pt(l, '名稱：', 'Renamed:', 'ប្តូរឈ្មោះ៖') + '\n· ' + renamed.map(SEC.esc).join('\n· '));
+  if (change.orderChanged) lines.push('↕️ ' + pt(l, '順序已按最新巡邏檔更新。', 'Order updated from the latest patrol file.', 'លំដាប់ត្រូវបានធ្វើបច្ចុប្បន្នភាពតាមឯកសារចុងក្រោយ។'));
   if (added.length || removed.length || renamed.length || change.orderChanged) {
     SEC.tgSummary(lines.join('\n'), 'patrol');
   }
 }
 
+function nightKeyOf(r) {
+  var d = r.date;
+  if (r.hour < 6) { var dd = new Date(d.replace(/-/g, '/')); dd.setDate(dd.getDate() - 1); d = SEC.ymd(dd); }
+  return d;
+}
 function renderNight() {
   var min = parseInt(document.getElementById('nightMin').value, 10) || 12;
-  var TC = totalCp();
   var list = inPeriodR().filter(function (r) { return r.night; });
   /* 夜別歸屬：00:00-06:00 算前一天的夜 */
   var byN = {};
   list.forEach(function (r) {
-    var d = r.date;
-    if (r.hour < 6) { var dd = new Date(d.replace(/-/g, '/')); dd.setDate(dd.getDate() - 1); d = SEC.ymd(dd); }
+    var d = nightKeyOf(r);
     if (!byN[d]) byN[d] = { rounds: [], guards: {} };
     byN[d].rounds.push(r); byN[d].guards[r.g] = 1;
   });
@@ -955,12 +1142,12 @@ function renderNight() {
 
   var nh = document.getElementById('nightHead');
   if (PER.mode === 'month' || PER.mode === 'year') {
-    nh.innerHTML = '<tr><th>期間 Period</th><th>夜巡圈 Night rounds</th><th>達標夜數 Compliant</th><th>不足夜數 Short</th><th>最長空檔 Longest gap</th><th>值班人員 Guards</th></tr>';
+    nh.innerHTML = '<tr><th>' + t('期間', 'Period', 'រយៈពេល') + '</th><th>' + t('夜巡圈', 'Night rounds', 'ជុំយប់') + '</th><th>' + t('達標夜數', 'Compliant', 'គ្រប់ចំនួន') + '</th><th>' +
+      t('不足夜數', 'Short', 'មិនគ្រប់') + '</th><th>' + t('最長空檔', 'Longest gap', 'គម្លាតវែងបំផុត') + '</th><th>' + t('值班人員', 'Guards', 'អ្នកល្បាត') + '</th></tr>';
     var rows = patrolPeriodKeys(PER.mode).map(function (key) {
       var p = new SEC.Period(PER.mode, patrolPeriodDate(PER.mode, key)), by = {};
       ROUNDS.filter(function (r) { return p.has(r.date) && r.night; }).forEach(function (r) {
-        var d = r.date;
-        if (r.hour < 6) { var dd = new Date(d.replace(/-/g, '/')); dd.setDate(dd.getDate() - 1); d = SEC.ymd(dd); }
+        var d = nightKeyOf(r);
         if (!by[d]) by[d] = { n:0, g:{} };
         by[d].n++;
         if (r.g) by[d].g[r.g] = 1;
@@ -971,62 +1158,54 @@ function renderNight() {
       return '<tr' + (active ? ' style="background:#eef8fc;font-weight:700"' : '') + ' onclick="jumpPatrolPeriod(\'' + SEC.esc(key) + '\')">' +
         '<td><b>' + SEC.esc(key) + '</b>' + (active ? ' ◀' : '') + '</td><td>' + total + '</td>' +
         '<td style="color:var(--ok)">' + (days.length - shortN.length) + '</td><td style="color:' + (shortN.length ? 'var(--err)' : 'inherit') + '">' + shortN.length + '</td>' +
-        '<td>—</td><td>' + SEC.esc(Object.keys(guards).join('、') || '—') + '</td></tr>';
+        '<td>—</td><td>' + SEC.esc(listJoin(Object.keys(guards)) || '—') + '</td></tr>';
     }).join('');
     document.getElementById('tbNight').innerHTML = rows || '<tr><td colspan="6" class="empty">' + SEC.T().noData + '</td></tr>';
     return;
   }
-  nh.innerHTML = '<tr><th>夜別</th><th>值班人員</th><th class="num">圈數</th><th class="num">門檻</th><th class="num">漏點圈</th><th>最長空檔</th><th>判定</th></tr>';
+  nh.innerHTML = '<tr><th>' + t('夜別', 'Night', 'យប់') + '</th><th>' + t('值班人員', 'Guards', 'អ្នកល្បាត') + '</th><th class="num">' + t('圈數', 'Rounds', 'ជុំ') + '</th><th class="num">' +
+    t('門檻', 'Min', 'អប្បបរមា') + '</th><th class="num">' + t('漏點圈', 'Incomplete', 'ជុំខ្វះ') + '</th><th>' + t('最長空檔', 'Max gap', 'គម្លាតវែងបំផុត') + '</th><th>' + t('判定', 'Result', 'លទ្ធផល') + '</th></tr>';
   var tb = document.getElementById('tbNight');
   tb.innerHTML = ks.length ? ks.map(function (k) {
     var o = byN[k], n = o.rounds.length, ok = n >= min;
     var bad = o.rounds.filter(function (r) { return !roundComplete(r); }).length;
     return '<tr' + (ok ? '' : ' style="background:#fff5f5"') + '>' +
-      '<td>' + k + ' 夜</td><td>' + SEC.esc(Object.keys(o.guards).join('、')) + '</td>' +
+      '<td>' + t(k + ' 夜', k + ' night', 'យប់ ' + k) + '</td><td>' + SEC.esc(listJoin(Object.keys(o.guards))) + '</td>' +
       '<td class="num"><b>' + n + '</b></td><td class="num">' + min + '</td>' +
       '<td class="num">' + (bad ? '<span class="tag err">' + bad + '</span>' : '0') + '</td>' +
       '<td>' + (o.gap > 90 ? '<span class="tag err">' + o.gap + '′</span>' : o.gap + '′') + '</td>' +
-      '<td>' + (ok ? '<span class="tag ok">✅ 達標</span>' : '<span class="tag err">⛔ 不足 -' + (min - n) + '</span>') + '</td></tr>';
-  }).join('') : '<tr><td colspan="7" class="empty">此期間無夜間巡邏記錄</td></tr>';
+      '<td>' + (ok ? '<span class="tag ok">✅ ' + t('達標', 'Met', 'គ្រប់') + '</span>' : '<span class="tag err">⛔ ' + t('不足', 'Short', 'មិនគ្រប់') + ' -' + (min - n) + '</span>') + '</td></tr>';
+  }).join('') : '<tr><td colspan="7" class="empty">' + SEC.esc(t('此期間無夜間巡邏記錄', 'No night patrols in this period', 'គ្មានការល្បាតពេលយប់ក្នុងរយៈពេលនេះ')) + '</td></tr>';
 }
 
 function renderManual() {
   var list = MAN.filter(function (r) { return PER.has(r.date); });
-  var mh = document.getElementById('manualHead');
-  if (false && (PER.mode === 'month' || PER.mode === 'year')) {
-    mh.innerHTML = '<tr><th>期間 Period</th><th class="num">人工記錄 Manual</th><th class="num">異常 Issues</th><th>人員 Guards</th></tr>';
-    document.getElementById('tbManual').innerHTML = patrolPeriodKeys(PER.mode).map(function (key) {
-      var p = new SEC.Period(PER.mode, patrolPeriodDate(PER.mode, key)), rows = MAN.filter(function (r) { return p.has(r.date); }), guards = {};
-      rows.forEach(function (r) { if (r.guard) guards[r.guard] = 1; });
-      var active = key === PER.key();
-      return '<tr' + (active ? ' style="background:#eef8fc;font-weight:700"' : '') + ' onclick="jumpPatrolPeriod(\'' + SEC.esc(key) + '\')"><td><b>' + SEC.esc(key) + '</b>' + (active ? ' ◀' : '') + '</td><td class="num">' + rows.length + '</td><td class="num">' + rows.filter(function (r) { return r.status === 'issue'; }).length + '</td><td>' + SEC.esc(Object.keys(guards).join('、') || '—') + '</td></tr>';
-    }).join('') || '<tr><td colspan="4" class="empty">' + SEC.T().noData + '</td></tr>';
-    return;
-  }
-  mh.innerHTML = '<tr><th>日期</th><th>時間</th><th>班別</th><th>巡邏員</th><th>巡邏點</th><th>狀態</th><th>備註</th><th></th></tr>';
+  document.getElementById('manualHead').innerHTML = '<tr><th>' + t('日期', 'Date', 'កាលបរិច្ឆេទ') + '</th><th>' + t('時間', 'Time', 'ម៉ោង') + '</th><th>' + t('班別', 'Shift', 'វេន') + '</th><th>' +
+    t('巡邏員', 'Guard', 'អ្នកល្បាត') + '</th><th>' + t('巡邏點', 'Checkpoint', 'ចំណុចល្បាត') + '</th><th>' + t('狀態', 'Status', 'ស្ថានភាព') + '</th><th>' + t('備註', 'Remark', 'កំណត់ចំណាំ') + '</th><th></th></tr>';
   var tb = document.getElementById('tbManual');
   tb.innerHTML = list.length ? list.slice().sort(function (a, b) { return (b.date + b.time).localeCompare(a.date + a.time); })
     .map(function (r) {
-      return '<tr><td>' + SEC.esc(r.date) + '</td><td>' + SEC.esc(r.time || '') + '</td>' +
-        '<td>' + (r.shift === 'N' ? '🌙 夜' : '☀️ 日') + '</td><td>' + SEC.esc(r.guard || '') + '</td>' +
-        '<td>' + SEC.esc(r.location || '') + '</td>' +
-        '<td>' + (r.status === 'issue' ? '<span class="tag err">⚠️ 異常</span>' : '<span class="tag ok">✅ 正常</span>') + '</td>' +
+      var id = SEC.esc(String(r.id).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+      return '<tr' + (r.id === MAN_EDIT_ID ? ' style="background:#fff7ed"' : '') + '><td>' + SEC.esc(r.date) + '</td><td>' + SEC.esc(r.time || '') + '</td>' +
+        '<td>' + (r.shift === 'N' ? '🌙 ' + t('夜', 'Night', 'យប់') : '☀️ ' + t('日', 'Day', 'ថ្ងៃ')) + '</td><td>' + SEC.esc(r.guard || '') + '</td>' +
+        '<td>' + SEC.esc(dispName(r.location || '')) + '</td>' +
+        '<td>' + (r.status === 'issue' ? '<span class="tag err">⚠️ ' + t('異常', 'Issue', 'បញ្ហា') + '</span>' : '<span class="tag ok">✅ ' + t('正常', 'Normal', 'ធម្មតា') + '</span>') + '</td>' +
         '<td>' + SEC.esc(r.note || '') + (r.photos && r.photos.length ? ' 📷' + r.photos.length : '') + '</td>' +
-        '<td><button class="btn sm gh" onclick="editMan(\'' + r.id + '\')">✏️</button> <button class="btn sm err" onclick="delMan(\'' + r.id + '\')">×</button></td></tr>';
+        '<td style="white-space:nowrap"><button class="btn sm gh" title="' + SEC.esc(t('編輯', 'Edit', 'កែ')) + '" onclick="editMan(\'' + id + '\')">✏️</button> <button class="btn sm err" title="' + SEC.esc(t('刪除', 'Delete', 'លុប')) + '" onclick="delMan(\'' + id + '\')">🗑</button></td></tr>';
     }).join('') : '<tr><td colspan="8" class="empty">' + SEC.T().noData + '</td></tr>';
 }
 
 function renderAna() {
-  var list = inPeriodR(), TC = totalCp();
+  var list = inPeriodR();
   var byD = {};
   list.forEach(function (r) { byD[r.date] = (byD[r.date] || 0) + 1; });
   var ds = Object.keys(byD).sort();
-  chart('ch1', 'line', ds, [{ label: '巡邏圈數', data: ds.map(function (d) { return byD[d]; }),
+  chart('ch1', 'line', ds, [{ label: t('巡邏圈數', 'Rounds', 'ជុំ'), data: ds.map(function (d) { return byD[d]; }),
     borderColor: '#1e6f8e', backgroundColor: 'rgba(30,111,142,.14)', fill: true, tension: .3 }]);
   var byH = new Array(24).fill(0);
-  SCAN.forEach(function (s) { if (PER.has(s.t.slice(0, 10))) byH[parseInt(s.t.slice(11, 13), 10)]++; });
+  SCAN.forEach(function (s) { if (s.t && PER.has(s.t.slice(0, 10))) byH[parseInt(s.t.slice(11, 13), 10)]++; });
   chart('ch2', 'bar', byH.map(function (_, i) { return SEC.p2(i); }),
-    [{ label: '打點數', data: byH, backgroundColor: byH.map(function (_, i) { return (i >= 22 || i < 6) ? '#0f2b46' : '#2a8fb0'; }) }]);
+    [{ label: t('打點數', 'Scans', 'ការស្កេន'), data: byH, backgroundColor: byH.map(function (_, i) { return (i >= 22 || i < 6) ? '#0f2b46' : '#2a8fb0'; }) }]);
   var byG = {};
   list.forEach(function (r) {
     if (!byG[r.g]) byG[r.g] = { n: 0, full: 0, night: 0, dur: 0 };
@@ -1034,7 +1213,10 @@ function renderAna() {
     if (r.night) byG[r.g].night++; byG[r.g].dur += r.dur;
   });
   var gk = Object.keys(byG).sort(function (a, b) { return byG[b].n - byG[a].n; });
-  chart('ch3', 'bar', gk, [{ label: '圈數', data: gk.map(function (k) { return byG[k].n; }), backgroundColor: '#1e6f8e' }]);
+  chart('ch3', 'bar', gk, [{ label: t('圈數', 'Rounds', 'ជុំ'), data: gk.map(function (k) { return byG[k].n; }), backgroundColor: '#1e6f8e' }]);
+  document.getElementById('guardHead').innerHTML = '<tr><th>' + t('巡邏員', 'Guard', 'អ្នកល្បាត') + '</th><th class="num">' + t('總圈數', 'Rounds', 'ជុំសរុប') + '</th><th class="num">' +
+    t('完整圈', 'Complete', 'ពេញលេញ') + '</th><th class="num">' + t('漏點圈', 'Incomplete', 'ខ្វះ') + '</th><th class="num">' + t('夜巡圈', 'Night', 'យប់') + '</th><th class="num">' +
+    t('平均耗時', 'Avg. time', 'ពេលមធ្យម') + '</th><th>' + t('完整率', 'Rate', 'អត្រា') + '</th></tr>';
   document.getElementById('tbGuard').innerHTML = gk.length ? gk.map(function (k) {
     var g = byG[k], pct = Math.round(g.full / g.n * 100);
     return '<tr><td><b>' + SEC.esc(k) + '</b></td><td class="num">' + g.n + '</td><td class="num">' + g.full + '</td>' +
@@ -1054,7 +1236,7 @@ function renderHeat(list) {
   var ks = Object.keys(days).sort().slice(-31);
   var el = document.getElementById('heat');
   if (!ks.length) { el.innerHTML = '<tbody><tr><td class="empty">' + SEC.T().noData + '</td></tr></tbody>'; return; }
-  var head = '<thead><tr><th style="text-align:left">日期</th>' +
+  var head = '<thead><tr><th style="text-align:left">' + t('日期', 'Date', 'កាលបរិច្ឆេទ') + '</th>' +
     Array.from({ length: 24 }, function (_, i) { return '<th class="num">' + SEC.p2(i) + '</th>'; }).join('') + '</tr></thead>';
   var body = '<tbody>' + ks.map(function (d) {
     return '<tr><td style="text-align:left;white-space:nowrap">' + d.slice(5) + '</td>' +
@@ -1067,7 +1249,7 @@ function renderHeat(list) {
 }
 function chart(id, type, labels, ds) {
  var el = document.getElementById(id); if (!el) return;
-  if (typeof Chart === 'undefined') { el.parentNode.innerHTML = '<div class="empty" style="padding:30px">📊 圖表元件未載入，表格功能仍可使用；請重新整理後再試。</div>'; return; }
+  if (typeof Chart === 'undefined') { el.parentNode.innerHTML = '<div class="empty" style="padding:30px">📊 ' + SEC.esc(t('圖表元件未載入，表格功能仍可使用；請重新整理後再試。', 'Charts did not load; tables still work. Please refresh and try again.', 'ក្រាហ្វមិនបានផ្ទុក; តារាងនៅតែប្រើបាន។ សូមផ្ទុកទំព័រឡើងវិញ។')) + '</div>'; return; }
   if (CH[id]) CH[id].destroy();
   CH[id] = new Chart(el, { type: type, data: { labels: labels, datasets: ds },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
@@ -1076,10 +1258,10 @@ function chart(id, type, labels, ds) {
 function renderDbInfo() {
   var kb = Math.round((JSON.stringify(SCAN).length + JSON.stringify(MAN).length) / 1024);
   var active = chipOrder().length, inactive = allChipOrder().length - active;
-  document.getElementById('dbInfo').innerHTML =
-    '目前本機：巡更棒打點 <b>' + SCAN.length + '</b> 筆 · 巡邏圈 <b>' + ROUNDS.length + '</b> 圈 · 人工登錄 <b>' + MAN.length +
-    '</b> 筆 · 啟用 checkpoint <b>' + active + '</b> 個' + (inactive ? ' · 停用保留 <b>' + inactive + '</b> 個' : '') +
-    ' · 佔用約 <b>' + kb + ' KB</b>';
+  document.getElementById('dbInfo').innerHTML = t(
+    '目前本機：巡更棒打點 <b>' + SCAN.length + '</b> 筆 · 巡邏圈 <b>' + ROUNDS.length + '</b> 圈 · 人工登錄 <b>' + MAN.length + '</b> 筆 · 啟用巡邏點 <b>' + active + '</b> 個' + (inactive ? ' · 停用保留 <b>' + inactive + '</b> 個' : '') + ' · 佔用約 <b>' + kb + ' KB</b>',
+    'On this device: <b>' + SCAN.length + '</b> wand scans · <b>' + ROUNDS.length + '</b> rounds · <b>' + MAN.length + '</b> manual entries · <b>' + active + '</b> active checkpoints' + (inactive ? ' · <b>' + inactive + '</b> retired' : '') + ' · about <b>' + kb + ' KB</b>',
+    'នៅលើឧបករណ៍នេះ៖ ការស្កេន <b>' + SCAN.length + '</b> · ជុំ <b>' + ROUNDS.length + '</b> · បញ្ចូលដោយដៃ <b>' + MAN.length + '</b> · ចំណុចកំពុងប្រើ <b>' + active + '</b>' + (inactive ? ' · បានបិទ <b>' + inactive + '</b>' : '') + ' · ប្រហែល <b>' + kb + ' KB</b>');
 }
 
 /* ═══════════ 巡更棒匯入 ═══════════ */
@@ -1141,37 +1323,41 @@ function wandChip(v) {
 }
 function impWand() {
   SEC.pickExcel(function (sheets) {
-    var seen = {}, added = 0, dup = 0, badTime = 0, badChip = 0, log = [], importedDates = {},
+    var added = 0, dup = 0, badTime = 0, badChip = 0, log = [], importedDates = {},
       incomingOrder = [], incomingNames = {};
-    SCAN.forEach(function (s) { seen[s.t + '|' + patrolCanonicalChip(s.c, String(s.t || '').slice(0, 10))] = 1; });
+    /* 已有打點建立分鐘精度索引：同一 Chip 相差 ≤59 秒視為重複（新舊匯入方式差幾秒也不會重複）。 */
+    var seen = new ScanIndex();
+    SCAN.forEach(function (s) { if (s && s.t) seen.add(s.t, scanChip(s), s); });
     sheets.forEach(function (sh) {
       var rows = sh.rows, hdr = wandHeaderMap(rows), hr = hdr.row, map = hdr.map;
-      if (hr < 0 || map.time === undefined || map.chip === undefined) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：找不到巡檢時間／Chip ID 欄位，略過'); return; }
+      if (hr < 0 || map.time === undefined || map.chip === undefined) {
+        log.push('· <b>' + SEC.esc(sh.name) + '</b>: ' + SEC.esc(t('找不到巡檢時間／Chip ID 欄位，略過', 'no patrol time / Chip ID column found, skipped', 'រកមិនឃើញជួរម៉ោងល្បាត / Chip ID ទេ រំលង'))); return; }
       var n = 0, d0 = 0, sheetBadTime = 0, sheetBadChip = 0;
       var dataRow = hdr.dataRow !== undefined ? hdr.dataRow : hr + 1;
       for (var i = dataRow; i < rows.length; i++) {
         var R = rows[i] || [];
-        var t = wandTime(R[map.time]);
-        if (!t) { sheetBadTime++; badTime++; continue; }
-        var chip = patrolCanonicalChip(wandChip(R[map.chip]), t.slice(0, 10)); if (!chip) { sheetBadChip++; badChip++; continue; }
+        var tm = wandTime(R[map.time]);
+        if (!tm) { sheetBadTime++; badTime++; continue; }
+        var chip = patrolCanonicalChip(wandChip(R[map.chip]), tm.slice(0, 10)); if (!chip) { sheetBadChip++; badChip++; continue; }
         var g = SEC.str(R[map.person]);
-        importedDates[t.slice(0, 10)] = (importedDates[t.slice(0, 10)] || 0) + 1;
+        importedDates[tm.slice(0, 10)] = (importedDates[tm.slice(0, 10)] || 0) + 1;
         if (incomingOrder.indexOf(chip) < 0) incomingOrder.push(chip);
         var pointName = SEC.str(map.point === undefined ? '' : R[map.point]);
         if (checkpointNameUseful(pointName) && !incomingNames[chip]) incomingNames[chip] = pointName;
-        var key = t + '|' + chip;
-        /* 月總表與每日分頁通常包含同一批打點；同一時間＋Chip 只保留一筆。 */
-        if (seen[key]) { d0++; dup++; continue; }
-        seen[key] = 1;
+        /* 月總表與每日分頁通常包含同一批打點；同一分鐘＋Chip 只保留一筆。 */
+        if (seen.find(tm, chip, g)) { d0++; dup++; continue; }
         var ev = SEC.str(R[map.event]);
-        SCAN.push({ t: t, g: g, c: chip, e: /night|夜/i.test(ev) ? 'N' : 'D',
-                    r: SEC.str(R[map.reader]) });
+        var rec = { t: tm, g: g, c: chip, e: /night|夜|យប់/i.test(ev) ? 'N' : 'D', r: SEC.str(R[map.reader]) };
+        seen.add(tm, chip, rec);
+        SCAN.push(rec);
         n++; added++;
       }
-      log.push('· <b>' + SEC.esc(sh.name) + '</b>：新增 <b>' + n + '</b> 筆' + (d0 ? '（重複略過 ' + d0 + '）' : '') +
-        (sheetBadTime ? ' · 日期格式略過 ' + sheetBadTime : '') + (sheetBadChip ? ' · 無 Chip ID 略過 ' + sheetBadChip : '') +
-        '（標題第 ' + (hr + 1) + (hdr.dualHeader ? '、' + (hr + 2) : '') + ' 列' +
-        (hdr.fallback ? '，固定欄位備援' : '') + '）');
+      log.push('· <b>' + SEC.esc(sh.name) + '</b>: ' + t('新增 <b>' + n + '</b> 筆', '<b>' + n + '</b> added', 'បន្ថែម <b>' + n + '</b>') +
+        (d0 ? ' · ' + t('重複略過 ', 'duplicates skipped ', 'ស្ទួនរំលង ') + d0 : '') +
+        (sheetBadTime ? ' · ' + t('日期格式略過 ', 'bad date/time skipped ', 'កាលបរិច្ឆេទមិនត្រឹមត្រូវ ') + sheetBadTime : '') +
+        (sheetBadChip ? ' · ' + t('無 Chip ID 略過 ', 'no Chip ID skipped ', 'គ្មាន Chip ID ') + sheetBadChip : '') +
+        ' (' + t('標題第 ', 'header row ', 'ជួរចំណងជើង ') + (hr + 1) + (hdr.dualHeader ? ', ' + (hr + 2) : '') +
+        (hdr.fallback ? ', ' + t('固定欄位備援', 'fixed-column fallback', 'ប្រើជួរឈរថេរ') : '') + ')');
     });
     var cpChange = reconcileCheckpoints(incomingOrder, incomingNames, sheets.map(function (s) { return s.name; }).join(', '));
     if (cpChange.confirmed) { CP_BASELINE_APPLIED = '20260821a'; SEC.dbPut(LS_CP_BASELINE, CP_BASELINE_APPLIED); }
@@ -1182,15 +1368,17 @@ function impWand() {
     if (importedLatest) jumpPatrolToDate(importedLatest); else jumpPatrolToLatest();
     rebuild();
     if (paintPatrolPeriod) paintPatrolPeriod();
-    document.getElementById('impLog').innerHTML = '<b>匯入結果</b>：新增 <b>' + added + '</b> 筆，去重略過 ' + dup + ' 筆' +
-      '；檔案含 <b>' + incomingOrder.length + '</b> 個 checkpoint' +
-      (cpChange.changed ? (cpChange.confirmed ? '，已確認更新現行標準' : '，未確認變更（只匯入打點）') : '，與現行標準相同') +
-      (badTime || badChip ? '；日期格式略過 ' + badTime + '，無 Chip ID 略過 ' + badChip : '') + '<br>' + log.join('<br>');
-    SEC.toast(added ? '✅ 匯入 ' + added + ' 筆打點（自動去重 ' + dup + '）' :
-      (dup ? 'ℹ️ 檔案資料已存在，本次去重略過 ' + dup + ' 筆' : '⚠ 全部重複或格式不符'),
+    document.getElementById('impLog').innerHTML = '<b>' + t('匯入結果', 'Import result', 'លទ្ធផលនាំចូល') + '</b>: ' +
+      t('新增 <b>' + added + '</b> 筆，去重略過 ' + dup + ' 筆；檔案含 <b>' + incomingOrder.length + '</b> 個巡邏點',
+        '<b>' + added + '</b> added, ' + dup + ' duplicates skipped; file has <b>' + incomingOrder.length + '</b> checkpoints',
+        'បន្ថែម <b>' + added + '</b>, ស្ទួនរំលង ' + dup + '; ឯកសារមាន <b>' + incomingOrder.length + '</b> ចំណុច') +
+      (cpChange.changed ? (cpChange.confirmed ? t('，已確認更新現行標準', '; checkpoint standard updated', '; បានធ្វើបច្ចុប្បន្នភាពស្តង់ដារ') : t('，未確認變更（只匯入打點）', '; changes not confirmed (scans only)', '; មិនបានបញ្ជាក់ (នាំចូលតែការស្កេន)')) : t('，與現行標準相同', '; same as current standard', '; ដូចស្តង់ដារបច្ចុប្បន្ន')) +
+      (badTime || badChip ? t('；日期格式略過 ' + badTime + '，無 Chip ID 略過 ' + badChip, '; bad date/time ' + badTime + ', no Chip ID ' + badChip, '; កាលបរិច្ឆេទមិនត្រឹមត្រូវ ' + badTime + ', គ្មាន Chip ID ' + badChip) : '') + '<br>' + log.join('<br>');
+    SEC.toast(added ? '✅ ' + t('匯入 ' + added + ' 筆打點（自動去重 ' + dup + '）', 'Imported ' + added + ' scans (' + dup + ' duplicates skipped)', 'បាននាំចូល ' + added + ' ការស្កេន (ស្ទួន ' + dup + ')') :
+      (dup ? 'ℹ️ ' + t('檔案資料已存在，本次去重略過 ' + dup + ' 筆', 'This file is already imported; ' + dup + ' duplicates skipped', 'ឯកសារនេះបាននាំចូលរួចហើយ; ស្ទួន ' + dup) : '⚠ ' + t('全部重複或格式不符', 'Nothing imported: duplicates or unrecognised format', 'មិនបាននាំចូល៖ ស្ទួន ឬទម្រង់មិនស្គាល់')),
       added ? 'ok' : (dup ? 'warn' : 'err'), 6500);
     if (added && !chipOrder().some(function (c) { return CHIP[c].name; })) {
-      setTimeout(function () { SEC.toast('👉 請到「📍 巡邏點」分頁替 ' + chipOrder().length + ' 個啟用中的 Chip ID 命名', 'warn', 7000); }, 900);
+      setTimeout(function () { SEC.toast('👉 ' + t('請到「📍 巡邏點」分頁替 ' + chipOrder().length + ' 個啟用中的 Chip ID 命名', 'Name the ' + chipOrder().length + ' active Chip IDs on the 📍 Checkpoints tab', 'សូមដាក់ឈ្មោះ Chip ID ' + chipOrder().length + ' នៅផ្ទាំង 📍 ចំណុចល្បាត'), 'warn', 7000); }, 900);
     }
   });
 }
@@ -1236,7 +1424,7 @@ function impGeneric() {
     var added = 0, updated=0, skipped=0, log = [], importedDates = {};
     sheets.forEach(function (sh) {
       var res = SEC.parseSheet(sh.rows, SPEC, { minScore: 2 });
-      if (!res.rows.length) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：未偵測到資料（分數 ' + res.header.score + '）'); return; }
+      if (!res.rows.length) { log.push('· <b>' + SEC.esc(sh.name) + '</b>: ' + t('未偵測到資料（分數 ', 'no data detected (score ', 'រកមិនឃើញទិន្នន័យ (ពិន្ទុ ') + res.header.score + ')'); return; }
       var n = 0;
       res.rows.forEach(function (o) {
         var d = SEC.parseD(o.date); if (!d) return;
@@ -1244,29 +1432,26 @@ function impGeneric() {
         if (!guard && !loc) return;
         var importedDate = SEC.ymd(d);
         var row={ id: 'X' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-          date: importedDate, time: fmtT(o.time), shift: /夜|night|c/i.test(SEC.str(o.shift)) ? 'N' : 'D',
+          date: importedDate, time: fmtT(o.time), shift: /夜|night|យប់|c/i.test(SEC.str(o.shift)) ? 'N' : 'D',
           guard: guard, location: loc || sh.name,
-          status: /異常|abnorm|issue|fail/i.test(SEC.str(o.status)) ? 'issue' : 'ok',
+          status: /異常|abnorm|issue|fail|បញ្ហា/i.test(SEC.str(o.status)) ? 'issue' : 'ok',
           note: SEC.str(o.note), photos: [], src: sh.name,updatedAt:new Date().toISOString() };
         var old=MAN.filter(function(x){return x.date===row.date&&x.time===row.time&&String(x.guard||'').toLowerCase()===String(row.guard||'').toLowerCase()&&String(x.location||'').toLowerCase()===String(row.location||'').toLowerCase();})[0];
         if(old){if(old.shift===row.shift&&old.status===row.status&&String(old.note||'')===String(row.note||''))skipped++;else{row.id=old.id;row.photos=old.photos||[];Object.assign(old,row);updated++;}}else{MAN.push(row);added++;}
         importedDates[importedDate] = true;
         n++;
       });
-      log.push('· <b>' + SEC.esc(sh.name) + '</b>：匯入 <b>' + n + '</b> 筆（標題第 ' + (res.header.row + 1) + ' 列）');
+      log.push('· <b>' + SEC.esc(sh.name) + '</b>: ' + t('匯入 <b>' + n + '</b> 筆（標題第 ' + (res.header.row + 1) + ' 列）', '<b>' + n + '</b> imported (header row ' + (res.header.row + 1) + ')', 'បាននាំចូល <b>' + n + '</b> (ជួរចំណងជើង ' + (res.header.row + 1) + ')'));
     });
     saveMan(); renderAll();
     Object.keys(importedDates).forEach(function (d) { SEC.scheduleAutoCloudSync(TOOL, 'patrol-generic-import', d); });
-    document.getElementById('impLog').innerHTML = '<b>匯入結果</b><br>' + log.join('<br>');
-    SEC.toast((added||updated)?'✅ 人工巡邏：新增 '+added+'／更新 '+updated+'／略過重複 '+skipped:'ℹ️ 沒有新資料；略過重複 '+skipped,(added||updated)?'ok':'warn',5500);
+    document.getElementById('impLog').innerHTML = '<b>' + t('匯入結果', 'Import result', 'លទ្ធផលនាំចូល') + '</b><br>' + log.join('<br>');
+    SEC.toast((added||updated) ? '✅ ' + t('人工巡邏：新增 '+added+'／更新 '+updated+'／略過重複 '+skipped, 'Manual patrol: '+added+' added / '+updated+' updated / '+skipped+' duplicates skipped', 'ល្បាតដោយដៃ៖ បន្ថែម '+added+' / កែ '+updated+' / ស្ទួន '+skipped)
+      : 'ℹ️ ' + t('沒有新資料；略過重複 '+skipped, 'No new data; '+skipped+' duplicates skipped', 'គ្មានទិន្នន័យថ្មី; ស្ទួន '+skipped),(added||updated)?'ok':'warn',5500);
   });
 }
-function fmtT(v) {
-  if (v === '' || v == null) return '';
-  if (typeof v === 'number' && v > 0 && v < 1) { var m = Math.round(v * 1440); return SEC.p2(Math.floor(m / 60)) + ':' + SEC.p2(m % 60); }
-  var m2 = String(v).match(/(\d{1,2})[:：](\d{2})/);
-  return m2 ? SEC.p2(+m2[1]) + ':' + m2[2] : '';
-}
+/* 時間欄：cellDates:false 時為 Excel 小數（0.354）或日期＋時間序號（46266.354）→ HH:MM */
+function fmtT(v) { return parseTimeHM(v); }
 
 /* ═══════════ 人工登錄 / 異常 ═══════════ */
 function addPhoto(w) {
@@ -1279,9 +1464,54 @@ function refreshPhotos(w) {
     b.onclick = function () { PH[w].splice(+b.dataset.i, 1); refreshPhotos(w); };
   });
 }
-function saveNew(notify) {
+/* ── 人工登錄表單：預設今天／現在／上次巡邏員；編輯狀態（#18）集中管理 ── */
+function resetManForm() {
+  MAN_EDIT_ID = '';
+  document.getElementById('nDate').value = SEC.ymd();
+  document.getElementById('nTime').value = SEC.hm();
+  document.getElementById('nShift').value = (new Date().getHours() >= 18 || new Date().getHours() < 6) ? 'N' : 'D';
+  document.getElementById('nGuard').value = defaultGuard();
+  document.getElementById('nStat').value = 'ok';
+  document.getElementById('nNote').value = '';
+  var loc = document.getElementById('nLoc');
+  Array.prototype.slice.call(loc.options).forEach(function (o) { if (o.dataset.keep) o.remove(); });
+  if (loc.options.length) { var first = Array.prototype.filter.call(loc.options, function (o) { return !o.disabled; })[0]; loc.selectedIndex = first && chipOrder().length ? first.index : 0; }
+  PH.n = []; refreshPhotos('n');
+  paintManEditBanner();
+  var tb = document.getElementById('tbManual'); if (tb && tb.children.length) renderManual();
+}
+function cancelManEdit() { resetManForm(); SEC.toast('↩️ ' + t('已取消編輯', 'Edit cancelled', 'បានបោះបង់ការកែ'), 'ok'); }
+function paintManEditBanner() {
+  var b = document.getElementById('manEditBanner'); if (!b) return;
+  var r = MAN_EDIT_ID ? MAN.filter(function (x) { return x.id === MAN_EDIT_ID; })[0] : null;
+  if (!r) { b.style.display = 'none'; document.getElementById('manEditText').textContent = ''; return; }
+  b.style.display = '';
+  document.getElementById('manEditText').textContent = t('編輯中：', 'Editing: ', 'កំពុងកែ៖ ') + [r.date, r.time, r.guard, dispName(r.location || '')].filter(Boolean).join(' · ');
+}
+function resetIssueForm() {
+  document.getElementById('iDate').value = SEC.ymd();
+  document.getElementById('iTime').value = SEC.hm();
+  document.getElementById('iShift').value = (new Date().getHours() >= 18 || new Date().getHours() < 6) ? 'N' : 'D';
+  document.getElementById('iBy').value = defaultGuard();
+  document.getElementById('iLevel').value = 'normal';
+  document.getElementById('iTitle').value = ''; document.getElementById('iDetail').value = '';
+  PH.i = []; refreshPhotos('i');
+}
+/* 儲存後清單可能變短（空白提示列比一筆資料高）；若畫面已捲到底，瀏覽器會把畫面往上拉，
+   連點的第二下就會點到上方的照片框。儲存期間暫時固定頁面高度避免跳動。 */
+function holdLayout(ms) {
+  var b = document.body, h = document.documentElement.scrollHeight;
+  b.style.minHeight = h + 'px';
+  clearTimeout(holdLayout._t); holdLayout._t = setTimeout(function () { b.style.minHeight = ''; }, ms || 1500);
+}
+function saveNew(notify) { holdLayout(); return guardClick('manSave', function () { return saveNewNow(notify); }); }
+function saveNewNow(notify) {
   var loc = document.getElementById('nLoc').value;
-  if (loc === '__other') { loc = prompt('請輸入巡邏點名稱：') || ''; }
+  if (loc === '__other') {
+    loc = prompt(t('請輸入巡邏點名稱：', 'Enter the checkpoint name:', 'សូមបញ្ចូលឈ្មោះចំណុចល្បាត៖'));
+    if (loc == null) return;
+    loc = String(loc).trim();
+  }
   var old=MAN_EDIT_ID?MAN.filter(function(x){return x.id===MAN_EDIT_ID;})[0]:null;
   var r = { id: old?old.id:'P' + Date.now().toString(36),
     date: document.getElementById('nDate').value, time: document.getElementById('nTime').value,
@@ -1289,73 +1519,110 @@ function saveNew(notify) {
     location: loc, status: document.getElementById('nStat').value,
     note: document.getElementById('nNote').value.trim(), photos: PH.n.slice(),
     by: SEC.getCfg().operator || '', createdAt: old?old.createdAt||SEC.nowStr():SEC.nowStr(),updatedAt:new Date().toISOString() };
-  if (!r.date || !r.guard) { SEC.toast('⚠ 請填日期與巡邏員', 'warn'); return; }
-  if(old)Object.assign(old,r);else{var dup=MAN.filter(function(x){return x.date===r.date&&x.time===r.time&&String(x.guard||'').toLowerCase()===String(r.guard||'').toLowerCase()&&String(x.location||'').toLowerCase()===String(r.location||'').toLowerCase();})[0];if(dup){r.id=dup.id;Object.assign(dup,r);}else MAN.push(r);}MAN_EDIT_ID='';saveMan(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'patrol-manual-save', r.date);
-  SEC.toast('✅ 已儲存', 'ok');
-  document.getElementById('nNote').value = ''; PH.n = []; document.getElementById('nPhotos').innerHTML = '';
+  if (!r.date || !r.guard) { SEC.toast('⚠ ' + t('請填日期與巡邏員', 'Date and guard are required', 'ត្រូវបញ្ចូលកាលបរិច្ឆេទ និងអ្នកល្បាត'), 'warn'); return; }
+  if (!r.location) { SEC.toast('⚠ ' + t('請選擇巡邏點', 'Choose a checkpoint', 'សូមជ្រើសចំណុចល្បាត'), 'warn'); return; }
+  if (old) Object.assign(old, r);
+  else {
+    var dup=MAN.filter(function(x){return x.date===r.date&&x.time===r.time&&String(x.guard||'').toLowerCase()===String(r.guard||'').toLowerCase()&&String(x.location||'').toLowerCase()===String(r.location||'').toLowerCase();})[0];
+    if(dup){r.id=dup.id;Object.assign(dup,r);}else MAN.push(r);
+  }
+  SEC.clearDeleted(TOOL, Object.assign({ _k:'manual' }, r));
+  rememberGuard(r.guard);
+  saveMan(); SEC.scheduleAutoCloudSync(TOOL, 'patrol-manual-save', r.date);
+  resetManForm(); renderAll();
+  SEC.toast('✅ ' + (old ? t('已更新', 'Updated', 'បានកែប្រែ') : t('已儲存', 'Saved', 'បានរក្សាទុក')), 'ok');
   if (notify) {
-    SEC.tgSummary('🚨 <b>巡邏記錄</b>\n─────────────\n📅 ' + r.date + ' ' + r.time +
-      '\n🕐 ' + (r.shift === 'N' ? '夜班' : '日班') + '\n👮 ' + r.guard + '\n📍 ' + r.location + '\n' +
-      (r.status === 'issue' ? '⚠️ <b>異常</b>\n' : '✅ 正常\n') + (r.note ? '📝 ' + r.note + '\n' : ''),
+    var l = SEC.lang();
+    return SEC.tgSummary('🚨 <b>' + pt(l, '巡邏記錄', 'Patrol record', 'កំណត់ត្រាល្បាត') + '</b>\n─────────────\n📅 ' + SEC.esc(r.date + ' ' + r.time) +
+      '\n🕐 ' + shiftLabel(r.shift, l) + '\n👮 ' + SEC.esc(r.guard) + '\n📍 ' + SEC.esc(dispName(r.location, l)) + '\n' +
+      (r.status === 'issue' ? '⚠️ <b>' + pt(l, '異常', 'Abnormal', 'មិនប្រក្រតី') + '</b>\n' : '✅ ' + pt(l, '正常', 'Normal', 'ធម្មតា') + '\n') + (r.note ? '📝 ' + SEC.esc(r.note) + '\n' : ''),
       'patrol', r.photos[0] || '', r.photos);
   }
 }
 function editMan(id){
-  var r=MAN.filter(function(x){return x.id===id;})[0];if(!r)return;MAN_EDIT_ID=id;var tab=document.querySelector('.tab[data-p="new"]');if(tab)tab.click();[['nDate',r.date],['nTime',r.time],['nShift',r.shift],['nGuard',r.guard],['nStat',r.status],['nNote',r.note]].forEach(function(x){var el=document.getElementById(x[0]);if(el)el.value=x[1]||'';});var loc=document.getElementById('nLoc');if(loc&&!Array.prototype.some.call(loc.options,function(o){return o.value===r.location;})){var op=document.createElement('option');op.value=r.location;op.textContent=r.location;loc.insertBefore(op,loc.lastChild);}if(loc)loc.value=r.location||'';PH.n=(r.photos||[]).slice();refreshPhotos('n');SEC.toast('✏️ 已載入人工巡邏紀錄；儲存會更新原紀錄','ok');
+  var r=MAN.filter(function(x){return x.id===id;})[0];if(!r)return;
+  /* 先切到「線上登錄」（切換會清除舊編輯狀態），再載入這一筆 */
+  showTab('new'); resetManForm(); MAN_EDIT_ID=id;
+  [['nDate',r.date],['nTime',r.time],['nShift',r.shift],['nGuard',r.guard],['nStat',r.status],['nNote',r.note]].forEach(function(x){var el=document.getElementById(x[0]);if(el)el.value=x[1]||'';});
+  var loc=document.getElementById('nLoc');
+  if(loc&&r.location&&!Array.prototype.some.call(loc.options,function(o){return o.value===r.location;})){var op=document.createElement('option');op.value=r.location;op.textContent=dispName(r.location);op.dataset.keep='1';loc.insertBefore(op,loc.lastChild);}
+  if(loc)loc.value=r.location||'';
+  PH.n=(r.photos||[]).slice();refreshPhotos('n');
+  paintManEditBanner(); renderManual();
+  var card=document.getElementById('p-new'); if(card&&card.scrollIntoView) try{card.scrollIntoView({block:'start'});}catch(e){}
+  SEC.toast('✏️ '+t('已載入紀錄；儲存會更新原紀錄，或按「取消編輯」','Record loaded; Save updates it, or tap Cancel edit','បានផ្ទុកកំណត់ត្រា; រក្សាទុកដើម្បីកែ ឬចុចបោះបង់ការកែ'),'ok');
 }
 function delMan(id) {
-  if (!confirm(SEC.T().confirmDel)) return;
-  var old = MAN.filter(function (r) { return r.id === id; })[0];
-  if(old)SEC.markDeleted(TOOL,Object.assign({_k:'manual'},old));
-  MAN = MAN.filter(function (r) { return r.id !== id; }); saveMan(); renderAll();
-  if (old && old.date) SEC.scheduleAutoCloudSync(TOOL, 'patrol-manual-delete', old.date);
+  var old = MAN.filter(function (r) { return r.id === id; })[0]; if (!old) return;
+  if (!confirm(t('確定刪除這筆人工巡邏紀錄？', 'Delete this manual patrol record?', 'លុបកំណត់ត្រាល្បាតនេះមែនទេ?') + '\n' + [old.date, old.time, old.guard, dispName(old.location || '')].filter(Boolean).join(' · '))) return;
+  SEC.markDeleted(TOOL,Object.assign({_k:'manual'},old));
+  MAN = MAN.filter(function (r) { return r.id !== id; }); saveMan();
+  if (MAN_EDIT_ID === id) resetManForm();
+  renderAll();
+  if (old.date) SEC.scheduleAutoCloudSync(TOOL, 'patrol-manual-delete', old.date);
+  SEC.toast('🗑 ' + t('已刪除', 'Deleted', 'បានលុប'), 'ok');
 }
-async function sendIssue() {
+function sendIssue() { return guardClick('issueSend', sendIssueNow); }
+async function sendIssueNow() {
   var title = document.getElementById('iTitle').value.trim();
-  if (!title) { SEC.toast('⚠ 請填事項標題', 'warn'); return; }
-  SEC.toast('<span class="spin">⏳</span> 通報中…');
+  if (!title) { SEC.toast('⚠ ' + t('請填事項標題', 'Enter a title', 'សូមបញ្ចូលចំណងជើង'), 'warn'); return; }
+  var btn = document.getElementById('iSendBtn'); if (btn) btn.disabled = true;
+  SEC.toast('<span class="spin">⏳</span> ' + SEC.esc(t('通報中…', 'Sending…', 'កំពុងផ្ញើ…')));
   try {
+    var by = document.getElementById('iBy').value.trim() || SEC.getCfg().operator;
     var r = await SEC.gasPost({ action: 'patrolIssue',
       date: document.getElementById('iDate').value, time: document.getElementById('iTime').value,
       level: document.getElementById('iLevel').value, location: document.getElementById('iLoc').value,
-      shift: document.getElementById('iShift').value === 'N' ? '夜班' : '日班',
-      reporter: document.getElementById('iBy').value.trim() || SEC.getCfg().operator,
+      shift: shiftLabel(document.getElementById('iShift').value === 'N' ? 'N' : 'D'),
+      reporter: by,
       title: title, detail: document.getElementById('iDetail').value.trim(),
       photo: PH.i[0] || '', photos: PH.i.slice(0, 4), lang: SEC.lang() });
-    SEC.toast('✅ 已通報群組 <b>' + (r.id || '') + '</b>', 'ok', 5000);
-    document.getElementById('iTitle').value = ''; document.getElementById('iDetail').value = '';
-    PH.i = []; document.getElementById('iPhotos').innerHTML = ''; loadIssues();
-  } catch (e) { SEC.toast('❌ 通報失敗：' + e.message, 'err', 6000); }
+    rememberGuard(by);
+    SEC.toast('✅ ' + SEC.esc(t('已通報群組 ', 'Sent to the group ', 'បានផ្ញើទៅក្រុម ')) + '<b>' + SEC.esc(r && r.id || '') + '</b>', 'ok', 5000);
+    resetIssueForm(); loadIssues();
+  } catch (e) { SEC.toast('❌ ' + SEC.esc(t('通報失敗：', 'Send failed: ', 'ផ្ញើបរាជ័យ៖ ') + e.message), 'err', 6000); }
+  finally { if (btn) btn.disabled = false; }
+}
+var ISSUES_CACHE = null;
+function paintIssues(list) {
+  var tb = document.getElementById('tbIss'); tb.dataset.loaded = '1';
+  tb.innerHTML = list.length ? list.map(function (x) {
+    var id = SEC.esc(String(x.id).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+    return '<tr><td><code>' + SEC.esc(x.id) + '</code></td><td>' + SEC.esc(x.date) + ' ' + SEC.esc(x.time || '') + '</td>' +
+      '<td>' + SEC.esc(dispName(x.location || '')) + '</td><td>' + (x.level === 'urgent' ? '🚨 ' : '') + SEC.esc(x.title || '') + '</td>' +
+      '<td>' + SEC.esc(x.reporter || '') + '</td>' +
+      '<td>' + (x.status === 'closed' ? '<span class="tag gray">' + t('已結案', 'Closed', 'បានបិទ') + '</span>' : '<span class="tag warn">' + t('處理中', 'Open', 'កំពុងដោះស្រាយ') + '</span>') + '</td>' +
+      '<td>' + (x.status === 'closed' ? '' : '<button class="btn sm ok" onclick="closeIssue(\'' + id + '\')">' + t('結案', 'Close', 'បិទករណី') + '</button>') + '</td></tr>';
+  }).join('') : '<tr><td colspan="7" class="empty">' + SEC.esc(t('目前無異常事項', 'No open issues', 'គ្មានបញ្ហាទេ')) + '</td></tr>';
 }
 async function loadIssues() {
   try {
     var r = await SEC.gasPost({ action: 'listIssues', limit: 200 });
-    var list = r.issues || [], tb = document.getElementById('tbIss');
-    tb.innerHTML = list.length ? list.map(function (x) {
-      return '<tr><td><code>' + SEC.esc(x.id) + '</code></td><td>' + SEC.esc(x.date) + ' ' + SEC.esc(x.time || '') + '</td>' +
-        '<td>' + SEC.esc(x.location || '') + '</td><td>' + (x.level === 'urgent' ? '🚨 ' : '') + SEC.esc(x.title || '') + '</td>' +
-        '<td>' + SEC.esc(x.reporter || '') + '</td>' +
-        '<td>' + (x.status === 'closed' ? '<span class="tag gray">已結案</span>' : '<span class="tag warn">處理中</span>') + '</td>' +
-        '<td>' + (x.status === 'closed' ? '' : '<button class="btn sm ok" onclick="closeIssue(\'' + x.id + '\')">結案</button>') + '</td></tr>';
-    }).join('') : '<tr><td colspan="7" class="empty">目前無異常事項</td></tr>';
-  } catch (e) { SEC.toast('❌ 載入失敗：' + e.message, 'err'); }
+    ISSUES_CACHE = r.issues || [];
+    paintIssues(ISSUES_CACHE);
+  } catch (e) { SEC.toast('❌ ' + SEC.esc(t('載入失敗：', 'Load failed: ', 'ផ្ទុកបរាជ័យ៖ ') + e.message), 'err'); }
 }
-async function closeIssue(id) {
-  if (!confirm('確定結案？')) return;
-  try { await SEC.gasPost({ action: 'closeIssue', id: id, by: SEC.getCfg().operator || 'web' });
-        SEC.toast('✅ 已結案', 'ok'); loadIssues(); }
-  catch (e) { SEC.toast('❌ ' + e.message, 'err'); }
+function closeIssue(id) {
+  return guardClick('close:' + id, async function () {
+    if (!confirm(t('確定結案？', 'Close this issue?', 'បិទករណីនេះមែនទេ?'))) return;
+    try { await SEC.gasPost({ action: 'closeIssue', id: id, lang: SEC.lang(), by: SEC.getCfg().operator || 'web' });
+          SEC.toast('✅ ' + t('已結案', 'Closed', 'បានបិទ'), 'ok'); loadIssues(); }
+    catch (e) { SEC.toast('❌ ' + SEC.esc(e.message), 'err'); }
+  });
 }
 
+
 /* ═══════════ 推送 ═══════════ */
+/* Telegram 摘要一律單一語言：st.lang = zh / en / km（「繁中 + English」由共用元件分別產生 zh、en 再合併）。
+   表格使用短 ASCII 欄名，手機上對齊穩定；資料列（人名、巡邏點）依語言顯示。 */
 function patrolNightPageDefs(st) {
+  var lang = st.lang || 'zh';
   var p = patrolSummaryPeriod(st), min = parseInt(document.getElementById('nightMin').value, 10) || 12;
   var TC = totalCp();
   var list = ROUNDS.filter(function (r) { return p.has(r.date) && r.night; }).slice().sort(function(a,b){return b.start.localeCompare(a.start);});
   var byN = {};
   list.forEach(function (r) {
-    var d = r.date;
-    if (r.hour < 6) { var dd = new Date(d.replace(/-/g, '/')); dd.setDate(dd.getDate() - 1); d = SEC.ymd(dd); }
+    var d = nightKeyOf(r);
     if (!byN[d]) byN[d] = { n: 0, bad: 0, g: {}, rounds: [] };
     byN[d].n++; byN[d].g[r.g || '—'] = 1; byN[d].rounds.push(r);
     if (!roundComplete(r)) byN[d].bad++;
@@ -1365,9 +1632,9 @@ function patrolNightPageDefs(st) {
   var nightPhotos = [];
   CHECK.filter(function(r){return p.has(r.date) && (r.shift === 'N' || r.shift === 'all');}).forEach(function(r){nightPhotos=nightPhotos.concat(r.photos||[]);});
   MAN.filter(function(r){return p.has(r.date) && r.shift === 'N';}).forEach(function(r){nightPhotos=nightPhotos.concat(r.photos||[]);});
-  var txt = '🌙 <b>夜間巡邏達標摘要 / Night Patrol Compliance</b> · ' + SEC.esc(p.label()) + '\n' +
+  var txt = '🌙 <b>' + pt(lang, '夜間巡邏達標摘要', 'Night Patrol Compliance', 'សេចក្តីសង្ខេបការល្បាតពេលយប់') + '</b> · ' + SEC.esc(p.label()) + '\n' +
     '🛡️ AC Security · VRT Sihanoukville\n━━━━━━━━━━━━━━━━\n' +
-    '<b>📊 總覽 / Overview</b>\n' + patrolPre([
+    '<b>📊 ' + pt(lang, '總覽', 'Overview', 'ទិដ្ឋភាពទូទៅ') + '</b>\n' + patrolPre([
       'Field                 Value',
       'Target / night        ' + patrolCell(min + ' rounds', 12),
       'Checkpoints / round   ' + patrolCell(TC, 12),
@@ -1379,25 +1646,25 @@ function patrolNightPageDefs(st) {
       'Attached photos       ' + patrolCell(nightPhotos.filter(Boolean).length, 12)
     ]) + '\n';
   if(short.length||badTotal){
-    txt+='\n<b>⚠️ 需注意 / Attention</b>\n';
-    ks.filter(function(k){return byN[k].n<min||byN[k].bad;}).slice(0,10).forEach(function(k){var x=byN[k];txt+='· '+SEC.esc(k)+' · '+(x.n<min?'Short '+x.n+'/'+min:'Target met')+(x.bad?' · Incomplete '+x.bad:'')+'\n';});
-  }else if(ks.length)txt+='\n✅ 夜班巡邏均達標且無漏點 / All night patrols met target with no missed checkpoints\n';
-  txt+='\n<i>'+(st.includeDetails?'已選擇附每晚及逐圈明細；傳送前會再次確認。 / Night-by-night and round details selected; a second confirmation is required.':'摘要不逐圈列巡邏時間，只顯示總數及未達標／漏點。 / Individual patrol times are omitted; only totals and exceptions are shown.')+'</i>';
+    txt+='\n<b>⚠️ '+pt(lang,'需注意','Attention','ត្រូវយកចិត្តទុកដាក់')+'</b>\n';
+    ks.filter(function(k){return byN[k].n<min||byN[k].bad;}).slice(0,10).forEach(function(k){var x=byN[k];txt+='· '+SEC.esc(k)+' · '+(x.n<min?pt(lang,'不足 ','Short ','មិនគ្រប់ ')+x.n+'/'+min:pt(lang,'圈數達標','Target met','គ្រប់ចំនួន'))+(x.bad?' · '+pt(lang,'未完整 ','Incomplete ','មិនពេញលេញ ')+x.bad:'')+'\n';});
+  }else if(ks.length)txt+='\n✅ '+pt(lang,'夜班巡邏均達標且無漏點','All night patrols met the target with no missed checkpoints','ការល្បាតពេលយប់ទាំងអស់គ្រប់ចំនួន និងគ្មានចំណុចខកខាន')+'\n';
+  txt+='\n<i>'+(st.includeDetails?pt(lang,'已選擇附每晚及逐圈明細；傳送前會再次確認。','Night-by-night and round details selected; a second confirmation is required.','បានជ្រើសព័ត៌មានលម្អិតតាមយប់ និងតាមជុំ; ត្រូវបញ្ជាក់ម្តងទៀតមុនផ្ញើ។'):pt(lang,'摘要不逐圈列巡邏時間，只顯示總數及未達標／漏點。','Individual patrol times are omitted; only totals and exceptions are shown.','មិនបង្ហាញម៉ោងល្បាតនីមួយៗ; បង្ហាញតែសរុប និងករណីខុសប្រក្រតី។'))+'</i>';
   var defs=[{text:txt,photos:nightPhotos.filter(Boolean).slice(0,4)}];
   if(!st.includeDetails)return defs;
   for(var i=0;i<ks.length;i+=10){
     var dates=ks.slice(i,i+10),lines=['Date   Rounds Target Bad Guards        Result'];
     dates.forEach(function(d){var x=byN[d],guards=Object.keys(x.g).join('/');lines.push(patrolCell(patrolShortDate(d),7)+patrolCell(x.n,7)+patrolCell(min,7)+patrolCell(x.bad,4)+SEC.esc(patrolCell(guards,14))+(x.n<min?'SHORT':x.bad?'CHECK':'OK'));});
-    var detail='<b>📅 每晚達標 / Night-by-Night</b>\n'+patrolPre(lines);
-    dates.forEach(function(d){var x=byN[d];if(x.n<min||x.bad)detail+='\n· '+SEC.esc(d)+' · '+(x.n<min?'不足 / Short '+x.n+'/'+min:'圈數達標 / Target met')+(x.bad?' · 未完整 / Incomplete '+x.bad:'');});
+    var detail='<b>📅 '+pt(lang,'每晚達標','Night-by-Night','តាមយប់នីមួយៗ')+'</b>\n'+patrolPre(lines);
+    dates.forEach(function(d){var x=byN[d];if(x.n<min||x.bad)detail+='\n· '+SEC.esc(d)+' · '+(x.n<min?pt(lang,'不足 ','Short ','មិនគ្រប់ ')+x.n+'/'+min:pt(lang,'圈數達標','Target met','គ្រប់ចំនួន'))+(x.bad?' · '+pt(lang,'未完整 ','Incomplete ','មិនពេញលេញ ')+x.bad:'');});
     var ph=[]; CHECK.filter(function(r){return dates.indexOf(r.date)>=0&&(r.shift==='N'||r.shift==='all');}).forEach(function(r){ph=ph.concat(r.photos||[]);});
     defs.push({text:detail,photos:ph.filter(Boolean).slice(0,4)});
   }
   for(var j=0;j<list.length;j+=12){
     var rb=list.slice(j,j+12),rl=['Date  Time        Guard         CP     Min Result'];
-    rb.forEach(function(r){var exp=roundExpected(r),miss=roundMissing(r).map(chipName);rl.push(patrolCell(patrolShortDate(r.date),6)+patrolCell(r.start.slice(11,16)+'-'+r.end.slice(11,16),12)+SEC.esc(patrolCell(r.g||'—',14))+patrolCell(r.chips.length+'/'+exp,7)+patrolCell(r.dur,4)+(miss.length?'MISS '+miss.length:'OK'));});
-    var rp='<b>🔄 夜巡逐圈 / Night Round Details</b>\n'+patrolPre(rl);
-    rb.forEach(function(r){var miss=roundMissing(r).map(chipName);if(miss.length)rp+='\n· '+SEC.esc(r.date+' '+r.start.slice(11,16)+' · '+(r.g||'—'))+' · Miss/漏點：'+miss.map(SEC.esc).join('、');});
+    rb.forEach(function(r){var exp=roundExpected(r),miss=roundMissing(r);rl.push(patrolCell(patrolShortDate(r.date),6)+patrolCell(r.start.slice(11,16)+'-'+r.end.slice(11,16),12)+SEC.esc(patrolCell(r.g||'—',14))+patrolCell(r.chips.length+'/'+exp,7)+patrolCell(r.dur,4)+(miss.length?'MISS '+miss.length:'OK'));});
+    var rp='<b>🔄 '+pt(lang,'夜巡逐圈','Night Round Details','ជុំល្បាតយប់លម្អិត')+'</b>\n'+patrolPre(rl);
+    rb.forEach(function(r){var miss=roundMissing(r).map(function(c){return chipName(c,lang);});if(miss.length)rp+='\n· '+SEC.esc(r.date+' '+r.start.slice(11,16)+' · '+(r.g||'—'))+' · '+pt(lang,'漏點：','Missed: ','ខកខាន៖ ')+miss.map(SEC.esc).join(lang==='zh'?'、':', ');});
     defs.push({text:rp,photos:[]});
   }
   return defs;
@@ -1432,11 +1699,9 @@ function latestPatrolPeriod(type) {
   var known = patrolPeriods(type).filter(Boolean).sort();
   return known.indexOf(current) >= 0 ? current : (known.length ? known[known.length - 1] : current);
 }
-function ptt(lang, zh, en, km) { return lang === 'en' ? en : lang === 'km' ? km : zh; }
-/* Telegram compact report helpers: Chinese + English are intentionally kept
-   together so the default bilingual mode stays clean instead of duplicating
-   each line. Tables use short ASCII headers for stable mobile alignment. */
-function patrolBi(lang, zh, en, km) { return lang === 'km' ? (km || zh) : (zh + ' / ' + en); }
+function ptt(lang, zh, en, km) { return pt(lang, zh, en, km); }
+/* 舊版「中文 / English」雙語函式；現在一律輸出所選的單一語言。 */
+function patrolBi(lang, zh, en, km) { return pt(lang, zh, en, km); }
 function patrolCell(v, n) {
   v = String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
   if (v.length > n) v = v.slice(0, Math.max(1, n - 1)) + '…';
@@ -1458,8 +1723,9 @@ function patrolCheckScopeMatch(st, r) {
   if (r.shift === 'all') return true;
   return st.scope === 'night' ? r.shift === 'N' : r.shift === 'D';
 }
-function patrolScopeLabel(st) {
-  return st.scope === 'night' ? '🌙 夜班 / Night shift' : st.scope === 'day' ? '☀️ 日班 / Day shift' : '全天 / All day';
+function patrolScopeLabel(st, lang) {
+  var l = lang || st.lang || SEC.lang();
+  return st.scope === 'night' ? '🌙 ' + pt(l, '夜班', 'Night shift', 'វេនយប់') : st.scope === 'day' ? '☀️ ' + pt(l, '日班', 'Day shift', 'វេនថ្ងៃ') : pt(l, '全天', 'All day', 'ពេញមួយថ្ងៃ');
 }
 function patrolSummary(st) {
   var p = patrolSummaryPeriod(st), list = ROUNDS.filter(function (r) { return p.has(r.date) && patrolScopeMatch(st, r, false); }), manual = MAN.filter(function (r) { return p.has(r.date) && patrolScopeMatch(st, r, true); });
@@ -1469,11 +1735,11 @@ function patrolSummary(st) {
   list.forEach(function (r) { byG[r.g || '—'] = (byG[r.g || '—'] || 0) + 1; byD[r.date] = (byD[r.date] || 0) + 1; });
   var checks = CHECK.filter(function (r) { return p.has(r.date) && patrolCheckScopeMatch(st, r); });
   var badChecks = checks.filter(function (r) { return patrolCheckHasIssue(r) || patrolCheckMissing(r).length || r.note; });
-  var lang = st.lang || 'zh';
-  var txt = '🚨 <b>' + patrolBi(lang, '巡邏摘要', 'Patrol Summary', 'សេចក្តីសង្ខេបល្បាត') + '</b> · ' + SEC.esc(p.label()) + '\n' +
-    '🕐 ' + patrolScopeLabel(st) + '\n' +
+  var lang = st.lang || 'zh', sep = lang === 'zh' ? '、' : ', ', colon = lang === 'zh' ? '：' : ': ';
+  var txt = '🚨 <b>' + pt(lang, '巡邏摘要', 'Patrol Summary', 'សេចក្តីសង្ខេបការល្បាត') + '</b> · ' + SEC.esc(p.label()) + '\n' +
+    '🕐 ' + patrolScopeLabel(st, lang) + '\n' +
     '🛡️ AC Security · VRT Sihanoukville\n━━━━━━━━━━━━━━━━\n' +
-    '<b>📊 ' + patrolBi(lang, '總覽', 'Overview', 'ទិដ្ឋភាពទូទៅ') + '</b>\n';
+    '<b>📊 ' + pt(lang, '總覽', 'Overview', 'ទិដ្ឋភាពទូទៅ') + '</b>\n';
   txt += patrolPre([
     'Item                 Qty   Rate',
     'Rounds               ' + patrolCell(list.length, 5) + ' —',
@@ -1488,14 +1754,14 @@ function patrolSummary(st) {
   ]) + '\n';
   if (!list.length && !manual.length && (ROUNDS.length || MAN.length)) {
     var available = patrolPeriods('month').sort().slice(-6).reverse();
-    txt += '\n⚠️ <b>' + patrolBi(lang, '所選期間沒有巡邏資料', 'No patrol data in selected period', 'គ្មានទិន្នន័យល្បាត') + '</b>' +
-      (available.length ? '\n' + patrolBi(lang, '已有資料月份', 'Available months', 'ខែមានទិន្នន័យ') + '：' + available.join('、') : '') + '\n';
+    txt += '\n⚠️ <b>' + pt(lang, '所選期間沒有巡邏資料', 'No patrol data in the selected period', 'គ្មានទិន្នន័យល្បាតក្នុងរយៈពេលដែលបានជ្រើស') + '</b>' +
+      (available.length ? '\n' + pt(lang, '已有資料月份', 'Months with data', 'ខែដែលមានទិន្នន័យ') + colon + available.join(sep) : '') + '\n';
   }
   var gk = Object.keys(byG).sort(function (a, b) { return byG[b] - byG[a]; });
   if (gk.length) {
     var gl = ['Guard            Rounds'];
     gk.slice(0, 12).forEach(function (k) { gl.push(SEC.esc(patrolCell(k || '—', 16)) + patrolCell(byG[k], 6)); });
-    txt += '\n<b>👮 ' + patrolBi(lang, '巡邏員', 'Guards', 'អ្នកយាម') + '</b>\n' + patrolPre(gl) + '\n';
+    txt += '\n<b>👮 ' + pt(lang, '巡邏員', 'Guards', 'អ្នកល្បាត') + '</b>\n' + patrolPre(gl) + '\n';
   }
   /* 精簡摘要仍固定顯示六項結果，不再因「無異常」而把整段隱藏。
      多筆期間摘要以最嚴重狀態匯總：任一異常=❌，任一未勾=⚠️，否則=✅。 */
@@ -1505,54 +1771,77 @@ function patrolSummary(st) {
     if (checks.some(function (r) { return !patrolCheckValue(r, key); })) return '⚠️';
     return '✅';
   }
-  txt += '\n<b>✅ ' + patrolBi(lang, '巡邏確認', 'Completion Check', 'ការបញ្ជាក់ល្បាត') + '</b>\n' +
-    '🚪 門/Doors ' + patrolCheckMark('doors') + ' · 🪟 窗/Windows ' + patrolCheckMark('windows') + '\n' +
-    '💧 水/Water ' + patrolCheckMark('water') + ' · ⚡ 電/Electricity ' + patrolCheckMark('electric') + '\n' +
-    '💡 照明/Lighting ' + patrolCheckMark('lights') + ' · 🧯 消防通道/Fire route ' + patrolCheckMark('fireway') + '\n' +
-    patrolBi(lang, '確認表', 'Forms', 'បែបបទ') + '：<b>' + checks.length + '</b> · ' +
-    patrolBi(lang, '異常／未勾', 'Issues / unchecked', 'បញ្ហា/មិនបានគូស') + '：<b>' + badChecks.length + '</b>\n';
+  txt += '\n<b>✅ ' + pt(lang, '巡邏確認', 'Completion Check', 'ការបញ្ជាក់ការល្បាត') + '</b>\n' +
+    '🚪 ' + pcLabel('doors', lang) + ' ' + patrolCheckMark('doors') + ' · 🪟 ' + pcLabel('windows', lang) + ' ' + patrolCheckMark('windows') + '\n' +
+    '💧 ' + pcLabel('water', lang) + ' ' + patrolCheckMark('water') + ' · ⚡ ' + pcLabel('electric', lang) + ' ' + patrolCheckMark('electric') + '\n' +
+    '💡 ' + pcLabel('lights', lang) + ' ' + patrolCheckMark('lights') + ' · 🧯 ' + pcLabel('fireway', lang) + ' ' + patrolCheckMark('fireway') + '\n' +
+    pt(lang, '確認表', 'Forms', 'ទម្រង់') + colon + '<b>' + checks.length + '</b> · ' +
+    pt(lang, '異常／未勾', 'Issues / unchecked', 'បញ្ហា / មិនបានគូស') + colon + '<b>' + badChecks.length + '</b>\n';
   if (!checks.length) {
-    txt += '⚠️ ' + patrolBi(lang, '所選日期／班別尚未儲存巡邏確認', 'No saved confirmation for the selected date / shift', 'គ្មានការបញ្ជាក់ដែលបានរក្សាទុក') + '\n';
+    txt += '⚠️ ' + pt(lang, '所選日期／班別尚未儲存巡邏確認', 'No saved confirmation for the selected date / shift', 'មិនទាន់មានការបញ្ជាក់សម្រាប់កាលបរិច្ឆេទ / វេនដែលបានជ្រើស') + '\n';
   }
   if (Object.keys(byD).length && st.ptype !== 'day') {
     var dl = ['Date   Rounds'];
     Object.keys(byD).sort().slice(-20).forEach(function (d) { dl.push(patrolCell(patrolShortDate(d), 7) + patrolCell(byD[d], 6)); });
-    txt += '\n<b>📅 ' + patrolBi(lang, '每日圈數', 'Daily rounds', 'ជុំប្រចាំថ្ងៃ') + '</b>\n' + patrolPre(dl) + '\n';
+    txt += '\n<b>📅 ' + pt(lang, '每日圈數', 'Daily rounds', 'ជុំប្រចាំថ្ងៃ') + '</b>\n' + patrolPre(dl) + '\n';
   }
   if (issues.length || badChecks.length) {
-    txt += '\n<b>⚠️ ' + patrolBi(lang, '需注意', 'Attention', 'ត្រូវយកចិត្តទុកដាក់') + '</b>\n' +
-      patrolBi(lang, '人工異常', 'Manual issues', 'បញ្ហាដោយដៃ') + '：<b>' + issues.length + '</b> · ' +
-      patrolBi(lang, '完成確認異常／未勾', 'Check issues / unchecked', 'បញ្ហា/មិនបានគូស') + '：<b>' + badChecks.length + '</b>\n';
+    txt += '\n<b>⚠️ ' + pt(lang, '需注意', 'Attention', 'ត្រូវយកចិត្តទុកដាក់') + '</b>\n' +
+      pt(lang, '人工異常', 'Manual issues', 'បញ្ហាពីការបញ្ចូលដោយដៃ') + colon + '<b>' + issues.length + '</b> · ' +
+      pt(lang, '完成確認異常／未勾', 'Check issues / unchecked', 'បញ្ហាក្នុងការបញ្ជាក់ / មិនបានគូស') + colon + '<b>' + badChecks.length + '</b>\n';
     issues.slice(0, 6).forEach(function (r) {
-      txt += '· ' + SEC.esc(r.date + ' ' + (r.time || '')) + ' · ' + SEC.esc(r.guard || '—') + ' · ' + SEC.esc(r.location || '—') +
+      txt += '· ' + SEC.esc(r.date + ' ' + (r.time || '')) + ' · ' + SEC.esc(r.guard || '—') + ' · ' + SEC.esc(dispName(r.location || '—', lang)) +
         (r.note ? ' · ' + SEC.esc(r.note) : '') + '\n';
     });
     badChecks.slice(0, 6).forEach(function (r) {
       var bad = PC_KEYS.filter(function(k){return patrolCheckValue(r,k)==='issue';}), missing = patrolCheckMissing(r);
       txt += '· ' + SEC.esc(r.date) + ' · ' + SEC.esc(r.guard || '—') +
-        (bad.length ? ' · ❌ ' + bad.map(function(k){return PC_LABELS[k];}).join(', ') : '') +
-        (missing.length ? ' · ⚠️ ' + missing.map(function(k){return PC_LABELS[k];}).join(', ') : '') +
+        (bad.length ? ' · ❌ ' + pcLabelList(bad, lang) : '') +
+        (missing.length ? ' · ⚠️ ' + pcLabelList(missing, lang) : '') +
         (r.note ? ' · ' + SEC.esc(r.note) : '') + '\n';
     });
   }
   if (st.ptype === 'week') {
     var nightPhotoCount = CHECK.filter(function(r){return p.has(r.date) && (r.shift === 'N' || r.shift === 'all');})
       .reduce(function(n,r){return n + (Array.isArray(r.photos) ? r.photos.length : 0);},0);
-    txt += '\n📸 ' + patrolBi(lang,'夜班巡邏照片','Night-shift patrol photos','រូបថតល្បាតវេនយប់') + '：<b>' + nightPhotoCount + '</b> / 2–4\n';
+    txt += '\n📸 ' + pt(lang,'夜班巡邏照片','Night-shift patrol photos','រូបថតល្បាតវេនយប់') + colon + '<b>' + nightPhotoCount + '</b> / 2–4\n';
   }
-  txt += '\n<i>' + patrolBi(lang, st.includeDetails?'已選擇附逐圈／逐筆明細；傳送前會再次確認。':'摘要不逐圈列巡邏時間；顯示總數、巡邏員、六項確認及異常／漏點。', st.includeDetails?'Round-level details selected; a second confirmation is required.':'Individual patrol times are omitted; totals, guards, six checks and exceptions are shown.', 'បង្ហាញតែសរុប និងបញ្ហា។') + '</i>';
+  txt += '\n<i>' + pt(lang, st.includeDetails?'已選擇附逐圈／逐筆明細；傳送前會再次確認。':'摘要不逐圈列巡邏時間；顯示總數、巡邏員、六項確認及異常／漏點。', st.includeDetails?'Round-level details selected; a second confirmation is required.':'Individual patrol times are omitted; totals, guards, six checks and exceptions are shown.', st.includeDetails?'បានជ្រើសព័ត៌មានលម្អិតតាមជុំ; ត្រូវបញ្ជាក់ម្តងទៀតមុនផ្ញើ។':'បង្ហាញតែសរុប អ្នកល្បាត ការត្រួតពិនិត្យ ៦ ចំណុច និងបញ្ហា។') + '</i>';
   return txt;
 }
 
 function patrolSummaryPageDefs(st){
+  var lang=st.lang||'zh',sep=lang==='zh'?'、':', ';
   var p=patrolSummaryPeriod(st),defs=[{text:patrolSummary(st),photos:patrolSummaryPhotosBase(st)}];
   if(!st.includeDetails)return defs;
   var rr=ROUNDS.filter(function(r){return p.has(r.date)&&patrolScopeMatch(st,r,false);}).slice().sort(function(a,b){return b.start.localeCompare(a.start);});
-  for(var i=0;i<rr.length;i+=12){var b=rr.slice(i,i+12),lines=['Date  Time        S Guard         CP     Min Result'];b.forEach(function(r){var TC=roundExpected(r),miss=roundMissing(r).map(chipName);lines.push(patrolCell(patrolShortDate(r.date),6)+patrolCell(r.start.slice(11,16)+'-'+r.end.slice(11,16),12)+patrolCell(r.night?'N':'D',2)+SEC.esc(patrolCell(r.g||'—',14))+patrolCell(r.chips.length+'/'+TC,7)+patrolCell(r.dur,4)+(miss.length?'MISS '+miss.length:'OK'));});var pg='<b>🔄 巡邏明細 / Patrol Records</b> · '+patrolScopeLabel(st)+'\n'+patrolPre(lines);b.forEach(function(r){var miss=roundMissing(r).map(chipName);if(miss.length)pg+='\n· '+SEC.esc(r.date+' '+r.start.slice(11,16))+' · '+SEC.esc(r.g||'—')+' · Miss/漏點：'+miss.map(SEC.esc).join('、');});defs.push({text:pg,photos:[]});}
+  for(var i=0;i<rr.length;i+=12){
+    var b=rr.slice(i,i+12),lines=['Date  Time        S Guard         CP     Min Result'];
+    b.forEach(function(r){var TC=roundExpected(r),miss=roundMissing(r);lines.push(patrolCell(patrolShortDate(r.date),6)+patrolCell(r.start.slice(11,16)+'-'+r.end.slice(11,16),12)+patrolCell(r.night?'N':'D',2)+SEC.esc(patrolCell(r.g||'—',14))+patrolCell(r.chips.length+'/'+TC,7)+patrolCell(r.dur,4)+(miss.length?'MISS '+miss.length:'OK'));});
+    var pg='<b>🔄 '+pt(lang,'巡邏明細','Patrol Records','កំណត់ត្រាល្បាត')+'</b> · '+patrolScopeLabel(st,lang)+'\n'+patrolPre(lines);
+    b.forEach(function(r){var miss=roundMissing(r).map(function(c){return chipName(c,lang);});if(miss.length)pg+='\n· '+SEC.esc(r.date+' '+r.start.slice(11,16))+' · '+SEC.esc(r.g||'—')+' · '+pt(lang,'漏點：','Missed: ','ខកខាន៖ ')+miss.map(SEC.esc).join(sep);});
+    defs.push({text:pg,photos:[]});
+  }
   var man=MAN.filter(function(r){return p.has(r.date)&&patrolScopeMatch(st,r,true);}).slice().sort(function(a,b){return(b.date+b.time).localeCompare(a.date+a.time);});
-  for(var j=0;j<man.length;j+=10){var mb=man.slice(j,j+10),ml=['Date  Time  S Guard         Status Location        Ph'];mb.forEach(function(r){ml.push(patrolCell(patrolShortDate(r.date),6)+patrolCell((r.time||'').slice(0,5),6)+patrolCell(r.shift==='N'?'N':'D',2)+SEC.esc(patrolCell(r.guard||'—',14))+patrolCell(r.status==='issue'?'ISSUE':'OK',7)+SEC.esc(patrolCell(r.location||'—',16))+(r.photos||[]).length);});var mp='<b>📝 人工巡邏 / Manual Patrol</b>\n'+patrolPre(ml);mb.forEach(function(r){if(r.note)mp+='\n· '+SEC.esc(r.date+' '+(r.time||'')+' · '+(r.guard||'—')+' · '+r.note);});var mph=[];mb.forEach(function(r){mph=mph.concat(r.photos||[]);});defs.push({text:mp,photos:mph.filter(Boolean).slice(0,4)});}
+  for(var j=0;j<man.length;j+=10){
+    var mb=man.slice(j,j+10),ml=['Date  Time  S Guard         Status Location        Ph'];
+    mb.forEach(function(r){ml.push(patrolCell(patrolShortDate(r.date),6)+patrolCell((r.time||'').slice(0,5),6)+patrolCell(r.shift==='N'?'N':'D',2)+SEC.esc(patrolCell(r.guard||'—',14))+patrolCell(r.status==='issue'?'ISSUE':'OK',7)+SEC.esc(patrolCell(dispName(r.location||'—',lang),16))+(r.photos||[]).length);});
+    var mp='<b>📝 '+pt(lang,'人工巡邏','Manual Patrol','ការល្បាតដោយដៃ')+'</b>\n'+patrolPre(ml);
+    mb.forEach(function(r){if(r.note)mp+='\n· '+SEC.esc(r.date+' '+(r.time||'')+' · '+(r.guard||'—')+' · '+r.note);});
+    var mph=[];mb.forEach(function(r){mph=mph.concat(r.photos||[]);});
+    defs.push({text:mp,photos:mph.filter(Boolean).slice(0,4)});
+  }
   var checks=CHECK.filter(function(r){return p.has(r.date)&&patrolCheckScopeMatch(st,r);}).slice().sort(function(a,b){return b.date.localeCompare(a.date);});
-  for(var k=0;k<checks.length;k+=8){var cb=checks.slice(k,k+8),cl=['Date  S Guard         D W Wa E L F  Result Ph'];cb.forEach(function(r){function v(x){return x==='ok'?'✓':x==='issue'?'X':'-';}var bad=PC_KEYS.filter(function(q){return patrolCheckValue(r,q)==='issue';}),missing=patrolCheckMissing(r);cl.push(patrolCell(patrolShortDate(r.date),6)+patrolCell(r.shift||'A',2)+SEC.esc(patrolCell(r.guard||'—',14))+patrolCell(v(patrolCheckValue(r,'doors')),2)+patrolCell(v(patrolCheckValue(r,'windows')),2)+patrolCell(v(patrolCheckValue(r,'water')),3)+patrolCell(v(patrolCheckValue(r,'electric')),2)+patrolCell(v(patrolCheckValue(r,'lights')),2)+patrolCell(v(patrolCheckValue(r,'fireway')),3)+patrolCell(bad.length?'ISSUE':missing.length?'MISS':'OK',7)+(r.photos||[]).length);});var cp='<b>✅ 巡邏確認 / Completion Check</b>\n'+patrolPre(cl)+'\n<i>D=Doors 門 · W=Windows 窗 · Wa=Water 水 · E=Electricity 電 · L=Lighting 照明 · F=Fire route 消防通道</i>';cb.forEach(function(r){var bad=PC_KEYS.filter(function(q){return patrolCheckValue(r,q)==='issue';}),missing=patrolCheckMissing(r);if(bad.length||missing.length||r.note)cp+='\n· '+SEC.esc(r.date+' · '+(r.guard||'—'))+(bad.length?' · ❌ '+bad.map(function(q){return PC_LABELS[q];}).join(', '):'')+(missing.length?' · ⚠️ '+missing.map(function(q){return PC_LABELS[q];}).join(', '):'')+(r.note?' · '+SEC.esc(r.note):'');});cb.forEach(function(r){var pn=Array.isArray(r.photoNotes)?r.photoNotes.filter(function(x){return String(x||'').trim();}):[];if(pn.length)cp+='\n· '+SEC.esc(r.date+' · '+(r.guard||'—'))+' · Photo/照片：'+pn.map(SEC.esc).join('；');});var cph=[];cb.forEach(function(r){cph=cph.concat(r.photos||[]);});defs.push({text:cp,photos:cph.filter(Boolean).slice(0,4)});}
+  var legend='D='+pcLabel('doors',lang)+' · W='+pcLabel('windows',lang)+' · Wa='+pcLabel('water',lang)+' · E='+pcLabel('electric',lang)+' · L='+pcLabel('lights',lang)+' · F='+pcLabel('fireway',lang);
+  for(var k=0;k<checks.length;k+=8){
+    var cb=checks.slice(k,k+8),cl=['Date  S Guard         D W Wa E L F  Result Ph'];
+    cb.forEach(function(r){function v(x){return x==='ok'?'✓':x==='issue'?'X':'-';}var bad=PC_KEYS.filter(function(q){return patrolCheckValue(r,q)==='issue';}),missing=patrolCheckMissing(r);cl.push(patrolCell(patrolShortDate(r.date),6)+patrolCell(r.shift||'A',2)+SEC.esc(patrolCell(r.guard||'—',14))+patrolCell(v(patrolCheckValue(r,'doors')),2)+patrolCell(v(patrolCheckValue(r,'windows')),2)+patrolCell(v(patrolCheckValue(r,'water')),3)+patrolCell(v(patrolCheckValue(r,'electric')),2)+patrolCell(v(patrolCheckValue(r,'lights')),2)+patrolCell(v(patrolCheckValue(r,'fireway')),3)+patrolCell(bad.length?'ISSUE':missing.length?'MISS':'OK',7)+(r.photos||[]).length);});
+    var cp='<b>✅ '+pt(lang,'巡邏確認','Completion Check','ការបញ្ជាក់ការល្បាត')+'</b>\n'+patrolPre(cl)+'\n<i>'+SEC.esc(legend)+'</i>';
+    cb.forEach(function(r){var bad=PC_KEYS.filter(function(q){return patrolCheckValue(r,q)==='issue';}),missing=patrolCheckMissing(r);if(bad.length||missing.length||r.note)cp+='\n· '+SEC.esc(r.date+' · '+(r.guard||'—'))+(bad.length?' · ❌ '+pcLabelList(bad,lang):'')+(missing.length?' · ⚠️ '+pcLabelList(missing,lang):'')+(r.note?' · '+SEC.esc(r.note):'');});
+    cb.forEach(function(r){var pn=Array.isArray(r.photoNotes)?r.photoNotes.filter(function(x){return String(x||'').trim();}):[];if(pn.length)cp+='\n· '+SEC.esc(r.date+' · '+(r.guard||'—'))+' · '+pt(lang,'照片：','Photo: ','រូបថត៖ ')+pn.map(SEC.esc).join(lang==='zh'?'；':'; ');});
+    var cph=[];cb.forEach(function(r){cph=cph.concat(r.photos||[]);});
+    defs.push({text:cp,photos:cph.filter(Boolean).slice(0,4)});
+  }
   return defs;
 }
 function patrolSummaryPhotosBase(st){
@@ -1579,23 +1868,22 @@ function patrolCheckRecordsForDailySummary(st, p) {
   return candidates.filter(function(r){return (needDay && r.shift === 'D') || (needNight && r.shift === 'N');});
 }
 function patrolValidateConfirmation(rec) {
-  if (!rec || !String(rec.guard || '').trim()) throw new Error('請先填寫巡邏員姓名 / Guard name is required');
+  if (!rec || !String(rec.guard || '').trim()) throw new Error(t('請先填寫巡邏員姓名', 'Guard name is required', 'ត្រូវបញ្ចូលឈ្មោះអ្នកល្បាត'));
   var missing = patrolCheckMissing(rec);
-  if (missing.length) throw new Error('請先逐項選 ✅ 或 ❌：' + missing.map(function(k){return PC_LABELS[k];}).join('、'));
-  if (patrolCheckHasIssue(rec) && !String(rec.note || '').trim()) throw new Error('有 ❌ 異常時必須先填 Issue note / 異常備註');
+  if (missing.length) throw new Error(t('請先逐項選 ✅ 或 ❌：', 'Mark every item ✅ or ❌ first: ', 'សូមជ្រើស ✅ ឬ ❌ គ្រប់ចំណុចជាមុន៖ ') + pcLabelList(missing));
+  if (patrolCheckHasIssue(rec) && !String(rec.note || '').trim()) throw new Error(t('有 ❌ 異常時必須先填異常備註', 'An issue note is required when any item is ❌', 'ត្រូវសរសេរកំណត់ចំណាំពេលមាន ❌'));
   var photos = Array.isArray(rec.photos) ? rec.photos : [], notes = Array.isArray(rec.photoNotes) ? rec.photoNotes : [];
-  if (photos.length && photos.some(function(_,i){return !String(notes[i] || '').trim();})) throw new Error('每張巡邏照片都必須填寫內容說明 / Caption every patrol photo');
+  if (photos.length && photos.some(function(_,i){return !String(notes[i] || '').trim();})) throw new Error(t('每張巡邏照片都必須填寫內容說明', 'Caption every patrol photo', 'សូមពិពណ៌នារូបថតល្បាតនីមួយៗ'));
 }
 async function patrolBeforeSummarySend(st) {
   var p = patrolSummaryPeriod(st);
   var hasData = ROUNDS.some(function(r){return p.has(r.date) && patrolScopeMatch(st,r,false);}) || MAN.some(function(r){return p.has(r.date) && patrolScopeMatch(st,r,true);});
-  if (!hasData) throw new Error('所選期間沒有巡邏資料，不能發送空白摘要 / No patrol data in the selected period');
+  if (!hasData) throw new Error(t('所選期間沒有巡邏資料，不能發送空白摘要', 'No patrol data in the selected period', 'គ្មានទិន្នន័យល្បាតក្នុងរយៈពេលដែលបានជ្រើស'));
   if (st.ptype === 'day') {
     var checks = patrolCheckRecordsForDailySummary(st, p);
     if (!checks.length) {
-      document.getElementById('pcDate').value = p.range().from;
-      document.getElementById('patrolConfirmCard').scrollIntoView({behavior:'smooth',block:'start'});
-      throw new Error('請先完成所選日期的巡邏確認 / Complete the selected day confirmation first');
+      goToPatrolCheck(p.range().from);
+      throw new Error(t('請先完成所選日期的巡邏確認', 'Complete the patrol check for the selected day first', 'សូមបញ្ចប់ការបញ្ជាក់ការល្បាតសម្រាប់ថ្ងៃដែលបានជ្រើសជាមុន'));
     }
     checks.forEach(patrolValidateConfirmation);
   }
@@ -1603,30 +1891,41 @@ async function patrolBeforeSummarySend(st) {
     var nightChecks = CHECK.filter(function(r){return p.has(r.date) && (r.shift === 'N' || r.shift === 'all');});
     nightChecks.forEach(patrolValidateConfirmation);
     var photos = nightChecks.reduce(function(n,r){return n + (Array.isArray(r.photos) ? r.photos.length : 0);},0);
-    if (photos < 2) throw new Error('週一發送週報前，請附上夜班巡邏照片至少 2 張（建議 2–4 張） / Add 2–4 night patrol photos');
+    if (photos < 2) throw new Error(t('週一發送週報前，請附上夜班巡邏照片至少 2 張（建議 2–4 張）', 'Add 2–4 night patrol photos before sending the Monday weekly report', 'សូមភ្ជាប់រូបថតល្បាតយប់ 2–4 មុនផ្ញើរបាយការណ៍ប្រចាំសប្តាហ៍ថ្ងៃច័ន្ទ'));
   }
   return true;
 }
 function openPatrolTelegram() {
   return SEC.tgOpen({ module:'patrol', defaultType:PER.mode, defaultPeriod:PER.key(),
     periods:patrolPeriods, currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); },
-    scopeOptions:[{value:'all',label:'全天 All day'},{value:'day',label:'日班 Day shift'},{value:'night',label:'夜班 Night shift'}],
+    scopeOptions:[{value:'all',label:t('全天', 'All day', 'ពេញមួយថ្ងៃ')},{value:'day',label:t('日班', 'Day shift', 'វេនថ្ងៃ')},{value:'night',label:t('夜班', 'Night shift', 'វេនយប់')}],
     defaultScope:'all', summaryPages:patrolSummaryPages, summaryPhotos:patrolSummaryPhotos, beforeSummarySend:patrolBeforeSummarySend });
 }
 function pushSummary() { return openPatrolTelegram(); }
 
 /* ═══════════ 匯出 / 雲端 ═══════════ */
 function expRounds() {
-  var order = chipOrder();
+  var order = chipOrder(), H = {
+    date:t('日期','Date','កាលបរិច្ឆេទ'), start:t('開始','Start','ចាប់ផ្តើម'), end:t('結束','End','បញ្ចប់'), shift:t('班別','Shift','វេន'),
+    guard:t('巡邏員','Guard','អ្នកល្បាត'), dur:t('耗時(分)','Duration (min)','រយៈពេល (នាទី)'), hit:t('打點數','Scanned','បានស្កេន'),
+    exp:t('應打點數','Expected','គួរស្កេន'), result:t('判定','Result','លទ្ធផល') };
   SEC.exportExcel([{ name: 'Rounds_' + PER.key(), rows: inPeriodR().map(function (r, i) {
     var TC = roundExpected(r), expectedOrder = r.expectedChips || checkpointOrderForDate(r.date);
-    var o = { '#': i + 1, '日期 Date': r.date, '開始 Start': r.start.slice(11, 19), '結束 End': r.end.slice(11, 19),
-      '班別 Shift': r.night ? 'Night' : 'Day', '巡邏員 Guard': r.g, '耗時(分) Dur': r.dur,
-      '打點數': r.chips.length, '應打點數': TC, '判定': roundComplete(r) ? '完整' : '漏 ' + (TC - r.chips.length) + ' 點' };
+    var o = { '#': i + 1 };
+    o[H.date] = r.date; o[H.start] = r.start.slice(11, 19); o[H.end] = r.end.slice(11, 19);
+    o[H.shift] = r.night ? t('夜班','Night','វេនយប់') : t('日班','Day','វេនថ្ងៃ'); o[H.guard] = r.g; o[H.dur] = r.dur;
+    o[H.hit] = r.chips.length; o[H.exp] = TC;
+    o[H.result] = roundComplete(r) ? t('完整','Complete','ពេញលេញ') : t('漏 ' + (TC - r.chips.length) + ' 點', (TC - r.chips.length) + ' missed', 'ខកខាន ' + (TC - r.chips.length));
     expectedOrder.forEach(function (c, ci) { o[(ci + 1) + '.' + chipName(c)] = r.chips.indexOf(c) >= 0 ? '✔' : ''; });
     return o;
   }) }, { name: 'Checkpoints', rows: order.map(function (c) {
-    return { '順序 Seq': chipSeq(c), 'Chip ID': c, '名稱 Name': chipName(c), '打點次數': CHIP[c].n || 0 };
+    var o = {}; o[t('順序','Seq','លំដាប់')] = chipSeq(c); o['Chip ID'] = c; o[t('名稱','Name','ឈ្មោះ')] = chipName(c); o[t('打點次數','Scans','ចំនួនស្កេន')] = CHIP[c].n || 0;
+    return o;
+  }) }, { name: 'Manual', rows: MAN.filter(function (r) { return PER.has(r.date); }).map(function (r) {
+    var o = {}; o[H.date] = r.date; o[t('時間','Time','ម៉ោង')] = r.time || ''; o[H.shift] = r.shift === 'N' ? t('夜班','Night','វេនយប់') : t('日班','Day','វេនថ្ងៃ');
+    o[H.guard] = r.guard || ''; o[t('巡邏點','Checkpoint','ចំណុចល្បាត')] = dispName(r.location || '');
+    o[t('狀態','Status','ស្ថានភាព')] = r.status === 'issue' ? t('異常','Abnormal','មិនប្រក្រតី') : t('正常','Normal','ធម្មតា'); o[t('備註','Remark','កំណត់ចំណាំ')] = r.note || '';
+    return o;
   }) }], 'AC_SEC_Patrol_' + PER.key() + '.xlsx');
 }
 function expExcel() { expRounds(); }
@@ -1640,23 +1939,29 @@ function restore() {
     if (o.confirmations) CHECK = o.confirmations;
     repairPatrolCheckpointAlias();
     var at=new Date().toISOString();
-    SCAN.forEach(function(r){r.updatedAt=at;SEC.clearDeleted(TOOL,Object.assign({_k:'scan'},r));});
-    MAN.forEach(function(r){r.updatedAt=at;SEC.clearDeleted(TOOL,Object.assign({_k:'manual'},r));});
-    CHECK.forEach(function(r){r.updatedAt=at;SEC.clearDeleted(TOOL,Object.assign({_k:'check'},r));});
-    saveScan(); saveMan(); saveCheck(); saveChip(); rebuild();SEC.scheduleAutoCloudSync(TOOL,'patrol-restore','all');
+    SCAN.forEach(function(r){r.updatedAt=at;}); MAN.forEach(function(r){r.updatedAt=at;}); CHECK.forEach(function(r){r.updatedAt=at;});
+    /* 批次清除刪除墓碑（不逐筆讀寫） */
+    batchClearDeleted(TOOL, SCAN.map(function(r){return Object.assign({_k:'scan'},r);})
+      .concat(MAN.map(function(r){return Object.assign({_k:'manual'},r);}))
+      .concat(CHECK.map(function(r){return Object.assign({_k:'check'},r);})));
+    patrolScanDedupe();
+    saveScan(); saveMan(); saveCheck(); saveChip(); rebuild(); loadPatrolCheckForm(); SEC.scheduleAutoCloudSync(TOOL,'patrol-restore','all');
   });
 }
 function clearScans() {
-  if (!confirm('確定清空巡更棒打點資料？（人工登錄與巡邏點名稱會保留）')) return;
+  if (!confirm(t('確定清空巡更棒打點資料？（人工登錄與巡邏點名稱會保留）', 'Clear all wand scan data? (Manual entries and checkpoint names are kept.)', 'សម្អាតទិន្នន័យស្កេនទាំងអស់មែនទេ? (ការបញ្ចូលដោយដៃ និងឈ្មោះចំណុចត្រូវរក្សាទុក)'))) return;
   SEC.markDeletedMany(TOOL,SCAN.map(function(r){return Object.assign({_k:'scan'},r);}));
-  SCAN = []; saveScan(); rebuild(); SEC.toast('已清空巡更棒資料', 'ok');
+  SCAN = []; saveScan(); rebuild(); SEC.toast(t('已清空巡更棒資料', 'Wand data cleared', 'បានសម្អាតទិន្នន័យស្កេន'), 'ok');
   SEC.scheduleAutoCloudSync(TOOL,'patrol-scan-clear','all');
 }
 function clearAll() {
-  if (!confirm('確定清空全部巡邏資料（含巡邏點命名）？此動作無法復原。')) return;
-  SEC.markDeletedMany(TOOL,SCAN.map(function(r){return Object.assign({_k:'scan'},r);}));SEC.markDeletedMany(TOOL,MAN.map(function(r){return Object.assign({_k:'manual'},r);}));SEC.markDeletedMany(TOOL,CHECK.map(function(r){return Object.assign({_k:'check'},r);}));
-  SCAN = []; MAN = []; CHECK = []; CHIP = {}; saveScan(); saveMan(); saveCheck(); saveChip(); rebuild();
+  if (!confirm(t('確定清空全部巡邏資料（含巡邏點命名）？此動作無法復原。', 'Clear ALL patrol data, including checkpoint names? This cannot be undone.', 'សម្អាតទិន្នន័យល្បាតទាំងអស់ រួមទាំងឈ្មោះចំណុចមែនទេ? មិនអាចត្រឡប់វិញបានទេ។'))) return;
+  SEC.markDeletedMany(TOOL, SCAN.map(function(r){return Object.assign({_k:'scan'},r);})
+    .concat(MAN.map(function(r){return Object.assign({_k:'manual'},r);}))
+    .concat(CHECK.map(function(r){return Object.assign({_k:'check'},r);})));
+  SCAN = []; MAN = []; CHECK = []; CHIP = {}; saveScan(); saveMan(); saveCheck(); saveChip(); resetManForm(); rebuild(); loadPatrolCheckForm();
   SEC.scheduleAutoCloudSync(TOOL,'patrol-clear-all','all');
+  SEC.toast(t('已全部清空', 'All patrol data cleared', 'បានសម្អាតទាំងអស់'), 'ok');
 }
 function patrolCloudRecords() {
   return SCAN.map(function (s) {
@@ -1664,10 +1969,10 @@ function patrolCloudRecords() {
   }).concat(ROUNDS.map(function (r) {
     var TC = roundExpected(r);
     return { _k:'round', id:'R|' + r.start + '|' + r.g, date: r.date, time: r.start.slice(11, 16), endTime: r.end.slice(11, 16),
-      guard: r.g, shift: r.night ? 'C' : 'A', location: chipName(r.chips[0]),
+      guard: r.g, shift: r.night ? 'C' : 'A', location: r.chips.length ? chipRawName(r.chips[0]) : '',
       points: r.chips.length, expected: TC, dur: r.dur,
       status: roundComplete(r) ? 'ok' : 'issue',
-      missed: roundMissing(r).map(chipName).join(','),
+      missed: roundMissing(r).map(function (c) { return chipRawName(c); }).join(','),
     };
   })).concat(MAN.map(function (r) {
     return { _k:'manual', id:r.id, date: r.date, time: r.time, guard: r.guard, shift: r.shift === 'N' ? 'C' : 'A',
@@ -1683,7 +1988,7 @@ async function doUpload(opts) {
   return await SEC.cloudPush(TOOL, recs, { rounds: ROUNDS.length, scans: SCAN.length, checkpoints: totalCp(), confirmations:CHECK.length }, { chip:SEC.replaceObject(CHIP,CHIP_REV||'1970-01-01T00:00:00.000Z') });
 }
 async function doDownload(opts) {
-  if (!(opts && opts.auto) && !confirm('⬇️☁ 下載會合併巡更棒、人工記錄及巡邏確認；同一時間＋Chip 或同一 ID 不會重複，較新的資料優先。繼續？')) return false;
+  if (!(opts && opts.auto) && !confirm('⬇️☁ ' + t('下載會合併巡更棒、人工記錄及巡邏確認；同一分鐘＋Chip 或同一 ID 不會重複，較新的資料優先。繼續？', 'Download merges wand scans, manual records and patrol checks. The same chip within a minute, or the same ID, is never duplicated; newer data wins. Continue?', 'ការទាញយកនឹងបញ្ចូលការស្កេន កំណត់ត្រាដោយដៃ និងការបញ្ជាក់។ Chip ដដែលក្នុងមួយនាទី ឬ ID ដដែល មិនស្ទួនទេ; ទិន្នន័យថ្មីជាងឈ្នះ។ បន្តទេ?'))) return false;
   var recs = await SEC.cloudPull(TOOL, { force:!(opts && opts.auto), localRecords:patrolCloudRecords(), localExtra:{ chip:SEC.replaceObject(CHIP,CHIP_REV||'1970-01-01T00:00:00.000Z') } });
   if (!recs) return false;
   if (recs._cloudMeta && recs._cloudMeta.unchanged) return true;
@@ -1697,16 +2002,17 @@ async function doDownload(opts) {
       note:r.note || '', photos:Array.isArray(r.photos) ? r.photos.slice(0, 4) : [], updatedAt:r.updatedAt || '' };
   });
   var m = SEC.mergeRecords('patrol', local, remote);
-  if (!(opts && opts.auto) && !SEC.confirmBlankMerge(m.blankConflicts, '巡邏資料雲端下載確認')) return false;
+  if (!(opts && opts.auto) && !SEC.confirmBlankMerge(m.blankConflicts, t('巡邏資料雲端下載確認', 'Confirm patrol cloud download', 'បញ្ជាក់ការទាញយកទិន្នន័យល្បាត'))) return false;
   SCAN = m.records.filter(function (r) { return r._k === 'scan'; }).map(function (r) { return {t:r.t,g:r.g,c:r.c,e:r.e,r:r.r||'',updatedAt:r.updatedAt||'',_recordKey:r._recordKey||''}; });
   MAN = m.records.filter(function (r) { return r._k === 'manual'; }).map(function (r) { var x=Object.assign({},r); delete x._k; return x; });
   CHECK = m.records.filter(function (r) { return r._k === 'check'; }).map(function (r) { var x=Object.assign({},r); delete x._k; return x; });
-  patrolDedupe();
+  patrolDedupe(); patrolScanDedupe();
   var ex=recs._cloudExtra||{},remoteChip=SEC.unwrapObject(ex.chip||{}),chipMerged=SEC.mergeObject({chip:SEC.replaceObject(CHIP,CHIP_REV||'1970-01-01T00:00:00.000Z')},{chip:SEC.replaceObject(remoteChip.data,remoteChip.updatedAt||(recs._cloudMeta&&recs._cloudMeta.updatedAt)||'1970-01-01T00:00:00.000Z')},TOOL).chip,chipOut=SEC.unwrapObject(chipMerged);CHIP=chipOut.data;CHIP_REV=chipOut.updatedAt||CHIP_REV;
   var chipAliasFixed=repairPatrolCheckpointAlias();
-  saveScan(); saveMan(); saveCheck(); if(chipAliasFixed)saveChip(); rebuild();
+  saveScan(); saveMan(); saveCheck(); if(chipAliasFixed)saveChip(); rebuild(); if (!PC_DIRTY) loadPatrolCheckForm();
+  if (MAN_EDIT_ID && !MAN.some(function (r) { return r.id === MAN_EDIT_ID; })) resetManForm();
   if (recs._cloudMeta && recs._cloudMeta.missingBuckets && recs._cloudMeta.missingBuckets.length) SEC.scheduleAutoCloudSync(TOOL,'repair-missing-cloud-bucket','');
-  if (!(opts && opts.silent)) SEC.toast('⬇️☁ 已合併 ' + m.added + ' 新增／' + m.updated + ' 更新；巡更棒 ' + SCAN.length + ' 筆、確認 ' + CHECK.length + ' 筆', 'ok', 6000);
+  if (!(opts && opts.silent)) SEC.toast('⬇️☁ ' + t('已合併 ' + m.added + ' 新增／' + m.updated + ' 更新；巡更棒 ' + SCAN.length + ' 筆、確認 ' + CHECK.length + ' 筆', 'Merged ' + m.added + ' new / ' + m.updated + ' updated; ' + SCAN.length + ' scans, ' + CHECK.length + ' checks', 'បានបញ្ចូល ' + m.added + ' ថ្មី / ' + m.updated + ' កែ; ការស្កេន ' + SCAN.length + ', ការបញ្ជាក់ ' + CHECK.length), 'ok', 6000);
   return true;
 }
 SEC.registerAutoUploader(TOOL, function (opts) { return doUpload(opts); });

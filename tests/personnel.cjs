@@ -61,7 +61,7 @@ const original={id:'S1',empId:'A001',name:'Original Guard',shift:'A',post:'Gate 
   await v.save();v.renderAll();
   for(const details of [false,true]){const defs=v.personnelChangeDefs({...state,includeDetails:details}),text=defs.map(d=>d.text).join('\n');assert.match(text,/Personnel changes/);assert.match(text,/Joined September/);assert.match(text,/Original Guard/);assert(!text.includes('Never Changed'));assert(!text.includes('Joined October'));assert.equal(defs.flatMap(d=>d.photos).includes('join-photo'),details);}
   assert.equal(v.personnelChanges(state).length,2);
-  v.SEC.gasPost=async()=>({sent:false});await assert.rejects(Q.notify(joined.change),/Not delivered/);assert(Q.unsent((await Q.read()).changes.find(r=>r.id===joined.change.id)));
+  v.SEC.gasPost=async()=>({sent:false});await assert.rejects(Q.notify(joined.change),/Not delivered|did not deliver|未送達/);assert(Q.unsent((await Q.read()).changes.find(r=>r.id===joined.change.id)));
   v.SEC.gasPost=async()=>({sent:true});await Q.notify(joined.change);let data=await Q.read();assert(!Q.unsent(data.changes.find(r=>r.id===joined.change.id)));v.DB=data.db;v.CHG=data.changes;
   assert.equal(v.personnelChanges(state).length,1);assert.equal(v.personnelChanges({...state,scope:'allChanges'}).length,2);
   // Only mark the exact version actually delivered.

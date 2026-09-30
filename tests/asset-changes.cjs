@@ -13,7 +13,7 @@ const copy=x=>JSON.parse(JSON.stringify(x));const state={ptype:'month',period:'2
    }
    if(tool==='fire')assert.equal(w.statusOf(w.DB[0]),'ok','old inspection does not make a master overdue');
    w.openEdit(record.id);w.document.querySelector('#e_assetDate').value='2026-09-14';w.document.querySelector('#e_assetKind').value='replace';if(tool==='fire')w.EDIT_FIRE_PHOTOS=['new-device'];else w.EDIT_PHOTOS=['new-device'];w.saveEdit();await w.save();
-   assert.equal(w.ASSET_CHANGES.length,1);assert.equal(w.ASSET_CHANGES[0].kind,'replace');assert.equal(w.ASSET_CHANGES[0].before.photos[0],'normal-old');assert.equal(w.ASSET_CHANGES[0].after.photos[0],'new-device');
+   assert.equal(w.ASSET_CHANGES.length,1);assert.equal(w.ASSET_CHANGES[0].kind,'replace');assert.equal(w.ASSET_CHANGES[0].before.photoN,1);assert.equal(w.ASSET_CHANGES[0].after.photoN,1);assert.equal(w.ASSET_CHANGES[0].before.photos,undefined,'no duplicate photo copy in before');assert.equal(w.ASSET_CHANGES[0].after.photos,undefined,'no duplicate photo copy in after');assert.deepEqual(copy(w.ASSET_CHANGES[0].photos),['new-device']);
    w.openEdit(record.id);w.document.querySelector('#e_assetDate').value='2026-09-14';w.document.querySelector('#e_assetKind').value='replace';w.saveEdit();await w.save();assert.equal(w.ASSET_CHANGES.length,1,'repeated identical replacement save cannot double count');
    const defs=A.pages(tool,w.ASSET_CHANGES,state);assert.deepEqual(copy(defs.flatMap(d=>d.photos)),['new-device']);assert(defs[0].text.split('\n').some(l=>l.includes(record.code)&&l.includes('Gate A')));
    assert.equal(A.pages(tool,w.ASSET_CHANGES,{...state,period:'2026-10'})[0].photos.length,0,'replacement photo not re-sent next month');

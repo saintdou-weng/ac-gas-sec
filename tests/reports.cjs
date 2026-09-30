@@ -61,8 +61,8 @@ const plain=x=>JSON.parse(JSON.stringify(x));
   c.save=()=>{};c.renderAll=()=>{};c.SEC.scheduleAutoCloudSync=()=>{};
   c.commuteApprovalSent({batchId:'VG1'},{...state,scope:'vehicle'},items);
   assert.equal(c.CAR[0].approvalBatch,'VG1');assert.equal(c.BIKE[0].approvalBatch,undefined,'same ID in unrelated category must remain unchanged');
-  for(const module of ['container','patrol','cctv','fire'])await assert.rejects(c.SEC.sendApproval({module,items:[{id:'1',kind:'commute-vehicle',group:'vehicle'}]}),/summary-only/);
-  await assert.rejects(c.SEC.sendApproval({module:'commute',items:[{id:'1',kind:'commute-bike',group:'bike'}]}),/summary-only/);
+  for(const module of ['container','patrol','cctv','fire'])await assert.rejects(c.SEC.sendApproval({module,items:[{id:'1',kind:'commute-vehicle',group:'vehicle'}]}),/summary-only|不需核可/);
+  await assert.rejects(c.SEC.sendApproval({module:'commute',items:[{id:'1',kind:'commute-bike',group:'bike'}]}),/summary-only|不需核可/);
   console.log('PASS: scope-aware approval UI, direct request rejection and category-isolated record updates');
  }finally{commute.dom.window.close();}
  // Load every remaining page with real shared scripts; external network is blocked.

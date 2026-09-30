@@ -6,7 +6,7 @@
 var S=g.SEC, LS='ac_sec_personnel_db', LC='ac_sec_personnel_chg', BUSY=false, WRITE_QUEUE=Promise.resolve();
 var FIELDS=['empId','name','position','shift','post','joinDate','resignDate','phone','company','status','remark','photo'];
 function text(v){return String(v==null?'':v).trim();}
-function tr(zh,en,km){return S.lang()==='en'?en:S.lang()==='km'?km:zh;}
+function tr(zh,en,km){return S.L?S.L(zh,en,km):(S.lang()==='en'?en:S.lang()==='km'?km:zh);}
 function month(v){var m=text(v).match(/^(\d{4})-(0[1-9]|1[0-2])/);return m?m[1]+'-'+m[2]:'';}
 function currentMonth(){return S.ymd().slice(0,7);}
 function validName(v){var n=text(v);return !!n&&!/^(?:(?:red|green|yellow|blue)\s*[:=]|total\b|subtotal\b|grand total\b|合計|小計|備註|說明|day\s*off\b|take\s+leave\b|legend\b)/i.test(n);}
@@ -47,15 +47,15 @@ function unsent(r){var d=S.unwrapObject(r._personnelDelivery).data;return d.sign
 function apply(db,changes,input,opt){
   opt=opt||{};var m=month(opt.month),date=opt.date||m+'-01';
   if(!m||month(date)!==m)throw Error(tr('生效日期必須在生效月份內','Effective date must be in the selected month','ថ្ងៃចូលជាធរមានត្រូវនៅក្នុងខែដែលបានជ្រើស'));
-  if(!validName(input.name))throw Error(tr('請填寫真實姓名；說明列不能當成人員','Enter a real name; legend rows are not people','សូមបញ្ចូលឈ្មោះពិត'));
+  if(!validName(input.name))throw Error(tr('請填寫真實姓名；說明列不能當成人員','Enter a real name; legend rows are not people','សូមបញ្ចូលឈ្មោះពិត។ ជួរពន្យល់មិនមែនជាមនុស្សទេ'));
   var row=opt.id?db.filter(function(r){return r.id===opt.id;})[0]:db.filter(function(r){return same(r,input);})[0];
-  if(opt.id&&!row)throw Error('Personnel record no longer exists / 找不到人員');
+  if(opt.id&&!row)throw Error(tr('找不到這位人員（可能已被刪除）','This person no longer exists (it may have been deleted)','រកមិនឃើញបុគ្គលិកនេះទេ (ប្រហែលត្រូវបានលុប)'));
   var oldChange=opt.changeId?changes.filter(function(r){return r.id===opt.changeId;})[0]:null;
-  if(oldChange&&(oldChange.effectiveMonth||month(oldChange.date))!==m)throw Error('Edit the original effective month / 請在原生效月份修正異動');
+  if(oldChange&&(oldChange.effectiveMonth||month(oldChange.date))!==m)throw Error(tr('請在原生效月份修正這筆異動','Edit this change in its original effective month','សូមកែការផ្លាស់ប្តូរនេះនៅក្នុងខែចូលជាធរមានដើម'));
   var before=row?snapshot(row,m):null,stamp=new Date().toISOString(),isNew=!row;
   var after=Object.assign({},before||{},input);after=fields(after);after.status=after.status||'active';
-  if(['active','resigned','removed'].indexOf(after.status)<0)throw Error('Invalid personnel status');
-  if(db.some(function(r){return (!row||r.id!==row.id)&&Object.keys(r._rosterHistory||{}).concat([m]).some(function(k){var v=snapshot(r,k==='0000-01'?m:k);return v&&same(v,after);});}))throw Error(tr('工號／姓名已存在，請編輯原人員，不要重複新增','ID/name already exists; edit the existing person','អត្តលេខឬឈ្មោះមានរួចហើយ'));
+  if(['active','resigned','removed'].indexOf(after.status)<0)throw Error(tr('人員狀態不正確','Invalid personnel status','ស្ថានភាពបុគ្គលិកមិនត្រឹមត្រូវ'));
+  if(db.some(function(r){return (!row||r.id!==row.id)&&Object.keys(r._rosterHistory||{}).concat([m]).some(function(k){var v=snapshot(r,k==='0000-01'?m:k);return v&&same(v,after);});}))throw Error(tr('工號／姓名已存在，請編輯原人員，不要重複新增','ID/name already exists; edit the existing person','អត្តលេខឬឈ្មោះមានរួចហើយ។ សូមកែបុគ្គលិកដែលមានស្រាប់'));
   if(after.status!=='active')after.resignDate=date;
   else if(before&&before.status!=='active')after.resignDate='';
   var sameFields=before&&JSON.stringify(fields(before))===JSON.stringify(after);
@@ -103,7 +103,7 @@ async function markSent(selected){
 async function notify(r){
   if(!unsent(r))return {sent:true,skippedDuplicate:true};
   var body=Object.assign({},r,{action:'personnelChange',lang:S.lang(),changeId:r.id});
-  var out=await S.gasPost(body);if(!out||out.sent!==true)throw Error('Telegram 未送達，異動仍保留待發 / Not delivered; change remains pending');
+  var out=await S.gasPost(body);if(!out||out.sent!==true)throw Error(tr('Telegram 未送達，異動仍保留待發','Telegram did not deliver it; the change stays pending','Telegram មិនបានផ្ញើ។ ការផ្លាស់ប្តូរនៅរង់ចាំ'));
   await markSent([{id:r.id,signature:signature(r)}]);return out;
 }
 function openEditor(opt){
@@ -112,12 +112,12 @@ function openEditor(opt){
   if(opt.remove)r=Object.assign({},r,{status:'resigned'});
   var mask=document.createElement('div');mask.className='mask on';
   function field(k,label,type,value){return '<div class="f"><label>'+label+'</label><input data-person-field="'+k+'" type="'+(type||'text')+'" value="'+S.esc(value==null?r[k]||'':value)+'"></div>';}
-  mask.innerHTML='<div class="modal" style="max-width:640px"><div class="mh"><b>👮 '+tr(row?'編輯人員':'新增人員',row?'Edit person':'Add person',row?'កែបុគ្គលិក':'បន្ថែមបុគ្គលិក')+'</b><button class="x" data-close>×</button></div><div class="mb"><div class="grid g2">'+
-    field('effectiveMonth',tr('生效月份','Effective month','ខែចូលជាធរមាន'),'month',m)+field('date',tr('異動日期','Change date','ថ្ងៃផ្លាស់ប្តូរ'),'date',m===currentMonth()?S.ymd():m+'-01')+
+  mask.innerHTML='<div class="modal" style="max-width:640px"><div class="mh"><b>👮 '+tr(row?'編輯人員':'新增人員',row?'Edit person':'Add person',row?'កែបុគ្គលិក':'បន្ថែមបុគ្គលិក')+'</b><button class="x" data-close aria-label="'+S.esc(tr('關閉','Close','បិទ'))+'">×</button></div><div class="mb"><div class="grid g2">'+
+    field('effectiveMonth',tr('生效月份','Effective month','ខែចូលជាធរមាន'),'month',m)+field('date',tr('異動日期','Change date','កាលបរិច្ឆេទផ្លាស់ប្តូរ'),'date',m===currentMonth()?S.ymd():m+'-01')+
     field('empId',tr('工號','Employee ID','អត្តលេខ'))+field('name',tr('姓名','Name','ឈ្មោះ'))+field('position',tr('職稱','Position','តំណែង'))+
     '<div class="f"><label>'+tr('班別','Shift','វេន')+'</label><select data-person-field="shift"><option value="">—</option><option>A</option><option>B</option><option>C</option></select></div>'+field('post',tr('崗位','Post','ប៉ុស្តិ៍'))+field('company',tr('公司','Company','ក្រុមហ៊ុន'))+
-    field('joinDate',tr('到職日','Join date','ថ្ងៃចូល'),'date')+field('phone',tr('電話','Phone','ទូរស័ព្ទ'))+
-    '<div class="f"><label>'+tr('狀態','Status','ស្ថានភាព')+'</label><select data-person-field="status"><option value="active">'+tr('在職','Active','កំពុងធ្វើការ')+'</option><option value="resigned">'+tr('離職','Resigned','ឈប់ពីការងារ')+'</option><option value="removed">'+tr('移出名冊（誤植／不適用）','Remove from roster (incorrect/inapplicable)','ដកចេញពីបញ្ជី')+'</option></select></div>'+field('by',tr('經辦人','Handled by','អ្នកទទួលខុសត្រូវ'),'text',S.getCfg().operator||'')+
+    field('joinDate',tr('到職日','Join date','កាលបរិច្ឆេទចូលធ្វើការ'),'date')+field('phone',tr('電話','Phone','ទូរស័ព្ទ'))+
+    '<div class="f"><label>'+tr('狀態','Status','ស្ថានភាព')+'</label><select data-person-field="status"><option value="active">'+tr('在職','Active','កំពុងធ្វើការ')+'</option><option value="resigned">'+tr('離職','Resigned','ឈប់ពីការងារ')+'</option><option value="removed">'+tr('移出名冊（誤植／不適用）','Remove from roster (incorrect/inapplicable)','ដកចេញពីបញ្ជី (ខុស/មិនពាក់ព័ន្ធ)')+'</option></select></div>'+field('by',tr('經辦人','Handled by','អ្នកទទួលខុសត្រូវ'),'text',S.getCfg().operator||'')+
     field('remark',tr('備註／異動原因','Remark / change reason','មូលហេតុ'))+'</div><div class="row" style="margin-top:12px"><span data-photo></span><button class="btn sm gh" data-pick>📷 '+tr('拍照／照片','Camera / photo','កាមេរ៉ា / រូបថត')+'</button><button class="btn sm gh" data-clear>'+tr('移除照片','Remove photo','លុបរូបថត')+'</button></div><p class="hint">'+tr('從生效月份開始延用，直到下一次異動；之前月份不變。離職者本月已登記的出勤與工時保留。','Applies from the effective month until the next change. Earlier months and recorded attendance remain intact.','មានប្រសិទ្ធភាពចាប់ពីខែដែលបានជ្រើស។ ទិន្នន័យខែមុននៅដដែល។')+'</p><div data-error style="color:#b91c1c"></div></div><div class="mf"><button class="btn gh" data-close>'+tr('取消','Cancel','បោះបង់')+'</button><button class="btn gh" data-save>'+tr('儲存並更新雲端','Save & sync','រក្សាទុក និងធ្វើសមកាលកម្ម')+'</button><button class="btn" data-send>💾✈️ '+tr('儲存並發送異動','Save & send change','រក្សាទុក និងផ្ញើការផ្លាស់ប្តូរ')+'</button></div></div>';
   document.body.appendChild(mask);var q=function(sel){return mask.querySelector(sel);};q('[data-person-field="shift"]').value=r.shift||'';q('[data-person-field="status"]').value=r.status==='removed'?'removed':r.status==='resigned'?'resigned':'active';
   function preview(){q('[data-photo]').innerHTML=photo?'<img src="'+S.esc(photo)+'" style="width:54px;height:60px;object-fit:cover;border-radius:6px">':'';}preview();

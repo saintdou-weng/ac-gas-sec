@@ -7,9 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
-<script src="./shared/xlsx.full.min.js?v=20260814b"></script>
+<script src="./shared/xlsx.full.min.js?v=20260929a"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="stylesheet" href="./shared/sec.css?v=20260808g">
+<link rel="stylesheet" href="./shared/sec.css?v=20260929a">
 <style>
 #gridT{border-collapse:separate;border-spacing:0;font-size:11px;white-space:nowrap}
 #gridT th,#gridT td{padding:0;border:none}
@@ -37,6 +37,17 @@
 .pb{padding:5px 10px;border-radius:8px;border:2px solid transparent;cursor:pointer;
   font-size:11.5px;font-weight:700;font-family:inherit}
 .pb.on{border-color:#0f2b46;box-shadow:0 0 0 2px rgba(15,43,70,.1)}
+/* 空白狀態：一般區塊，不受表格 nowrap 影響，手機上完整換行 */
+.att-empty{border:1px dashed var(--line);border-radius:11px;padding:18px 14px;color:var(--muted);font-size:12.5px;line-height:1.7;white-space:normal;overflow-wrap:anywhere}
+.att-empty ol{margin:6px 0 10px 18px;padding:0}
+/* 「⋯ 更多」選單 */
+.att-more{position:relative;display:inline-block}
+.att-more>summary{list-style:none;cursor:pointer}
+.att-more>summary::-webkit-details-marker{display:none}
+.att-more .menu{position:absolute;right:0;top:calc(100% + 4px);z-index:30;background:#fff;border:1px solid var(--line);border-radius:10px;
+  box-shadow:0 8px 24px rgba(15,43,70,.16);padding:6px;display:flex;flex-direction:column;gap:4px;min-width:190px}
+.att-more .menu .btn{justify-content:flex-start;width:100%}
+.btn.busy{opacity:.6;pointer-events:none}
 </style>
 </head>
 <body>
@@ -65,50 +76,43 @@
     <div class="card">
       <h3>🗓 <span data-zh="排班出勤表" data-en="Attendance Roster" data-km="តារាងវត្តមាន">排班出勤表</span>
         <span class="sp">
-          <label style="font-size:11px;color:var(--ink2)">每班時數</label>
+          <label style="font-size:11px;color:var(--ink2)" for="hrDay" data-zh="每班時數" data-en="Hours / shift" data-km="ម៉ោង / វេន">每班時數</label>
           <input type="number" id="hrDay" value="12" min="1" max="24" style="width:56px" onchange="renderAll()">
-          <button class="btn sm gh" onclick="addOnePerson()">➕ <span data-zh="新增人員" data-en="Add person" data-km="បន្ថែមបុគ្គលិក">新增人員</span></button>
-          <button class="btn sm gh" onclick="manageAttendancePeople()">👥 <span data-zh="名冊管理" data-en="Manage roster" data-km="គ្រប់គ្រងបញ្ជី">名冊管理</span></button>
-          <button class="btn sm gh" onclick="saveGrid(false)">💾 <span data-zh="儲存／更新" data-en="Save / sync" data-km="រក្សាទុក / ធ្វើសមកាលកម្ម">儲存／更新</span></button>
-          <button class="btn sm gh" onclick="syncStaff()">🔄 <span data-zh="同步人員名冊" data-en="Sync roster" data-km="ធ្វើសមកាលកម្ម">同步人員名冊</span></button>
-          <button class="btn sm gh" onclick="fillMonth()">📅 <span data-zh="整月填出勤" data-en="Fill month" data-km="បំពេញខែ">整月填出勤</span></button>
-          <button class="btn sm" onclick="saveGrid(true)">💾✈️ <span data-zh="儲存並推送" data-en="Save & push" data-km="ផ្ញើ">儲存並推送</span></button>
+          <button class="btn sm" id="saveGridBtn" onclick="saveGrid(false)">💾 <span data-zh="儲存" data-en="Save" data-km="រក្សាទុក">儲存</span></button>
+          <details class="att-more" id="attMore">
+            <summary class="btn sm gh">⋯ <span data-zh="更多" data-en="More" data-km="ច្រើនទៀត">更多</span></summary>
+            <div class="menu">
+              <button class="btn sm gh" onclick="closeMore();saveGrid(true)">💾✈️ <span data-zh="儲存並推送群組" data-en="Save & send to group" data-km="រក្សាទុក និងផ្ញើទៅក្រុម">儲存並推送群組</span></button>
+              <button class="btn sm gh" onclick="closeMore();addOnePerson()">➕ <span data-zh="新增人員" data-en="Add person" data-km="បន្ថែមបុគ្គលិក">新增人員</span></button>
+              <button class="btn sm gh" onclick="closeMore();manageAttendancePeople()">👥 <span data-zh="名冊管理" data-en="Manage roster" data-km="គ្រប់គ្រងបញ្ជីឈ្មោះ">名冊管理</span></button>
+              <button class="btn sm gh" onclick="closeMore();syncStaff()">🔄 <span data-zh="同步人員名冊" data-en="Sync roster" data-km="ធ្វើសមកាលកម្មបញ្ជីឈ្មោះ">同步人員名冊</span></button>
+              <button class="btn sm gh" onclick="closeMore();fillMonth()">📅 <span data-zh="整月填出勤" data-en="Fill whole month" data-km="បំពេញពេញមួយខែ">整月填出勤</span></button>
+            </div>
+          </details>
         </span></h3>
 
-      <div class="pal">
-        <span style="font-size:11px;color:var(--ink2);font-weight:700">畫筆</span>
-        <button class="pb c-W on" data-s="W" onclick="setBrush('W')">W 出勤</button>
-        <button class="pb c-O"    data-s="O" onclick="setBrush('O')">O 加班</button>
-        <button class="pb c-R"    data-s="R" onclick="setBrush('R')">R 例休</button>
-        <button class="pb c-L"    data-s="L" onclick="setBrush('L')">L 請假</button>
-        <button class="pb c-A"    data-s="A" onclick="setBrush('A')">A 曠職</button>
-        <button class="pb c-H"    data-s="H" onclick="setBrush('H')">H 國定假</button>
-        <button class="pb c-"     data-s=""  onclick="setBrush('')">清除</button>
-        <span class="hint" style="margin-left:auto">點格子填入，可按住拖過去連續填</span>
-      </div>
+      <div class="pal" id="palette"></div>
 
-      <div class="tw" style="max-height:520px;overflow:auto"><table id="gridT"></table></div>
-      <p class="hint" style="margin-top:8px">
-        班別代號沿用人員名冊：A 早班 06–14、B 中班 14–22、C 夜班 22–06。
-        每格右上角小字是該人的班別；出勤日一律以「每班時數」計算工時（預設 12 小時，對應 ICSC 合約）。
-      </p>
+      <div id="gridEmpty" class="att-empty" style="display:none"></div>
+      <div class="tw" id="gridWrap" style="max-height:520px;overflow:auto"><table id="gridT"></table></div>
+      <p class="hint" style="margin-top:8px" data-zh="班別代號沿用人員名冊：A 早班 06–14、B 中班 14–22、C 夜班 22–06。每格右上角小字是該人的班別；出勤日一律以「每班時數」計算工時（預設 12 小時，對應 ICSC 合約）。" data-en="Shift codes follow the roster: A morning 06–14, B middle 14–22, C night 22–06. Each name shows its shift; worked days are counted with Hours / shift (default 12, per the ICSC contract)." data-km="កូដវេនតាមបញ្ជីឈ្មោះ៖ A ព្រឹក 06–14, B កណ្តាល 14–22, C យប់ 22–06។ ឈ្មោះនីមួយៗបង្ហាញវេនរបស់ខ្លួន; ថ្ងៃធ្វើការគិតតាម «ម៉ោង / វេន» (លំនាំដើម 12 តាមកិច្ចសន្យា ICSC)។">班別代號沿用人員名冊：A 早班 06–14、B 中班 14–22、C 夜班 22–06。每格右上角小字是該人的班別；出勤日一律以「每班時數」計算工時（預設 12 小時，對應 ICSC 合約）。</p>
     </div>
   </div>
 
   <!-- ═══ 工時彙總 ═══ -->
   <div class="page" id="p-sum" style="display:none">
     <div class="card">
-      <h3>📋 <span data-zh="個人工時彙總" data-en="Hours Summary" data-km="សង្ខេបម៉ោង">個人工時彙總</span>
+      <h3>📋 <span data-zh="個人工時彙總" data-en="Hours Summary" data-km="សង្ខេបម៉ោងធ្វើការ">個人工時彙總</span>
         <span class="sp"><button class="btn sm gh" onclick="expSum()">📊 Excel</button></span></h3>
       <div class="tw"><table><thead><tr>
         <th data-zh="工號" data-en="ID" data-km="អត្តលេខ">工號</th>
         <th data-zh="姓名" data-en="Name" data-km="ឈ្មោះ">姓名</th>
         <th data-zh="班別" data-en="Shift" data-km="វេន">班別</th>
         <th data-zh="崗位" data-en="Post" data-km="ប៉ុស្តិ៍">崗位</th>
-        <th class="num" data-zh="出勤" data-en="Work" data-km="ការងារ">出勤</th>
-        <th class="num" data-zh="加班" data-en="OT" data-km="បន្ថែម">加班</th>
+        <th class="num" data-zh="出勤" data-en="Work" data-km="ធ្វើការ">出勤</th>
+        <th class="num" data-zh="加班" data-en="OT" data-km="ថែមម៉ោង">加班</th>
         <th class="num" data-zh="例休" data-en="Rest" data-km="សម្រាក">例休</th>
-        <th class="num" data-zh="請假" data-en="Leave" data-km="ឈប់">請假</th>
+        <th class="num" data-zh="請假" data-en="Leave" data-km="ច្បាប់">請假</th>
         <th class="num" data-zh="曠職" data-en="Absent" data-km="អវត្តមាន">曠職</th>
         <th class="num" data-zh="總工時" data-en="Hours" data-km="ម៉ោង">總工時</th>
         <th data-zh="實際出勤日期" data-en="Actual work dates" data-km="កាលបរិច្ឆេទធ្វើការ">實際出勤日期</th>
@@ -116,57 +120,54 @@
         <tbody id="tbSum"></tbody></table></div>
     </div>
     <div class="card">
-      <h3>⚠️ <span data-zh="出勤異常提醒" data-en="Attendance Alerts" data-km="ការជូនដំណឹង">出勤異常提醒</span></h3>
+      <h3>⚠️ <span data-zh="出勤異常提醒" data-en="Attendance Alerts" data-km="ការជូនដំណឹងវត្តមាន">出勤異常提醒</span></h3>
       <div id="alertBox"></div>
     </div>
     <div class="card">
-      <h3>🧾 <span data-zh="原始打卡明細（Day / Night）" data-en="Raw Punch Details" data-km="ទិន្នន័យវត្តមានដើម">原始打卡明細（Day / Night）</span>
+      <h3>🧾 <span data-zh="原始打卡明細（日班／夜班）" data-en="Raw Punch Details (Day / Night)" data-km="ទិន្នន័យស្កេនវត្តមានដើម (ថ្ងៃ / យប់)">原始打卡明細（日班／夜班）</span>
         <span class="sp"><button class="btn sm gh" onclick="expRaw()">📊 Excel</button></span></h3>
-      <p class="hint">從日班／夜班 attendance Excel 讀入的上下班時間會保留在這裡；同一人同一天重複匯入會更新，不會新增重複資料。</p>
-      <div class="tw"><table><thead><tr><th>日期</th><th>班別</th><th>工號</th><th>姓名</th><th>地點</th><th>上班</th><th>下班</th><th>原始值</th><th>來源</th><th>操作</th></tr></thead><tbody id="tbRaw"></tbody></table></div>
+      <p class="hint" data-zh="從日班／夜班出勤 Excel 讀入的上下班時間會保留在這裡；同一人同一天重複匯入會更新，不會新增重複資料。" data-en="Clock-in / clock-out times read from the day and night attendance Excel files are kept here. Re-importing the same person and day updates the row instead of duplicating it." data-km="ម៉ោងចូល / ចេញពីឯកសារ Excel វត្តមានវេនថ្ងៃ និងយប់ត្រូវរក្សាទុកនៅទីនេះ។ ការនាំចូលម្តងទៀតសម្រាប់បុគ្គល និងថ្ងៃដដែលនឹងកែប្រែ មិនបង្កើតស្ទួនទេ។">從日班／夜班出勤 Excel 讀入的上下班時間會保留在這裡；同一人同一天重複匯入會更新，不會新增重複資料。</p>
+      <div class="tw"><table><thead id="rawHead"></thead><tbody id="tbRaw"></tbody></table></div>
     </div>
   </div>
 
   <!-- ═══ 服務費對帳 ═══ -->
   <div class="page" id="p-fee" style="display:none">
     <div class="card">
-      <h3>💵 <span data-zh="保安服務費對帳" data-en="Security Fee Reconciliation" data-km="ការផ្ទៀងផ្ទាត់ថ្លៃសេវា">保安服務費對帳</span></h3>
+      <h3>💵 <span data-zh="保安服務費對帳" data-en="Security Fee Reconciliation" data-km="ការផ្ទៀងផ្ទាត់ថ្លៃសេវាសន្តិសុខ">保安服務費對帳</span></h3>
       <div class="grid g4" style="margin-bottom:11px">
-        <div class="f"><label>保安公司</label><input id="fCo" value="ICSC"></div>
-        <div class="f"><label>每人月費 USD</label><input type="number" id="fRate" value="300" oninput="renderFee()"></div>
-        <div class="f"><label>合約人數</label><input type="number" id="fHead" value="11" oninput="renderFee()"></div>
-        <div class="f"><label>當月天數</label><input type="number" id="fDays" value="31" oninput="renderFee()"></div>
+        <div class="f"><label data-zh="保安公司" data-en="Security company" data-km="ក្រុមហ៊ុនសន្តិសុខ">保安公司</label><input id="fCo" value="ICSC"></div>
+        <div class="f"><label data-zh="每人月費 USD" data-en="Monthly fee per guard (USD)" data-km="ថ្លៃប្រចាំខែក្នុងម្នាក់ (USD)">每人月費 USD</label><input type="number" id="fRate" value="300" oninput="renderFee()"></div>
+        <div class="f"><label data-zh="合約人數" data-en="Contract headcount" data-km="ចំនួនតាមកិច្ចសន្យា">合約人數</label><input type="number" id="fHead" value="11" oninput="renderFee()"></div>
+        <div class="f"><label data-zh="當月天數" data-en="Days in month" data-km="ចំនួនថ្ងៃក្នុងខែ">當月天數</label><input type="number" id="fDays" value="31" oninput="renderFee()"></div>
       </div>
       <div class="grid g4" style="margin-bottom:12px">
-        <div class="kpi"><div class="v" id="fk1">$0</div><div class="l">合約應付</div></div>
-        <div class="kpi"><div class="v" id="fk2">$0</div><div class="l">實際出勤應付</div></div>
-        <div class="kpi warn"><div class="v" id="fk3">$0</div><div class="l">差額 +/-</div></div>
-        <div class="kpi"><div class="v" id="fk4">—</div><div class="l">每小時單價</div></div>
+        <div class="kpi"><div class="v" id="fk1">$0</div><div class="l" data-zh="合約應付" data-en="Contract payable" data-km="ត្រូវបង់តាមកិច្ចសន្យា">合約應付</div></div>
+        <div class="kpi"><div class="v" id="fk2">$0</div><div class="l" data-zh="實際出勤應付" data-en="Payable by attendance" data-km="ត្រូវបង់តាមវត្តមាន">實際出勤應付</div></div>
+        <div class="kpi warn"><div class="v" id="fk3">$0</div><div class="l" data-zh="差額 +/-" data-en="Variance +/-" data-km="ភាពខុសគ្នា +/-">差額 +/-</div></div>
+        <div class="kpi"><div class="v" id="fk4">—</div><div class="l" data-zh="每小時單價" data-en="Hourly rate" data-km="តម្លៃក្នុងមួយម៉ោង">每小時單價</div></div>
       </div>
       <div class="tw"><table><thead><tr>
-        <th>姓名</th><th>班別</th><th>崗位</th>
-        <th class="num">合約工時</th><th class="num">實際工時</th><th class="num">差異</th>
-        <th class="num">合約應付</th><th class="num">實際應付</th><th class="num">差額</th></tr></thead>
+        <th data-zh="姓名" data-en="Name" data-km="ឈ្មោះ">姓名</th><th data-zh="班別" data-en="Shift" data-km="វេន">班別</th><th data-zh="崗位" data-en="Post" data-km="ប៉ុស្តិ៍">崗位</th>
+        <th class="num" data-zh="合約工時" data-en="Contract hr" data-km="ម៉ោងកិច្ចសន្យា">合約工時</th><th class="num" data-zh="實際工時" data-en="Actual hr" data-km="ម៉ោងពិត">實際工時</th><th class="num" data-zh="差異" data-en="Diff" data-km="ខុសគ្នា">差異</th>
+        <th class="num" data-zh="合約應付" data-en="Contract $" data-km="កិច្ចសន្យា $">合約應付</th><th class="num" data-zh="實際應付" data-en="Actual $" data-km="ពិត $">實際應付</th><th class="num" data-zh="差額" data-en="Variance" data-km="ភាពខុសគ្នា">差額</th></tr></thead>
         <tbody id="tbFee"></tbody></table></div>
       <div class="row" style="margin-top:11px">
-        <button class="btn" onclick="pushFee()">✈️ <span data-zh="推送對帳結果" data-en="Push recon" data-km="ផ្ញើ">推送對帳結果</span></button>
-        <button class="btn gh" onclick="expFee()">📊 <span data-zh="匯出對帳表" data-en="Export" data-km="នាំចេញ">匯出對帳表</span></button>
+        <button class="btn" id="pushFeeBtn" onclick="pushFee()">✈️ <span data-zh="推送對帳結果" data-en="Send reconciliation" data-km="ផ្ញើលទ្ធផលផ្ទៀងផ្ទាត់">推送對帳結果</span></button>
+        <button class="btn gh" onclick="expFee()">📊 <span data-zh="匯出對帳表" data-en="Export reconciliation" data-km="នាំចេញតារាងផ្ទៀងផ្ទាត់">匯出對帳表</span></button>
       </div>
-      <p class="hint" style="margin-top:9px">
-        依 ICSC 合約：每人每月 $300、每日 12 小時。單價 = 月費 ÷（天數 × 12）。
-        實際工時來自排班表，差額為正代表<b>實際超過合約</b>（可能有加班），為負代表<b>人力不足應扣款</b>。
-      </p>
+      <p class="hint" style="margin-top:9px" data-zh="依 ICSC 合約：每人每月 $300、每日 12 小時。單價 = 月費 ÷（天數 × 12）。實際工時來自排班表，差額為正代表實際超過合約（可能有加班），為負代表人力不足應扣款。" data-en="Per the ICSC contract: $300 per guard per month, 12 hours a day. Hourly rate = monthly fee ÷ (days × 12). Actual hours come from the roster; a positive variance means more than contracted (possible overtime), a negative one means under-staffing to deduct." data-km="តាមកិច្ចសន្យា ICSC៖ $300 ក្នុងម្នាក់ក្នុងមួយខែ 12 ម៉ោងក្នុងមួយថ្ងៃ។ តម្លៃម៉ោង = ថ្លៃខែ ÷ (ថ្ងៃ × 12)។ ម៉ោងពិតមកពីតារាងវត្តមាន; លើសសូន្យ = លើសកិច្ចសន្យា (អាចមានថែមម៉ោង), តិចជាងសូន្យ = ខ្វះកម្លាំងត្រូវកាត់។">依 ICSC 合約：每人每月 $300、每日 12 小時。單價 = 月費 ÷（天數 × 12）。實際工時來自排班表，差額為正代表實際超過合約（可能有加班），為負代表人力不足應扣款。</p>
     </div>
   </div>
 
   <!-- ═══ 統計 ═══ -->
   <div class="page" id="p-ana" style="display:none">
     <div class="grid g2">
-      <div class="card"><h3>📈 <span data-zh="每日出勤人數" data-en="Daily Headcount" data-km="ប្រចាំថ្ងៃ">每日出勤人數</span></h3>
+      <div class="card"><h3>📈 <span data-zh="每日出勤人數" data-en="Daily Headcount" data-km="ចំនួនមកធ្វើការប្រចាំថ្ងៃ">每日出勤人數</span></h3>
         <div style="height:240px"><canvas id="ch1"></canvas></div></div>
-      <div class="card"><h3>🕐 <span data-zh="班別工時佔比" data-en="Hours by Shift" data-km="តាមវេន">班別工時佔比</span></h3>
+      <div class="card"><h3>🕐 <span data-zh="班別工時佔比" data-en="Hours by Shift" data-km="ម៉ោងតាមវេន">班別工時佔比</span></h3>
         <div style="height:240px"><canvas id="ch2"></canvas></div></div>
-      <div class="card"><h3>👮 <span data-zh="個人工時排名" data-en="Hours by Person" data-km="តាមបុគ្គល">個人工時排名</span></h3>
+      <div class="card"><h3>👮 <span data-zh="個人工時排名" data-en="Hours by Person" data-km="ម៉ោងតាមបុគ្គល">個人工時排名</span></h3>
         <div style="height:240px"><canvas id="ch3"></canvas></div></div>
       <div class="card"><h3>📅 <span data-zh="缺勤類型分佈" data-en="Absence Types" data-km="ប្រភេទអវត្តមាន">缺勤類型分佈</span></h3>
         <div style="height:240px"><canvas id="ch4"></canvas></div></div>
@@ -176,37 +177,32 @@
   <!-- ═══ 資料 ═══ -->
   <div class="page" id="p-data" style="display:none">
     <div class="card">
-      <h3>💾 <span data-zh="資料工具" data-en="Data Tools" data-km="ឧបករណ៍">資料工具</span></h3>
+      <h3>💾 <span data-zh="資料工具" data-en="Data Tools" data-km="ឧបករណ៍ទិន្នន័យ">資料工具</span></h3>
       <div class="row">
-        <button class="btn" onclick="impExcel()">📥 <span data-zh="匯入出勤 Excel" data-en="Import attendance" data-km="នាំចូល">匯入出勤 Excel</span></button>
-        <button class="btn gh" onclick="expGrid()">📊 <span data-zh="匯出排班表" data-en="Export roster" data-km="នាំចេញ">匯出排班表</span></button>
+        <button class="btn" onclick="impExcel()">📥 <span data-zh="匯入出勤 Excel" data-en="Import attendance Excel" data-km="នាំចូល Excel វត្តមាន">匯入出勤 Excel</span></button>
+        <button class="btn gh" onclick="expGrid()">📊 <span data-zh="匯出排班表" data-en="Export roster" data-km="នាំចេញតារាង">匯出排班表</span></button>
         <button class="btn gh" onclick="doBackup()">💾 <span data-t="backup">備份 JSON</span></button>
         <button class="btn gh" onclick="restore()">📂 <span data-t="restore">還原 JSON</span></button>
-        <button class="btn err" onclick="clearMonth()">🗑 <span data-zh="清空本月" data-en="Clear month" data-km="សម្អាតខែ">清空本月</span></button>
+        <button class="btn err" onclick="clearMonth()">🗑 <span data-zh="清空本月" data-en="Clear this month" data-km="សម្អាតខែនេះ">清空本月</span></button>
       </div>
       <div class="sep"></div>
-      <p class="hint">
-        <b>匯入格式</b>：第一欄姓名（或工號），其後每欄一天（1、2、3… 或日期），格內填 W/O/R/L/A/H 或 ✓/○/×。
-        也接受「姓名 / 日期 / 狀態」三欄的長格式，會自動判斷。<br>
-        <b>人員來源</b>：出勤表的人員直接讀「保安人員」模組的名冊（<code>ac_sec_personnel_db</code>），
-        在人員模組新增或離職，這裡按「🔄 同步人員名冊」就會更新。
-      </p>
+      <p class="hint" id="importHelp"></p>
       <div id="impLog" class="hint" style="margin-top:8px"></div>
     </div>
     <div class="card">
-      <h3>☁ <span data-zh="雲端同步" data-en="Cloud Sync" data-km="សមកាលកម្ម">雲端同步</span></h3>
+      <h3>☁ <span data-zh="雲端同步" data-en="Cloud Sync" data-km="ធ្វើសមកាលកម្មពពក">雲端同步</span></h3>
       <div class="row">
-        <button class="btn" onclick="doUpload()">⬆️☁ <span data-t="upload">上傳雲端</span></button>
-        <button class="btn gh" onclick="doDownload()">⬇️☁ <span data-t="download">下載雲端</span></button>
+        <button class="btn" onclick="guardClick('up',doUpload)">⬆️☁ <span data-t="upload">上傳雲端</span></button>
+        <button class="btn gh" onclick="guardClick('down',doDownload)">⬇️☁ <span data-t="download">下載雲端</span></button>
       </div>
     </div>
   </div>
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260914a"></script>
-<script src="./shared/sec-personnel.js?v=20260914a"></script>
-<script src="./shared/sec-smart-sync.js?v=20260901a"></script>
+<script src="./shared/sec-core.js?v=20260929a"></script>
+<script src="./shared/sec-personnel.js?v=20260929a"></script>
+<script src="./shared/sec-smart-sync.js?v=20260929a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
 if (typeof SEC === 'undefined') {
@@ -230,13 +226,34 @@ var STAFF = [], BRUSH = 'W', CH = {}, TOOL = 'attendance';
 var PER = new SEC.Period('month'), DRAGGING = false;
 
 var CODE = {
-  W: { zh:'出勤', en:'Work',    hr:1 },
-  O: { zh:'加班', en:'Overtime',hr:1.5 },
-  R: { zh:'例休', en:'Rest',    hr:0 },
-  L: { zh:'請假', en:'Leave',   hr:0 },
-  A: { zh:'曠職', en:'Absent',  hr:0 },
-  H: { zh:'國定假',en:'Holiday', hr:0 },
+  W: { zh:'出勤', en:'Work',    km:'ធ្វើការ',        hr:1 },
+  O: { zh:'加班', en:'Overtime',km:'ថែមម៉ោង',       hr:1.5 },
+  R: { zh:'例休', en:'Rest',    km:'សម្រាក',         hr:0 },
+  L: { zh:'請假', en:'Leave',   km:'ច្បាប់ឈប់សម្រាក', hr:0 },
+  A: { zh:'曠職', en:'Absent',  km:'អវត្តមាន',       hr:0 },
+  H: { zh:'國定假',en:'Holiday', km:'ថ្ងៃបុណ្យជាតិ',   hr:0 },
 };
+/* 三語：t() 依介面語言；attT(lang,…) 依 Telegram 摘要所選語言。km 缺值退回英文。 */
+function t(zh, en, km) { return SEC.L(zh, en, km); }
+function codeLabel(k, lang) { var c = CODE[k]; if (!c) return t('清除', 'Clear', 'សម្អាត'); return lang ? attT(lang, c.zh, c.en, c.km) : SEC.L(c.zh, c.en, c.km); }
+function listSep() { return SEC.lang() === 'zh' ? '、' : ', '; }
+/* 連點保護 */
+var BUSY = {};
+function guardClick(key, fn) {
+  if (BUSY[key]) return false;
+  BUSY[key] = true;
+  var done = function () { BUSY[key] = false; };
+  /* 使用者點擊時：動作完成後再鎖 600ms 擋掉連點；程式呼叫（非點擊）只鎖執行期間。 */
+  var fromClick = !!(typeof window !== 'undefined' && window.event && /click|touch|pointer|key/.test(window.event.type || ''));
+  try {
+    var out = fn();
+    if (out && typeof out.then === 'function') { out.then(done, done); return out; }
+    if (fromClick) setTimeout(done, 600); else done();
+    return out;
+  } catch (e) { done(); throw e; }
+}
+function closeMore() { var d = document.getElementById('attMore'); if (d) d.open = false; }
+document.addEventListener('click', function (e) { var d = document.getElementById('attMore'); if (d && d.open && !d.contains(e.target)) d.open = false; });
 
 var ALL_STAFF=[], ATT_INFO={}, LS_INFO='ac_sec_att_staff_info_v1';
 function attendanceMonthStaff(month){
@@ -269,7 +286,7 @@ async function attendanceCommitPerson(input,opt){
   var data=await SEC.Personnel.read(),result=SEC.Personnel.apply(data.db,data.changes,input,opt);
   var saved=await SEC.Personnel.persist(data.db,data.changes);ALL_STAFF=saved.db;STAFF=attendanceMonthStaff(ym());renderAll();
   SEC.scheduleAutoCloudSync('personnel','personnel-change',opt.date);
-  if(!await doUpload())throw Error('名冊已儲存，雲端尚未成功；請按更新重試 / Saved locally; retry cloud update');
+  if(!await doUpload())throw Error(t('名冊已儲存，雲端尚未成功；請按「儲存」重試','Roster saved on this device; cloud update failed — tap Save to retry','បានរក្សាទុកលើឧបករណ៍; ពពកបរាជ័យ — ចុច «រក្សាទុក» ម្តងទៀត'));
   if(opt.send){var change=result.change||saved.changes.filter(function(r){return r.personId===result.row.id&&r.effectiveMonth===opt.month&&SEC.Personnel.unsent(r);})[0];if(change)await SEC.Personnel.notify(change);}
   SEC.toast(SEC.Personnel.tr('✅ 名冊已儲存並更新'+(opt.send?'；異動已發送或已送過':''),'✅ Roster saved and synced'+(opt.send?'; change sent or already delivered':''),'✅ បានរក្សាទុក និងធ្វើសមកាលកម្ម'),'ok');return result;
 }
@@ -280,7 +297,7 @@ function editAttendancePerson(id,remove){
 function manageAttendancePeople(){
   var mask=document.createElement('div');mask.className='mask on';
   var rows=SEC.Personnel.list(ALL_STAFF,ym(),true);
-  mask.innerHTML='<div class="modal" style="max-width:650px"><div class="mh"><b>👥 '+SEC.esc(ym())+' · '+SEC.Personnel.tr('名冊管理','Roster management','គ្រប់គ្រងបញ្ជី')+'</b><button class="x">×</button></div><div class="mb"><p class="hint">'+SEC.Personnel.tr('新增、離職及移除從選定月份起生效，之前月份保留。','Changes apply from the selected month; earlier months are preserved.','ការផ្លាស់ប្តូរអនុវត្តចាប់ពីខែដែលបានជ្រើស។')+'</p><div class="tw"><table><thead><tr><th>ID</th><th>'+SEC.Personnel.tr('姓名','Name','ឈ្មោះ')+'</th><th>'+SEC.Personnel.tr('狀態','Status','ស្ថានភាព')+'</th><th></th></tr></thead><tbody>'+rows.map(function(r){return '<tr><td>'+SEC.esc(r.empId||'—')+'</td><td>'+SEC.esc(r.name)+'</td><td>'+SEC.esc(r.status)+'</td><td><button class="btn sm gh" data-edit="'+SEC.esc(r.id)+'">✏️ '+SEC.T().edit+'</button></td></tr>';}).join('')+'</tbody></table></div></div><div class="mf"><button class="btn" data-add>➕ '+SEC.T().add+'</button></div></div>';
+  mask.innerHTML='<div class="modal" style="max-width:650px"><div class="mh"><b>👥 '+SEC.esc(ym())+' · '+SEC.Personnel.tr('名冊管理','Roster management','គ្រប់គ្រងបញ្ជី')+'</b><button class="x">×</button></div><div class="mb"><p class="hint">'+SEC.Personnel.tr('新增、離職及移除從選定月份起生效，之前月份保留。','Changes apply from the selected month; earlier months are preserved.','ការផ្លាស់ប្តូរអនុវត្តចាប់ពីខែដែលបានជ្រើស។')+'</p><div class="tw"><table><thead><tr><th>ID</th><th>'+SEC.Personnel.tr('姓名','Name','ឈ្មោះ')+'</th><th>'+SEC.Personnel.tr('狀態','Status','ស្ថានភាព')+'</th><th></th></tr></thead><tbody>'+rows.map(function(r){return '<tr><td>'+SEC.esc(r.empId||'—')+'</td><td>'+SEC.esc(r.name)+'</td><td>'+SEC.esc(r.status==='active'?t('在職','Active','កំពុងធ្វើការ'):r.status==='left'?t('離職','Left','បានឈប់'):(r.status||''))+'</td><td><button class="btn sm gh" data-edit="'+SEC.esc(r.id)+'">✏️ '+SEC.T().edit+'</button></td></tr>';}).join('')+'</tbody></table></div></div><div class="mf"><button class="btn" data-add>➕ '+SEC.T().add+'</button></div></div>';
   document.body.appendChild(mask);mask.querySelector('.x').onclick=function(){mask.remove();};mask.querySelector('[data-add]').onclick=function(){mask.remove();editAttendancePerson();};mask.querySelectorAll('[data-edit]').forEach(function(b){b.onclick=function(){mask.remove();editAttendancePerson(b.dataset.edit);};});return mask;
 }
 SEC.registerAutoUploader('personnel',SEC.Personnel.upload);
@@ -320,7 +337,7 @@ function attendanceRowRecord(month, staffKey, detail) {
 function touchAttendanceRow(month, staffKey) {
   ATT_META[attMetaKey(month, staffKey)] = new Date().toISOString();
   var row = ATT[month] && ATT[month][staffKey];
-  if (row && Object.keys(row).some(function (d) { return !!CODE[row[d]]; })) SEC.clearDeleted(TOOL, attendanceRowRecord(month, staffKey, row));
+  if (row && Object.keys(row).some(function (d) { return !!CODE[row[d]]; })) batchClearDeleted(TOOL, [attendanceRowRecord(month, staffKey, row)]);
 }
 function attendanceCloudRecords() {
   var rows = [];
@@ -340,9 +357,9 @@ function daysInMonth() {
 }
 function hrDay() { return Number(document.getElementById('hrDay').value) || 12; }
 
-document.getElementById('hdr').innerHTML = SEC.headerHtml('🕐', '保安出勤 Attendance', 'AC SECURITY · ATTENDANCE');
+document.getElementById('hdr').innerHTML = SEC.headerHtml('🕐', '保安出勤', 'AC SECURITY · ATTENDANCE');
 document.getElementById('pnavHost').innerHTML = SEC.periodNavHtml('pnav');
-SEC.bindHeader(TOOL, { onUpload: doUpload, onDownload: doDownload, onTelegram: openAttendanceTelegram, onSmartImport: impExcel });
+SEC.bindHeader(TOOL, { onUpload: function () { return guardClick('up', doUpload); }, onDownload: function () { return guardClick('down', doDownload); }, onTelegram: function () { return guardClick('tg', openAttendanceTelegram); }, onSmartImport: impExcel });
 PER.setMode('month');
 var paintPeriodNav = SEC.bindPeriodNav('pnav', PER, function () { renderAll(); });
 document.getElementById('tabs').addEventListener('click', function (e) {
@@ -355,7 +372,24 @@ document.getElementById('tabs').addEventListener('click', function (e) {
   renderAll();
 });
 window.onmouseup = function () { DRAGGING = false; };
-window.onLangChange = renderAll;
+function applyAttLang() {
+  var h = document.querySelector('.hdr-t1');
+  if (h) h.textContent = t('保安出勤', 'Security Attendance', 'វត្តមានសន្តិសុខ');
+  document.title = t('保安出勤', 'Security Attendance', 'វត្តមានសន្តិសុខ') + ' | AC Security';
+  document.getElementById('importHelp').innerHTML = t(
+    '<b>匯入格式</b>：第一欄姓名（或工號），其後每欄一天（1、2、3… 或日期），格內填 W/O/R/L/A/H 或上下班時間。也接受「姓名 / 日期 / 狀態」三欄的長格式，會自動判斷。<br><b>人員來源</b>：出勤表的人員直接讀「保安人員」模組的名冊；在人員模組新增或離職，這裡按「⋯ 更多 → 🔄 同步人員名冊」就會更新。',
+    '<b>Import format</b>: first column is the name (or ID), then one column per day (1, 2, 3… or dates) containing W/O/R/L/A/H or clock times. A long "name / date / status" layout is also detected automatically.<br><b>People</b>: the roster comes from the Security Personnel module; after adding or removing someone there, use "⋯ More → 🔄 Sync roster" here.',
+    '<b>ទម្រង់នាំចូល</b>៖ ជួរឈរទី១ ជាឈ្មោះ (ឬអត្តលេខ) បន្ទាប់មកមួយជួរក្នុងមួយថ្ងៃ (1, 2, 3… ឬកាលបរិច្ឆេទ) មាន W/O/R/L/A/H ឬម៉ោងចូល/ចេញ។ ទម្រង់ «ឈ្មោះ / កាលបរិច្ឆេទ / ស្ថានភាព» ក៏ស្គាល់ដោយស្វ័យប្រវត្តិដែរ។<br><b>បុគ្គលិក</b>៖ បញ្ជីឈ្មោះមកពីម៉ូឌុលបុគ្គលិកសន្តិសុខ; បន្ទាប់ពីបន្ថែម ឬដកនរណាម្នាក់ សូមចុច «⋯ ច្រើនទៀត → 🔄 ធ្វើសមកាលកម្មបញ្ជីឈ្មោះ»។');
+  renderPalette();
+}
+/* 期間導覽的按鈕文字在切換語言時重新套用（共用元件只在建立時套用一次）。 */
+function repaintPnavLang() {
+  var T = SEC.T(), el = document.getElementById('pnav'); if (!el) return;
+  el.querySelectorAll('.pmode button').forEach(function (b) { if (T[b.dataset.m]) b.textContent = T[b.dataset.m]; });
+  var td = el.querySelector('.ptoday'); if (td) td.textContent = T.today;
+}
+window.onLangChange = function () { applyAttLang(); repaintPnavLang(); var il = document.getElementById('impLog'); if (il) il.innerHTML = ''; renderAll(); };
+applyAttLang();
 SEC.dataReady().then(load).then(function () { renderAll(); }).catch(SEC.bootError);
 
 function addOnePerson() { return editAttendancePerson(); }
@@ -363,29 +397,46 @@ function setBrush(s) {
   BRUSH = s;
   document.querySelectorAll('.pb').forEach(function (b) { b.classList.toggle('on', b.dataset.s === s); });
 }
+/* 畫筆代碼 W/O/R/L/A/H 依語言顯示；清除單格不需確認（可立即重填），清空整月才確認。 */
+function renderPalette() {
+  var box = document.getElementById('palette'); if (!box) return;
+  box.innerHTML = '<span style="font-size:11px;color:var(--ink2);font-weight:700">' + SEC.esc(t('畫筆', 'Brush', 'ជក់')) + '</span>' +
+    Object.keys(CODE).map(function (k) { return '<button type="button" class="pb c-' + k + (BRUSH === k ? ' on' : '') + '" data-s="' + k + '" onclick="setBrush(\'' + k + '\')">' + k + ' ' + SEC.esc(codeLabel(k)) + '</button>'; }).join('') +
+    '<button type="button" class="pb c-' + (BRUSH === '' ? ' on' : '') + '" data-s="" onclick="setBrush(\'\')">' + SEC.esc(t('清除', 'Clear', 'សម្អាត')) + '</button>' +
+    '<span class="hint" style="margin-left:auto">' + SEC.esc(t('點格子填入，可按住拖過去連續填', 'Tap a cell to fill it; drag to fill several', 'ចុចក្រឡាដើម្បីបំពេញ; អូសដើម្បីបំពេញច្រើន')) + '</span>';
+}
 async function syncStaff() {
   try{await SEC.Personnel.pull({auto:false});await loadStaff();captureAttendanceInfo();await save();renderAll();SEC.toast('✅ '+ym()+' · '+STAFF.length+' '+SEC.Personnel.tr('位人員已更新','people updated','បុគ្គលិកបានធ្វើបច្ចុប្បន្នភាព'),'ok');}
-  catch(e){SEC.toast('⚠️ '+e.message,'warn');}
+  catch(e){SEC.toast('⚠️ '+SEC.esc(e.message),'warn');}
 }
 
 /* ═══ 排班表 ═══ */
 function renderAll() { STAFF=attendanceMonthStaff(ym()); renderGrid(); renderSum(); renderFee(); renderRaw(); renderAna(); }
 
 function renderGrid() {
-  var t = document.getElementById('gridT');
+  var tbl = document.getElementById('gridT'), empty = document.getElementById('gridEmpty'), wrap = document.getElementById('gridWrap');
   if (!STAFF.length) {
-    t.innerHTML = '<tbody><tr><td class="empty" style="padding:24px">尚無人員。你可以：<br>① 到「💾 資料管理」<b>直接匯入真實出勤 Excel</b>（人員會自動建立）<br>② 或到「👮 保安人員」模組匯入名冊後，按「🔄 同步人員名冊」<br>③ 或按下方「➕ 手動加一個人」</td></tr></tbody>';
-    t.innerHTML += '<tbody><tr><td style="padding:8px"><button class="btn sm" onclick="addOnePerson()">➕ 手動加一個人</button></td></tr></tbody>';
+    /* 空白狀態放在表格外（表格 nowrap 會把文字切掉），並直接附操作按鈕。 */
+    tbl.innerHTML = ''; wrap.style.display = 'none'; empty.style.display = '';
+    empty.innerHTML = '<b>' + SEC.esc(t('本月尚無人員。你可以：', 'No staff for this month yet. You can:', 'មិនទាន់មានបុគ្គលិកសម្រាប់ខែនេះទេ។ អ្នកអាច៖')) + '</b><ol>' +
+      '<li>' + SEC.esc(t('匯入真實出勤 Excel（人員會自動建立）', 'Import the real attendance Excel (people are created automatically)', 'នាំចូល Excel វត្តមានពិត (បុគ្គលិកនឹងត្រូវបង្កើតដោយស្វ័យប្រវត្តិ)')) + '</li>' +
+      '<li>' + SEC.esc(t('在「👮 保安人員」模組匯入名冊後，按「🔄 同步人員名冊」', 'Import the roster in the 👮 Personnel module, then tap 🔄 Sync roster', 'នាំចូលបញ្ជីឈ្មោះក្នុងម៉ូឌុល 👮 បុគ្គលិក រួចចុច 🔄 ធ្វើសមកាលកម្ម')) + '</li>' +
+      '<li>' + SEC.esc(t('或手動新增一位人員', 'Or add a person by hand', 'ឬបន្ថែមបុគ្គលិកដោយដៃ')) + '</li></ol>' +
+      '<div class="row"><button class="btn sm" type="button" onclick="impExcel()">📥 ' + SEC.esc(t('匯入出勤 Excel', 'Import attendance Excel', 'នាំចូល Excel វត្តមាន')) + '</button>' +
+      '<button class="btn sm gh" type="button" onclick="syncStaff()">🔄 ' + SEC.esc(t('同步人員名冊', 'Sync roster', 'ធ្វើសមកាលកម្មបញ្ជីឈ្មោះ')) + '</button>' +
+      '<button class="btn sm gh" type="button" onclick="addOnePerson()">➕ ' + SEC.esc(t('新增人員', 'Add person', 'បន្ថែមបុគ្គលិក')) + '</button></div>';
     renderKpi(); return;
   }
+  empty.style.display = 'none'; empty.innerHTML = ''; wrap.style.display = '';
+  var t0 = tbl;
   var nd = daysInMonth(), M = monthMap(), y = ym();
-  var head = '<thead><tr><th class="nm">姓名 / 班別</th>';
+  var head = '<thead><tr><th class="nm">' + SEC.esc(t('姓名 / 班別', 'Name / shift', 'ឈ្មោះ / វេន')) + '</th>';
   for (var d = 1; d <= nd; d++) {
     var dt = new Date(y + '/' + SEC.p2(d));
     var w = dt.getDay();
     head += '<th class="dh' + (w === 0 || w === 6 ? ' we' : '') + '">' + d + '</th>';
   }
-  head += '<th class="sum">工時</th><th>'+SEC.T().edit+'</th></tr></thead>';
+  head += '<th class="sum">' + SEC.esc(t('工時', 'Hours', 'ម៉ោង')) + '</th><th>'+SEC.T().edit+'</th></tr></thead>';
 
   var body = '<tbody>' + STAFF.map(function (r) {
     var k = key(r), row = M[k] || {};
@@ -397,14 +448,14 @@ function renderGrid() {
       if (v && CODE[v]) hrs += CODE[v].hr * hrDay();
       h += '<td class="cell c-' + v + '" data-k="' + SEC.esc(k) + '" data-d="' + dd + '">' + v + '</td>';
     }
-    h += '<td class="sum"><b>' + hrs + '</b></td><td><button class="btn sm gh" data-edit-person="'+SEC.esc(r.id||'')+'">✏️</button> <button class="btn sm err" data-remove-person="'+SEC.esc(r.id||'')+'">➖</button></td></tr>';
+    h += '<td class="sum"><b>' + hrs + '</b></td><td style="white-space:nowrap"><button class="btn sm gh" title="' + SEC.esc(t('編輯人員', 'Edit person', 'កែបុគ្គលិក')) + '" data-edit-person="'+SEC.esc(r.id||'')+'">✏️</button> <button class="btn sm err" title="' + SEC.esc(t('移出名冊', 'Remove from roster', 'ដកចេញពីបញ្ជី')) + '" data-remove-person="'+SEC.esc(r.id||'')+'">➖</button></td></tr>';
     return h;
   }).join('') + '</tbody>';
-  t.innerHTML = head + body;
+  t0.innerHTML = head + body;
 
-  t.querySelectorAll('[data-edit-person]').forEach(function(b){b.onclick=function(){editAttendancePerson(b.dataset.editPerson);};});
-  t.querySelectorAll('[data-remove-person]').forEach(function(b){b.onclick=function(){editAttendancePerson(b.dataset.removePerson,true);};});
-  t.querySelectorAll('.cell').forEach(function (el) {
+  t0.querySelectorAll('[data-edit-person]').forEach(function(b){b.onclick=function(){editAttendancePerson(b.dataset.editPerson);};});
+  t0.querySelectorAll('[data-remove-person]').forEach(function(b){b.onclick=function(){editAttendancePerson(b.dataset.removePerson,true);};});
+  t0.querySelectorAll('.cell').forEach(function (el) {
     el.onmousedown = function () { DRAGGING = true; paint(el); };
     el.onmouseenter = function () { if (DRAGGING) paint(el); };
     el.ontouchstart = function (ev) { paint(el); ev.preventDefault(); };
@@ -431,8 +482,9 @@ function paint(el) {
   renderKpi();
 }
 function fillMonth() {
-  if (!STAFF.length) { SEC.toast('⚠ 尚無人員', 'warn'); return; }
-  if (!confirm('把本月所有人的空白格全部填為「' + (CODE[BRUSH] ? CODE[BRUSH].zh : '清除') + '」？已填的不動。')) return;
+  if (!STAFF.length) { SEC.toast('⚠ ' + t('尚無人員', 'No staff yet', 'មិនទាន់មានបុគ្គលិក'), 'warn'); return; }
+  if (!BRUSH) { SEC.toast('⚠ ' + t('請先選擇要填入的代碼（W/O/R/L/A/H）', 'Choose a code first (W/O/R/L/A/H)', 'សូមជ្រើសកូដជាមុន (W/O/R/L/A/H)'), 'warn'); return; }
+  if (!confirm(t('把本月所有人的空白格全部填為「' + BRUSH + ' ' + codeLabel(BRUSH) + '」？已填的不動。', 'Fill every blank cell this month with "' + BRUSH + ' ' + codeLabel(BRUSH) + '"? Filled cells are not changed.', 'បំពេញក្រឡាទទេទាំងអស់ក្នុងខែនេះដោយ «' + BRUSH + ' ' + codeLabel(BRUSH) + '»? ក្រឡាដែលមានរួចមិនប្តូរទេ។'))) return;
   var nd = daysInMonth(), M = monthMap();
   STAFF.filter(function(r){return !r._archived;}).forEach(function (r) {
     var k = key(r), changed = false; if (!M[k]) M[k] = {};
@@ -442,7 +494,7 @@ function fillMonth() {
     }
     if (changed) touchAttendanceRow(ym(), k);
   });
-  save(); renderAll(); SEC.toast('✅ 已整月填入', 'ok');
+  save(); renderAll(); SEC.toast('✅ ' + t('已整月填入', 'Month filled', 'បានបំពេញពេញខែ'), 'ok');
   SEC.scheduleAutoCloudSync(TOOL, 'attendance-fill-month', ym());
 }
 function stats(r) {
@@ -463,9 +515,12 @@ function renderKpi() {
   document.getElementById('k3').textContent = thr.toLocaleString();
   document.getElementById('k4').textContent = ta;
 }
-async function saveGrid(push) {
-  try{captureAttendanceInfo();await save();if(!await doUpload())throw Error('雲端更新失敗 / Cloud update failed');SEC.toast('✅ '+SEC.Personnel.tr('已儲存並更新雲端','Saved and synced','បានរក្សាទុក និងធ្វើសមកាលកម្ម'),'ok');if(push)pushSummary();}
-  catch(e){SEC.toast('⚠️ '+e.message+' · '+SEC.Personnel.tr('已保留本機資料','Local data retained','រក្សាទុកទិន្នន័យក្នុងម៉ាស៊ីន'),'warn',6000);}
+function saveGrid(push) { return guardClick('saveGrid', function () { return saveGridNow(push); }); }
+async function saveGridNow(push) {
+  var btn = document.getElementById('saveGridBtn'); if (btn) btn.classList.add('busy');
+  try{captureAttendanceInfo();await save();if(!await doUpload())throw Error(t('雲端更新失敗','Cloud update failed','ធ្វើសមកាលកម្មពពកបរាជ័យ'));SEC.toast('✅ '+t('已儲存並更新雲端','Saved and synced','បានរក្សាទុក និងធ្វើសមកាលកម្ម'),'ok');if(push)pushSummary();}
+  catch(e){SEC.toast('⚠️ '+SEC.esc(e.message)+' · '+t('已保留本機資料','Local data kept on this device','ទិន្នន័យនៅតែរក្សាទុកលើឧបករណ៍'),'warn',6000);}
+  finally{ if (btn) btn.classList.remove('busy'); }
 }
 
 /* ═══ 彙總 ═══ */
@@ -481,7 +536,7 @@ function renderSum() {
       '<td class="num">' + (c.R || '') + '</td><td class="num">' + (c.L || '') + '</td>' +
       '<td class="num">' + (c.A ? '<span class="tag err">' + c.A + '</span>' : '') + '</td>' +
       '<td class="num"><b>' + s.hrs + '</b></td>' +
-      '<td class="hint">' + (s.dates.length ? s.dates.join('、') : '—') + '</td>' +
+      '<td class="hint">' + (s.dates.length ? s.dates.join(listSep()) : '—') + '</td>' +
       '<td><div class="bar" style="width:80px;display:inline-block;vertical-align:middle"><i style="width:' +
         Math.min(100, rate) + '%' + (rate < 90 ? ';background:linear-gradient(90deg,#dc2626,#f87171)' : '') +
         '"></i></div> ' + rate + '%</td></tr>';
@@ -491,57 +546,65 @@ function renderSum() {
   var al = [];
   STAFF.forEach(function (r) {
     var s = stats(r), M = monthMap(), row = M[key(r)] || {};
-    if (s.c.A >= 2) al.push({ t: 'err', m: r.name + ' 曠職 <b>' + s.c.A + '</b> 天' });
-    if (s.c.L >= 5) al.push({ t: 'warn', m: r.name + ' 請假 <b>' + s.c.L + '</b> 天' });
+    var nm = SEC.esc(r.name);
+    if (s.c.A >= 2) al.push({ t: 'err', m: nm + ' · ' + t('曠職 <b>' + s.c.A + '</b> 天', 'absent <b>' + s.c.A + '</b> days', 'អវត្តមាន <b>' + s.c.A + '</b> ថ្ងៃ') });
+    if (s.c.L >= 5) al.push({ t: 'warn', m: nm + ' · ' + t('請假 <b>' + s.c.L + '</b> 天', 'on leave <b>' + s.c.L + '</b> days', 'ច្បាប់ឈប់ <b>' + s.c.L + '</b> ថ្ងៃ') });
     /* 連續上班超過 12 天 */
     var run = 0, maxRun = 0;
     for (var d = 1; d <= daysInMonth(); d++) {
       var v = row[SEC.p2(d)];
       if (v === 'W' || v === 'O') { run++; if (run > maxRun) maxRun = run; } else run = 0;
     }
-    if (maxRun >= 13) al.push({ t: 'warn', m: r.name + ' 連續上班 <b>' + maxRun + '</b> 天，未安排休息' });
+    if (maxRun >= 13) al.push({ t: 'warn', m: nm + ' · ' + t('連續上班 <b>' + maxRun + '</b> 天，未安排休息', 'worked <b>' + maxRun + '</b> days in a row without rest', 'ធ្វើការជាប់ <b>' + maxRun + '</b> ថ្ងៃ គ្មានសម្រាក') });
     if (r.shift === 'C' && s.c.W + s.c.O >= daysInMonth() - 1)
-      al.push({ t: 'warn', m: r.name + ' 整月夜班無休，建議輪替' });
+      al.push({ t: 'warn', m: nm + ' · ' + t('整月夜班無休，建議輪替', 'night shift all month without rest; consider rotating', 'វេនយប់ពេញខែ គ្មានសម្រាក; គួរប្តូរវេន') });
     var filled = Object.keys(row).length;
     if (filled && filled < daysInMonth())
-      al.push({ t: 'info', m: r.name + ' 尚有 <b>' + (daysInMonth() - filled) + '</b> 天未填' });
+      al.push({ t: 'info', m: nm + ' · ' + t('尚有 <b>' + (daysInMonth() - filled) + '</b> 天未填', '<b>' + (daysInMonth() - filled) + '</b> days not filled', 'នៅសល់ <b>' + (daysInMonth() - filled) + '</b> ថ្ងៃមិនទាន់បំពេញ') });
   });
   var box = document.getElementById('alertBox');
   box.innerHTML = al.length
     ? al.map(function (a) { return '<div style="padding:6px 0;border-bottom:1px dashed #eef2f6">' +
         (a.t === 'err' ? '⛔ ' : a.t === 'warn' ? '⚠️ ' : 'ℹ️ ') + a.m + '</div>'; }).join('')
-    : '<span class="tag ok">✅ 本月無出勤異常</span>';
+    : '<span class="tag ok">✅ ' + SEC.esc(t('本月無出勤異常', 'No attendance issues this month', 'គ្មានបញ្ហាវត្តមានក្នុងខែនេះ')) + '</span>';
 }
 function renderRaw() {
   var tb = document.getElementById('tbRaw'); if (!tb) return;
+  document.getElementById('rawHead').innerHTML = '<tr><th>' + t('日期','Date','កាលបរិច្ឆេទ') + '</th><th>' + t('班別','Shift','វេន') + '</th><th>' + t('工號','ID','អត្តលេខ') + '</th><th>' +
+    t('姓名','Name','ឈ្មោះ') + '</th><th>' + t('地點','Location','ទីតាំង') + '</th><th>' + t('上班','In','ចូល') + '</th><th>' + t('下班','Out','ចេញ') + '</th><th>' +
+    t('原始值','Raw value','តម្លៃដើម') + '</th><th>' + t('來源','Source','ប្រភព') + '</th><th></th></tr>';
   var list = ATT_LOG.filter(function (r) { return PER.has(r.date); }).slice(0, 500);
   tb.innerHTML = list.length ? list.map(function (r) {
     return '<tr><td>' + SEC.esc(r.date) + '</td><td>' + SEC.esc(r.shift || '') + '</td><td><code>' + SEC.esc(r.empId || '') + '</code></td>' +
       '<td><b>' + SEC.esc(r.name || '') + '</b></td><td>' + SEC.esc(r.location || '') + '</td><td>' + SEC.esc(r.inTime || '—') + '</td>' +
       '<td>' + SEC.esc(r.outTime || '—') + '</td><td class="hint">' + SEC.esc(r.raw || '') + '</td><td class="hint">' + SEC.esc(r.source || '') + '</td>' +
-      '<td><button class="btn sm danger" data-id="' + SEC.esc(r.id || '') + '" onclick="deleteRaw(this.dataset.id)">刪除</button></td></tr>';
-  }).join('') : '<tr><td colspan="10" class="empty">此期間尚無原始打卡資料</td></tr>';
+      '<td><button class="btn sm err" data-id="' + SEC.esc(r.id || '') + '" onclick="deleteRaw(this.dataset.id)">🗑 ' + SEC.esc(t('刪除','Delete','លុប')) + '</button></td></tr>';
+  }).join('') : '<tr><td colspan="10" class="empty">' + SEC.esc(t('此期間尚無原始打卡資料', 'No raw punch data for this period', 'គ្មានទិន្នន័យស្កេនដើមក្នុងរយៈពេលនេះ')) + '</td></tr>';
 }
 function deleteRaw(id) {
   var row = ATT_LOG.filter(function (r) { return r.id === id; })[0]; if (!row) return;
-  if (!confirm('確定刪除 ' + (row.date || '') + ' · ' + (row.name || row.empId || '') + ' 的原始打卡？')) return;
+  if (!confirm(t('確定刪除這筆原始打卡？', 'Delete this raw punch record?', 'លុបកំណត់ត្រាស្កេនដើមនេះមែនទេ?') + '\n' + (row.date || '') + ' · ' + (row.name || row.empId || ''))) return;
   SEC.markDeleted(TOOL, Object.assign({ _k:'raw' }, row));
   ATT_LOG = ATT_LOG.filter(function (r) { return r.id !== id; }); save(); renderRaw();
-  SEC.scheduleAutoCloudSync(TOOL, 'attendance-delete-raw', String(row.date || '').slice(0, 7)); SEC.toast('🗑 已刪除並排入雲端同步', 'ok');
+  SEC.scheduleAutoCloudSync(TOOL, 'attendance-delete-raw', String(row.date || '').slice(0, 7)); SEC.toast('🗑 ' + t('已刪除並排入雲端同步', 'Deleted; cloud sync queued', 'បានលុប ហើយនឹងធ្វើសមកាលកម្មពពក'), 'ok');
 }
 function expRaw() {
   SEC.exportExcel([{ name:'RawAttendance_' + PER.key(), rows:ATT_LOG.filter(function (r) { return PER.has(r.date); }).map(function (r) {
-    return { Date:r.date, Shift:r.shift, ID:r.empId, Name:r.name, Location:r.location, Company:r.company,
-      In:r.inTime, Out:r.outTime, Status:r.status, Raw:r.raw, Source:r.source };
+    var o = {};
+    o[t('日期','Date','កាលបរិច្ឆេទ')] = r.date; o[t('班別','Shift','វេន')] = r.shift; o[t('工號','ID','អត្តលេខ')] = r.empId; o[t('姓名','Name','ឈ្មោះ')] = r.name;
+    o[t('地點','Location','ទីតាំង')] = r.location; o[t('公司','Company','ក្រុមហ៊ុន')] = r.company; o[t('上班','In','ចូល')] = r.inTime; o[t('下班','Out','ចេញ')] = r.outTime;
+    o[t('狀態','Status','ស្ថានភាព')] = r.status ? r.status + ' ' + codeLabel(r.status) : ''; o[t('原始值','Raw value','តម្លៃដើម')] = r.raw; o[t('來源','Source','ប្រភព')] = r.source;
+    return o;
   }) }], 'AC_SEC_Attendance_Raw_' + PER.key() + '.xlsx');
 }
 function expSum() {
   SEC.exportExcel([{ name: 'Summary_' + ym(), rows: STAFF.map(function (r) {
     var s = stats(r);
-    var row = { '工號 ID': r.empId, '姓名 Name': r.name, '班別 Shift': r.shift, '崗位 Post': r.post,
-      '出勤 Work': s.c.W, '加班 OT': s.c.O, '例休 Rest': s.c.R, '請假 Leave': s.c.L,
-      '曠職 Absent': s.c.A, '國定假 Holiday': s.c.H, '總工時 Hours': s.hrs };
-    row['實際出勤日期 Actual work dates'] = s.dates.join(', ');
+    var row = {};
+    row[t('工號','ID','អត្តលេខ')] = r.empId; row[t('姓名','Name','ឈ្មោះ')] = r.name; row[t('班別','Shift','វេន')] = r.shift; row[t('崗位','Post','ប៉ុស្តិ៍')] = r.post;
+    Object.keys(CODE).forEach(function (k) { row[k + ' ' + codeLabel(k)] = s.c[k]; });
+    row[t('總工時','Hours','ម៉ោងសរុប')] = s.hrs;
+    row[t('實際出勤日期','Actual work dates','កាលបរិច្ឆេទធ្វើការពិត')] = s.dates.join(', ');
     return row;
   }) }], 'AC_SEC_Attendance_Summary_' + ym() + '.xlsx');
 }
@@ -590,15 +653,18 @@ function expFee() {
   var f = feeCalc();
   SEC.exportExcel([{ name: 'FeeRecon_' + ym(), rows: STAFF.map(function (r) {
     var s = stats(r), pay = Math.round(s.hrs * f.perHr * 100) / 100;
-    return { '姓名 Name': r.name, '班別 Shift': r.shift, '崗位 Post': r.post,
-      '合約工時 Contract hr': f.contractHr, '實際工時 Actual hr': s.hrs,
-      '差異 Diff hr': s.hrs - f.contractHr, '單價 Rate/hr': f.perHr.toFixed(4),
-      '合約應付 Contract $': f.rate, '實際應付 Actual $': pay,
-      '差額 Variance $': (pay - f.rate).toFixed(2) };
+    var o = {};
+    o[t('姓名','Name','ឈ្មោះ')] = r.name; o[t('班別','Shift','វេន')] = r.shift; o[t('崗位','Post','ប៉ុស្តិ៍')] = r.post;
+    o[t('合約工時','Contract hr','ម៉ោងកិច្ចសន្យា')] = f.contractHr; o[t('實際工時','Actual hr','ម៉ោងពិត')] = s.hrs;
+    o[t('差異（時）','Diff hr','ខុសគ្នា (ម៉ោង)')] = s.hrs - f.contractHr; o[t('單價／時','Rate/hr','តម្លៃ/ម៉ោង')] = f.perHr.toFixed(4);
+    o[t('合約應付 $','Contract $','កិច្ចសន្យា $')] = f.rate; o[t('實際應付 $','Actual $','ពិត $')] = pay;
+    o[t('差額 $','Variance $','ភាពខុសគ្នា $')] = (pay - f.rate).toFixed(2);
+    return o;
   }) }], 'AC_SEC_FeeRecon_' + ym() + '.xlsx');
 }
-function pushFee() {
-  var f = feeCalc();
+function pushFee() { return guardClick('pushFee', pushFeeNow); }
+function pushFeeNow() {
+  var f = feeCalc(), lang = SEC.lang();
   var head = Number(document.getElementById('fHead').value) || STAFF.length;
   var co = document.getElementById('fCo').value.trim() || 'ICSC';
   var rows = STAFF.map(function (r) {
@@ -606,8 +672,8 @@ function pushFee() {
     return { n: r.name, hrs: st.hrs, pay: st.hrs * f.perHr, dHr: st.hrs - f.contractHr };
   });
   var cT = f.rate * head, aT = rows.reduce(function (a, x) { return a + x.pay; }, 0), variance=aT-cT;
-  var txt = '💵 <b>保安服務費對帳 / Security Fee Reconciliation</b> · ' + ym() + '\n🏢 ' + SEC.esc(co) + '\n━━━━━━━━━━━━━━━━\n' +
-    '<b>📊 對帳欄位 / Reconciliation</b>\n' + attPre([
+  var txt = '💵 <b>' + attT(lang, '保安服務費對帳', 'Security Fee Reconciliation', 'ការផ្ទៀងផ្ទាត់ថ្លៃសេវាសន្តិសុខ') + '</b> · ' + ym() + '\n🏢 ' + SEC.esc(co) + '\n━━━━━━━━━━━━━━━━\n' +
+    '<b>📊 ' + attT(lang, '對帳欄位', 'Reconciliation', 'ការផ្ទៀងផ្ទាត់') + '</b>\n' + attPre([
       'Field                 Value',
       'Headcount             ' + attCell(head, 12),
       'Contract rate         ' + attCell('$'+Number(f.rate||0).toFixed(2), 12),
@@ -623,11 +689,11 @@ function pushFee() {
   if (bad.length) {
     var lines=['Name             Hours  Diff     Pay'];
     bad.slice(0,20).forEach(function(x){lines.push(SEC.esc(attCell(x.n||'—',17))+attCell(x.hrs,7)+attCell((x.dHr>0?'+':'')+x.dHr,9)+'$'+Number(x.pay||0).toFixed(2));});
-    txt += '\n\n<b>⚠️ 工時差異 / Hour Variance ('+bad.length+')</b>\n'+attPre(lines);
+    txt += '\n\n<b>⚠️ '+attT(lang,'工時差異','Hour Variance','ភាពខុសគ្នានៃម៉ោង')+' ('+bad.length+')</b>\n'+attPre(lines);
   } else {
-    txt += '\n\n✅ 全員工時與合約相符 / All recorded hours match the contract.';
+    txt += '\n\n✅ '+attT(lang,'全員工時與合約相符','All recorded hours match the contract.','ម៉ោងទាំងអស់ត្រូវនឹងកិច្ចសន្យា។');
   }
-  SEC.tgSummary(txt, 'attendance');
+  return SEC.tgSummary(txt, 'attendance');
 }
 
 /* ═══ 統計 ═══ */
@@ -640,27 +706,28 @@ function renderAna() {
     byD.push(n);
   }
   chart('ch1', 'bar', byD.map(function (_, i) { return i + 1; }),
-    [{ label: '出勤人數', data: byD, backgroundColor: '#1e6f8e' }]);
-  var byS = { 'A 早班':0, 'B 中班':0, 'C 夜班':0, '未排':0 };
+    [{ label: t('出勤人數', 'Headcount', 'ចំនួនមកធ្វើការ'), data: byD, backgroundColor: '#1e6f8e' }]);
+  var shiftKeys = ['A','B','C',''], byS = { A:0, B:0, C:0, '':0 };
   STAFF.forEach(function (r) {
     var s = stats(r);
-    var k = r.shift === 'A' ? 'A 早班' : r.shift === 'B' ? 'B 中班' : r.shift === 'C' ? 'C 夜班' : '未排';
+    var k = r.shift === 'A' || r.shift === 'B' || r.shift === 'C' ? r.shift : '';
     byS[k] += s.hrs;
   });
-  chart('ch2', 'doughnut', Object.keys(byS), [{ data: Object.keys(byS).map(function (k) { return byS[k]; }),
+  var shiftNames = { A:t('A 早班','A Morning','A ព្រឹក'), B:t('B 中班','B Middle','B កណ្តាល'), C:t('C 夜班','C Night','C យប់'), '':t('未排','Unassigned','មិនបានកំណត់') };
+  chart('ch2', 'doughnut', shiftKeys.map(function (k) { return shiftNames[k]; }), [{ data: shiftKeys.map(function (k) { return byS[k]; }),
     backgroundColor: ['#4ade80','#fbbf24','#0f2b46','#cbd5e1'] }]);
   var ppl = STAFF.map(function (r) { return { n: r.name, h: stats(r).hrs }; })
     .sort(function (a, b) { return b.h - a.h; }).slice(0, 15);
   chart('ch3', 'bar', ppl.map(function (x) { return x.n; }),
-    [{ label: '工時', data: ppl.map(function (x) { return x.h; }), backgroundColor: '#2a8fb0' }]);
-  var ab = { 例休:0, 請假:0, 曠職:0, 國定假:0 };
-  STAFF.forEach(function (r) { var c = stats(r).c; ab['例休'] += c.R; ab['請假'] += c.L; ab['曠職'] += c.A; ab['國定假'] += c.H; });
-  chart('ch4', 'doughnut', Object.keys(ab), [{ data: Object.keys(ab).map(function (k) { return ab[k]; }),
+    [{ label: t('工時', 'Hours', 'ម៉ោង'), data: ppl.map(function (x) { return x.h; }), backgroundColor: '#2a8fb0' }]);
+  var abKeys = ['R','L','A','H'], ab = { R:0, L:0, A:0, H:0 };
+  STAFF.forEach(function (r) { var c = stats(r).c; abKeys.forEach(function (k) { ab[k] += c[k]; }); });
+  chart('ch4', 'doughnut', abKeys.map(function (k) { return k + ' ' + codeLabel(k); }), [{ data: abKeys.map(function (k) { return ab[k]; }),
     backgroundColor: ['#94a3b8','#f59e0b','#dc2626','#3b82f6'] }]);
 }
 function chart(id, type, labels, ds) {
  var el = document.getElementById(id); if (!el) return;
-  if (typeof Chart === 'undefined') { el.parentNode.innerHTML = '<div class="empty" style="padding:30px">📊 圖表元件未載入，表格功能仍可使用；請重新整理後再試。</div>'; return; }
+  if (typeof Chart === 'undefined') { el.parentNode.innerHTML = '<div class="empty" style="padding:30px">📊 ' + SEC.esc(t('圖表元件未載入，表格功能仍可使用；請重新整理後再試。', 'Charts did not load; tables still work. Please refresh and try again.', 'ក្រាហ្វមិនបានផ្ទុក; តារាងនៅតែប្រើបាន។ សូមផ្ទុកទំព័រឡើងវិញ។')) + '</div>'; return; }
   if (CH[id]) CH[id].destroy();
   CH[id] = new Chart(el, { type: type, data: { labels: labels, datasets: ds },
     options: { responsive: true, maintainAspectRatio: false,
@@ -699,6 +766,11 @@ function sheetPeriod(sh) {
   return yr + '-' + SEC.p2(mon + 1);
 }
 function normalizePunch(v) {
+  /* cellDates:false：單一時間格是 Excel 小數（0.354 = 08:30）或日期＋時間序號，直接換成 HH:MM。 */
+  if (typeof v === 'number' && isFinite(v) && v > 0 && (v < 1 || v > 20000)) {
+    var tm0 = (typeof SEC.parseTime === 'function' ? SEC.parseTime(v) : '') || (function () { var m = Math.round((v - Math.floor(v)) * 1440) % 1440; return SEC.p2(Math.floor(m / 60)) + ':' + SEC.p2(m % 60); })();
+    return { raw:tm0, status:'', inTime:tm0, outTime:'' };
+  }
   var raw = SEC.str(v), status = '';
   if (!raw) return { raw:'', status:'', inTime:'', outTime:'' };
   if (/^[WORLAH]$/i.test(raw)) status=raw.toUpperCase();
@@ -723,11 +795,13 @@ function findAttendanceHeader(rows) {
       var n = SEC.norm(v);
       /* 「No」是流水號，不是保安 ID；先記流水號，真正 ID 會在上方或同列的 ID 欄。 */
       if (map.serial === undefined && /^(no|序號|序号)$/.test(n)) map.serial = c;
-      if (map.id === undefined && /^(id|idno|工號|工号|編號|លេខ)$/.test(n)) map.id = c;
+      if (map.id === undefined && /^(id|idno|工號|工号|編號|លេខ|អត្តលេខ)$/.test(n)) map.id = c;
       if (map.name === undefined && /^(name|姓名|ឈ្មោះ)$/.test(n)) map.name = c;
-      if (map.location === undefined && /^(location|地點|位置|តំបន់)$/.test(n)) map.location = c;
-      if (map.company === undefined && /^(company|公司)$/.test(n)) map.company = c;
+      if (map.location === undefined && /^(location|地點|位置|តំបន់|ទីតាំង)$/.test(n)) map.location = c;
+      if (map.company === undefined && /^(company|公司|ក្រុមហ៊ុន)$/.test(n)) map.company = c;
       var d = /^\d{1,2}$/.test(String(v).trim()) ? +String(v).trim() : 0;
+      /* cellDates:false 時，標題列的日期會是 Excel 序號（例如 46266）→ 取日。 */
+      if (!d && typeof v === 'number' && v > 20000 && v < 80000) { var hd = SEC.parseD(v); if (hd) d = hd.getDate(); }
       if (d >= 1 && d <= 31) days[c] = SEC.p2(d);
     });
     if (map.name !== undefined && Object.keys(days).length >= 10) {
@@ -741,7 +815,7 @@ function findAttendanceHeader(rows) {
       var above = rows[ar] || [];
       for (var ac = 0; ac < above.length; ac++) {
         var ah = SEC.norm(above[ac]);
-        if (/^(id|idno|工號|工号|編號|លេខ)$/.test(ah)) { best.map.id = ac; break; }
+        if (/^(id|idno|工號|工号|編號|លេខ|អត្តលេខ)$/.test(ah)) { best.map.id = ac; break; }
       }
     }
   }
@@ -761,10 +835,13 @@ function impExcel() {
   SEC.pickExcel(async function (sheets) {
     var personData=await SEC.Personnel.read();ALL_STAFF=personData.db;
     var added = 0, rawAdded = 0, rawUpdated = 0, rawSkipped = 0, newStaff = 0, log = [], importedMonths = {};
+    /* 只建一次 id → 原始打卡索引，避免每格都掃描整個 ATT_LOG（O(n²)）。 */
+    var rawById = {}, revived = [];
+    ATT_LOG.forEach(function (x) { if (x && x.id) rawById[x.id] = x; });
     sheets.forEach(function (sh) {
       var rows = sh.rows;
       var h = findAttendanceHeader(rows), targetYm = sheetPeriod(sh);
-      if (!h) { log.push('· <b>' + SEC.esc(sh.name) + '</b>：非月曆式出勤表，略過'); return; }
+      if (!h) { log.push('· <b>' + SEC.esc(sh.name) + '</b>: ' + t('非月曆式出勤表，略過', 'not a calendar-style attendance sheet, skipped', 'មិនមែនតារាងវត្តមានតាមប្រតិទិន រំលង')); return; }
       importedMonths[targetYm] = true;
       var M = ATT[targetYm] || (ATT[targetYm] = {}), n = 0, rn = 0;
       var shift = normalizeShift(rows.slice(0, 8).map(function (r) { return (r || []).join(' '); }).join(' '), sh.fileName || '');
@@ -777,17 +854,18 @@ function impExcel() {
         var beforePerson=oldPerson?(SEC.Personnel.snapshot(oldPerson,targetYm)||SEC.Personnel.fields(oldPerson)):{};
         var nextPerson=Object.assign({},beforePerson,{name:nm,empId:empId||beforePerson.empId||'',shift:shift||beforePerson.shift||'',status:beforePerson.status||'active'});
         var applied;
-        try{applied=SEC.Personnel.apply(personData.db,personData.changes,nextPerson,{id:oldPerson&&oldPerson.id,month:targetYm,date:targetYm+'-01',reason:'Attendance Excel / 出勤匯入'});}
+        try{applied=SEC.Personnel.apply(personData.db,personData.changes,nextPerson,{id:oldPerson&&oldPerson.id,month:targetYm,date:targetYm+'-01',reason:'Attendance Excel import'});}
         catch(e){log.push('⚠ '+SEC.esc(nm)+' · '+SEC.esc(e.message));continue;}
         if(applied.isNew)newStaff++;
         var st=SEC.Personnel.snapshot(applied.row,targetYm);
         var k = key(st);
         if (!M[k]) M[k] = {};
+        var rowTouched = false;
         Object.keys(h.days).forEach(function (c) {
           var p = normalizePunch(R2[c]); if (!p.raw) return;
           var day = h.days[c], date = targetYm + '-' + day;
           var code = p.status || (p.inTime || p.outTime ? 'W' : '');
-          if (code && !M[k][day]) { M[k][day] = code; n++; touchAttendanceRow(targetYm, k); }
+          if (code && !M[k][day]) { M[k][day] = code; n++; rowTouched = true; }
           var rawKey = [date, empId || nm, shift].join('|');
           var rec = { id:'AR-' + rawKey.replace(/[^A-Za-z0-9_-]/g,'_'),
             date:date, shift:shift || '—', empId:empId, name:nm,
@@ -795,33 +873,38 @@ function impExcel() {
             company:h.map.company === undefined ? '' : SEC.str(R2[h.map.company]),
             inTime:p.inTime, outTime:p.outTime, status:p.status || (p.inTime || p.outTime ? 'W' : ''), raw:p.raw,
             source:sh.fileName ? sh.fileName + ' / ' + sh.name : sh.name };
-          var old = ATT_LOG.filter(function (x) { return x.id === rec.id; })[0];
+          var old = rawById[rec.id];
           if (old) {
             var changed = ['date','shift','empId','name','location','company','inTime','outTime','status','raw','source'].some(function (f) { return String(old[f] || '') !== String(rec[f] || ''); });
-            if (changed) { rec.updatedAt = new Date().toISOString(); Object.assign(old, rec); SEC.clearDeleted(TOOL, Object.assign({ _k:'raw' }, old)); rawUpdated++; }
+            if (changed) { rec.updatedAt = new Date().toISOString(); Object.assign(old, rec); revived.push(Object.assign({ _k:'raw' }, old)); rawUpdated++; }
             else rawSkipped++;
-          } else { rec.createdAt = rec.updatedAt = new Date().toISOString(); ATT_LOG.push(rec); SEC.clearDeleted(TOOL, Object.assign({ _k:'raw' }, rec)); rawAdded++; }
+          } else { rec.createdAt = rec.updatedAt = new Date().toISOString(); ATT_LOG.push(rec); rawById[rec.id] = rec; revived.push(Object.assign({ _k:'raw' }, rec)); rawAdded++; }
         });
+        if (rowTouched) touchAttendanceRow(targetYm, k);   /* 每人每月只蓋一次時間戳，不是每格一次 */
         added++;
       }
-      log.push('· <b>' + SEC.esc(sh.name) + '</b>：寫入 <b>' + targetYm + '</b>、' + n + ' 格（標題第 ' + (h.row + 1) + ' 列）');
+      log.push('· <b>' + SEC.esc(sh.name) + '</b>: ' + t('寫入 <b>' + targetYm + '</b>、' + n + ' 格（標題第 ' + (h.row + 1) + ' 列）', '<b>' + targetYm + '</b>, ' + n + ' cells written (header row ' + (h.row + 1) + ')', '<b>' + targetYm + '</b>, បានសរសេរ ' + n + ' ក្រឡា (ជួរចំណងជើង ' + (h.row + 1) + ')'));
     });
+    batchClearDeleted(TOOL, revived);
     var stored=await SEC.Personnel.persist(personData.db,personData.changes);ALL_STAFF=stored.db;captureAttendanceInfo();
     Object.keys(importedMonths).forEach(function(m){SEC.scheduleAutoCloudSync('personnel','personnel-change',m+'-01');});
     jumpToImportedMonth(importedMonths);
     ATT_LOG.sort(function (a, b) { return String(b.date + b.inTime).localeCompare(String(a.date + a.inTime)); });
     await save(); renderAll();
     Object.keys(importedMonths).forEach(function (p) { SEC.scheduleAutoCloudSync(TOOL, 'attendance-excel-import', p); });
-    document.getElementById('impLog').innerHTML = '<b>匯入結果（寫入 ' + ym() + '）</b><br>' + log.join('<br>') +
-      (newStaff ? '<br>➕ 自動建立 <b>' + newStaff + '</b> 位新人員（已寫回名冊）' : '');
-    SEC.toast(added ? '✅ 匯入 ' + added + ' 人；打卡新增 ' + rawAdded + '、更新 ' + rawUpdated + '、略過相同 ' + rawSkipped + (newStaff ? '（新增 ' + newStaff + ' 人）' : '') : '⚠ 未匯入，請看偵測記錄', added ? 'ok' : 'warn', 6000);
+    document.getElementById('impLog').innerHTML = '<b>' + t('匯入結果（目前顯示 ' + ym() + '）', 'Import result (showing ' + ym() + ')', 'លទ្ធផលនាំចូល (បង្ហាញ ' + ym() + ')') + '</b><br>' + log.join('<br>') +
+      (newStaff ? '<br>➕ ' + t('自動建立 <b>' + newStaff + '</b> 位新人員（已寫回名冊）', '<b>' + newStaff + '</b> new people created (saved to the roster)', 'បានបង្កើតបុគ្គលិកថ្មី <b>' + newStaff + '</b> (រក្សាទុកក្នុងបញ្ជី)') : '');
+    SEC.toast(added ? '✅ ' + t('匯入 ' + added + ' 人；打卡新增 ' + rawAdded + '、更新 ' + rawUpdated + '、略過相同 ' + rawSkipped + (newStaff ? '（新增 ' + newStaff + ' 人）' : ''),
+        added + ' people imported; punches ' + rawAdded + ' added, ' + rawUpdated + ' updated, ' + rawSkipped + ' unchanged' + (newStaff ? ' (' + newStaff + ' new people)' : ''),
+        'បាននាំចូល ' + added + ' នាក់; ស្កេន បន្ថែម ' + rawAdded + ', កែ ' + rawUpdated + ', ដដែល ' + rawSkipped + (newStaff ? ' (ថ្មី ' + newStaff + ')' : ''))
+      : '⚠ ' + t('未匯入，請看偵測記錄', 'Nothing imported; see the detection log', 'មិនបាននាំចូល; សូមមើលកំណត់ហេតុ'), added ? 'ok' : 'warn', 6000);
   });
 }
 function expGrid() {
   var nd = daysInMonth(), M = monthMap();
-  var head = ['工號','姓名','班別','崗位'];
+  var head = [t('工號','ID','អត្តលេខ'), t('姓名','Name','ឈ្មោះ'), t('班別','Shift','វេន'), t('崗位','Post','ប៉ុស្តិ៍')];
   for (var d = 1; d <= nd; d++) head.push(String(d));
-  head.push('出勤','加班','例休','請假','曠職','總工時');
+  ['W','O','R','L','A'].forEach(function (k) { head.push(k + ' ' + codeLabel(k)); }); head.push(t('總工時','Hours','ម៉ោងសរុប'));
   var aoa = [head];
   STAFF.forEach(function (r) {
     var row = M[key(r)] || {}, s = stats(r);
@@ -837,19 +920,28 @@ function restore() {
   SEC.restoreJson(async function (o) {
     if (o.attendance) ATT = o.attendance; if (o.raw) ATT_LOG = o.raw; if (o.meta) ATT_META = o.meta; if(o.staffInfo)ATT_INFO=o.staffInfo;
     if(Array.isArray(o.personnel)){var people=await SEC.Personnel.read();var stored=await SEC.Personnel.persist(o.personnel,people.changes);ALL_STAFF=stored.db;}
-    captureAttendanceInfo();attendanceCloudRecords().forEach(function (r) { SEC.clearDeleted(TOOL, r); });
+    captureAttendanceInfo();batchClearDeleted(TOOL, attendanceCloudRecords());
     await save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'attendance-restore', '');
   });
 }
+function batchClearDeleted(tool, rows) {
+  rows = Array.isArray(rows) ? rows : [];
+  if (!rows.length) return;
+  if (typeof SEC.clearDeletedMany === 'function') { SEC.clearDeletedMany(tool, rows); return; }
+  var dead = {}; (SEC.getDeleted(tool) || []).forEach(function (r) { dead[r._recordKey] = 1; });
+  if (!Object.keys(dead).length) return;
+  rows.forEach(function (r) { if (dead[SEC.recordKey(tool, r, 0)]) SEC.clearDeleted(tool, r); });
+}
 function clearMonth() {
-  if (!confirm('確定清空 ' + ym() + ' 的出勤資料？')) return;
   var cleared = ym();
-  attendanceCloudRecords().filter(function (r) { return r.month === cleared || String(r.date || '').slice(0, 7) === cleared; })
-    .forEach(function (r) { SEC.markDeleted(TOOL, r); });
+  /* 清空整月一定要確認（清除單一格則不必）。 */
+  if (!confirm(t('確定清空 ' + cleared + ' 的全部出勤資料（含原始打卡）？此動作會同步到雲端。', 'Clear ALL attendance for ' + cleared + ' (including raw punches)? This is synced to the cloud.', 'សម្អាតវត្តមានទាំងអស់សម្រាប់ ' + cleared + ' (រួមទាំងស្កេនដើម) មែនទេ? នឹងធ្វើសមកាលកម្មទៅពពក។'))) return;
+  SEC.markDeletedMany(TOOL, attendanceCloudRecords().filter(function (r) { return r.month === cleared || String(r.date || '').slice(0, 7) === cleared; }));
   delete ATT[cleared];
   Object.keys(ATT_META).forEach(function (k) { if (k.indexOf(cleared + '|') === 0) delete ATT_META[k]; });
   ATT_LOG = ATT_LOG.filter(function (r) { return String(r.date || '').slice(0, 7) !== cleared; });
   save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'attendance-clear-month', cleared);
+  SEC.toast('🗑 ' + t('已清空 ' + cleared, cleared + ' cleared', 'បានសម្អាត ' + cleared), 'ok');
 }
 async function doUpload() {
   if(!await SEC.Personnel.upload())return false;
@@ -871,7 +963,7 @@ async function doUpload() {
     hours: current.reduce(function (a, x) { return a + x.hours; }, 0) });
 }
 async function doDownload(opts) {
-  if (!(opts && opts.auto) && !confirm('⬇️☁ 下載會與本機出勤資料合併；相同月份／人員以最新資料更新，空白欄位會先確認並保留舊值。繼續？')) return false;
+  if (!(opts && opts.auto) && !confirm('⬇️☁ ' + t('下載會與本機出勤資料合併；相同月份／人員以最新資料更新，空白欄位會先確認並保留舊值。繼續？', 'Download merges with attendance on this device; the newest data wins for the same month / person, and blank fields keep old values after confirmation. Continue?', 'ការទាញយកនឹងបញ្ចូលជាមួយទិន្នន័យលើឧបករណ៍; ទិន្នន័យថ្មីជាងឈ្នះ ហើយវាលទទេរក្សាតម្លៃចាស់។ បន្តទេ?'))) return false;
   await SEC.Personnel.pull({auto:!!(opts&&opts.auto)});await loadStaff();captureAttendanceInfo();
   var local = attendanceCloudRecords();
   var recs = await SEC.cloudPull(TOOL, { force:!(opts && opts.auto), localRecords:local });
@@ -885,7 +977,7 @@ async function doDownload(opts) {
   (Array.isArray(ex.raw) ? ex.raw : []).forEach(function (r) { incoming.push(Object.assign({ _k:'raw' }, r)); });
   var merged = SEC.mergeRecords(TOOL, local, incoming);
   var conflicts = merged.blankConflicts || [];
-  if (!(opts && opts.auto) && !SEC.confirmBlankMerge(conflicts, '出勤雲端下載確認')) return false;
+  if (!(opts && opts.auto) && !SEC.confirmBlankMerge(conflicts, t('出勤雲端下載確認', 'Confirm attendance cloud download', 'បញ្ជាក់ការទាញយកវត្តមាន'))) return false;
   var nextAtt = {}, nextRaw = [], nextMeta = {},nextInfo=Object.assign({},ATT_INFO);
   merged.records.forEach(function (r) {
     if (r && r.month && r.detail && typeof r.detail === 'object') {
@@ -900,7 +992,7 @@ async function doDownload(opts) {
   });
   ATT = nextAtt; ATT_META = nextMeta; ATT_INFO=nextInfo;
   ATT_LOG = nextRaw.sort(function (a, b) { return String(b.date + (b.inTime || '')).localeCompare(String(a.date + (a.inTime || ''))); });
-  await save(); renderAll(); if (!(opts && opts.silent)) SEC.toast('⬇️☁ 已合併雲端出勤與原始打卡資料，共 ' + ATT_LOG.length + ' 筆明細', 'ok', 5000);
+  await save(); renderAll(); if (!(opts && opts.silent)) SEC.toast('⬇️☁ ' + t('已合併雲端出勤與原始打卡資料，共 ' + ATT_LOG.length + ' 筆明細', 'Cloud attendance merged; ' + ATT_LOG.length + ' raw punch rows', 'បានបញ្ចូលវត្តមានពីពពក; ស្កេនដើម ' + ATT_LOG.length), 'ok', 5000);
   return true;
 }
 function attSummaryPeriod(st) {
@@ -983,7 +1075,7 @@ function attendanceSummary(st) {
   if (bad.length) {
     var lines=['ID        Name          A   L   W   O'];
     bad.slice(0,20).forEach(function(x){lines.push(attCell(x.r.empId||'—',10)+attCell(x.r.name||'—',14)+attCell(x.s.c.A,4)+attCell(x.s.c.L,4)+attCell(x.s.c.W,4)+x.s.c.O);});
-    txt += '\n\n<b>⚠️ ' + attT(st.lang,'缺勤／請假人員','Absence / leave detail','ព័ត៌មានអវត្តមាន／ឈប់') + '</b>\n' + attPre(lines);
+    txt += '\n\n<b>⚠️ ' + attT(st.lang,'缺勤／請假人員','Absence / leave detail','អវត្តមាន / ច្បាប់ឈប់') + '</b>\n' + attPre(lines);
   }
   txt += '\n\n<i>' + (st.includeDetails
     ? attT(st.lang, '已勾選逐筆明細；下一頁列出每位保安的完整出勤欄位。', 'Record details selected; next pages list every guard and full attendance fields.', 'បានជ្រើសព័ត៌មានលម្អិត; ទំព័របន្ទាប់បង្ហាញបុគ្គលិកទាំងអស់។')
