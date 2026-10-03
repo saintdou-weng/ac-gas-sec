@@ -1283,6 +1283,87 @@ function tgAnchor(key, type) {
 }
 function tgPeriodLabel(key, type) { return new Period(type, tgAnchor(key, type)).label(); }
 /* 頁面傳入的文字可以是 {zh,en,km} 物件；若是舊式中文字串而目前是 en/km，改用通用文字。 */
+
+/* ───────── Telegram 精簡卡片格式（20261002）─────────
+   原則：手機一眼看懂。不再用空白補齊的表格（Telegram 引用區塊不是等寬字，必定對不齊）；
+   改成「一筆一行、圖示＋重點」：先結論，再異常，正常只計數。
+   標籤用 tgLbl() 包起來：「繁中 + English」合併時同一行只把標籤合成「中/英」，數字和名字不會重複。 */
+var TG_LO = '⟦', TG_LC = '⟧';
+function tgLbl(lang, zh, en, km) {
+  var s = lang === 'en' ? en : lang === 'km' ? (km || en) : zh;
+  return TG_LO + String(s == null ? '' : s) + TG_LC;
+}
+function tgStrip(s) { return String(s == null ? '' : s).replace(/[⟦⟧]/g, ''); }
+function tgShortDate(v) { v = String(v || ''); return /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(5, 10) : v; }
+function tgTime(v) { var m = String(v == null ? '' : v).match(/(\d{1,2}):(\d{2})/); return m ? p2(+m[1]) + ':' + m[2] : ''; }
+function tgMinutes(v) { var m = String(v == null ? '' : v).match(/(\d{1,2}):(\d{2})/); return m ? (+m[1]) * 60 + (+m[2]) : null; }
+function tgDuration(mins) { mins = Math.round(+mins || 0); if (mins <= 0) return ''; var h = Math.floor(mins / 60), m = mins % 60; return h ? h + 'h' + (m ? p2(m) : '') : m + 'm'; }
+/* 連續日期壓縮：09-01,09-02,09-03,09-05 → 09-01~03, 09-05 */
+function tgDateRanges(dates) {
+  var list = Array.from(new Set((dates || []).map(String).filter(function (d) { return /^\d{4}-\d{2}-\d{2}$/.test(d); }))).sort(), out = [], i = 0;
+  while (i < list.length) {
+    var j = i;
+    while (j + 1 < list.length && (parseD(list[j + 1]) - parseD(list[j])) === 86400000) j++;
+    out.push(j > i ? tgShortDate(list[i]) + '~' + (list[i].slice(0, 7) === list[j].slice(0, 7) ? list[j].slice(8) : tgShortDate(list[j])) : tgShortDate(list[i]));
+    i = j + 1;
+  }
+  return out.join(', ');
+}
+/* 指標列：[[圖示, 標籤(已用 tgLbl), 數值], ...]，每行最多 n 個 */
+function tgKpis(items, n) {
+  n = n || 3; var rows = [], cur = [];
+  (items || []).filter(Boolean).forEach(function (x) {
+    cur.push(x[0] + ' ' + x[1] + ' <b>' + x[2] + '</b>');
+    if (cur.length >= n) { rows.push(cur.join('  ·  ')); cur = []; }
+  });
+  if (cur.length) rows.push(cur.join('  ·  '));
+  return rows.join('\n');
+}
+function tgHead(icon, title, period, sub) {
+  return icon + ' <b>' + title + '</b>' + (period ? '\n📅 ' + esc(period) : '') + (sub ? '\n' + sub : '') + '\n━━━━━━━━━━━━';
+}
+function tgSec(icon, title) { return '\n\n<b>' + icon + ' ' + title + '</b>'; }
+/* 長清單折疊：Telegram 會顯示前幾行，按一下展開全部 */
+function tgFold(lines) { lines = (lines || []).filter(function (x) { return x != null && x !== ''; }); return lines.length ? '\n<blockquote expandable>' + lines.join('\n') + '</blockquote>' : ''; }
+/* 依字數把多行分頁（每頁 ≤ budget 字），頁首自動加標題 */
+function tgChunk(title, lines, budget) {
+  budget = budget || 3000; var pages = [], cur = [], size = 0;
+  (lines || []).forEach(function (ln) {
+    var len = String(ln).length + 1;
+    if (cur.length && size + len > budget) { pages.push(title + '\n' + cur.join('\n')); cur = []; size = 0; }
+    cur.push(ln); size += len;
+  });
+  if (cur.length) pages.push(title + '\n' + cur.join('\n'));
+  return pages;
+}
+/* 彩色進度條：🟩 好／🟨 普通／🟥 差，一眼看到比例（Telegram 文字也能有「視覺」） */
+function tgBar(value, total, width) {
+  width = width || 10; total = Number(total) || 0; value = Number(value) || 0;
+  if (total <= 0) return '';
+  var r = Math.max(0, Math.min(1, value / total)), n = Math.round(r * width), block = r >= 0.9 ? '🟩' : r >= 0.7 ? '🟨' : '🟥', out = '';
+  for (var i = 0; i < width; i++) out += i < n ? block : '⬜';
+  return out + ' ' + Math.round(r * 100) + '%';
+}
+/* 狀態燈：訊息第一行就知道要不要處理。level: 'ok' | 'warn' | 'bad' */
+function tgVerdict(level, text) {
+  var dot = level === 'bad' ? '🔴' : level === 'warn' ? '🟠' : '🟢';
+  return dot + ' <b>' + String(text == null ? '' : text) + '</b>';
+}
+var TG = { lbl:tgLbl, strip:tgStrip, d:tgShortDate, time:tgTime, mins:tgMinutes, dur:tgDuration, ranges:tgDateRanges,
+  kpis:tgKpis, head:tgHead, sec:tgSec, fold:tgFold, chunk:tgChunk, bar:tgBar, verdict:tgVerdict };
+
+/* 送出成功動畫（只在網頁上，不影響 Telegram 內容） */
+function tgSentFx(text) {
+  try {
+    var fx = document.createElement('div');
+    fx.className = 'tg-fx';
+    fx.innerHTML = '<div class="tg-fx-card"><div class="tg-fx-plane">✈️</div><div class="tg-fx-check">✓</div><b>' + esc(text || '') + '</b></div>';
+    document.body.appendChild(fx);
+    setTimeout(function () { fx.classList.add('out'); }, 1500);
+    setTimeout(function () { if (fx.parentNode) fx.parentNode.removeChild(fx); }, 2000);
+  } catch (e) {}
+}
+
 function pageText(v, fallbackZh, fallbackEn, fallbackKm) {
   if (v && typeof v === 'object') return L(v);
   if (v != null && v !== '' && (_lang === 'zh' || !/[㐀-鿿]/.test(String(v)))) return String(v);
@@ -1405,7 +1486,7 @@ function tgOpen(opt) {
       if (Array.isArray(v)) return v.map(String).filter(Boolean);
       return [String(v || L('（本期間沒有資料）', '(No data in this period)', '(គ្មានទិន្នន័យក្នុងរយៈពេលនេះ)'))];
     }
-    if (st.lang !== 'both') return one(st);
+    if (st.lang !== 'both') return one(st).map(tgStrip);
     function plain(s) { return String(s || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim(); }
     function divider(s) { return /^[\s─━—_\-]+$/.test(String(s || '')); }
     function mergePage(zhPage, enPage) {
@@ -1413,6 +1494,13 @@ function tgOpen(opt) {
       var n = Math.max(zhLines.length, enLines.length), merged = [];
       for (var j = 0; j < n; j++) {
         var z = zhLines[j] || '', e = enLines[j] || '';
+        /* 標籤式行：骨架（去掉標籤）相同 → 只合併標籤「中/英」，數字與名字只出現一次 */
+        var lab = /\u27E6[^\u27E7]*\u27E7/g;
+        if (z && e && z.indexOf(TG_LO) >= 0 && z.replace(lab, TG_LO) === e.replace(lab, TG_LO)) {
+          var el = e.match(lab) || [], k = 0;
+          merged.push(z.replace(lab, function (m) { var a = m.slice(1, -1), b = String(el[k++] || '').slice(1, -1); return !b || plain(a) === plain(b) ? a : a + '/' + b; }));
+          continue;
+        }
         if (!z) { merged.push(e); continue; }
         if (!e || plain(z) === plain(e) || (divider(z) && divider(e))) { merged.push(z); continue; }
         merged.push(z + ' / ' + e);
@@ -1423,7 +1511,7 @@ function tgOpen(opt) {
     var en = one(Object.assign({}, st, { lang:'en' }));
     var n = Math.max(zh.length, en.length), out = [];
     for (var i = 0; i < n; i++) {
-      out.push(mergePage(zh[i] || '（本頁沒有中文資料）', en[i] || '(No English data on this page)'));
+      out.push(tgStrip(mergePage(zh[i] || '（本頁沒有中文資料）', en[i] || '(No English data on this page)')));
     }
     return out;
   }
@@ -1526,7 +1614,7 @@ function tgOpen(opt) {
         if(typeof opt.onSummarySent==='function')await opt.onSummarySent(st,sentResult);
         scheduleAutoCloudSync(opt.module || '', opt.reportKind==='masterChanges'?'master-summary':'telegram-summary', st.period || '');
         if (sentResult.skippedDuplicate) toast(L('♻️ 相同摘要已送過，本次未重複發送', '♻️ The same summary was already sent; not sent again', '♻️ សេចក្តីសង្ខេបដដែលបានផ្ញើរួចហើយ មិនផ្ញើម្តងទៀតទេ'), 'warn', 5500);
-        else toast(L('✈️ Telegram 摘要已送出', '✈️ Telegram summary sent', '✈️ បានផ្ញើសេចក្តីសង្ខេប Telegram') + (pages.length > 1 ? ' (' + pages.length + ')' : ''), 'ok');
+        else { toast(L('✈️ Telegram 摘要已送出', '✈️ Telegram summary sent', '✈️ បានផ្ញើសេចក្តីសង្ខេប Telegram') + (pages.length > 1 ? ' (' + pages.length + ')' : ''), 'ok'); tgSentFx(L('已送到群組', 'Sent to the group', 'បានផ្ញើទៅក្រុម')); }
       } else {
         var items = liveItems(opt.approvalItems ? opt.approvalItems(st) : []);
         if (!canApproveNow() || !approvalItemsAllowed(opt.module, items)) throw new Error(L('此類記錄不需核可，請傳送摘要', 'These records are summary-only', 'កំណត់ត្រាទាំងនេះសម្រាប់តែសេចក្តីសង្ខេប'));
@@ -1536,6 +1624,7 @@ function tgOpen(opt) {
               lang:st.lang === 'both' ? 'zh' : st.lang, periodType:st.ptype, items:items });
         if (!result) throw new Error(L('核可請求未送出', 'The approval request was not sent', 'សំណើអនុម័តមិនត្រូវបានផ្ញើ'));
         if (opt.onApprovalSent) opt.onApprovalSent(result, st, items);
+        tgSentFx(L('核可請求已送出', 'Approval request sent', 'បានផ្ញើសំណើអនុម័ត'));
       }
       sending = false;
       close();
@@ -2076,7 +2165,7 @@ G.SEC = {
   registerAutoUploader:registerAutoUploader, registerAutoDownloader:registerAutoDownloader,
   scheduleAutoCloudSync:scheduleAutoCloudSync, retryAutoCloudSync:retryAutoCloudSync,
   startAutoCloudSync:startAutoCloudSync, runAutoCloudSync:runAutoCloudSync,
-  setAutoSyncState:setAutoSyncState, markSync:markSync, lastSync:lastSync, tgSummary:tgSummary, tgOpen:tgOpen,
+  setAutoSyncState:setAutoSyncState, markSync:markSync, lastSync:lastSync, tgSummary:tgSummary, tgOpen:tgOpen, TG:TG, tgSentFx:tgSentFx,
   manualCloudSync:manualCloudSync, syncBadge:syncBadge, autoSyncDebug:autoSyncDebug, isTransient:isTransient,
   noteNet:noteNet, netFailText:netFailText, photoSig:photoSig, i18nAttrs:i18nAttrs, DEFAULTS:{ gasUrl:DEFAULTS.gasUrl },
   recordKey:recordKey, mergeRecords:mergeRecords, mergeObject:mergeObject, dedupeBy:dedupeBy,

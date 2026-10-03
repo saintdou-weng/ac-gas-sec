@@ -240,3 +240,16 @@ td.num,th.num{text-align:right;font-family:'DM Mono',monospace}
   .route-pick{grid-template-columns:1fr}
   .plabel{min-width:96px;font-size:12.5px}
 }
+
+/* 20261002 Telegram 預覽與送出動畫 */
+#tgPreview blockquote{margin:4px 0;padding:4px 8px;border-left:3px solid #e1306c;background:rgba(15,43,70,.05);border-radius:4px}
+.tg-fx{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;pointer-events:none;background:rgba(15,43,70,.18);animation:tgFxIn .18s ease-out}
+.tg-fx.out{opacity:0;transition:opacity .45s}
+.tg-fx-card{background:#fff;border-radius:18px;padding:22px 30px;box-shadow:0 12px 40px rgba(0,0,0,.25);text-align:center;min-width:200px;position:relative;overflow:hidden}
+.tg-fx-card b{display:block;margin-top:8px;font-size:15px;color:#0f2b46}
+.tg-fx-plane{font-size:30px;animation:tgFxFly 1.1s ease-in forwards}
+.tg-fx-check{width:54px;height:54px;margin:-36px auto 0;border-radius:50%;background:#16a34a;color:#fff;font:700 32px/54px system-ui;transform:scale(0);animation:tgFxPop .45s .55s cubic-bezier(.2,1.6,.4,1) forwards}
+@keyframes tgFxIn{from{opacity:0}to{opacity:1}}
+@keyframes tgFxFly{0%{transform:translate(-60px,20px) rotate(0)}60%{transform:translate(40px,-30px) rotate(-8deg);opacity:1}100%{transform:translate(140px,-90px) rotate(-15deg);opacity:0}}
+@keyframes tgFxPop{to{transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){.tg-fx-plane,.tg-fx-check{animation:none;transform:none}}

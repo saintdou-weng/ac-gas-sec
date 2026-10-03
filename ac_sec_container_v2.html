@@ -10,7 +10,7 @@
 <script src="./shared/xlsx.full.min.js?v=20260929a"></script>
 <script src="./shared/qrcode-generator.js?v=20260929a"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="stylesheet" href="./shared/sec.css?v=20260929a">
+<link rel="stylesheet" href="./shared/sec.css?v=20261002a">
 <style>
 .subnav{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
 .subnav .sb{flex:1;min-width:96px;padding:11px 8px;border-radius:11px;border:1px solid var(--line);
@@ -322,6 +322,7 @@
   <div class="f"><label data-zh="司機" data-en="Driver" data-km="អ្នកបើកបរ">司機</label><input id="t_name"></div>
   <div class="f"><label data-zh="駕駛證" data-en="Licence" data-km="ប័ណ្ណបើកបរ">駕駛證</label><input id="t_licence"></div>
   <div class="f"><label class="req" data-zh="貨櫃號" data-en="Container No" data-km="លេខកុងតឺន័រ">貨櫃號</label><input id="t_containerNo"></div>
+  <div class="f"><label data-zh="櫃型" data-en="Size" data-km="ទំហំ">櫃型</label><select id="t_size"><option value="" data-zh="— 未填 —" data-en="— not set —" data-km="— មិនបានបំពេញ —">— 未填 —</option><option value="20">20ft</option><option value="40">40ft</option><option value="40HQ">40HQ</option><option value="45">45ft</option></select></div>
   <div class="f"><label data-zh="車牌" data-en="Truck No" data-km="ស្លាកលេខរថយន្ត">車牌</label><input id="t_truckNo"></div>
   <div class="f"><label data-zh="貨櫃車公司" data-en="Company" data-km="ក្រុមហ៊ុន">貨櫃車公司</label><input id="t_company" list="coList"><datalist id="coList"></datalist></div>
   <div class="f"><label data-zh="來賓證" data-en="Visitor ID" data-km="កាតភ្ញៀវ">來賓證</label><input id="t_visitorId"></div>
@@ -349,7 +350,7 @@
 <button class="btn" id="tkSaveBtn" onclick="tkSaveEdit()" data-zh="儲存並執行" data-en="Save & process" data-km="រក្សាទុក និងដំណើរការ">儲存並執行</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260929a"></script>
+<script src="./shared/sec-core.js?v=20261002a"></script>
 <script src="./shared/sec-smart-sync.js?v=20260929a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
@@ -381,9 +382,6 @@ function LT(lang, zh, en, km) { return lang === 'en' ? en : lang === 'km' ? (km 
 function ctt(lang, zh, en, km) { return LT(lang, zh, en, km); }
 /* 舊版輸出「中文 / English」；現在一律只輸出所選的一種語言。 */
 function containerBi(lang, zh, en, km) { return LT(lang, zh, en, km); }
-/* 在 Telegram「中文＋English」模式，逐筆資料列用同一種語言，避免合併後重複列。 */
-function tgBothMode() { var s = document.getElementById('tgLang'); return !!(s && s.value === 'both'); }
-function rowLang(lang) { return tgBothMode() ? 'en' : lang; }
 function t3(zh, en, km) {
   return '<span data-zh="' + SEC.esc(zh) + '" data-en="' + SEC.esc(en) + '" data-km="' + SEC.esc(km) + '">' + SEC.esc(L(zh, en, km)) + '</span>';
 }
@@ -615,7 +613,7 @@ function renderTk() {
   var dl = Object.keys(co).sort().map(function (k) { return '<option value="' + SEC.esc(k) + '">'; }).join('');
   document.getElementById('coList').innerHTML = dl;
 }
-var TF = ['date','name','licence','containerNo','truckNo','company','visitorId','timeIn','signIn','timeOut','signOut','remark'];
+var TF = ['date','name','licence','containerNo','size','truckNo','company','visitorId','timeIn','signIn','timeOut','signOut','remark'];
 function tkAdd(id) {
   TK_EDIT = id || '';
   var r = id ? TK.filter(function (x) { return x.id === id; })[0] : null;
@@ -1265,54 +1263,139 @@ function containerPeriods(type) {
   containerDates().forEach(function (d) { var p = new SEC.Period(type, SEC.parseD(d)); seen[p.key()] = 1; });
   return Object.keys(seen);
 }
-function containerCell(v, n) {
-  v=String(v==null?'':v).replace(/\s+/g,' ').trim();
-  if(v.length>n) v=v.slice(0,Math.max(1,n-1))+'…';
-  while(v.length<n) v+=' ';
-  return v;
+/* 20261002 Telegram 精簡卡片格式（docs/TG_FORMAT_GUIDE.md）：不再用空白補齊的表格。
+   一櫃一張小卡（2–4 短行）：櫃號／方向 → 車牌·司機·公司 → 🟢入廠 → 🔴出廠 ·⏱在廠時間 → 備註。
+   月報先看指標和需要注意的（仍在廠內、時間有誤、檢查不合格），逐櫃卡片勾「附逐筆明細」才展開。
+   文字標籤一律用 SEC.TG.lbl()：「繁中 + English」逐行合併成「中/英」，資料只出現一次。 */
+function containerTimeIssue(r) { var i = SEC.TG.mins(r.timeIn), o = SEC.TG.mins(r.timeOut); return i != null && o != null && o < i; }
+function containerStayMins(r) { var i = SEC.TG.mins(r.timeIn), o = SEC.TG.mins(r.timeOut); return i != null && o != null && o >= i ? o - i : null; }
+function containerDirLabel(r, lang) {
+  var lb = function (zh, en, km) { return SEC.TG.lbl(lang, zh, en, km); };
+  return r.isImport && r.isExport ? '📥📤 ' + lb('進口＋出口', 'Import + Export', 'នាំចូល + នាំចេញ') : r.isImport ? '📥 ' + lb('進口', 'Import', 'នាំចូល') : r.isExport ? '📤 ' + lb('出口', 'Export', 'នាំចេញ') : '';
 }
-function containerPre(lines){return '<blockquote>'+lines.join('\n')+'</blockquote>';}
-function containerShortDate(v){v=String(v||'');return /^\d{4}-\d{2}-\d{2}$/.test(v)?v.slice(5):v.slice(0,5);}
-
+function containerTruckLines(r, lang, withDate) {
+  var G = SEC.TG, lb = function (zh, en, km) { return G.lbl(lang, zh, en, km); }, dir = containerDirLabel(r, lang), ph = truckAllPhotos(r).length;
+  var sz = containerSizeOf(r), szTxt = sz ? (sz === '40HQ' ? '40HQ' : sz + 'ft') : '';
+  var head = '• ' + (withDate ? G.d(r.date) + ' ' : '') + '<b>' + SEC.esc(r.containerNo || r.truckNo || r.id || '—') + '</b>' + (szTxt && String(r.containerNo || '').toUpperCase().indexOf(sz.slice(0, 2)) < 0 ? ' ' + szTxt : '') + (dir ? ' · ' + dir : '') + (ph ? ' · 📷' + ph : '');
+  var who = [r.truckNo && r.containerNo ? '🚚 ' + SEC.esc(r.truckNo) : '', r.name ? SEC.esc(r.name) : '', r.company ? SEC.esc(r.company) : ''].filter(Boolean).join(' · ');
+  var t = '   🟢 ' + lb('進廠', 'In', 'ចូល') + ' ' + (G.time(r.timeIn) || '—') + (r.signIn ? ' ' + SEC.esc(r.signIn) : '') + ' → 🔴 ' + lb('出廠', 'Out', 'ចេញ') + ' ' +
+    (r.timeOut ? (G.time(r.timeOut) || SEC.esc(r.timeOut)) + (r.signOut ? ' ' + SEC.esc(r.signOut) : '') : lb('未出廠', 'still inside', 'នៅក្នុងរោងចក្រ'));
+  if (containerTimeIssue(r)) t += ' · ⚠️ ' + lb('出廠早於進廠', 'out before in', 'ចេញមុនចូល');
+  else { var d = G.dur(containerStayMins(r)); if (d) t += ' · ⏱' + d; }
+  var out = [head];
+  if (who) out.push('   ' + (who.indexOf('🚚') === 0 ? '' : '👤 ') + who);
+  out.push(t);
+  if (r.remark) out.push('   📝 ' + SEC.esc(r.remark));
+  return out;
+}
+function containerInspLines(r, lang, withDate, brief) {
+  var G = SEC.TG, lb = function (zh, en, km) { return G.lbl(lang, zh, en, km); }, ok = r.result === 'pass', n = (r.photos || []).length;
+  var out = ['• ' + (withDate ? G.d(r.date) + ' ' : '') + '<b>' + SEC.esc(r.containerNo || '—') + '</b> · ' + (ok ? '✅' : '❌') + ' ' + (r.pass || 0) + '/17' + (r.by ? ' · 👮 ' + SEC.esc(r.by) : '') + (n ? ' · 📷' + n : '')];
+  var info = [r.seal ? '🔒 ' + SEC.esc(r.seal) : '', r.truck ? '🚚 ' + SEC.esc(r.truck) : '', r.company ? SEC.esc(r.company) : ''].filter(Boolean).join(' · ');
+  if (info && !brief) out.push('   ' + info);
+  if (r.fails && r.fails.length) out.push('   ❌ ' + r.fails.map(function (f) { return G.lbl('zh', SEC.esc(chkLabel(f, lang))); }).join(', '));
+  if (r.items && r.items.length) out.push('   📦 ' + r.items.map(function (x) { return SEC.esc(x.name || '') + '×' + SEC.esc(x.qty || '') + SEC.esc(x.unit || ''); }).join('; '));
+  if (r.note) out.push('   📝 ' + SEC.esc(r.note));
+  return out;
+}
+function containerGateLines(r, lang) {
+  var G = SEC.TG, n = (r.photos || []).length, rs = (r.reasons || []).map(function (x) { return G.lbl('zh', SEC.esc(reasonLabel(r.type, x, lang))); });
+  var out = ['• ' + (G.time(r.time) ? G.time(r.time) + ' ' : '') + '<b>' + SEC.esc(r.no || '—') + '</b> · ' + G.lbl('zh', SEC.esc(gdTypeLabel(r.type, lang))) +
+    [r.dept, r.by].filter(Boolean).map(function (x) { return ' · ' + SEC.esc(x); }).join('') + (r.vehicle ? ' · 🚚 ' + SEC.esc(r.vehicle) : '') + (n ? ' · 📷' + n : '')];
+  if (rs.length) out.push('   📋 ' + rs.join(', '));
+  if (r.items && r.items.length) out.push('   📦 ' + r.items.map(function (x) { return SEC.esc(x.name || '') + '×' + SEC.esc(x.qty || '') + SEC.esc(x.unit || ''); }).join('; '));
+  if (r.note) out.push('   📝 ' + SEC.esc(r.note));
+  return out;
+}
+/* 櫃型：優先用「櫃型」欄位；舊資料從貨櫃號或備註裡的 20FT / 40FT / 40HQ 判斷 */
+function containerSizeOf(r) {
+  var v = String(r && r.size || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
+  if (/^(20|40|45)/.test(v)) return /HQ|HC/.test(v) ? '40HQ' : v.slice(0, 2);
+  var txt = String((r && r.containerNo || '') + ' ' + (r && r.remark || '')).toUpperCase();
+  var m = txt.match(/(?:^|[^0-9])(20|40|45)\s*(?:FT|FEET|'|′|呎|尺|HQ|HC|GP|DC|DV)(?![0-9])/);
+  if (!m) m = txt.match(/(?:^|[^0-9])(40)\s*(?:HQ|HC)/) || txt.match(/\b(20|40|45)\s*(?:FT|FEET)\b/);
+  if (!m) return '';
+  return /HQ|HC/.test(m[0]) ? '40HQ' : m[1];
+}
+function containerSizeText(counts, lang) {
+  var lb = function (zh, en, km) { return SEC.TG.lbl(lang, zh, en, km); }, parts = [];
+  [['20', '20'], ['40', '40'], ['40HQ', '40HQ'], ['45', '45']].forEach(function (x) { if (counts[x[0]]) parts.push((x[0] === '40HQ' ? '40HQ' : x[0] + 'ft') + ' ' + counts[x[0]]); });
+  if (counts['']) parts.push(lb('未填', 'n/a', 'មិនបានបំពេញ') + ' ' + counts['']);
+  return parts.join(' · ');
+}
+function containerDirSizes(rows) {
+  var out = { imp:{ n:0 }, exp:{ n:0 } };
+  rows.forEach(function (r) { var sz = containerSizeOf(r); ['imp', 'exp'].forEach(function (d) {
+    if (d === 'imp' ? !r.isImport : !r.isExport) return; out[d].n++; out[d][sz] = (out[d][sz] || 0) + 1; }); });
+  return out;
+}
+function containerSummaryData(st) {
+  var p = summaryPeriod(st), has = function (r) { return p.has(r.date); };
+  var by = function (f) { return function (a, b) { return String(a.date || '').localeCompare(String(b.date || '')) || String(a[f] || '').localeCompare(String(b[f] || '')); }; };
+  var tk = live(TK).filter(has).sort(by('timeIn')), ci = live(CI).filter(has).sort(by('date')), gd = live(GD).filter(has).sort(by('time'));
+  var stays = tk.map(containerStayMins).filter(function (m) { return m != null && m > 0; });
+  var range = p.range(), mKey = String(range.to || '').slice(0, 7);
+  var mtd = live(TK).filter(function (r) { var d = String(r.date || ''); return d.slice(0, 7) === mKey && d <= range.to; });
+  return { p:p, tk:tk, ci:ci, gd:gd, sizes:containerDirSizes(tk), mtd:mtd, mtdSizes:containerDirSizes(mtd), mKey:mKey,
+    imp:tk.filter(function (r) { return r.isImport; }).length, exp:tk.filter(function (r) { return r.isExport; }).length,
+    inside:tk.filter(function (r) { return !r.timeOut; }), timeBad:tk.filter(containerTimeIssue),
+    fail:ci.filter(function (r) { return r.result !== 'pass'; }),
+    avg:stays.length ? Math.round(stays.reduce(function (s, m) { return s + m; }, 0) / stays.length) : 0 };
+}
 function containerSummary(st) {
-  var p = summaryPeriod(st), label = p.label(), has = function (r) { return p.has(r.date); };
-  var tk = live(TK).filter(has), ci = live(CI).filter(has), gd = live(GD).filter(has);
-  var imp = tk.filter(function (r) { return r.isImport; }).length;
-  var exp = tk.filter(function (r) { return r.isExport; }).length;
-  var pass = ci.filter(function (r) { return r.result === 'pass'; }).length;
-  var fail = ci.length - pass;
-  var gp = gd.filter(function (r) { return r.type === 'gp'; }).length;
-  var dn = gd.filter(function (r) { return r.type === 'dn'; }).length;
-  var pct = ci.length ? Math.round(pass / ci.length * 100) : 0;
-  var lang = st.lang || 'zh', rl = rowLang(lang), co = {}, none = LT(rl, '未填', 'Unspecified', 'មិនបានបំពេញ');
-  tk.forEach(function (r) { var k = r.company || none; co[k] = (co[k] || 0) + 1; });
-  var ck = Object.keys(co).sort(function (a, b) { return co[b] - co[a]; });
-  function line(zh, en, km, qty, rate) { return LT(lang, zh, en, km) + ': ' + qty + (rate ? ' (' + rate + ')' : ''); }
-  var txt = '🚛 <b>' + LT(lang, '貨櫃出入摘要', 'Container In/Out Summary', 'សេចក្តីសង្ខេបកុងតឺន័រ') + '</b> · ' + SEC.esc(label) + '\n' +
-    '🛡️ AC Security · VRT Sihanoukville\n━━━━━━━━━━━━━━━━\n' +
-    '<b>📊 ' + LT(lang,'總覽','Overview','ទិដ្ឋភាពទូទៅ') + '</b>\n' + containerPre([
-      line('貨櫃車進出', 'Truck movements', 'ចំនួនរថយន្តចេញចូល', tk.length),
-      line('進口', 'Import', 'នាំចូល', imp),
-      line('出口', 'Export', 'នាំចេញ', exp),
-      line('貨櫃檢查', 'Inspections', 'ការត្រួតពិនិត្យ', ci.length),
-      line('檢查合格', 'Inspection pass', 'ជាប់', pass, (ci.length ? pct : 0) + '%'),
-      line('檢查不合格', 'Inspection fail', 'មិនជាប់', fail),
-      line('出廠／出貨單', 'Gate / delivery', 'លិខិតចេញ / ដឹកជញ្ជូន', gd.length),
-      line('出廠單', 'Gate pass', 'លិខិតចេញ', gp),
-      line('出貨單', 'Delivery note', 'លិខិតដឹកជញ្ជូន', dn)
-    ]) + '\n';
-  if (ck.length) {
-    var cl=[];
-    ck.slice(0,12).forEach(function(k){cl.push(SEC.esc(containerCell(k,17))+' '+co[k]);});
-    txt += '\n<b>🏢 ' + LT(lang,'公司統計','Company Breakdown','តាមក្រុមហ៊ុន') + '</b>\n' + containerPre(cl) + '\n';
-  } else txt += '\nℹ️ ' + LT(lang,'本期間沒有貨櫃資料','No container records in this period','គ្មានទិន្នន័យកុងតឺន័រក្នុងរយៈពេលនេះ') + '\n';
-  if(fail){
-    var fl=[];
-    ci.filter(function(r){return r.result!=='pass';}).slice(0,8).forEach(function(r){fl.push(SEC.esc(r.containerNo||'—')+' · '+SEC.esc(r.company||'—')+' · '+SEC.esc(r.by||'—')+' · FAIL');});
-    txt+='\n<b>⚠️ '+LT(lang,'異常檢查','Inspection exceptions','បញ្ហាត្រួតពិនិត្យ')+'</b>\n'+containerPre(fl)+'\n';
+  var lang = st.lang || 'zh', G = SEC.TG, lb = function (zh, en, km) { return G.lbl(lang, zh, en, km); }, D = containerSummaryData(st), day = st.ptype === 'day', month = st.ptype === 'month';
+  var txt = G.head('🚛', lb('進出口貨櫃', 'Import / Export Containers', 'កុងតឺន័រនាំចូល / នាំចេញ'), D.p.label());
+  var warn = [];
+  if (D.timeBad.length) warn.push('⚠️ ' + lb('時間有誤', 'Time to check', 'ម៉ោងត្រូវពិនិត្យ') + ' <b>' + D.timeBad.length + '</b>');
+  if (D.fail.length) warn.push('❌ ' + lb('檢查不合格', 'Inspection fail', 'ត្រួតពិនិត្យមិនជាប់') + ' <b>' + D.fail.length + '</b>');
+  if (day && D.inside.length) warn.push('🏭 ' + lb('仍在廠內', 'Still inside', 'នៅក្នុងរោងចក្រ') + ' <b>' + D.inside.length + '</b>');
+  txt += '\n' + G.verdict(D.timeBad.length || D.fail.length ? 'bad' : warn.length ? 'warn' : 'ok',
+    warn.length ? lb(warn.length + ' 項需注意', warn.length + ' to check', warn.length + ' ត្រូវពិនិត្យ') : (D.tk.length ? lb('一切正常', 'All clear', 'ធម្មតាទាំងអស់') : lb('沒有貨櫃', 'No containers', 'គ្មានកុងតឺន័រ')));
+  var sz = D.sizes, impS = containerSizeText(sz.imp, lang), expS = containerSizeText(sz.exp, lang);
+  txt += '\n📦 ' + lb('貨櫃', 'Containers', 'កុងតឺន័រ') + ' <b>' + D.tk.length + '</b>' + (D.avg ? '  ·  ⏱ ' + lb('平均在廠', 'Avg in factory', 'មធ្យមក្នុងរោងចក្រ') + ' <b>' + G.dur(D.avg) + '</b>' : '') + (!day && D.inside.length ? '  ·  🏭 ' + lb('仍在廠內', 'Still inside', 'នៅក្នុងរោងចក្រ') + ' <b>' + D.inside.length + '</b>' : '');
+  txt += '\n📥 ' + lb('進口', 'Import', 'នាំចូល') + ' <b>' + D.imp + '</b>' + (impS ? ' (' + impS + ')' : '') + '  ·  📤 ' + lb('出口', 'Export', 'នាំចេញ') + ' <b>' + D.exp + '</b>' + (expS ? ' (' + expS + ')' : '');
+  if (!month && D.mKey) {
+    var m = D.mtdSizes, mi = containerSizeText(m.imp, lang), me = containerSizeText(m.exp, lang);
+    txt += '\n📆 ' + lb('本月累計', 'Month to date', 'សរុបខែនេះ') + ' ' + D.mKey.slice(5) + lb('月', '', '') + '：📥 <b>' + m.imp.n + '</b>' + (mi ? ' (' + mi + ')' : '') + ' · 📤 <b>' + m.exp.n + '</b>' + (me ? ' (' + me + ')' : '');
   }
-  txt += '\n<i>' + (st.includeDetails ? LT(lang,'已選擇附逐櫃／逐筆明細；傳送前會再次確認。','Container-level details selected; a second confirmation is required.','បានជ្រើសព័ត៌មានលម្អិត; ត្រូវបញ្ជាក់ម្តងទៀតមុនផ្ញើ។')
-    : LT(lang,'摘要只顯示總數、公司統計與異常；另附本期間最近最多 4 張照片，不展開逐筆正常紀錄。','Only totals, company counts and exceptions are shown; up to four recent photos are attached without expanding normal records.','បង្ហាញតែសរុប ក្រុមហ៊ុន និងបញ្ហា; ភ្ជាប់រូបថតថ្មីៗ 4 សន្លឹក។')) + '</i>';
+  if (D.ci.length) txt += '\n🔍 ' + lb('裝櫃檢查', 'Loading inspections', 'ការត្រួតពិនិត្យផ្ទុក') + ' <b>' + D.ci.length + '</b> ' + G.bar(D.ci.length - D.fail.length, D.ci.length);
+  if (!day && D.tk.length > 4) { /* 公司統計一行 */
+    var co = {}, none = lb('未填', 'Unspecified', 'មិនបានបំពេញ');
+    D.tk.forEach(function (r) { var c = r.company ? SEC.esc(r.company) : none; co[c] = (co[c] || 0) + 1; });
+    var ck = Object.keys(co).sort(function (a, b) { return co[b] - co[a]; });
+    txt += '\n🏢 ' + ck.slice(0, 6).map(function (c) { return c + ' ' + co[c]; }).join(' · ') + (ck.length > 6 ? ' · … +' + (ck.length - 6) : '');
+  }
+  if (warn.length) txt += '\n' + warn.join('  ·  ');
+  if (day || D.tk.length <= 4) {
+    if (D.tk.length) txt += G.sec('🚛', lb('貨櫃車', 'Containers', 'កុងតឺន័រ')) + '\n' + D.tk.slice(0, 8).map(function (r) { return containerTruckLines(r, lang, !day).join('\n'); }).join('\n') + (D.tk.length > 8 ? '\n… +' + (D.tk.length - 8) : '');
+  } else {
+    if (D.timeBad.length) txt += G.sec('⚠️', lb('時間有誤', 'Time to check', 'ម៉ោងត្រូវពិនិត្យ')) + '\n' + D.timeBad.slice(0, 5).map(function (r) { return containerTruckLines(r, lang, true).join('\n'); }).join('\n') + (D.timeBad.length > 5 ? '\n… +' + (D.timeBad.length - 5) : '');
+    var inside = D.inside.filter(function (r) { return D.timeBad.indexOf(r) < 0; });
+    if (inside.length) txt += G.sec('🏭', lb('仍在廠內', 'Still inside', 'នៅក្នុងរោងចក្រ')) + '\n' + inside.slice(0, 5).map(function (r) { return containerTruckLines(r, lang, true).join('\n'); }).join('\n') + (inside.length > 5 ? '\n… +' + (inside.length - 5) : '');
+  }
+  if (D.fail.length) txt += G.sec('❌', lb('檢查不合格', 'Inspection fail', 'ត្រួតពិនិត្យមិនជាប់')) + '\n' + D.fail.slice(0, 5).map(function (r) { return containerInspLines(r, lang, !day, true).join('\n'); }).join('\n') + (D.fail.length > 5 ? '\n… +' + (D.fail.length - 5) : '');
+  if (!D.tk.length && !D.ci.length) txt += '\n\nℹ️ ' + lb('本期間沒有貨櫃資料', 'No container records in this period', 'គ្មានទិន្នន័យកុងតឺន័រក្នុងរយៈពេលនេះ');
+  return txt;
+}
+/* 出廠單 GA-01／出貨單 GA-04 不是進出口貨櫃，獨立成「出入閘單據」一頁（有資料才發） */
+function containerGateDocSummary(st) {
+  var lang = st.lang || 'zh', G = SEC.TG, lb = function (zh, en, km) { return G.lbl(lang, zh, en, km); }, D = containerSummaryData(st), day = st.ptype === 'day';
+  if (!D.gd.length) return '';
+  var gp = D.gd.filter(function (r) { return r.type === 'gp'; }), dn = D.gd.filter(function (r) { return r.type !== 'gp'; });
+  var txt = G.head('🚪', lb('出入閘單據', 'Gate Documents', 'លិខិតច្រកចេញចូល'), D.p.label());
+  txt += '\n' + G.verdict('ok', lb('共 ' + D.gd.length + ' 張', D.gd.length + ' documents', D.gd.length + ' លិខិត'));
+  txt += '\n🚪 ' + lb('出廠單 GA-01', 'Gate pass GA-01', 'លិខិតចេញ GA-01') + ' <b>' + gp.length + '</b>  ·  📤 ' + lb('出貨單 GA-04', 'Delivery note GA-04', 'លិខិតដឹកជញ្ជូន GA-04') + ' <b>' + dn.length + '</b>';
+  var lim = day ? 12 : 6, byDate = {};
+  D.gd.forEach(function (r) { (byDate[r.date || '—'] = byDate[r.date || '—'] || []).push(r); });
+  var dates = Object.keys(byDate).sort().reverse(), shown = 0;
+  txt += '\n';
+  dates.some(function (d) {
+    if (shown >= lim) return true;
+    if (!day) txt += '\n📅 <b>' + SEC.esc(G.d(d)) + '</b> · ' + byDate[d].length;
+    byDate[d].slice(0, lim - shown).forEach(function (r) { txt += '\n' + containerGateLines(r, lang).join('\n'); shown++; });
+    return false;
+  });
+  if (D.gd.length > shown) txt += '\n… +' + (D.gd.length - shown);
   return txt;
 }
 
@@ -1321,7 +1404,6 @@ function containerCompactPhotos(p){
   var rows=[];
   live(TK).filter(function(r){return p.has(r.date);}).forEach(function(r){rows.push({at:containerPhotoStamp(r),photos:truckAllPhotos(r)});});
   live(CI).filter(function(r){return p.has(r.date);}).forEach(function(r){rows.push({at:containerPhotoStamp(r),photos:r.photos||[]});});
-  live(GD).filter(function(r){return p.has(r.date);}).forEach(function(r){rows.push({at:containerPhotoStamp(r),photos:r.photos||[]});});
   rows.sort(function(a,b){return b.at.localeCompare(a.at);});
   var out=[];
   rows.some(function(r){return (r.photos||[]).some(function(x){x=String(x||'');if(x&&out.indexOf(x)<0)out.push(x);return out.length>=4;});});
@@ -1329,31 +1411,29 @@ function containerCompactPhotos(p){
 }
 
 function containerSummaryPageDefs(st){
-  var p=summaryPeriod(st),pages=[],lang=st.lang||'zh',rl=rowLang(lang);
-  pages.push({text:containerSummary(st),photos:containerCompactPhotos(p)});
+  var lang=st.lang||'zh',G=SEC.TG,lb=function(zh,en,km){return G.lbl(lang,zh,en,km);},D=containerSummaryData(st),pages=[];
+  pages.push({text:containerSummary(st),photos:containerCompactPhotos(D.p)});
+  var gdTxt=containerGateDocSummary(st);
+  if(gdTxt){var gdPh=[];D.gd.slice().sort(function(a,b){return containerPhotoStamp(b).localeCompare(containerPhotoStamp(a));}).forEach(function(r){(r.photos||[]).forEach(function(x){if(x&&gdPh.indexOf(x)<0&&gdPh.length<4)gdPh.push(x);});});pages.push({text:gdTxt,photos:gdPh});}
   if(!st.includeDetails)return pages;
-  var tk=live(TK).filter(function(r){return p.has(r.date);}).slice().sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''))||String(a.timeIn||'').localeCompare(String(b.timeIn||''));});
-  for(var i=0;i<tk.length;i+=10){
-    var batch=tk.slice(i,i+10),pg='<b>🚛 '+LT(lang,'進出口逐櫃明細','Container Details','ព័ត៌មានលម្អិតកុងតឺន័រ')+'</b> · '+SEC.esc(p.label());
-    batch.forEach(function(r){var dir=r.isImport&&r.isExport?'I/E':r.isImport?'IMP':'EXP',id=r.containerNo||r.truckNo||r.id||'—',ph=truckAllPhotos(r).length;
-      pg+='\n· '+containerShortDate(r.date)+' '+dir+' <b>'+SEC.esc(id)+'</b> · '+SEC.esc(r.truckNo||'—')+' · '+SEC.esc(r.company||'—')+' · '+SEC.esc((r.timeIn||'—')+'-'+(r.timeOut||'—'))+(ph?' · 📷'+ph:'')+
-        ' · '+LT(rl,'司機','Driver','អ្នកបើកបរ')+' '+SEC.esc(r.name||'—')+' · '+LT(rl,'門衛','Guard','សន្តិសុខ')+' '+SEC.esc(r.signIn||'—')+' → '+SEC.esc(r.signOut||'—')+(r.remark?' · '+LT(rl,'備註','Note','កំណត់ចំណាំ')+' '+SEC.esc(r.remark):'');});
-    var ph=[];batch.forEach(function(r){ph=ph.concat(truckAllPhotos(r));});pages.push({text:pg,photos:ph.filter(Boolean).slice(0,4)});
+  /* 依日期分組；每頁 ≤ 3000 字、照片 ≤ 4 張，照片跟著列出該筆紀錄的那一頁 */
+  function add(title,rows,lineFn,photoFn){
+    var by={},cur=[],size=0,ph=[];
+    rows.forEach(function(r){(by[r.date||'—']=by[r.date||'—']||[]).push(r);});
+    function flush(){if(!cur.length)return;pages.push({text:'<b>'+title+'</b>\n'+cur.join('\n'),photos:ph.filter(Boolean).slice(0,4)});cur=[];size=0;ph=[];}
+    Object.keys(by).sort().forEach(function(d){
+      var block=['📅 <b>'+SEC.esc(G.d(d))+'</b> · '+by[d].length],bp=[];
+      by[d].forEach(function(r){block=block.concat(lineFn(r));bp=bp.concat((photoFn(r)||[]).filter(Boolean));});
+      var len=block.join('\n').length;
+      if(cur.length&&(size+len>3000||ph.length+bp.length>4))flush();
+      cur=cur.concat(block);size+=len+1;ph=ph.concat(bp);
+      if(size>3000)flush();
+    });
+    flush();
   }
-  var ci=live(CI).filter(function(r){return p.has(r.date);}).slice().sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''));});
-  for(var j=0;j<ci.length;j+=8){
-    var cb=ci.slice(j,j+8),cp='<b>🔍 '+LT(lang,'貨櫃檢查','Container Inspection','ការត្រួតពិនិត្យកុងតឺន័រ')+'</b> · '+SEC.esc(p.label());
-    cb.forEach(function(r){cp+='\n· '+containerShortDate(r.date)+' <b>'+SEC.esc(r.containerNo||'—')+'</b> · '+SEC.esc(r.seal||'—')+' · '+SEC.esc(r.truck||'—')+' · '+(r.pass||0)+'/17 '+(r.result==='pass'?'PASS':'FAIL')+' · '+SEC.esc(r.by||'—')+((r.photos||[]).length?' · 📷'+r.photos.length:'')+
-      ' · '+LT(rl,'公司','Company','ក្រុមហ៊ុន')+' '+SEC.esc(r.company||'—')+(r.fails&&r.fails.length?' · '+LT(rl,'不合格','Fail','មិនជាប់')+' '+r.fails.map(function(f){return SEC.esc(chkLabel(f,rl));}).join(', '):' · ✅ 17/17')+(r.items&&r.items.length?' · '+LT(rl,'裝載','Items','ទំនិញ')+' '+r.items.map(function(x){return SEC.esc(x.name||'')+'×'+SEC.esc(x.qty||'')+SEC.esc(x.unit||'');}).join('; '):'')+(r.note?' · '+LT(rl,'備註','Note','កំណត់ចំណាំ')+' '+SEC.esc(r.note):'');});
-    var cph=[];cb.forEach(function(r){cph=cph.concat(r.photos||[]);});pages.push({text:cp,photos:cph.filter(Boolean).slice(0,4)});
-  }
-  var gd=live(GD).filter(function(r){return p.has(r.date);}).slice().sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''))||String(a.time||'').localeCompare(String(b.time||''));});
-  for(var k=0;k<gd.length;k+=8){
-    var gb=gd.slice(k,k+8),gp='<b>📤 '+LT(lang,'出廠／出貨單','Gate & Delivery','លិខិតចេញ / ដឹកជញ្ជូន')+'</b> · '+SEC.esc(p.label());
-    gb.forEach(function(r){var rs=(r.reasons||[]).map(function(x){return reasonLabel(r.type,x,rl);});gp+='\n· '+containerShortDate(r.date)+' '+(r.type==='gp'?'GP':'DN')+' <b>'+SEC.esc(r.no||'—')+'</b> · '+SEC.esc(r.dept||'—')+' · '+SEC.esc(r.by||'—')+' · '+SEC.esc(r.vehicle||'—')+' · '+SEC.esc(r.time||'—')+((r.photos||[]).length?' · 📷'+r.photos.length:'')+
-      (rs.length?' · '+LT(rl,'事由','Reason','មូលហេតុ')+' '+rs.map(SEC.esc).join(', '):'')+(r.items&&r.items.length?' · '+LT(rl,'品項','Items','ទំនិញ')+' '+r.items.map(function(x){return SEC.esc(x.name||'')+'×'+SEC.esc(x.qty||'')+SEC.esc(x.unit||'');}).join('; '):'')+(r.note?' · '+LT(rl,'備註','Note','កំណត់ចំណាំ')+' '+SEC.esc(r.note):'');});
-    var gph=[];gb.forEach(function(r){gph=gph.concat(r.photos||[]);});pages.push({text:gp,photos:gph.filter(Boolean).slice(0,4)});
-  }
+  add('🚛 '+lb('逐櫃明細','Container details','ព័ត៌មានលម្អិតកុងតឺន័រ'),D.tk,function(r){return containerTruckLines(r,lang,false);},truckAllPhotos);
+  add('🔍 '+lb('貨櫃檢查','Container inspection','ការត្រួតពិនិត្យកុងតឺន័រ'),D.ci,function(r){return containerInspLines(r,lang,false);},function(r){return r.photos||[];});
+  add('🚪 '+lb('出入閘單據明細','Gate documents','លិខិតច្រកចេញចូល'),D.gd,function(r){return containerGateLines(r,lang);},function(r){return r.photos||[];});
   return pages;
 }
 function containerSummaryPages(st) { return containerSummaryPageDefs(st).map(function(x){return x.text;}); }

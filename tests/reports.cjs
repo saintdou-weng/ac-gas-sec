@@ -14,7 +14,13 @@ const plain=x=>JSON.parse(JSON.stringify(x));
     assert.equal(defs.flatMap(d=>d.photos).length,0,'normal monthly photos excluded even with details');
     assert(defs.length<=20);assert(defs.every(d=>d.text.length<3800));
     if(!details)assert.equal(defs.length,1,'220 normal inspections need just the overview');
-    else{const rows=defs.slice(1).flatMap(d=>d.text.split('\n').slice(1));assert.equal(rows.length,220);for(let i=0;i<220;i++)assert(rows.some(s=>s.includes(records[i].code)&&s.includes('Location '+i)));}
+    else{
+     // Details are grouped by zone (📍 header) and normal codes sharing a location share one line:
+     // every record must still be listed exactly once, on a line that also carries its own location.
+     const lines=defs.slice(1).flatMap(d=>d.text.split('\n'));
+     for(let i=0;i<220;i++){const hit=lines.filter(s=>new RegExp('(^|\\s)'+records[i].code+'(\\s|$)').test(s));assert.equal(hit.length,1,records[i].code+' listed once');assert(new RegExp('Location '+i+'($|\\D)').test(hit[0]),records[i].code+' keeps its location');}
+     assert(defs.length<=4,'grouped details need far fewer pages than one line per record');
+    }
    }
   }
   assert.equal(JSON.stringify([w.DB,w.HIST]),before,'report must not mutate stored records/photos');
@@ -23,7 +29,7 @@ const plain=x=>JSON.parse(JSON.stringify(x));
    const st={...state,includeDetails:details};
    for(const defs of [w.fireEquipmentPageDefs(st),w.fireInspectionPageDefs(st)]){
     const ph=defs.flatMap(d=>plain(d.photos));assert.equal(ph.length,10);assert.equal(new Set(ph).size,10);assert(ph.every(x=>x.startsWith('fault-')));assert(defs.every(d=>d.photos.length<=4));
-    for(const d of defs.slice(1))for(const p of d.photos){const i=Number(p.match(/fault-(\d+)/)[1]);assert(d.text.includes(records[i].code)&&d.text.includes(records[i].loc),'photo must accompany its equipment/location row');}
+    for(const d of defs)for(const p of d.photos){const i=Number(p.match(/fault-(\d+)/)[1]);assert(d.text.includes(records[i].code)&&d.text.includes(records[i].loc),'photo must accompany its equipment/location row');}
    }
   }
   // Monthly latest-state dedupe remains: rechecking an item does not count it twice.
@@ -48,6 +54,23 @@ const plain=x=>JSON.parse(JSON.stringify(x));
   }
   console.log('PASS: fire compact/full monthly and daily reports; all normal photos excluded, all abnormal photos retained, scope and latest-state counts preserved');
  }finally{fire.dom.window.close();}
+ const cctv=await load('ac_sec_cctv_v2.html'),v=cctv.w;assert.deepEqual(cctv.errors,[]);
+ try{
+  // 40 cameras, 6 faulty ones with 3 photos each: every faulty camera listed once, its photos on its own page, ≤4 per page; no padded tables.
+  v.DB=Array.from({length:40},(_,i)=>({id:'C'+i,code:'CCTV '+(i<20?'A':'B')+'-'+String(i%20+1).padStart(2,'0'),name:'',factory:i<20?'a':'b',zone:['gate','bldA','fwh','bldB','office'][i%5],status:'ok',photos:i%7===0?['cam-'+i+'a','cam-'+i+'b','cam-'+i+'c']:[]}));
+  const st={};v.DB.forEach((c,i)=>st[c.id]=i%7===0?'off':'ok');
+  v.LOG=[{id:'L1',date:'2026-09-30',by:'Sreynin',note:'6 offline',st,photos:['day-photo']}];
+  const bad=v.DB.filter((c,i)=>i%7===0);
+  for(const details of [false,true])for(const lang of ['zh','en']){
+   const s={...state,lang,includeDetails:details},pages=v.cctvSummaryPages(s),photos=pages.map((_,i)=>v.cctvSummaryPhotos(s,i));
+   assert(pages.every(p=>p.length<3800&&!/<blockquote>/.test(p)&&!/ {3,}/.test(v.SEC.TG.strip(p))),'no padded tables');
+   if(!details)assert.equal(v.SEC.TG.strip(pages[0]).split('\n').length<=25,true,'first page fits a phone screen');
+   for(const c of bad){const hits=pages.filter(p=>p.includes(c.code));assert.equal(hits.length,1,c.code+' listed once');for(const p of c.photos)assert(v.cctvSummaryPhotos(s,pages.indexOf(hits[0])).includes(p),c.code+' photo stays with its row');}
+   assert(photos.every(p=>p.length<=4));assert.equal(new Set(photos.flat()).size,photos.flat().length,'no photo sent twice');
+   if(details){const all=pages.slice(1).join('\n');for(const c of v.DB.filter(c=>!bad.includes(c)))assert(all.includes(c.code.replace('CCTV ','')),c.code+' listed in details');}
+  }
+  console.log('PASS: cctv summary — no padded tables, faulty cameras once with their photos, details list every camera');
+ }finally{cctv.dom.window.close();}
  const commute=await load('ac_sec_commute_v2.html'),c=commute.w;assert.deepEqual(commute.errors,[]);
  try{
   c.CAR=[{id:'same-id',date:'2026-09-12',driver:'Driver A',outTime:'08:00',inTime:'09:00',reason:'Delivery'}];

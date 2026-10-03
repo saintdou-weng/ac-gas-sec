@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
 <script src="./shared/xlsx.full.min.js?v=20260929a"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="stylesheet" href="./shared/sec.css?v=20260929a">
+<link rel="stylesheet" href="./shared/sec.css?v=20261002a">
 <style>
 .cams{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:5px}
 .cam{border-radius:9px;padding:7px 3px;text-align:center;cursor:pointer;border:2px solid transparent;
@@ -245,7 +245,7 @@
 <button class="btn" id="eSaveBtn" onclick="saveEdit()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260929a"></script>
+<script src="./shared/sec-core.js?v=20261002a"></script>
 <script src="./shared/sec-asset-changes.js?v=20260929a"></script>
 <script src="./shared/sec-smart-sync.js?v=20260929a"></script>
 <script>
@@ -758,17 +758,6 @@ function cctvPeriods(type) {
 }
 /* 舊版「中文 / English」雙語函式；現在只輸出所選的單一語言。 */
 function cctvBi(lang, zh, en, km) { return cctvText(lang, zh, en, km); }
-function cctvCell(v, n) {
-  v = String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
-  if (v.length > n) v = v.slice(0, Math.max(1, n - 1)) + '…';
-  while (v.length < n) v += ' ';
-  return v;
-}
-function cctvPre(lines) { return '<blockquote>' + lines.join('\n') + '</blockquote>'; }
-function cctvAreaShort(id) {
-  var map = {gate:'Front Gate', bldA:'Building A', fwh:'Finishing WH', bldB:'Building B', back:'Back Gate', house:'7F House', yard:'Yard/Drive', office:'Office'};
-  return map[id] || id || 'Unassigned';
-}
 
 function cctvCurrentRecord(p) {
   var logs = LOG.filter(function (r) { return p.has(r.date); }).slice().sort(function (a,b) { return b.date.localeCompare(a.date); });
@@ -808,42 +797,61 @@ function cctvStatusLine(s, lang) {
   ['ok','off','blur','fault','dis','pending'].forEach(function (k) { if (s[k]) parts.push(STAT[k].icon + ' ' + statLabel(k, lang) + ' <b>' + s[k] + '</b>'); });
   return parts.join(' · ') || '⏳ ' + statLabel('pending', lang);
 }
+/* ═══ Telegram 精簡卡片格式（20261002，見 docs/TG_FORMAT_GUIDE.md）═══
+   不再用空白對齊的表格（手機上一定歪）：結論＋指標 → 廠區一行 → 分區一行一區 → 最新巡檢 → 異常攝影機一台一行。
+   勾「附逐筆明細」：其餘攝影機依區域分組，正常的只列編號（一行最多 12 支）。 */
+function cctvBadN(s) { return (s.off || 0) + (s.blur || 0) + (s.fault || 0); }
+function cctvCountTag(s) {
+  var t = [], b = cctvBadN(s);
+  if (b) t.push('⚠️' + b); if (s.pending) t.push('⏳' + s.pending); if (s.dis) t.push('⚪' + s.dis);
+  return t.length ? t.join(' ') : '✅';
+}
+function cctvShortCode(c) { return String(c && c.code || '—').replace(/^CCTV\s+/i, ''); }
+function cctvZoneLbl(id, lang) { return SEC.TG.lbl('zh', SEC.esc(znLang(id || 'yard', lang))); }
+function cctvSummaryData(st) {
+  var p = cctvSummaryPeriod(st), rawList = cctvScopedCameras(st), list = cctvUniqueCameras(rawList), rec = cctvCurrentRecord(p),
+    s = cctvStats(list, rec), live = (s.ok || 0) + cctvBadN(s);
+  return { p:p, list:list, rec:rec, audit:cctvAudit(rawList), s:s, logs:LOG.filter(function (r) { return p.has(r.date); }),
+    uptime:s.pending || !live ? null : Math.round((s.ok || 0) / live * 100),
+    bad:list.filter(function (c) { return isBad(cctvRecordStatus(rec, c)); }).sort(function (a, b) { return String(a.code || '').localeCompare(String(b.code || '')); }) };
+}
 function cctvSummary(st) {
-  var p = cctvSummaryPeriod(st), rawList = cctvScopedCameras(st), list = cctvUniqueCameras(rawList),
-    a = cctvAudit(rawList), rec = cctvCurrentRecord(p), logs = LOG.filter(function (r) { return p.has(r.date); }),
-    overall = cctvStats(list, rec),
-    uptime = overall.pending || !(overall.ok + overall.off + overall.blur + overall.fault) ? null : Math.round(overall.ok / Math.max(1, overall.ok + overall.off + overall.blur + overall.fault) * 100),
-    lang = st.lang || 'zh', colon = lang === 'zh' ? '：' : ': ',
-    txt = '📷 <b>' + cctvText(lang, 'CCTV 巡檢摘要', 'CCTV Inspection Summary', 'សេចក្តីសង្ខេបការត្រួតពិនិត្យ CCTV') + '</b> · ' + SEC.esc(p.label()) + '\n' +
-      cctvText(lang, '範圍', 'Scope', 'វិសាលភាព') + colon + SEC.esc(cctvScopeLabel(st, lang)) + '\n' +
-      '🛡️ AC Security · VRT Sihanoukville\n━━━━━━━━━━━━━━━━\n';
-  var issueTotal = (overall.off || 0) + (overall.blur || 0) + (overall.fault || 0);
-  txt += '<b>📊 ' + cctvText(lang, '總覽', 'Overview', 'ទិដ្ឋភាពទូទៅ') + '</b>\n' + cctvPre([
-    'Item                 Qty',
-    'Cameras              ' + list.length,
-    'Checked days         ' + logs.length,
-    'Normal               ' + (overall.ok || 0),
-    'Offline              ' + (overall.off || 0),
-    'Blurry               ' + (overall.blur || 0),
-    'Fault                ' + (overall.fault || 0),
-    'Issues total         ' + issueTotal,
-    'Pending              ' + (overall.pending || 0),
-    'Disabled             ' + (overall.dis || 0),
-    'Uptime               ' + (uptime == null ? '—' : uptime + '%')
-  ]) + '\n';
-  if (rec) txt += '📅 ' + cctvText(lang, '最新巡檢', 'Latest check', 'ការត្រួតពិនិត្យចុងក្រោយ') + colon + '<b>' + SEC.esc(rec.date) + '</b> · ' + cctvText(lang, '檢查人', 'Inspector', 'អ្នកត្រួតពិនិត្យ') + colon + '<b>' + SEC.esc(rec.by || '—') + '</b>\n';
-  else txt += '⚠️ ' + cctvText(lang, '本期間沒有巡檢紀錄，狀態視為待確認。', 'No inspection record in this period; status remains pending.', 'គ្មានកំណត់ត្រាត្រួតពិនិត្យក្នុងរយៈពេលនេះ; ស្ថានភាពនៅរង់ចាំពិនិត្យ។') + '\n';
-  var fRows = ['Factory       Tot  OK   Bad  Pend Dis'];
-  ['a','b','common'].forEach(function (fk) { var group=list.filter(function(c){return factoryOf(c)===fk;});if(!group.length)return;var s=cctvStats(group,rec),bn=(s.off||0)+(s.blur||0)+(s.fault||0);fRows.push(cctvCell(fk==='a'?'A Factory':fk==='b'?'B Factory':'Common',14)+cctvCell(group.length,5)+cctvCell(s.ok,5)+cctvCell(bn,5)+cctvCell(s.pending,5)+(s.dis||0)); });
-  if(fRows.length>1) txt+='\n<b>🏭 '+cctvText(lang,'廠區統計','Factory Breakdown','តាមរោងចក្រ')+'</b>\n'+cctvPre(fRows)+'\n';
-  var zRows=['Area            Tot  OK   Bad  Pend'];
-  ZONES.forEach(function(z){var zoneList=list.filter(function(c){return(c.zone||'yard')===z.id;});if(!zoneList.length)return;var s=cctvStats(zoneList,rec),bn=(s.off||0)+(s.blur||0)+(s.fault||0);zRows.push(cctvCell(cctvAreaShort(z.id),16)+cctvCell(zoneList.length,5)+cctvCell(s.ok,5)+cctvCell(bn,5)+(s.pending||0));});
-  if(zRows.length>1) txt+='\n<b>📍 '+cctvText(lang,'分區統計','Area Breakdown','តាមតំបន់')+'</b>\n'+cctvPre(zRows)+'\n';
-  if(a.duplicate.length) txt+='\n⚠️ '+cctvText(lang,'重複編號需確認','Duplicate camera codes','លេខកូដកាមេរ៉ាស្ទួន')+colon+'<b>'+a.duplicate.length+'</b> · '+a.duplicate.slice(0,10).map(SEC.esc).join(', ')+'\n';
-  if(a.invalid) txt+='ℹ️ '+cctvText(lang,'已忽略非攝影機列','Non-camera rows ignored','ជួរមិនមែនកាមេរ៉ាត្រូវបានរំលង')+colon+'<b>'+a.invalid+'</b>\n';
-  if(a.over) txt+='⚠️ '+cctvText(lang,'超過 41 支上限，超出編號未納入','41-camera limit reached; extra codes excluded','លើសដែនកំណត់ 41 កាមេរ៉ា; លេខកូដលើសមិនត្រូវរាប់')+'\n';
-  if(rec&&rec.note) txt+='\n📝 <b>'+cctvText(lang,'巡檢備註／通知','Inspection Note / Notice','កំណត់ចំណាំ / ការជូនដំណឹង')+'</b>'+colon+SEC.esc(rec.note)+'\n';
-  txt+='\n<i>'+cctvText(lang,st.includeDetails?'已選擇附全部攝影機明細；傳送前會再次確認。':'正常攝影機不逐台列出；只有離線、模糊或故障才另外顯示。',st.includeDetails?'All camera details selected; a second confirmation is required.':'Normal cameras are not listed individually; only offline, blurry or faulty cameras are expanded.',st.includeDetails?'បានជ្រើសព័ត៌មានលម្អិតកាមេរ៉ាទាំងអស់; ត្រូវបញ្ជាក់ម្តងទៀតមុនផ្ញើ។':'មិនរាយកាមេរ៉ាធម្មតាម្តងមួយៗទេ; បង្ហាញតែកាមេរ៉ាក្រៅបណ្តាញ ស្រអាប់ ឬខូច។')+'</i>';
+  var lang = st.lang || 'zh', G = SEC.TG, lb = function (zh, en, km) { return G.lbl(lang, zh, en, km); }, D = cctvSummaryData(st), s = D.s, a = D.audit, rec = D.rec, bad = cctvBadN(s);
+  var txt = G.head('📷', lb('CCTV 巡檢', 'CCTV check', 'ការត្រួតពិនិត្យ CCTV'), D.p.label(), st.scope && st.scope !== 'all' ? '🗂 ' + G.lbl('zh', SEC.esc(cctvScopeLabel(st, lang))) : '');
+  txt += '\n' + G.verdict(!rec ? 'warn' : bad ? 'bad' : s.pending ? 'warn' : 'ok', !rec ? lb('本期沒有巡檢', 'No check this period', 'គ្មានការត្រួតពិនិត្យ') : bad ? lb(bad + ' 台異常', bad + ' faulty', bad + ' មានបញ្ហា') : s.pending ? lb(s.pending + ' 台待確認', s.pending + ' pending', s.pending + ' រង់ចាំ') : lb('全部正常', 'All cameras OK', 'ធម្មតាទាំងអស់'));
+  if (D.list.length && rec) txt += '\n' + G.bar(s.ok || 0, D.list.length) + ' ' + lb('正常', 'OK', 'ធម្មតា');
+  txt += '\n' + G.kpis([['📷', lb('攝影機', 'Cameras', 'កាមេរ៉ា'), D.list.length], ['✅', lb('正常', 'OK', 'ធម្មតា'), s.ok || 0], ['⚠️', lb('異常', 'Faulty', 'មានបញ្ហា'), bad]], 3);
+  var k2 = [['📈', lb('可用率', 'Uptime', 'អត្រាដំណើរការ'), D.uptime == null ? '—' : D.uptime + '%']];
+  if (s.pending) k2.push(['⏳', lb('待確認', 'Pending', 'រង់ចាំពិនិត្យ'), s.pending]);
+  if (s.dis) k2.push(['⚪', lb('停用', 'Disabled', 'បិទប្រើ'), s.dis]);
+  txt += '\n' + G.kpis(k2, 3);
+  if (!rec) txt += '\n⚠️ ' + lb('本期間沒有巡檢紀錄，狀態視為待確認', 'No inspection in this period; status is pending', 'គ្មានកំណត់ត្រាត្រួតពិនិត្យក្នុងរយៈពេលនេះ; ស្ថានភាពនៅរង់ចាំពិនិត្យ');
+  else if (!bad && !s.pending && D.list.length) txt += '\n✅ ' + lb('全部正常', 'All cameras OK', 'កាមេរ៉ាទាំងអស់ធម្មតា');
+  var f = [];
+  ['a', 'b', 'common'].forEach(function (fk) {
+    var g = D.list.filter(function (c) { return factoryOf(c) === fk; }); if (!g.length) return;
+    var gs = cctvStats(g, rec);
+    f.push((fk === 'a' ? 'A' : fk === 'b' ? 'B' : lb('公共', 'Common', 'រួម')) + ' <b>' + (gs.ok || 0) + '</b>/' + g.length + ' ' + cctvCountTag(gs));
+  });
+  if (f.length) txt += '\n🏭 ' + f.join(' · ');
+  if (rec) txt += '\n🔍 ' + lb('最新巡檢', 'Latest check', 'ការត្រួតពិនិត្យចុងក្រោយ') + ' <b>' + SEC.esc(G.d(rec.date)) + '</b> · ' + SEC.esc(rec.by || '—') +
+    (D.logs.length > 1 ? ' · 🗓 ' + lb('巡檢天數', 'Days checked', 'ថ្ងៃពិនិត្យ') + ' <b>' + D.logs.length + '</b>' : '');
+  /* 分區：區域不多（≤6）就全部一行一區；區域多時只列有問題的區 */
+  var areas = [];
+  ZONES.forEach(function (z) {
+    var g = D.list.filter(function (c) { return (c.zone || 'yard') === z.id; }); if (!g.length) return;
+    var gs = cctvStats(g, rec); areas.push({ id:z.id, n:g.length, s:gs, prob:cctvBadN(gs) + (gs.pending || 0) });
+  });
+  var shown = areas.length <= 6 ? areas : areas.filter(function (x) { return x.prob; });
+  if (shown.length && areas.length > 1) {
+    txt += G.sec('📍', lb('分區', 'Areas', 'តំបន់'));
+    shown.forEach(function (x) { txt += '\n• <b>' + cctvZoneLbl(x.id, lang) + '</b> ' + (x.s.ok || 0) + '/' + x.n + ' · ' + cctvCountTag(x.s); });
+    if (shown.length < areas.length) txt += '\n• ✅ ' + lb('其他區域全部正常', 'Other areas all OK', 'តំបន់ផ្សេងទៀតធម្មតា') + ' · ' + (areas.length - shown.length);
+  }
+  if (rec && rec.note) txt += '\n\n📝 ' + SEC.esc(rec.note);
+  if (a.duplicate.length) txt += '\n⚠️ ' + lb('重複編號需確認', 'Duplicate camera codes', 'លេខកូដកាមេរ៉ាស្ទួន') + ' <b>' + a.duplicate.length + '</b> · ' + a.duplicate.slice(0, 10).map(SEC.esc).join(', ');
+  if (a.invalid) txt += '\nℹ️ ' + lb('已忽略非攝影機列', 'Non-camera rows ignored', 'ជួរមិនមែនកាមេរ៉ាត្រូវបានរំលង') + ' <b>' + a.invalid + '</b>';
+  if (a.over) txt += '\n⚠️ ' + lb('超過 41 支上限，超出編號未納入', '41-camera limit reached; extra codes excluded', 'លើសដែនកំណត់ 41 កាមេរ៉ា; លេខកូដលើសមិនត្រូវរាប់');
   return txt;
 }
 function cctvSummaryDetailList(st,rec){
@@ -851,26 +859,68 @@ function cctvSummaryDetailList(st,rec){
   if(st.includeDetails)return list;
   return list.filter(function(c){var s=cctvRecordStatus(rec,c);return s==='off'||s==='blur'||s==='fault';});
 }
-function cctvSummaryPages(st) {
-  var lang=st.lang||'zh',p=cctvSummaryPeriod(st),rec=cctvCurrentRecord(p),list=cctvSummaryDetailList(st,rec),pages=[cctvSummary(st)];
-  for(var i=0;i<list.length;i+=12){
-    var batch=list.slice(i,i+12),lines=['Camera     F   Area            Status NVR    CH  Ph'];
-    batch.forEach(function(c){var s=cctvRecordStatus(rec,c),label=s==='ok'?'OK':s==='off'?'OFF':s==='blur'?'BLUR':s==='fault'?'FAULT':s==='dis'?'DIS':'PEND';lines.push(cctvCell(c.code||'—',11)+cctvCell(factoryOf(c).toUpperCase(),4)+cctvCell(cctvAreaShort(c.zone),16)+cctvCell(label,7)+cctvCell(c.nvr||'—',7)+cctvCell(c.ch||'—',4)+(Array.isArray(c.photos)?c.photos.length:0));});
-    var pg='<b>📷 '+(st.includeDetails?cctvText(lang,'CCTV 攝影機明細','Camera Details','ព័ត៌មានលម្អិតកាមេរ៉ា'):cctvText(lang,'CCTV 異常明細','Camera Exceptions','កាមេរ៉ាមានបញ្ហា'))+'</b> · '+SEC.esc(p.label())+'\n'+cctvPre(lines);
-    var notes=batch.filter(function(c){return c.remark;}).map(function(c){return '· '+SEC.esc(c.code||'—')+' · '+SEC.esc(c.remark);});
-    if(notes.length) pg+='\n<b>📝 '+cctvText(lang,'備註','Notes','កំណត់ចំណាំ')+'</b>\n'+notes.join('\n');
-    pages.push(pg);
+function cctvBadLine(c, rec, lang) {
+  var s = cctvRecordStatus(rec, c);
+  return '• ' + (STAT[s] || STAT.pending).icon + ' <b>' + SEC.esc(c.code || '—') + '</b>' + (c.name ? ' ' + SEC.esc(c.name) : '') + ' · ' + cctvZoneLbl(c.zone, lang) +
+    ' · ' + SEC.TG.lbl('zh', SEC.esc(statLabel(s, lang))) + (c.remark ? ' · 📝 ' + SEC.esc(c.remark) : '');
+}
+/* 每頁 ≤ 3000 字、≤ 4 張照片；第 1 頁的異常清單最多 12 行，其餘接續下一頁。照片跟著列出該攝影機的那一頁。 */
+function cctvSummaryPageDefs(st) {
+  var lang = st.lang || 'zh', G = SEC.TG, lb = function (zh, en, km) { return G.lbl(lang, zh, en, km); }, D = cctvSummaryData(st), rec = D.rec, seen = {}, defs = [];
+  var listed = cctvSummaryDetailList(st, rec), page = { text:cctvSummary(st), photos:[], n:0, first:true };
+  if (listed.length && rec && Array.isArray(rec.photos)) page.photos = rec.photos.filter(Boolean).slice(0, 4);
+  page.photos.forEach(function (p) { seen[p] = 1; });
+  function fresh(c) { return (Array.isArray(c.photos) ? c.photos : []).filter(function (p) { if (!p || seen[p]) return false; seen[p] = 1; return true; }); }
+  function flush() { if (page) defs.push({ text:page.text, photos:page.photos }); page = null; }
+  function room(lines, ph) { return page && page.text.length + lines.join('\n').length + 1 <= 3000 && page.photos.length + ph.length <= 4 && (!page.first || page.n + lines.length <= 12); }
+  function add(lines, ph) { page.text += '\n' + lines.join('\n'); page.photos = page.photos.concat(ph); page.n += lines.length; }
+  function items(line, ph) { var out = [], n = Math.max(1, Math.ceil(ph.length / 4)); for (var i = 0; i < n; i++) out.push({ text:line + (i ? ' · 📷 ' + (i + 1) + '/' + n : ''), photos:ph.slice(i * 4, i * 4 + 4) }); return out; }
+  var title = lb('異常攝影機', 'Faulty cameras', 'កាមេរ៉ាមានបញ្ហា');
+  if (D.bad.length) {
+    page.text += G.sec('⚠️', title + ' · ' + D.bad.length);
+    D.bad.forEach(function (c) {
+      items(cctvBadLine(c, rec, lang), fresh(c)).forEach(function (it) {
+        if (!room([it.text], it.photos)) { flush(); page = { text:'<b>⚠️ ' + title + ' (' + lb('續', 'cont.', 'បន្ត') + ')</b>', photos:[], n:0 }; }
+        add([it.text], it.photos);
+      });
+    });
   }
-  return pages;
+  flush();
+  if (!st.includeDetails) return defs;
+  var day = st.ptype === 'day', by = {}, groups = [], rank = { ok:0, pending:1, dis:2 }, mark = { ok:'✅', pending:'⏳', dis:'⚪' };
+  listed.forEach(function (c) {
+    var z = c.zone || 'yard', g = by[z], s = cctvRecordStatus(rec, c);
+    if (!g) { g = by[z] = { id:z, cams:[] }; groups.push(g); }
+    g.cams.push({ c:c, s:s });
+  });
+  var zi = ZONES.map(function (z) { return z.id; });
+  groups.sort(function (a, b) { return (zi.indexOf(a.id) < 0 ? 99 : zi.indexOf(a.id)) - (zi.indexOf(b.id) < 0 ? 99 : zi.indexOf(b.id)); });
+  groups.forEach(function (g) {
+    var gs = cctvStats(g.cams.map(function (x) { return x.c; }), rec);
+    var head = '📍 <b>' + cctvZoneLbl(g.id, lang) + '</b> · ' + (gs.ok || 0) + '/' + g.cams.length + ' ' + cctvCountTag(gs), lines = [];
+    /* 異常的已列在第 1 頁；這裡只把其餘攝影機依狀態合成一行一組編號 */
+    ['ok', 'pending', 'dis'].forEach(function (st2) {
+      var cams = g.cams.filter(function (x) { return !isBad(x.s) && (rank[x.s] == null ? 'pending' : x.s) === st2; });
+      var size = Math.ceil(cams.length / Math.max(1, Math.ceil(cams.length / 12))), cur = null;   /* ≤12 支一行，平均分行 */
+      cams.forEach(function (x, i) {
+        if (i % size === 0) { cur = { mark:mark[st2], codes:[], photos:[] }; lines.push(cur); }
+        cur.codes.push(cctvShortCode(x.c)); if (day) cur.photos = cur.photos.concat(fresh(x.c));
+      });
+    });
+    var first = true;
+    lines.forEach(function (l) {
+      var ls = (first ? [head] : []).concat(l.mark + ' ' + l.codes.map(SEC.esc).join(' '));
+      if (first && page && page.n) ls.unshift('');
+      if (!room(ls, [])) { flush(); page = { text:'<b>📷 ' + lb('攝影機明細', 'Camera details', 'ព័ត៌មានលម្អិតកាមេរ៉ា') + '</b> · ' + SEC.esc(D.p.label()), photos:[], n:0 }; ls = [head, ls[ls.length - 1]]; }
+      /* 正常攝影機的照片只在日報附上，而且只用本頁剩下的名額，不為照片多開頁 */
+      add(ls, l.photos.slice(0, Math.max(0, 4 - page.photos.length))); first = false;
+    });
+  });
+  flush();
+  return defs;
 }
-function cctvSummaryPhotos(st, pageIndex) {
-  var rec=cctvCurrentRecord(cctvSummaryPeriod(st));
-  var list=cctvSummaryDetailList(st,rec);
-  if(pageIndex===0) return list.length&&rec&&Array.isArray(rec.photos)?rec.photos.slice(0,4):[];
-  var batch=list.slice((pageIndex-1)*12,(pageIndex-1)*12+12),out=[];
-  batch.forEach(function(c){out=out.concat(Array.isArray(c.photos)?c.photos:[]);});
-  return out.filter(Boolean).slice(0,4);
-}
+function cctvSummaryPages(st) { return cctvSummaryPageDefs(st).map(function (d) { return d.text; }); }
+function cctvSummaryPhotos(st, pageIndex) { var d = cctvSummaryPageDefs(st)[pageIndex]; return d && d.photos ? d.photos.slice(0, 4) : []; }
 async function cctvBeforeSummarySend(st) {
   var p = cctvSummaryPeriod(st), logs = LOG.filter(function(r){return p.has(r.date);}).sort(function(a,b){return b.date.localeCompare(a.date);});
   if (!logs.length) throw new Error(t('所選期間沒有已儲存的 CCTV 巡檢記錄，不能標示正常或發送摘要', 'No saved CCTV inspection for this period', 'គ្មានការត្រួតពិនិត្យ CCTV ដែលបានរក្សាទុកសម្រាប់រយៈពេលនេះ'));

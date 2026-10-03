@@ -31,7 +31,7 @@ const original={id:'S1',empId:'A001',name:'Original Guard',shift:'A',post:'Gate 
   const august=w.attendancePeriodStaff(month(w,'2026-08'));assert.equal(august[0].name,'Original Guard');assert.equal(w.attendanceStatsFor(august[0],month(w,'2026-08')).hrs,30);
   assert.equal(w.attendanceRowRecord('2026-08','A001',w.ATT['2026-08'].A001)._recordKey,'attendance|month|2026-08|A001');
   const year=new w.SEC.Period('year',new w.Date(2026,0,1));assert.equal(w.attendancePeriodStaff(year).reduce((n,r)=>n+w.attendanceStatsFor(r,year).hrs,0),54,'one person/month must count once across name/ID changes');
-  const historical=w.attendanceSummary({...state,period:'2026-08',includeDetails:true});assert.match(historical,/30 hr/);
+  const historical=w.attendanceSummary({...state,period:'2026-08',includeDetails:true});assert.match(historical,/Hours⟧ <b>30h<\/b>/,'August total hours = 30');
   assert(w.document.querySelector('[data-edit-person="S1"]'));assert(w.document.querySelector('[data-remove-person="S1"]'));
   const unchanged=JSON.stringify(w.ATT);w.fillMonth();assert.equal(JSON.stringify(w.ATT['2026-09'].A001),JSON.stringify({'01':'W'}),'bulk fill skips departed staff');w.ATT=JSON.parse(unchanged);
   // Concurrent local saves and stale cloud merges retain separate month versions, including deliberate blanks.

@@ -10,7 +10,7 @@
 <script src="./shared/xlsx.full.min.js?v=20260929a"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<link rel="stylesheet" href="./shared/sec.css?v=20260929a">
+<link rel="stylesheet" href="./shared/sec.css?v=20261002a">
 <style>
 .avt{width:38px;height:38px;border-radius:9px;object-fit:cover;border:1px solid var(--line);background:#eef2f6;display:block}
 .avt-ph{width:38px;height:38px;border-radius:9px;background:#eef2f6;display:flex;align-items:center;
@@ -182,7 +182,7 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
   </div>
 </div>
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260929a"></script>
+<script src="./shared/sec-core.js?v=20261002a"></script>
 <script src="./shared/sec-personnel.js?v=20260929a"></script>
 <script src="./shared/sec-smart-sync.js?v=20260929a"></script>
 <script>
@@ -1075,20 +1075,62 @@ function personnelPeople(st) {
   return Object.keys(byId).length ? Object.keys(byId).map(function (k) { return byId[k]; }) : active();
 }
 
-function perCell(v,n){v=String(v==null?'':v).replace(/\s+/g,' ').trim();if(v.length>n)v=v.slice(0,Math.max(1,n-1))+'…';while(v.length<n)v+=' ';return v;}
-function perPre(lines){return '<blockquote>'+lines.join('\n')+'</blockquote>';}
+/* 20261002 精簡卡片格式：一人／一筆異動一行，不再用空白對齊表格（Telegram 不是等寬字，必定對不齊）。 */
+/* 與語言無關的長度：標籤（⟦…⟧）一律算 12 字，讓各語言版本在同一處換頁 */
+function tgLen(s) { return String(s).replace(/\u27E6[^\u27E7]*\u27E7/g, '            ').length; }
+function perCountLine(map, byName) {
+  return Object.keys(map).sort(function (x, y) { return (byName ? 0 : map[y] - map[x]) || String(x).localeCompare(String(y)); })
+    .map(function (k) { return SEC.esc(k) + ' <b>' + map[k] + '</b>'; }).join(' · ');
+}
 function personnelRosterSummary(st) {
-  var lang=st.lang||'zh',p=personnelSummaryPeriod(st),a=active(),resigned=DB.filter(function(r){return r.status==='resigned';}),changes=CHG.filter(function(r){return !r._deleted&&r.date&&p.has(r.date);}),roster=personnelPeople(st),byS={},byPost={};
-  a.forEach(function(r){var s=r.shift||'—';byS[s]=(byS[s]||0)+1;var q=r.post||'—';byPost[q]=(byPost[q]||0)+1;});
-  var txt='👮 <b>'+perText(lang,'保安人員摘要','Security Personnel Summary','សេចក្តីសង្ខេបបុគ្គលិកសន្តិសុខ')+'</b> · '+SEC.esc(p.label())+'\n🛡️ AC Security · Personnel\n━━━━━━━━━━━━━━━━\n'+perPre(['Item                 Qty','Active staff          '+a.length,'Resigned              '+resigned.length,'Roster records        '+roster.length,'Changes in period     '+changes.length]);
-  var sl=['Shift          Staff'];Object.keys(byS).sort().forEach(function(k){sl.push(perCell(k,15)+byS[k]);});if(sl.length>1)txt+='\n<b>🕐 '+perText(lang,'班別','Shift','វេន')+'</b>\n'+perPre(sl);
-  var pl=['Post                   Staff'];Object.keys(byPost).sort(function(x,y){return byPost[y]-byPost[x];}).forEach(function(k){pl.push(SEC.esc(perCell(k,23))+byPost[k]);});if(pl.length>1)txt+='\n<b>📍 '+perText(lang,'崗位','Post','ប៉ុស្តិ៍')+'</b>\n'+perPre(pl);
-  if(changes.length){var cl=['Date  Kind       ID        Name          Reason'];changes.slice(0,18).forEach(function(r){cl.push(perCell(String(r.date||'').slice(5),6)+perCell(kindName(r.kind,'en'),11)+SEC.esc(perCell(r.empId||'—',10))+SEC.esc(perCell(r.name||'—',14))+SEC.esc(trData(String(r.reason||''),'en').slice(0,22)));});txt+='\n<b>🔄 '+perText(lang,'異動明細','Change details','ព័ត៌មានលម្អិតការផ្លាស់ប្តូរ')+'</b>\n'+perPre(cl);}
-  txt+='\n<i>'+(st.includeDetails?perText(lang,'已勾選逐筆明細；下一頁列出完整人員資料與照片。','Record details selected; next pages list full personnel data and photos.','បានជ្រើសព័ត៌មានលម្អិត; ទំព័របន្ទាប់បង្ហាញទិន្នន័យពេញ។'):perText(lang,'目前為精簡摘要；完整人員資料仍保留於平台與 Excel 匯出。','Compact summary; full personnel data remains in the platform and Excel export.','សេចក្តីសង្ខេបខ្លី; ទិន្នន័យពេញនៅក្នុងប្រព័ន្ធ និង Excel។'))+'</i>';
+  var lang = st.lang || 'zh', G = SEC.TG, lb = function (zh, en, km) { return G.lbl(lang, zh, en, km); };
+  var p = personnelSummaryPeriod(st), a = active(), resigned = DB.filter(function (r) { return r.status === 'resigned'; }),
+      changes = CHG.filter(function (r) { return !r._deleted && r.date && p.has(r.date); }).sort(function (x, y) { return String(x.date).localeCompare(String(y.date)); }),
+      roster = personnelPeople(st), byS = {}, byPost = {};
+  a.forEach(function (r) { var s = r.shift || '—'; byS[s] = (byS[s] || 0) + 1; var q = r.post || '—'; byPost[q] = (byPost[q] || 0) + 1; });
+  var txt = G.head('👮', lb('保安人員名冊', 'Security personnel', 'បុគ្គលិកសន្តិសុខ'), p.label());
+  txt += '\n' + G.verdict('ok', lb('在職 ' + a.length + ' 人', a.length + ' active', a.length + ' កំពុងធ្វើការ'));
+  txt += '\n' + G.kpis([
+    ['👮', lb('在職', 'Active', 'កំពុងធ្វើការ'), a.length],
+    ['🚪', lb('離職', 'Resigned', 'បានឈប់'), resigned.length],
+    ['📋', lb('排班紀錄', 'Roster rows', 'កំណត់ត្រាវេន'), roster.length],
+    ['🔄', lb('本期異動', 'Changes', 'ការផ្លាស់ប្តូរ'), changes.length]
+  ], 2);
+  if (Object.keys(byS).length) txt += '\n🕐 ' + lb('班別', 'Shifts', 'វេន') + ' ' + perCountLine(byS, true);
+  if (Object.keys(byPost).length) txt += '\n📍 ' + lb('崗位', 'Posts', 'ប៉ុស្តិ៍') + ' ' + perCountLine(byPost);
+  if (changes.length) {
+    txt += G.sec('🔄', lb('本期異動', 'Changes', 'ការផ្លាស់ប្តូរ') + ' · ' + changes.length) + '\n' +
+      changes.slice(0, 10).map(function (r) { return personnelChangeLines(r, lang, true)[0]; }).join('\n') + (changes.length > 10 ? '\n… +' + (changes.length - 10) : '');
+  }
   return txt;
 }
-
-function personnelRosterSummaryPageDefs(st){var lang=st.lang||'zh',p=personnelSummaryPeriod(st),list=personnelPeople(st).slice().sort(function(a,b){return String(a.shift||'').localeCompare(String(b.shift||''))||String(a.name||'').localeCompare(String(b.name||''));}),all=[];list.forEach(function(r){if(r.photo)all.push(r.photo);});var defs=[{text:personnelRosterSummary(st),photos:st.includeDetails?all.slice(0,4):[]}];if(!st.includeDetails)return defs;for(var i=0;i<list.length;i+=12){var b=list.slice(i,i+12),lines=['ID        Name          Sh  Post          Position      Company    St Ph'];b.forEach(function(r){lines.push(SEC.esc(perCell(r.empId||'—',10)+perCell(r.name||'—',14)+perCell(r.shift||'—',4)+perCell(r.post||'—',14)+perCell(trData(r.position||'Security Guard','en'),14)+perCell(r.company||'—',11))+perCell(r.status==='resigned'?'RES':'ACT',4)+(r.photo?1:0));});var pg='👮 <b>'+perText(lang,'人員明細','Personnel Details','ព័ត៌មានលម្អិតបុគ្គលិក')+'</b> · '+SEC.esc(p.label())+'\n'+perPre(lines);b.forEach(function(r){if(r.remark)pg+='\n· '+SEC.esc(r.empId||r.name||'—')+' · '+SEC.esc(r.remark);});defs.push({text:pg,photos:b.filter(function(r){return r.photo;}).map(function(r){return r.photo;}).slice(0,4)});}return defs;}
+function personnelPersonLines(r, lang) {
+  var G = SEC.TG, lb = function (zh, en, km) { return G.lbl(lang, zh, en, km); };
+  var l = '• ' + (r.empId ? SEC.esc(r.empId) + ' ' : '') + '<b>' + SEC.esc(r.name || '—') + '</b>' + (r.shift ? ' · ' + SEC.esc(r.shift) : '') + (r.post ? ' · ' + SEC.esc(r.post) : '') +
+    (r.status === 'resigned' || r.status === 'removed' ? ' · 🔴 ' + G.lbl('zh', SEC.esc(statusName(r.status, lang))) : '') + (r.photo ? ' · 📷' : '');
+  var info = [r.position ? G.lbl('zh', SEC.esc(trData(r.position, lang))) : '', r.company ? SEC.esc(r.company) : '', r.phone ? '☎ ' + SEC.esc(r.phone) : ''].filter(Boolean);
+  var out = [l];
+  if (info.length) out.push('   ' + info.join(' · '));
+  if (r.remark) out.push('   📝 ' + SEC.esc(r.remark).replace(/[\r\n]+/g, ' '));
+  return out;
+}
+function personnelRosterSummaryPageDefs(st) {
+  var lang = st.lang || 'zh', G = SEC.TG, lb = function (zh, en, km) { return G.lbl(lang, zh, en, km); }, p = personnelSummaryPeriod(st);
+  var list = personnelPeople(st).slice().sort(function (a, b) { return String(a.shift || '').localeCompare(String(b.shift || '')) || String(a.name || '').localeCompare(String(b.name || '')); }), all = [];
+  list.forEach(function (r) { if (r.photo) all.push(r.photo); });
+  var defs = [{ text:personnelRosterSummary(st), photos:st.includeDetails ? all.slice(0, 4) : [] }];
+  if (!st.includeDetails) return defs;
+  /* 每頁 ≤ 3000 字；照片跟著同一頁的人員，最多 4 張 */
+  var title = '👮 <b>' + lb('人員明細', 'Personnel details', 'ព័ត៌មានលម្អិតបុគ្គលិក') + '</b> · ' + SEC.esc(p.label()), cur = [], size = 0, ph = [];
+  function flush() { if (!cur.length) return; defs.push({ text:title + '\n' + cur.join('\n'), photos:ph.slice(0, 4) }); cur = []; size = 0; ph = []; }
+  list.forEach(function (r) {
+    var block = personnelPersonLines(r, lang).join('\n'), len = tgLen(block) + 1;
+    if (cur.length && (size + len > 3000 || (r.photo && ph.length >= 4))) flush();
+    cur.push(block); size += len; if (r.photo) ph.push(r.photo);
+  });
+  flush();
+  return defs;
+}
 function personnelRosterSummaryPages(st) { return personnelRosterSummaryPageDefs(st).map(function(x){return x.text;}); }
 function personnelRosterSummaryPhotos(st, pageIndex) { var d=personnelRosterSummaryPageDefs(st)[pageIndex]; return d&&d.photos?d.photos.slice(0,4):[]; }
 function personnelMonth(){return SEC.ymd(PER.at).slice(0,7);}
@@ -1103,24 +1145,66 @@ function personnelChanges(st){
   var p=personnelSummaryPeriod(st);
   return CHG.filter(function(r){return !r._deleted&&SEC.Personnel.validName(r.name)&&r.date&&p.has(r.date)&&(st.scope==='allChanges'||SEC.Personnel.unsent(r));}).slice().sort(function(a,b){return String(a.date).localeCompare(String(b.date))||String(a.id).localeCompare(String(b.id));});
 }
+/* 異動圖示：➕ 新進、➖ 離職／移出、✏️ 其他異動（調動、班別、升遷、資料更新） */
+var PER_TG_ICON = { join:'➕', resign:'➖', remove:'➖' };
+function personnelChangeIcon(kind) { return PER_TG_ICON[kind] || '✏️'; }
+/* 一筆異動：第 1 行＝圖示、類別、工號、粗體姓名、改了什麼；第 2 行（有才出）＝原因、經辦。
+   short=true 只回第 1 行並在前面加日期（名冊摘要用）。 */
+function personnelChangeLines(r, lang, short) {
+  var G = SEC.TG, lb = function (zh, en, km) { return G.lbl(lang, zh, en, km); };
+  var LB = { empId:['工號','ID','អត្តលេខ'], name:['姓名','Name','ឈ្មោះ'], position:['職稱','Position','តំណែង'], shift:['班別','Shift','វេន'], post:['崗位','Post','ប៉ុស្តិ៍'],
+    phone:['電話','Phone','ទូរស័ព្ទ'], company:['公司','Company','ក្រុមហ៊ុន'], joinDate:['到職日','Join','ថ្ងៃចូល'] };
+  var lab = function (k) { var x = LB[k]; return lb(x[0], x[1], x[2]); };
+  var val = function (k, v) { return k === 'position' ? G.lbl('zh', SEC.esc(trData(v || '—', lang))) : SEC.esc(v || '—'); };
+  var after = r.after || {}, before = r.before || {}, details = [];
+  if (r.kind === 'join') {
+    /* 新進：列出班別、崗位、職稱即可（姓名、工號已在同一行） */
+    var a = r.after ? after : { shift:r.toShift, post:r.toPost, position:r.position };
+    if (a.shift) details.push(SEC.esc(a.shift)); if (a.post) details.push(SEC.esc(a.post)); if (a.position) details.push(val('position', a.position));
+  } else if (r.after) {
+    ['empId','name','position','shift','post','phone','company','joinDate'].forEach(function (k) {
+      var old = before[k] || '', now = after[k] || '';
+      if (old !== now) details.push(lab(k) + ' ' + val(k, old) + ' → ' + val(k, now));
+    });
+  } else {
+    if (r.fromShift || r.toShift) details.push(lab('shift') + ' ' + SEC.esc(r.fromShift || '—') + ' → ' + SEC.esc(r.toShift || '—'));
+    if (r.fromPost || r.toPost) details.push(lab('post') + ' ' + SEC.esc(r.fromPost || '—') + ' → ' + SEC.esc(r.toPost || '—'));
+  }
+  var line = '• ' + (short ? G.d(r.date) + ' ' : '') + personnelChangeIcon(r.kind) + ' ' + G.lbl('zh', SEC.esc(kindName(r.kind, lang))) + ' · ' +
+    (r.empId ? SEC.esc(r.empId) + ' ' : '') + '<b>' + SEC.esc(r.name || '—') + '</b>' + (details.length ? ' · ' + details.join(' · ') : '');
+  line = line.replace(/[\r\n]+/g, ' ');
+  if (short) return [line];
+  var extra = [];
+  if (r.reason) extra.push('📝 ' + G.lbl('zh', SEC.esc(trData(r.reason, lang))));
+  extra.push('✍ ' + lb('經辦', 'By', 'ដោយ') + ' ' + SEC.esc(r.by || '—'));
+  return [line, ('   ' + extra.join(' · ')).replace(/[\r\n]+/g, ' ')];
+}
 function personnelChangeDefs(st){
-  var lang=st.lang||'zh',list=personnelChanges(st),p=personnelSummaryPeriod(st),title='👮 <b>'+perText(lang,'人員異動摘要','Personnel changes','ការផ្លាស់ប្តូរបុគ្គលិក')+'</b> · '+SEC.esc(p.label());
-  var counts={join:0,resign:0,remove:0,update:0};list.forEach(function(r){counts[r.kind in counts?r.kind:'update']++;});
-  var head=title+'\n🟢 '+perText(lang,'新進','Joined','ចូលថ្មី')+' '+counts.join+' · 🔴 '+perText(lang,'離職','Resigned','ឈប់')+' '+counts.resign+' · ➖ '+perText(lang,'移出','Removed','ដកចេញ')+' '+counts.remove+' · ✏️ '+perText(lang,'更新','Updated','ធ្វើបច្ចុប្បន្នភាព')+' '+counts.update;
-  if(!list.length)return [{text:head+'\n'+perText(lang,'本期沒有待發異動。','No pending changes in this period.','គ្មានការផ្លាស់ប្តូររង់ចាំផ្ញើក្នុងរយៈពេលនេះ។'),photos:[]}];
-  var LB={empId:['工號','ID','អត្តលេខ'],name:['姓名','Name','ឈ្មោះ'],position:['職稱','Position','តំណែង'],shift:['班別','Shift','វេន'],post:['崗位','Post','ប៉ុស្តិ៍'],phone:['電話','Phone','ទូរស័ព្ទ'],company:['公司','Company','ក្រុមហ៊ុន'],joinDate:['到職日','Join','ថ្ងៃចូល']};
-  var lab=function(k){var x=LB[k];return perText(lang,x[0],x[1],x[2]);};
-  var defs=[],lines=[],photos=[],size=0,seen={};
-  function flush(){if(lines.length){defs.push({text:(defs.length?title:head)+'\n'+lines.join('\n'),photos:photos});lines=[];photos=[];size=0;}}
-  list.forEach(function(r){var kind=KIND[r.kind]||KIND.update,after=r.after||{},before=r.before||{},details=[];
-    ['empId','name','position','shift','post','phone','company','joinDate'].forEach(function(k){var old=before[k]||'',now=after[k]||'';if(r.after&&old!==now)details.push({k:k,t:lab(k)+' '+(k==='position'?trData(old||'—',lang):(old||'—'))+' → '+(k==='position'?trData(now||'—',lang):(now||'—'))});});
-    if(!r.after){if(r.fromShift||r.toShift)details.push({k:'shift',t:lab('shift')+' '+(r.fromShift||'—')+' → '+(r.toShift||'—')});if(r.fromPost||r.toPost)details.push({k:'post',t:lab('post')+' '+(r.fromPost||'—')+' → '+(r.toPost||'—')});}
-    // Name/ID already appear in the row; for a join only list useful extra fields.
-    if(r.kind==='join')details=details.filter(function(x){return x.k!=='name'&&x.k!=='empId';});
-    var line=kind.icon+' '+SEC.esc(r.date)+' · '+SEC.esc(kindName(r.kind,lang))+' · <b>'+SEC.esc((r.empId?r.empId+' ':'')+r.name)+'</b>'+(details.length?' · '+SEC.esc(details.map(function(x){return x.t;}).join(' · ')):'')+(r.reason?' · '+SEC.esc(trData(r.reason,lang)):'')+' · '+perText(lang,'經辦','By','ដោយ')+' '+SEC.esc(r.by||'—');
-    line=line.replace(/[\r\n]+/g,' ');var photo=st.includeDetails&&(after.photo||r.photo),ph=photo&&!seen[photo]?[photo]:[];if(photo)seen[photo]=true;
-    if(lines.length&&(lines.length>=8||size+line.length>2300||photos.length+ph.length>4))flush();lines.push(line);photos=photos.concat(ph);size+=line.length;
-  });flush();return defs;
+  var lang = st.lang || 'zh', G = SEC.TG, lb = function (zh, en, km) { return G.lbl(lang, zh, en, km); }, list = personnelChanges(st), p = personnelSummaryPeriod(st);
+  var title = '👮 <b>' + lb('人員異動', 'Personnel changes', 'ការផ្លាស់ប្តូរបុគ្គលិក') + '</b> · ' + SEC.esc(p.label());
+  var counts = { join:0, out:0, other:0 };
+  list.forEach(function (r) { if (r.kind === 'join') counts.join++; else if (r.kind === 'resign' || r.kind === 'remove') counts.out++; else counts.other++; });
+  var head = G.head('👮', lb('人員異動', 'Personnel changes', 'ការផ្លាស់ប្តូរបុគ្គលិក'), p.label()) + '\n' + G.verdict(!list.length ? 'ok' : counts.out ? 'warn' : 'ok', !list.length ? lb('沒有異動', 'No changes', 'គ្មានការផ្លាស់ប្តូរ') : lb(list.length + ' 筆異動', list.length + ' changes', list.length + ' ការផ្លាស់ប្តូរ')) + '\n' + G.kpis([
+    ['➕', lb('新進', 'Joined', 'ចូលថ្មី'), counts.join],
+    ['➖', lb('離職', 'Left', 'ចេញ'), counts.out],
+    ['✏️', lb('異動', 'Changed', 'ផ្លាស់ប្តូរ'), counts.other]
+  ], 3);
+  if (!list.length) return [{ text:head + '\n\nℹ️ ' + lb('本期沒有待發異動', 'No pending changes in this period', 'គ្មានការផ្លាស់ប្តូររង់ចាំផ្ញើក្នុងរយៈពេលនេះ'), photos:[] }];
+  /* 依日期分組；每頁 ≤ 3000 字，照片（勾明細才附）跟著同一頁的紀錄，最多 4 張 */
+  var defs = [], cur = [], size = 0, photos = [], seen = {}, lastDate = null, perDay = {}, nRec = 0;
+  list.forEach(function (r) { perDay[r.date] = (perDay[r.date] || 0) + 1; });
+  function flush() { if (!cur.length) return; defs.push({ text:(defs.length ? title : head + '\n') + '\n' + cur.join('\n'), photos:photos }); cur = []; size = 0; photos = []; lastDate = null; nRec = 0; }
+  list.forEach(function (r) {
+    var block = personnelChangeLines(r, lang).join('\n'), photo = st.includeDetails && ((r.after || {}).photo || r.photo), ph = photo && !seen[photo] ? [photo] : [];
+    var dateHead = '📅 <b>' + SEC.esc(G.d(r.date)) + '</b> · ' + perDay[r.date], need = tgLen(block) + 1 + (r.date !== lastDate ? tgLen(dateHead) + 1 : 0);
+    /* 第 1 頁最多 6 筆，手機一眼看完 */
+    if (cur.length && (size + need > 3000 || photos.length + ph.length > 4 || (!defs.length && nRec >= 6))) flush();
+    if (r.date !== lastDate) { cur.push(dateHead); size += tgLen(dateHead) + 1; lastDate = r.date; }
+    cur.push(block); size += tgLen(block) + 1; nRec++;
+    if (photo) seen[photo] = true; photos = photos.concat(ph);
+  });
+  flush();
+  return defs;
 }
 function personnelSummaryPageDefs(st){return personnelChangeDefs(st);}
 function personnelSummary(st){return personnelChangeDefs(st)[0].text;}

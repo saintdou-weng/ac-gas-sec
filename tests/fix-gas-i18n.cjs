@@ -118,7 +118,8 @@ const cq=(data,text,extra)=>({id:'cq1',data,message:{chat:{id:'-100'},message_id
     const rec={id:'CT1',date:'2026-09-05',containerNo:'MSCU123',truckNo:'3A-1234',name:'Dara',licence:'L9',company:'ACME',timeIn:'08:30',signIn:'Sok',isImport:true,isExport:true,visitorId:'V1',remark:'ok'};
     check(lang,c.containerLiveText_(rec,'entry',lang),'container entry text');
     const done=c.containerLiveText_({...rec,timeOut:'10:00',signOut:'Vuth'},'exit',lang);check(lang,done,'container exit text');
-    if(lang==='km')assert(done.includes('កាលបរិច្ឆេទ'));
+    if(lang==='km')assert(done.includes('កុងតឺន័រ')&&done.includes('បានចេញ')&&done.includes('ចូល'),'km container labels');
+    assert(/⏱1h30/.test(done),'stay time shown');
     c.handleContainerLiveUpdate({record:rec,phase:'entry',lang,photos:['c1','c2']});checkMsg(lang,r.messages.pop(),'container live message');
     photos.forEach(p=>check(lang,p.caption,'container photo caption'));
     const fail=setup();fail.c.tgPhoto=()=>null;const out=fail.c.handleContainerLiveUpdate({record:rec,phase:'entry',lang,photos:['c9']});check(lang,out.error,'container photo failure error');

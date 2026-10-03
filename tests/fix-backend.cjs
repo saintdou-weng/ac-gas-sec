@@ -32,7 +32,7 @@ function rt(initial='2026-09-14T01:00:00Z',opt={}){
   DriveApp:{getFolderById:()=>root,getFoldersByName:()=>iter([root]),createFolder:()=>root,getRootFolder:()=>root},MimeType:{PLAIN_TEXT:'text/plain'},
   HtmlService:{createHtmlOutput:t=>({text:String(t)})},ContentService:{MimeType:{JSON:'json'},createTextOutput:text=>({text,setMimeType(){return this;}})},
   ScriptApp:{getProjectTriggers:()=>triggers.map(h=>({getHandlerFunction:()=>h})),getService:()=>({getUrl:()=>EXEC}),deleteTrigger(){},
-   newTrigger:h=>{const ch={timeBased:()=>ch,everyDays:()=>ch,atHour:()=>ch,onMonthDay:()=>ch,inTimezone:()=>ch,create:()=>{triggers.push(h);return ch;}};return ch;}},
+   newTrigger:h=>{const ch={timeBased:()=>ch,everyDays:()=>ch,everyMinutes:()=>ch,atHour:()=>ch,onMonthDay:()=>ch,inTimezone:()=>ch,create:()=>{triggers.push(h);return ch;}};return ch;}},
   SpreadsheetApp:{create(){docs++;throw Error('no sheets in test');}},
   UrlFetchApp:{fetch:(url,o={})=>{fetches.push({url,o});
    if(url.indexOf(EXEC)===0)return (o.method||'get')==='post'?resp(200,'AC_SEC_WEBHOOK_OK'):resp(200,{ok:true,data:{ok:true}});
@@ -45,7 +45,7 @@ function rt(initial='2026-09-14T01:00:00Z',opt={}){
    if(m[2]==='getChatMember')return resp(200,{ok:true,result:{status:'administrator'}});
    if(m[2]==='sendMessage'){messages.push({chat:String(body.chat_id),text:body.text,kb:body.reply_markup,api:true});return resp(200,{ok:true,result:{message_id:messages.length,chat:{id:body.chat_id}}});}
    return resp(200,{ok:true,result:true});}}});
- vm.runInContext(SRC,ctx);
+ vm.runInContext(SRC,ctx);vm.runInContext("SETUP.WEBAPP_URL='"+EXEC+"'",ctx);
  ctx.tgSend=(chat,text,kb)=>{messages.push({chat:String(chat),text:String(text||''),kb});return {message_id:messages.length,chat:{id:String(chat)}};};
  ctx.tgEdit=(chat,id,text,kb)=>{edits.push({chat,id,text,kb});return true;};
  ctx.tgPhoto=(chat,p,cap)=>{photos.push({chat,p,cap});return {message_id:900+photos.length};};
@@ -346,6 +346,75 @@ await section('#12 部署後檢查 logs masked token, webhook+key, group, trigge
 });
 
 /* ───────── Real browser client ↔ backend (two devices) ───────── */
+await section('#13 webhook watchdog: webhook deleted by another poller (2026-10-01) is re-attached with key + callback_query; healthy webhook untouched; trigger installed',()=>{
+ const r=rt();r.props.BOT_TOKEN='123:T';
+ assert(r.c.setupWebhook(false).ok);const key=r.props.WEBHOOK_KEY,good=EXEC+'?k='+key;
+ const before=r.fetches.filter(f=>/setWebhook/.test(f.url)).length;
+ let out=r.c.webhookWatchdogJob();assert(out.ok&&out.healthy,'healthy → no action');
+ assert.equal(r.fetches.filter(f=>/setWebhook/.test(f.url)).length,before,'no setWebhook when healthy');
+ r.run("UrlFetchApp.fetch(TG()+'/setWebhook',{method:'post',payload:JSON.stringify({url:''})})");assert.equal(r.hook(),'');
+ out=r.c.webhookWatchdogJob();assert(out.ok&&out.repaired&&out.reason==='missing',JSON.stringify(out));
+ assert.equal(r.hook(),good,'webhook restored with the same secret key');
+ const last=r.fetches.filter(f=>/setWebhook/.test(f.url)).pop();const body=JSON.parse(last.o.payload);
+ assert.deepEqual(body.allowed_updates,['message','callback_query'],'button presses (callback_query) are delivered again');
+ assert.equal(body.drop_pending_updates,false,'queued presses are not dropped');
+ r.run("UrlFetchApp.fetch(TG()+'/setWebhook',{method:'post',payload:JSON.stringify({url:'https://evil.example/hook'})})");
+ out=r.c.webhookWatchdogJob();assert(out.repaired&&out.reason==='other-url');assert.equal(r.hook(),good);
+ assert(r.props.WEBHOOK_LAST_REPAIR&&/other-url/.test(r.props.WEBHOOK_LAST_REPAIR));
+ r.c.ensureWebhookWatchdog_();r.c.ensureWebhookWatchdog_();
+ assert(r.c.更新部署連線().includes('Webhook 看門狗'),'更新部署連線 installs the watchdog');
+});
+
+await section('#14 watchdog in a time trigger: getService() returns the HEAD/test URL (404 on /exec) — webhook must stay on the production URL (2026-10-01 regression)',()=>{
+ const r=rt();r.props.BOT_TOKEN='123:T';assert(r.c.setupWebhook(false).ok);const good=r.hook();assert(good.startsWith(EXEC+'?k='));
+ const HEAD='https://script.google.com/macros/s/AKfycbHEADtest/exec';
+ r.c.ScriptApp.getService=()=>({getUrl:()=>HEAD});
+ let out=r.c.webhookWatchdogJob();assert(out.healthy,'production webhook is healthy, not "other-url": '+JSON.stringify(out));assert.equal(r.hook(),good);
+ r.run("UrlFetchApp.fetch(TG()+'/setWebhook',{method:'post',payload:JSON.stringify({url:'"+HEAD+"?k=x'})})");
+ out=r.c.webhookWatchdogJob();assert(out.repaired);assert.equal(r.hook(),good,'repaired back to the production /exec, never the HEAD URL');
+ r.props.WEBAPP_URL=HEAD;assert.equal(r.c.liveWebAppUrl(),EXEC,'a corrupted WEBAPP_URL property cannot override the pinned production URL');
+});
+
+await section('#15 button log + stale card: every press is logged to Drive (who/what/answer/edit); if the old card cannot be edited a fresh card with live buttons is posted',()=>{
+ const r=rt();r.props.BOT_TOKEN='123:T';assert(r.c.setupWebhook(false).ok);const key=r.props.WEBHOOK_KEY;
+ const m=SRC.replace(/\r/g,'').match(/function tgEdit\(chatId, messageId, text, keyboard\) \{[\s\S]*?\n\}/);r.run(m[0]);const ma=SRC.replace(/\r/g,'').match(/function answerCb\(id, text, alert\) \{[\s\S]*?\n\}/);r.run(ma[0]);   // real tgEdit + answerCb
+ const orig=r.c.UrlFetchApp.fetch;let editFails=true;
+ r.c.UrlFetchApp.fetch=(url,o)=>/editMessageText$/.test(url)&&editFails?{getResponseCode:()=>400,getContentText:()=>JSON.stringify({ok:false,error_code:400,description:'Bad Request: message to edit not found'})}:orig(url,o);
+ const b=r.c.createApprovalBatch({module:'expense',period:'2026-09',items:[fee('F1',100),fee('F2',200)]});
+ const sentBefore=r.messages.length;
+ r.cb('bv:'+b.batchId,'777',key);
+ const log=JSON.parse(r.disk['ledger_tg_callbacks.json']||'[]');assert(log.length>=1,'press logged');
+ const last=log[log.length-1];assert.equal(last.data,'bv:'+b.batchId);assert(/已審查|Reviewed/.test(last.answer),JSON.stringify(last));assert.equal(last.edit,'resent');
+ assert(r.messages.length>sentBefore,'a fresh card was posted');
+ const B=JSON.parse(r.disk['batch_'+b.batchId+'.json']);assert.equal(B.stage,'approve');const freshIdx=r.messages.findIndex((x,i)=>i>=sentBefore&&JSON.stringify(x.kb||x.keyboard||'').includes('ba:'+b.batchId));assert(freshIdx>=0,'fresh card has approve buttons');assert.equal(String(B.messageId),String(freshIdx+1),'batch now points at the fresh card');
+ editFails=false;r.cb('ba:'+b.batchId,PAUL,key);
+ const B2=JSON.parse(r.disk['batch_'+b.batchId+'.json']);assert(B2.items.every(x=>x.status==='approved'),'approve on the fresh card works');
+ const log2=JSON.parse(r.disk['ledger_tg_callbacks.json']);assert.equal(log2[log2.length-1].data,'ba:'+b.batchId);assert(/核可|Approved/.test(log2[log2.length-1].answer));
+ assert(Array.isArray(r.c.查看按鈕紀錄()));
+});
+
+await section('#16 2026-10-01 stuck card: reviewed batch whose card still shows only 確認審查 → pressing it again or 待核→「開啟核可卡」gives live approve buttons; Paul approves',()=>{
+ const r=rt();r.props.BOT_TOKEN='123:T';assert(r.c.setupWebhook(false).ok);const key=r.props.WEBHOOK_KEY;
+ const SR=SRC.replace(/\r/g,'');['tgEdit\\(chatId, messageId, text, keyboard\\)','answerCb\\(id, text, alert\\)'].forEach(sig=>{const m=SR.match(new RegExp('function '+sig+' \\{[\\s\\S]*?\\n\\}'));r.run(m[0]);});
+ const orig=r.c.UrlFetchApp.fetch;let editMode='fail';
+ r.c.UrlFetchApp.fetch=(url,o)=>{if(/editMessageText$/.test(url)){if(editMode==='fail')return {getResponseCode:()=>400,getContentText:()=>JSON.stringify({ok:false,error_code:400,description:'Bad Request: can\'t parse entities'})};}return orig(url,o);};
+ const b=r.c.createApprovalBatch({module:'expense',period:'2026-09',items:[fee('F1',300),fee('F2',300)]});
+ editMode='ok';r.cb('bv:'+b.batchId,PAUL,key);                     // review OK
+ let B=JSON.parse(r.disk['batch_'+b.batchId+'.json']);assert.equal(B.stage,'approve');
+ // card stuck: press review again → refresh with approve buttons
+ const editsBefore=r.fetches.filter(f=>/editMessageText$/.test(f.url)).length;
+ r.cb('bv:'+b.batchId,PAUL,key);const lg=JSON.parse(r.disk['ledger_tg_callbacks.json']);const ans=lg[lg.length-1].answer;assert(/核可|approve/i.test(ans),ans);
+ const lastEdit=r.fetches.filter(f=>/editMessageText$/.test(f.url));assert(lastEdit.length>editsBefore,'card refreshed');
+ assert(JSON.stringify(JSON.parse(lastEdit.pop().o.payload).reply_markup).includes('ba:'+b.batchId),'refreshed card has approve-all');
+ // pending list has an open-card button; pressing it posts a fresh card with approve buttons
+ r.cb('sec_pend',PAUL,key);const pend=r.messages[r.messages.length-1];
+ const openBtn=JSON.stringify(pend.keyboard||pend.kb);assert(openBtn.includes('bs:'+b.batchId),'pending list shows 開啟核可卡 button');
+ const n0=r.messages.length;r.cb('bs:'+b.batchId,'999',key);
+ const card=r.messages.slice(n0).find(m=>JSON.stringify(m.keyboard||m.kb||'').includes('ba:'+b.batchId));assert(card,'fresh card with approve buttons posted');
+ r.cb('ba:'+b.batchId,PAUL,key);B=JSON.parse(r.disk['batch_'+b.batchId+'.json']);assert(B.items.every(x=>x.status==='approved'),'approved');
+ assert(String(r.cb('ba:'+b.batchId,'999',key)||'').length>=0);
+});
+
 await section('real sec-smart-sync clients: concurrent device commits merge on the server, no re-upload churn, clear-all + restore round trip',async()=>{
  const {JSDOM}=require(path.join(ROOT,'node_modules/jsdom'));const r=rt();let gate=null;
  function device(name){const dom=new JSDOM('<html><body><span class="c-dot"></span></body></html>',{url:'https://'+name+'.test/',runScripts:'outside-only'}),w=dom.window,ctx=dom.getInternalVMContext();
@@ -370,6 +439,44 @@ await section('real sec-smart-sync clients: concurrent device commits merge on t
  assert(r.c.還原雲端備份('expense').startsWith('✅'));const back=await C.SEC.cloudPull('expense',{localRecords:[]});
  assert.equal(C.SEC.mergeRecords('expense',[],back).records.length,3,'restored rows beat the device tombstones');
  [A,B,C].forEach(d=>d.dom.window.close());
+});
+
+await section('#17 approval document (2026-10-01 「核可文件產生失敗」): formatting errors no longer kill the doc; real failure shows the reason + 🔁 regenerate button; regenerate stores the links once',async()=>{
+ const r=rt('2026-10-01T09:00:00Z');const key=r.props.WEBHOOK_KEY||'';
+ const fee=n=>({key:'fee-'+n,id:'SVC-'+n,dept:'Security Fee',name:'Security service fee',amount:300,date:'2026-09-0'+n,vendor:'GS',qty:1,unit:'month'});
+ // 1) a formatting step throws (e.g. autoResize / frozen rows) → document still produced
+ let created=0;const mkSheets=(failFormat)=>({create(name){created++;const rows=[];const rng={setValues(v){rows.push(...v);return rng;},setFontWeight(){if(failFormat)throw Error('format boom');return rng;},setFontSize(){return rng;},setBackground(){return rng;},setFontColor(){return rng;}};
+   const sh={setName(){},getRange(){return rng;},setFrozenRows(){throw Error('frozen boom');},autoResizeColumns(){throw Error('resize boom');}};
+   return {getActiveSheet:()=>sh,getId:()=>'SS'+created,getUrl:()=>'https://docs.google.com/spreadsheets/d/SS'+created,_rows:rows};}});
+ r.c.SpreadsheetApp=mkSheets(true);r.c.DriveApp.getFileById=()=>({setSharing(){throw Error('sharing blocked by admin');}});r.c.DriveApp.Access={ANYONE_WITH_LINK:1};r.c.DriveApp.Permission={VIEW:1};
+ let res=r.c.createApprovalBatch({module:'expense',period:'2026-09',lang:'zh',items:[fee(1),fee(2)]});
+ r.c.handleCallback({id:'q',data:'ba:'+res.batchId,from:{id:PAUL},message:{chat:{id:CHAT},message_id:1,text:''}});
+ r.c.handleCallback({id:'q',data:'bc:'+res.batchId,from:{id:PAUL},message:{chat:{id:CHAT},message_id:1,text:''}});
+ let out=r.messages[r.messages.length-1];
+ assert(/已產生核可文件/.test(out.text),'doc produced despite format/sharing errors: '+out.text);
+ assert(JSON.stringify(out.kb).includes('export?format=pdf'),'PDF/Excel buttons present');
+ let B=JSON.parse(r.disk['batch_'+res.batchId+'.json']);assert(B.docUrl&&!B.docError,'doc url stored');
+ // 2) Sheets refuses (permission) → reason shown + regenerate button; then regenerate works once
+ r.c.SpreadsheetApp={create(){throw Error('You do not have permission to call SpreadsheetApp.create. Required permissions: https://www.googleapis.com/auth/spreadsheets');}};
+ res=r.c.createApprovalBatch({module:'expense',period:'2026-09',lang:'en',items:[fee(3)]});
+ r.c.handleCallback({id:'q',data:'ba:'+res.batchId,from:{id:PAUL},message:{chat:{id:CHAT},message_id:1,text:''}});
+ r.c.handleCallback({id:'q',data:'bc:'+res.batchId,from:{id:PAUL},message:{chat:{id:CHAT},message_id:1,text:''}});
+ out=r.messages[r.messages.length-1];
+ assert(/Document generation failed: Authorization needed/.test(out.text),'reason in plain words: '+out.text);
+ assert(!/[㐀-鿿]/.test(out.text),'en result has no Chinese');
+ assert(JSON.stringify(out.kb).includes('bd:'+res.batchId),'regenerate button');
+ B=JSON.parse(r.disk['batch_'+res.batchId+'.json']);assert(/permission/.test(B.docError||''),'error kept on batch');
+ r.c.SpreadsheetApp=mkSheets(false);r.c.DriveApp.getFileById=()=>({setSharing(){}});const n0=r.messages.length;
+ r.c.handleCallback({id:'q',data:'bd:'+res.batchId,from:{id:'999'},message:{chat:{id:CHAT},message_id:1,text:''}});
+ B=JSON.parse(r.disk['batch_'+res.batchId+'.json']);assert(B.docUrl&&!B.docError&&!B.docClaimAt,'regenerated + saved');
+ assert(r.messages.slice(n0).some(m=>/Document generated/.test(m.text)),'new result with links posted');
+ const c1=created;r.c.handleCallback({id:'q',data:'bd:'+res.batchId,from:{id:'999'},message:{chat:{id:CHAT},message_id:1,text:''}});
+ assert.equal(created,c1,'second press does not create another spreadsheet');
+ // editor function picks the latest closed batch without a document
+ assert.equal(r.c.重新產生核可文件().none,true);
+ // approval card: no space-padded table any more
+ const card=r.c.renderBatchText(JSON.parse(r.disk['batch_'+res.batchId+'.json']));
+ assert(!/<blockquote>/.test(card)&&!/\S {3,}\S/.test(card.replace(/  ·  /g,' · ')),'approval card has no padded table');
 });
 
 if(failures){console.log('\n'+failures+' section(s) FAILED');process.exit(1);}

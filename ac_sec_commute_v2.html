@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
 <script src="./shared/xlsx.full.min.js?v=20260929a"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="stylesheet" href="./shared/sec.css?v=20260929a">
+<link rel="stylesheet" href="./shared/sec.css?v=20261002a">
 <style>
 .commute-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.commute-form-grid .full{grid-column:1/-1}
 .commute-repeat{border:1px solid var(--line);border-radius:12px;padding:10px;background:#f8fbfd}.commute-repeat h4{margin:0 0 8px;color:var(--n1)}
@@ -111,7 +111,7 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
       <div class="kpi warn"><div class="v" id="gk4">0</div><div class="l" data-zh="總里程 KM" data-en="Total KM" data-km="គីឡូសរុប">總里程 KM</div></div>
     </div>
     <div class="card">
-      <h3>🚛 <span data-zh="公司車輛出入閘登記" data-en="Company Vehicle Gate Log" data-km="កំណត់ត្រាច្រកចេញចូល">公司車輛出入閘登記</span>
+      <h3>🚛 <span data-zh="車輛出入閘登記（進廠 → 出廠）" data-en="Vehicle Gate Log (in → out)" data-km="កំណត់ត្រាច្រកចេញចូល">公司車輛出入閘登記</span>
         <span class="sp">
           <input id="qGate" data-zh="搜尋車牌/司機…" data-en="Search plate/driver…" data-km="ស្វែងរកស្លាកលេខ/អ្នកបើកបរ…" placeholder="搜尋車牌/司機…" style="width:160px" oninput="renderGate()">
           <button class="btn sm" onclick="openAdd('gate')">➕ <span data-t="add">新增</span></button>
@@ -125,8 +125,8 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
         <th data-zh="乘客" data-en="Passenger" data-km="អ្នកដំណើរ">乘客</th>
         <th data-zh="部門" data-en="Dept" data-km="ផ្នែក">部門</th>
         <th class="num" data-zh="人數" data-en="Pax" data-km="ចំនួន">人數</th>
-        <th data-zh="出閘" data-en="Out" data-km="ចេញ">出閘</th>
-        <th data-zh="入閘" data-en="In" data-km="ចូល">入閘</th>
+        <th data-zh="進廠" data-en="In" data-km="ចូល">進廠</th>
+        <th data-zh="出廠" data-en="Out" data-km="ចេញ">出廠</th>
         <th class="num" data-zh="里程" data-en="KM" data-km="គីឡូ">里程</th>
         <th data-zh="用車原因" data-en="Reason" data-km="មូលហេតុ">用車原因</th>
         <th data-zh="照片" data-en="Photos" data-km="រូបថត">照片</th>
@@ -236,7 +236,7 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
 <div class="mf"><button class="btn gray" onclick="SEC.closeModal('mDrivers')" data-t="cancel">取消</button>
 <button class="btn" id="btnSaveDrivers" onclick="saveDriverManager()" data-t="save">儲存</button></div></div></div>
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20260929a"></script>
+<script src="./shared/sec-core.js?v=20261002a"></script>
 <script src="./shared/sec-smart-sync.js?v=20260929a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
@@ -483,7 +483,7 @@ function renderGate() {
       return '<tr><td>' + SEC.esc(r.date) + '</td><td><code>' + SEC.esc(r.plate || '') + '</code></td>' +
         '<td>' + SEC.esc(r.driver || '') + '</td><td>' + SEC.esc(r.passenger || '') + '</td>' +
         '<td>' + SEC.esc(r.dept || '') + '</td><td class="num">' + (r.pax || '') + '</td>' +
-        '<td>' + SEC.esc(r.outTime || '') + '</td><td>' + SEC.esc(r.inTime || '') + '</td>' +
+        '<td>' + SEC.esc(r.inTime || '') + '</td><td>' + SEC.esc(r.outTime || '') + '</td>' +
         '<td class="num">' + (r.km || '') + '</td><td>' + SEC.esc(r.reason || '') + '</td>' +
         '<td>' + (ocrPhotoCount(r) ? '📷 ' + ocrPhotoCount(r) : '—') + '</td>' + rowActions('gate', r) + '</tr>';
     }).join('') : emptyRow(12, '本期間尚無出入閘記錄。按「➕ 新增」或用「📥 Excel」匯入。', 'No gate logs in this period. Tap “➕ Add” or import with “📥 Excel”.', 'មិនទាន់មានកំណត់ត្រាច្រក។ ចុច “➕ បន្ថែម” ឬនាំចូល “📥 Excel”។');
@@ -637,7 +637,7 @@ var FIELDS = {
          ['outTime','出發時間','time'],['inTime','回廠時間','time'],['km','里程 KM','number']],
   bike: [['date','日期','date'],['a','Building A','number'],['b','Building B','number'],['remark','備註','text']],
   gate: [['date','日期','date'],['plate','車牌','text'],['driver','司機','text'],['passenger','乘客','text'],
-         ['dept','部門','text'],['pax','人數','number'],['outTime','出閘時間','time'],['inTime','入閘時間','time'],
+         ['dept','部門','text'],['pax','人數','number'],['inTime','進廠時間','time'],['outTime','出廠時間','time'],
          ['km','里程 KM','number'],['reason','用車原因','text']],
   late: [['date','日期','date'],['empId','工號','text'],['name','姓名','text'],['dept','部門','text'],
          ['checkIn','入廠時間','time'],['checkOut','出廠時間','time'],['gate','門衛','text'],['note','說明','text']],
@@ -704,8 +704,9 @@ function openAdd(kind) {
   } else {
     var req = REQUIRED[kind] || [];
     body.innerHTML = FIELDS[kind].map(function (f) {
-      var v = f[0] === 'date' ? today : (f[2] === 'time' && f[0] === 'outTime' ? nowHm() : '');
-      return '<div class="f"><label' + (req.indexOf(f[0]) >= 0 ? ' class="req"' : '') + '>' + SEC.esc(fieldLabel(f[0], f[1])) + '</label><input type="' + f[2] + '" id="m_' + f[0] + '" value="' + SEC.esc(v) + '"></div>';
+      var v = f[0] === 'date' ? today : (f[2] === 'time' && f[0] === (kind === 'gate' ? 'inTime' : 'outTime') ? nowHm() : '');
+      var lab = kind === 'gate' && f[0] === 'inTime' ? L('進廠時間', 'Time in (arrival)', 'ម៉ោងចូលរោងចក្រ') : kind === 'gate' && f[0] === 'outTime' ? L('出廠時間', 'Time out (departure)', 'ម៉ោងចេញពីរោងចក្រ') : fieldLabel(f[0], f[1]);
+      return '<div class="f"><label' + (req.indexOf(f[0]) >= 0 ? ' class="req"' : '') + '>' + SEC.esc(lab) + '</label><input type="' + f[2] + '" id="m_' + f[0] + '" value="' + SEC.esc(v) + '"></div>';
     }).join('') + photoDropHtml(L('表單照片', 'Form photos', 'រូបថតទម្រង់'));
     if (kind === 'gate') {
       document.getElementById('m_driver').setAttribute('list', 'commuteDriverList');
@@ -1181,8 +1182,8 @@ function expExcel() {
     { name: 'GateLog', rows: inP(GATE).map(function (r) {
         return row([[H('日期','Date','កាលបរិច្ឆេទ'), r.date], [H('車牌','Plate','ស្លាកលេខ'), r.plate], [H('司機','Driver','អ្នកបើកបរ'), r.driver],
           [H('乘客','Passenger','អ្នកដំណើរ'), r.passenger], [H('部門','Dept','ផ្នែក'), r.dept], [H('人數','Pax','ចំនួន'), r.pax],
-          [H('出閘','Out','ចេញ'), r.outTime], [H('入閘','In','ចូល'), r.inTime], [H('出閘里數','Odometer out','គីឡូពេលចេញ'), r.outKm],
-          [H('入閘里數','Odometer in','គីឡូពេលចូល'), r.inKm], [H('里程 KM','KM','គីឡូ'), r.km], [H('用車原因','Reason','មូលហេតុ'), r.reason]]); }) },
+          [H('進廠','In','ចូល'), r.inTime], [H('出廠','Out','ចេញ'), r.outTime], [H('進廠里數','Odometer in','គីឡូពេលចូល'), r.inKm],
+          [H('出廠里數','Odometer out','គីឡូពេលចេញ'), r.outKm], [H('里程 KM','KM','គីឡូ'), r.km], [H('用車原因','Reason','មូលហេតុ'), r.reason]]); }) },
     { name: 'ComeLate', rows: inP(LATE).map(function (r) {
         return row([[H('日期','Date','កាលបរិច្ឆេទ'), r.date], [H('工號','ID','អត្តលេខ'), r.empId], [H('姓名','Name','ឈ្មោះ'), r.name],
           [H('部門','Dept','ផ្នែក'), r.dept], [H('入廠','Check in','ចូល'), r.checkIn], [H('出廠','Check out','ចេញ'), r.checkOut],
@@ -1269,8 +1270,6 @@ function commutePeriods(type) {
   return Object.keys(seen);
 }
 function cmt(lang, zh, en, km) { return tl(lang, zh, en, km); }
-function commuteCell(v,n){v=String(v==null?'':v).replace(/\s+/g,' ').trim();if(v.length>n)v=v.slice(0,Math.max(1,n-1))+'…';while(v.length<n)v+=' ';return v;}
-function commutePre(lines){return '<blockquote>'+lines.join('\n')+'</blockquote>';}
 function commuteShortDate(v){v=String(v||'');return /^\d{4}-\d{2}-\d{2}$/.test(v)?v.slice(5):v.slice(0,5);}
 function commuteHash(v){var h=2166136261,s=String(v||'');for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return (h>>>0).toString(36);}
 function commuteUniquePhotos(rows){var seen={},out=[];(rows||[]).forEach(function(r){commuteRecordPhotos(r).forEach(function(p){var k=String(p||'').length+'|'+String(p||'').slice(0,64)+'|'+String(p||'').slice(-32);if(p&&!seen[k]){seen[k]=1;out.push(p);}});});return out;}
@@ -1293,64 +1292,100 @@ function commuteScopeLabel(st, lang) {
     bike:['摩托車','Motorbike','ម៉ូតូ'], gate:['車輛出入閘','Gate log','កំណត់ត្រាច្រក'], late:['遲到登記','Come late','មកយឺត'] };
   var x = m[st.scope || 'all'] || m.all; return tl(lang || st.lang || 'zh', x[0], x[1], x[2]);
 }
-function commuteSummary(st) {
-  var p = commuteSummaryPeriod(st), c = commuteScopeOn(st,'vehicle') ? live(CAR).filter(function (r) { return p.has(r.date); }) : [];
-  var b = commuteScopeOn(st,'bike') ? live(BIKE).filter(function (r) { return p.has(r.date); }) : [];
-  var l = commuteScopeOn(st,'late') ? live(LATE).filter(function (r) { return p.has(r.date); }) : [];
-  var g = commuteScopeOn(st,'gate') ? live(GATE).filter(function (r) { return p.has(r.date); }) : [];
+/* 20261002 精簡卡片格式：一筆一行，不再用空白對齊表格。
+   日報 → 直接列出當天每一筆；週／月報 → 先看統計和需要注意的，逐筆內容勾「附逐筆明細」才展開。 */
+/* 出入閘 = 外來車輛／卡車：先進廠（inTime）再出廠（outTime）；出廠時間早於進廠就標示要查 */
+function commuteTimeIssue(outT, inT) { var o=SEC.TG.mins(outT), i=SEC.TG.mins(inT); return o!=null&&i!=null&&o<i; }
+function commuteGateLines(r, lang) {
+  var G=SEC.TG, lb=function(zh,en,km){return G.lbl(lang,zh,en,km);};
+  var head='• <b>'+SEC.esc(r.plate||'—')+'</b> · '+SEC.esc(r.driver||'—')+((+r.pax||0)?' · 👥'+(+r.pax):'');
+  var t='   🟢 '+lb('進廠','In','ចូល')+' '+(G.time(r.inTime)||'—')+' → 🔴 '+lb('出廠','Out','ចេញ')+' '+(G.time(r.outTime)||lb('未出廠','still inside','នៅក្នុងរោងចក្រ'));
+  if(commuteTimeIssue(r.outTime,r.inTime))t+=' ⚠️ '+lb('出廠早於進廠','out before in','ចេញមុនចូល');
+  else{var d=G.dur(G.mins(r.outTime)-G.mins(r.inTime));if(d&&r.outTime&&r.inTime)t+=' · ⏱'+d;}
+  if(+r.km)t+=' · '+(+r.km)+' km';
+  var out=[head,t],who=[r.passenger,r.dept].filter(function(x){return x&&x!=='—';}).map(SEC.esc).join(' · ');
+  if(who)out.push('   👤 '+who);
+  if(r.reason)out.push('   📝 '+SEC.esc(r.reason));
+  return out;
+}
+function commuteLateLine(r) {
+  return '• '+(SEC.TG.time(r.checkIn)||'—')+' · '+SEC.esc(r.empId||'—')+' <b>'+SEC.esc(r.name||'—')+'</b>'+(r.dept?' · '+SEC.esc(r.dept):'')+(r.note?' · 📝 '+SEC.esc(r.note):'');
+}
+function commuteTripLine(g, lang, withDate) {
+  var G=SEC.TG;
+  return '• '+(withDate?G.d(g.date)+' ':'')+(G.time(g.outTime)||'—')+'→'+(G.time(g.inTime)||'—')+' · '+SEC.esc(g.driverNames.join(', ')||'—')+(g.count>1?' ×'+g.count:'')+
+    (g.approver?' · ✔ '+SEC.esc(g.approver):'')+(g.reason?' · 📝 '+SEC.esc(g.reason):'');
+}
+function commuteSummaryData(st) {
+  var p = commuteSummaryPeriod(st), inP2 = function (arr, kind) { return commuteScopeOn(st, kind) ? live(arr).filter(function (r) { return p.has(r.date); }) : []; };
+  var sortBy = function (f) { return function (a, b) { return String(a.date || '').localeCompare(String(b.date || '')) || String(a[f] || '').localeCompare(String(b[f] || '')); }; };
+  var c = inP2(CAR, 'vehicle').sort(sortBy('outTime')), b = inP2(BIKE, 'bike').sort(sortBy('date')), l = inP2(LATE, 'late').sort(sortBy('checkIn')), g = inP2(GATE, 'gate').sort(sortBy('outTime'));
   var uniq = {};
   l.forEach(function (r) { var k = r.empId || r.name || '—'; if (!uniq[k]) uniq[k] = { n:0, name:r.name, dept:r.dept, id:r.empId }; uniq[k].n++; });
-  var rep = Object.keys(uniq).filter(function (k) { return uniq[k].n >= 3; });
-  var avgB = b.length ? Math.round(b.reduce(function (s, r) { return s + (+r.total || 0); }, 0) / b.length) : 0;
-  var drivers = {}, tripGroups=commuteVehicleGroups(c); c.forEach(function (r) { if (r.driver) drivers[r.driver] = (drivers[r.driver] || 0) + 1; });
-  var lang=st.lang||'zh', pax=g.reduce(function(s2,r){return s2+(+r.pax||0);},0);
-  var txt='🏍 <b>'+cmt(lang,'通勤交通摘要','Commute & Motor Summary','សេចក្តីសង្ខេបដំណើរ')+'</b> · '+SEC.esc(p.label())+'\n'+
-    cmt(lang,'分類','Scope','ប្រភេទ')+': '+SEC.esc(commuteScopeLabel(st,lang))+'\n🛡️ AC Security · VRT Sihanoukville\n━━━━━━━━━━━━━━━━\n'+
-    '<b>📊 '+cmt(lang,'總覽','Overview','ទិដ្ឋភាពទូទៅ')+'</b>\n'+commutePre([
-      'Item                 Qty      Extra',
-      'Vehicle dispatch     '+commuteCell(c.length,8)+tripGroups.length+' trips',
-      'Gate logs            '+commuteCell(g.length,8)+pax+' pax',
-      'Motorbike days       '+commuteCell(b.length,8)+'Avg '+avgB,
-      'Late records         '+commuteCell(l.length,8)+Object.keys(uniq).length+' staff',
-      'Repeat late >=3      '+commuteCell(rep.length,8)+'people'
-    ])+'\n';
-  if(tripGroups.length){
-    var tl2=['Date  Time        Driver(s)       Qty Approver'];
-    tripGroups.slice(0,12).forEach(function(g){tl2.push(commuteCell(commuteShortDate(g.date),6)+commuteCell((g.outTime||'—')+'-'+(g.inTime||'—'),12)+SEC.esc(commuteCell(g.driverNames.join(', ')||'—',16))+commuteCell(g.count,4)+SEC.esc(commuteCell(g.approver||'—',10)));});
-    txt+='\n<b>🚐 '+cmt(lang,'合併行程','Grouped vehicle trips','ដំណើររួម')+'</b>\n'+commutePre(tl2);
-    if(tripGroups.length>12)txt+='\n… +'+(tripGroups.length-12)+' '+cmt(lang,'組行程','trip groups','ក្រុមដំណើរ')+'\n';
+  return { p:p, car:c, bike:b, late:l, gate:g, uniq:uniq, rep:Object.keys(uniq).filter(function (k) { return uniq[k].n >= 3; }), trips:commuteVehicleGroups(c) };
+}
+function commuteSummary(st) {
+  var lang = st.lang || 'zh', G = SEC.TG, lb = function (zh, en, km) { return G.lbl(lang, zh, en, km); }, D = commuteSummaryData(st), p = D.p;
+  var day = st.ptype === 'day', avgB = D.bike.length ? Math.round(D.bike.reduce(function (s, r) { return s + (+r.total || 0); }, 0) / D.bike.length) : 0;
+  var pax = D.gate.reduce(function (s2, r) { return s2 + (+r.pax || 0); }, 0), timeBad = D.gate.filter(function (r) { return commuteTimeIssue(r.outTime, r.inTime); });
+  var txt = G.head('🚦', lb('通勤交通','Commute','ការធ្វើដំណើរបុគ្គលិក'), p.label(), (st.scope && st.scope !== 'all') ? '🗂 ' + SEC.esc(commuteScopeLabel(st, lang)) : '');
+  var k = [];
+  if (commuteScopeOn(st,'vehicle')) k.push(['🚐', lb('派車','Trips','ដំណើរ'), D.trips.length]);
+  if (commuteScopeOn(st,'gate')) k.push(['🚛', lb('出入閘','Gate','ច្រក'), D.gate.length + (pax ? ' (👥' + pax + ')' : '')]);
+  if (commuteScopeOn(st,'bike')) k.push(['🏍', day ? lb('機車','Bikes','ម៉ូតូ') : lb('機車日均','Bikes/day','ម៉ូតូ/ថ្ងៃ'), day ? (D.bike[0] ? (+D.bike[0].total || 0) : 0) : avgB]);
+  if (commuteScopeOn(st,'late')) k.push(['⏰', lb('遲到','Late','មកយឺត'), D.late.length + (Object.keys(D.uniq).length && !day ? ' (' + Object.keys(D.uniq).length + ' ' + lb('人','ppl','នាក់') + ')' : '')]);
+  txt += '\n' + G.kpis(k, 2);
+  var warn = [];
+  if (timeBad.length) warn.push('⚠️ ' + lb('出入閘時間有誤','Gate time to check','ម៉ោងច្រកត្រូវពិនិត្យ') + ' <b>' + timeBad.length + '</b>');
+  if (D.rep.length && !day) warn.push('🔁 ' + lb('遲到 3 次以上','Late 3+ times','មកយឺត 3 ដង+') + ' <b>' + D.rep.length + '</b>');
+  var stillIn = D.gate.filter(function (r) { return r.inTime && !r.outTime; }).length;
+  if (day && stillIn) warn.push('🏭 ' + lb('車輛仍在廠內','Still inside','នៅក្នុងរោងចក្រ') + ' <b>' + stillIn + '</b>');
+  txt = txt.replace('━━━━━━━━━━━━', '━━━━━━━━━━━━\n' + G.verdict(timeBad.length ? 'bad' : warn.length ? 'warn' : 'ok',
+    warn.length ? lb(warn.length + ' 項需注意', warn.length + ' to check', warn.length + ' ត្រូវពិនិត្យ') : lb('一切正常', 'All clear', 'ធម្មតាទាំងអស់')));
+  if (warn.length) txt += '\n' + warn.join('  ·  ');
+  if (day || D.trips.length <= 6) {
+    if (D.trips.length) txt += G.sec('🚐', lb('派車行程','Vehicle trips','ដំណើររថយន្ត')) + '\n' + D.trips.slice(0, 12).map(function (t) { return commuteTripLine(t, lang, !day); }).join('\n') + (D.trips.length > 12 ? '\n… +' + (D.trips.length - 12) : '');
   }
-  var dk=Object.keys(drivers).sort(function(a,b2){return drivers[b2]-drivers[a];});
-  if(dk.length&&st.ptype!=='day'){var dl=['Driver           Trips'];dk.slice(0,12).forEach(function(k){dl.push(SEC.esc(commuteCell(k,17))+commuteCell(drivers[k],5));});txt+='\n<b>🚐 '+cmt(lang,'司機統計','Drivers','អ្នកបើកបរ')+'</b>\n'+commutePre(dl)+'\n';}
-  if(rep.length&&st.ptype!=='day'){var rl=['ID        Name          Dept        Times'];rep.slice(0,12).forEach(function(k){var u=uniq[k];rl.push(SEC.esc(commuteCell(u.id||'—',10))+SEC.esc(commuteCell(u.name||k,14))+SEC.esc(commuteCell(u.dept||'—',12))+u.n);});txt+='\n<b>🔁 '+cmt(lang,'重複遲到名單','Repeat Late','មកយឺតដដែលៗ')+'</b>\n'+commutePre(rl)+'\n';}
-  txt+='\n<i>'+(st.includeDetails?cmt(lang,'已選擇附逐筆明細；傳送前會再次確認。','Record details selected; a second confirmation is required.','បានជ្រើសព័ត៌មានលម្អិត; ត្រូវបញ្ជាក់ម្តងទៀតមុនផ្ញើ។'):cmt(lang,'摘要只顯示合併行程與統計；車輛、摩托車、遲到逐筆內容不展開。','Only grouped trips and totals are shown; individual vehicle, motorbike and late rows are omitted.','បង្ហាញតែសរុប និងដំណើររួម។'))+'</i>';
+  if (day || D.gate.length <= 4) {
+    if (D.gate.length) txt += G.sec('🚛', lb('出入閘','Gate log','កំណត់ត្រាច្រក')) + '\n' + D.gate.slice(0, 8).map(function (r) { return commuteGateLines(r, lang).join('\n'); }).join('\n') + (D.gate.length > 8 ? '\n… +' + (D.gate.length - 8) : '');
+  } else if (timeBad.length) {
+    txt += G.sec('⚠️', lb('時間有誤','Time to check','ម៉ោងត្រូវពិនិត្យ')) + '\n' + timeBad.slice(0, 6).map(function (r) { return '📅 ' + G.d(r.date) + ' ' + commuteGateLines(r, lang).join('\n'); }).join('\n');
+  }
+  if (day) {
+    if (D.late.length) txt += G.sec('⏰', lb('遲到','Late','មកយឺត') + ' · ' + D.late.length) + '\n' + D.late.slice(0, 20).map(commuteLateLine).join('\n') + (D.late.length > 20 ? '\n… +' + (D.late.length - 20) : '');
+  } else if (D.rep.length) {
+    txt += G.sec('🔁', lb('重複遲到','Repeat late','មកយឺតដដែលៗ')) + '\n' + D.rep.sort(function (a, b) { return D.uniq[b].n - D.uniq[a].n; }).slice(0, 12).map(function (key) { var u = D.uniq[key]; return '• ' + SEC.esc(u.id || '—') + ' <b>' + SEC.esc(u.name || key) + '</b>' + (u.dept ? ' · ' + SEC.esc(u.dept) : '') + ' · <b>' + u.n + '</b>' + lb('次','×','ដង'); }).join('\n');
+  }
+  if (!D.car.length && !D.gate.length && !D.bike.length && !D.late.length) txt += '\n\nℹ️ ' + lb('這段期間沒有紀錄','No records in this period','គ្មានកំណត់ត្រាក្នុងរយៈពេលនេះ');
   return txt;
 }
 
 function commuteSummaryPageDefs(st){
-  var lang=st.lang||'zh',p=commuteSummaryPeriod(st),defs=[{text:commuteSummary(st),photos:[]}];
+  var lang=st.lang||'zh',G=SEC.TG,lb=function(zh,en,km){return G.lbl(lang,zh,en,km);},D=commuteSummaryData(st),defs=[{text:commuteSummary(st),photos:[]}];
   if(!st.includeDetails)return defs;
-  function nFnSafe(fn,r){try{return fn(r)||'';}catch(e){return '';}}
-  function add(title,header,arr,rowFn,noteFn,per){
-    for(var i=0;i<arr.length;i+=per){var batch=arr.slice(i,i+per),lines=[header].concat(batch.map(rowFn)),pg='<b>'+title+'</b>\n'+commutePre(lines),notes=[];batch.forEach(function(r){var n=noteFn?nFnSafe(noteFn,r):'';if(n)notes.push(n);});if(notes.length)pg+='\n<b>📝 '+cmt(lang,'備註','Notes','កំណត់ចំណាំ')+'</b>\n'+notes.join('\n');var ph=[];batch.forEach(function(r){ph=ph.concat(commuteRecordPhotos(r));});defs.push({text:pg,photos:ph.filter(Boolean).slice(0,4)});}
+  /* 每頁 ≤ 3000 字；照片跟著同一頁的紀錄，最多 4 張 */
+  function add(title,rows,lineFn){
+    var by={};rows.forEach(function(r){(by[r.date||'—']=by[r.date||'—']||[]).push(r);});
+    var cur=[],size=0,ph=[];
+    function flush(){if(!cur.length)return;defs.push({text:'<b>'+title+'</b>\n'+cur.join('\n'),photos:ph.filter(Boolean).slice(0,4)});cur=[];size=0;ph=[];}
+    Object.keys(by).sort().forEach(function(d){
+      var block=['📅 <b>'+SEC.esc(G.d(d))+'</b> · '+by[d].length],bp=[];
+      by[d].forEach(function(r){block=block.concat(lineFn(r));bp=bp.concat(commuteRecordPhotos(r));});
+      var len=block.join('\n').length;
+      if(cur.length&&(size+len>3000||ph.length+bp.length>4))flush();
+      cur=cur.concat(block);size+=len+1;ph=ph.concat(bp);
+      if(size>3000)flush();
+    });
+    flush();
   }
-  var byDate=function(t){return function(a,b){return String(a.date||'').localeCompare(String(b.date||''))||String(a[t]||'').localeCompare(String(b[t]||''));};};
-  if(commuteScopeOn(st,'vehicle')){
-    var vr=live(CAR).filter(function(r){return p.has(r.date);}).slice().sort(byDate('outTime'));
-    add('🚐 '+cmt(lang,'車輛派遣','Vehicle Dispatch','ការចាត់ចែងរថយន្ត'),'Date  Driver       Plate      Type      Out-In      KM  Ph',vr,function(r){return commuteCell(commuteShortDate(r.date),6)+SEC.esc(commuteCell(r.driver||'—',13))+SEC.esc(commuteCell(r.plate||'—',11))+SEC.esc(commuteCell(commuteCategoryLabel(r.category||r.type||'—','en'),10))+commuteCell((r.outTime||'—')+'-'+(r.inTime||'—'),12)+commuteCell(r.km||0,4)+commuteRecordPhotos(r).length;},function(r){return '· '+SEC.esc(r.date||'—')+' · '+SEC.esc(r.driver||'—')+' · '+cmt(lang,'事由','Reason','មូលហេតុ')+' '+SEC.esc(r.reason||'—')+' · '+cmt(lang,'核可人','Approver','អ្នកអនុម័ត')+' '+SEC.esc(r.approver||'—')+' · '+SEC.esc(approvalText(r,lang));},10);
-  }
-  if(commuteScopeOn(st,'gate')){
-    var gr=live(GATE).filter(function(r){return p.has(r.date);}).slice().sort(byDate('outTime'));
-    add('🚛 '+cmt(lang,'車輛出入閘','Gate Logs','កំណត់ត្រាច្រក'),'Date  Plate      Driver       Pax Out-In      KM  Ph',gr,function(r){return commuteCell(commuteShortDate(r.date),6)+SEC.esc(commuteCell(r.plate||'—',11))+SEC.esc(commuteCell(r.driver||'—',13))+commuteCell(r.pax||0,4)+commuteCell((r.outTime||'—')+'-'+(r.inTime||'—'),12)+commuteCell(r.km||0,4)+commuteRecordPhotos(r).length;},function(r){return '· '+SEC.esc(r.date||'—')+' · '+cmt(lang,'乘客','Passenger','អ្នកដំណើរ')+' '+SEC.esc(r.passenger||'—')+' · '+cmt(lang,'部門','Dept','ផ្នែក')+' '+SEC.esc(r.dept||'—')+' · '+cmt(lang,'原因','Reason','មូលហេតុ')+' '+SEC.esc(r.reason||'—');},10);
-  }
-  if(commuteScopeOn(st,'bike')){
-    var br=live(BIKE).filter(function(r){return p.has(r.date);}).slice().sort(byDate('date'));
-    add('🏍 '+cmt(lang,'摩托車','Motorbike','ម៉ូតូ'),'Date   Bldg A  Bldg B  Total   Photo',br,function(r){return commuteCell(commuteShortDate(r.date),7)+commuteCell(r.a||0,8)+commuteCell(r.b||0,8)+commuteCell(r.total||0,8)+commuteRecordPhotos(r).length;},function(r){var n=r.remark||r.note;return n?('· '+SEC.esc(r.date||'—')+' · '+SEC.esc(n)):'';},14);
-  }
-  if(commuteScopeOn(st,'late')){
-    var lr=live(LATE).filter(function(r){return p.has(r.date);}).slice().sort(byDate('checkIn'));
-    add('⏰ '+cmt(lang,'遲到登記','Late Records','កំណត់ត្រាមកយឺត'),'Date  ID        Name         Dept       In    Out   Gate   Ph',lr,function(r){return commuteCell(commuteShortDate(r.date),6)+SEC.esc(commuteCell(r.empId||'—',10))+SEC.esc(commuteCell(r.name||'—',13))+SEC.esc(commuteCell(r.dept||'—',11))+commuteCell((r.checkIn||'—').slice(0,5),6)+commuteCell((r.checkOut||'—').slice(0,5),6)+SEC.esc(commuteCell(r.gate||'—',7))+commuteRecordPhotos(r).length;},function(r){return r.note?('· '+SEC.esc(r.date||'—')+' · '+SEC.esc(r.empId||r.name||'—')+' · '+SEC.esc(r.note)):'';},12);
-  }
+  if(commuteScopeOn(st,'vehicle'))add('🚐 '+lb('派車明細','Vehicle trips','ការចាត់ចែងរថយន្ត'),D.car,function(r){
+    var l='• '+(G.time(r.outTime)||'—')+'→'+(G.time(r.inTime)||'—')+' · <b>'+SEC.esc(r.driver||'—')+'</b> · '+SEC.esc(r.plate||'—')+(+r.km?' · '+(+r.km)+' km':'');
+    var l2='   '+G.lbl('zh',SEC.esc(commuteCategoryLabel(r.category||r.type||'—',lang)))+' · '+G.lbl('zh',SEC.esc(approvalText(r,lang)))+(r.approver?' · ✔ '+SEC.esc(r.approver):'')+(r.reason?' · 📝 '+SEC.esc(r.reason):'');
+    return [l,l2];
+  });
+  if(commuteScopeOn(st,'gate'))add('🚛 '+lb('出入閘明細','Gate log','កំណត់ត្រាច្រក'),D.gate,function(r){return commuteGateLines(r,lang);});
+  if(commuteScopeOn(st,'bike'))add('🏍 '+lb('機車','Motorbikes','ម៉ូតូ'),D.bike,function(r){return ['• A '+(+r.a||0)+' · B '+(+r.b||0)+' · '+lb('合計','Total','សរុប')+' <b>'+(+r.total||0)+'</b>'+((r.remark||r.note)?' · 📝 '+SEC.esc(r.remark||r.note):'')];});
+  if(commuteScopeOn(st,'late'))add('⏰ '+lb('遲到明細','Late records','កំណត់ត្រាមកយឺត'),D.late,function(r){return [commuteLateLine(r)];});
   return defs;
 }
 function commuteSummaryPages(st) { return commuteSummaryPageDefs(st).map(function(x){return x.text;}); }
@@ -1382,9 +1417,11 @@ function commuteApprovalPreview(st, items) {
   var p=commuteSummaryPeriod(st),l=st.lang||'zh',by={};
   if(!items.length)return cmt(l,'本期間沒有待送核可的車輛派遣。','No vehicle dispatch waiting for approval in this period.','គ្មានការចាត់ចែងរថយន្តរង់ចាំអនុម័តក្នុងរយៈពេលនេះ។');
   items.forEach(function(x){by[x.group||x.dept||'—']=(by[x.group||x.dept||'—']||0)+1;});
-  var txt='✅ <b>'+cmt(l,'車輛派遣核可請求','Vehicle dispatch approval request','សំណើអនុម័តការចាត់ចែងរថយន្ត')+'</b> · '+SEC.esc(p.label())+' · '+SEC.esc(commuteScopeLabel(st,l))+'\n─────────────\n'+commutePre(['Field                Value','Records              '+items.length,'Photos               '+items.reduce(function(n,x){return n+(Array.isArray(x.photos)?x.photos.length:(x.photo?1:0));},0)]);
-  var cats=['Category        Qty'];Object.keys(by).sort().forEach(function(k){cats.push(commuteCell(k,16)+by[k]);});if(cats.length>1)txt+='\n<b>📂 '+cmt(l,'分類','Categories','ប្រភេទ')+'</b>\n'+commutePre(cats);
-  txt+='\n<b>📋 '+cmt(l,'明細','Details','ព័ត៌មានលម្អិត')+'</b>';items.slice(0,8).forEach(function(x,i){txt+='\n┌ #'+(i+1)+' '+SEC.esc(x.name||'—')+'\n│ Date      '+SEC.esc(x.date||'—')+'\n│ Category  '+SEC.esc(x.dept||x.group||'—')+'\n│ Info      '+SEC.esc(x.info||'—')+'\n│ Reason    '+SEC.esc(x.reason||'—')+'\n│ Photos    '+(Array.isArray(x.photos)?x.photos.length:(x.photo?1:0))+'\n└';});if(items.length>8)txt+='\n… +'+(items.length-8)+' records';
+  var ph=items.reduce(function(n,x){return n+(Array.isArray(x.photos)?x.photos.length:(x.photo?1:0));},0);
+  var txt='✅ <b>'+cmt(l,'車輛派遣核可請求','Vehicle dispatch approval request','សំណើអនុម័តការចាត់ចែងរថយន្ត')+'</b>\n📅 '+SEC.esc(p.label())+' · '+SEC.esc(commuteScopeLabel(st,l))+'\n━━━━━━━━━━━━\n'+
+    '📦 '+cmt(l,'筆數','Records','កំណត់ត្រា')+' <b>'+items.length+'</b>'+(ph?'  ·  📷 '+ph:'')+'\n';
+  items.slice(0,8).forEach(function(x,i){txt+='\n<b>#'+(i+1)+'</b> '+SEC.esc(SEC.TG.d(x.date||'—'))+' · <b>'+SEC.esc(x.name||'—')+'</b>'+(x.qty>1?' ×'+x.qty:'')+'\n   '+SEC.esc(x.info||'—')+(x.reason?'\n   📝 '+SEC.esc(x.reason):'');});
+  if(items.length>8)txt+='\n… +'+(items.length-8);
   return txt;
 }
 function commuteApprovalSent(result, st, items) {

@@ -25,7 +25,7 @@ const PAUL = '5026942575', GUARD = '999', KEY = 'k' + 'a1b2c3d4e5f6';
   };
   w.SEC.scheduleAutoCloudSync = () => {};
   const run = code => w.eval(code);
-  run(`PER = new SEC.Period('month'); PER.set && PER.set('2026-09');
+  run(`PER = new SEC.Period('month'); PER.at = new Date(2026, 8, 15);
        DB = [
         {id:'r-A', code:'SVC-202609-001', name:'Security service fee', cat:'Security Fee', vendor:'GS Co', qty:1, unit:'month', amount:1200, date:'2026-09-01'},
         {id:'r-B', code:'SVC-202609-002', name:'Security service fee', cat:'Security Fee', vendor:'GS Co', qty:1, unit:'month', amount:300,  date:'2026-09-02'},

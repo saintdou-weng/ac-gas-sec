@@ -171,7 +171,7 @@ function readXlsx(w,file){return new Promise((res,rej)=>{try{w.SEC.readWorkbook(
    w.saveAdd();assert(row.querySelector('.late-name').classList.contains('bad'),'required name/ID highlighted');
    row.querySelector('.late-name').value='Worker Z';row.querySelector('.late-gate').value='Guard Last';const n=w.LATE.length;w.saveAdd();assert.equal(w.LATE.length,n+1);
    w.openAdd('late');assert.equal(d.querySelector('#lateRows .late-gate').value,'Guard Last','last used gatekeeper remembered');w.closeAdd();
-   w.renderLate();const btn=[...d.querySelectorAll('#tbLate button')].find(b=>/刪除/.test(b.textContent));assert(btn,'labelled delete button');
+   if(w.PER&&w.PER.today)w.PER.today();w.renderLate();const btn=[...d.querySelectorAll('#tbLate tr')].filter(tr=>/Worker Z/.test(tr.textContent)).map(tr=>[...tr.querySelectorAll('button')].find(b=>/刪除/.test(b.textContent))).find(Boolean)||[...d.querySelectorAll('#tbLate button')].find(b=>/刪除/.test(b.textContent));assert(btn,'labelled delete button');
    const id=btn.getAttribute('onclick').match(/del\('late','([^']+)'\)/)[1];let asked='';w.confirm=m=>{asked=m;return false;};w.del('late',id);assert.match(asked,/Worker Z/);assert.equal(w.LATE.length,n+1,'cancel keeps record');
    w.confirm=()=>true;w.del('late',id);assert.equal(w.LATE.length,n);
    w.openAdd('car');assert.match(d.getElementById('m_outTime').value,/^\d\d:\d\d$/);assert.equal(d.getElementById('m_date').value,w.SEC.ymd());w.closeAdd();

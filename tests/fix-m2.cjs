@@ -127,8 +127,9 @@ function offline(w){w.fetch=async()=>{throw new TypeError('Failed to fetch');};}
      const defs=w.containerSummaryPageDefs({ptype:'month',period:w.PER.key(),lang,includeDetails:details});
      defs.forEach(x=>assert(!CJK.test(x.text),lang+' telegram: '+x.text));
     }
-    const s=w.containerSummary({ptype:'month',period:w.PER.key(),lang,includeDetails:false});assert(/: 1\b/.test(s));
-    assert(!/: 2\b/.test(s.split('\n').find(l=>/Gate|លិខិតចេញ \//.test(l))||''),'deleted pass not counted');
+    const s=w.containerSummary({ptype:'month',period:w.PER.key(),lang,includeDetails:false});assert(/📦 [^\n]*<b>1<\/b>/.test(s),'1 container counted: '+s);
+    const gd=w.containerGateDocSummary({ptype:'month',period:w.PER.key(),lang,includeDetails:false});/* gate documents now go to their own page */
+    assert(/GA-01[^\n]*<b>1<\/b>[^\n]*GA-04[^\n]*<b>0<\/b>/.test(gd),'deleted delivery note not counted: '+gd);assert(!CJK.test(gd),lang+' gate doc page: '+gd);
     const cap=exportCapture(w);w.tkExp();w.ciExp();w.gdExp();assert.deepEqual(exportCJK(cap),[],lang+' excel');
     assert.equal(cap[2][0].rows.length,1,'excel excludes _deleted');
    }
