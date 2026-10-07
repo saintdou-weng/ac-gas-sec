@@ -349,7 +349,7 @@
 <button class="btn" id="eSaveBtn" onclick="saveEdit()" data-zh="儲存" data-en="Save" data-km="រក្សាទុក">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20261002a"></script>
+<script src="./shared/sec-core.js?v=20261006a"></script>
 <script src="./shared/sec-asset-changes.js?v=20260929a"></script>
 <script src="./shared/sec-smart-sync.js?v=20260929a"></script>
 <script>
@@ -1501,7 +1501,7 @@ function fireSummary(st) {
   var abnormal=Math.max(hs.bad||0,inspBad),normal=Math.max(0,hs.checked-hs.bad),pending=Math.max(0,list.length-hs.checked);
   var txt=G.head('🧯',lb('消防設備狀態','Fire equipment status','ស្ថានភាពឧបករណ៍ពន្លត់អគ្គិភ័យ'),p.label(),fireScopeSub(st,lang));
   var nBad=abnormal+over,nWarn=soon+pending;
-  txt+='\n'+G.verdict(nBad?'bad':nWarn?'warn':'ok',!list.length?lb('沒有設備資料','No equipment','គ្មានឧបករណ៍'):nBad?lb(nBad+' 項需處理',nBad+' need action',nBad+' ត្រូវដោះស្រាយ'):nWarn?lb(nWarn+' 項需注意',nWarn+' to watch',nWarn+' ត្រូវតាមដាន'):lb('全部正常','All equipment OK','ឧបករណ៍ទាំងអស់ធម្មតា'));
+  txt+='\n'+G.verdict(nBad?'bad':nWarn?'warn':'ok',!list.length?lb('沒有設備資料','No equipment','គ្មានឧបករណ៍'):nBad?lb(nBad+' 項需處理',nBad+' need action',nBad+' ត្រូវដោះស្រាយ')+(soon?' · ⏰ '+soon+lb(' 將到期',' due soon',' ជិតផុតកំណត់'):''):nWarn?lb(nWarn+' 項需注意',nWarn+' to watch',nWarn+' ត្រូវតាមដាន'):lb('全部正常','All equipment OK','ឧបករណ៍ទាំងអស់ធម្មតា'));
   if(list.length)txt+='\n'+G.bar(list.length-abnormal-over,list.length)+' '+lb('正常','OK','ធម្មតា');
   txt+='\n'+G.kpis([['🧯',lb('設備','Equipment','ឧបករណ៍'),list.length],['🔍',lb('已檢查','Checked','បានពិនិត្យ'),hs.checked],['⏳',lb('未檢查','Not checked','មិនទាន់ពិនិត្យ'),pending]],3);
   txt+='\n'+G.kpis([['✅',lb('正常','Normal','ធម្មតា'),normal],['⚠️',lb('異常','Abnormal','មិនប្រក្រតី'),abnormal]],2);

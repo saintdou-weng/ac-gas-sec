@@ -280,7 +280,7 @@
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20261002a"></script>
+<script src="./shared/sec-core.js?v=20261006a"></script>
 <script src="./shared/sec-smart-sync.js?v=20260929a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
@@ -1869,18 +1869,46 @@ function patrolSummary(st) {
       (available.length ? '\n' + lb('已有資料月份', 'Months with data', 'ខែដែលមានទិន្នន័យ') + ': ' + available.join(', ') : '');
   } else if (warn.length) txt += '\n' + warn.join('  ·  ');
   else if ((D.list.length || D.manual.length) && D.checks.length && !D.issues.length && !D.badChecks.length) txt += '\n✅ ' + lb('全部正常', 'All normal', 'ធម្មតាទាំងអស់');
-  /* 需注意：未完整圈（列出漏了哪些點）、人工異常、確認表異常／未勾 */
-  var att = [];
-  D.inc.slice(0, 5).forEach(function (r) { att.push(patrolRoundLine(r, lang, !day)); });
-  if (D.inc.length > 5) att.push('… +' + (D.inc.length - 5));
-  D.issues.slice(0, 5).forEach(function (r) { att.push(patrolManualLine(r, lang, !day)); if (r.note) att.push('   📝 ' + SEC.esc(r.note)); });
-  D.badChecks.slice(0, 5).forEach(function (r) {
-    var bad = PC_KEYS.filter(function (k) { return patrolCheckValue(r, k) === 'issue'; }), miss = patrolCheckMissing(r), w = [];
-    if (bad.length) w.push('❌ ' + patrolPcGroup(bad, lang));
-    if (miss.length) w.push('⚠️ ' + lb('未勾', 'Unchecked', 'មិនបានគូស') + ' ' + patrolPcGroup(miss, lang));
-    att.push('• ' + (day ? '' : G.d(r.date) + ' ') + '📋 <b>' + SEC.esc(r.guard || '—') + '</b>' + (w.length ? ' · ' + w.join(' · ') : ''));
-    if (r.note) att.push('   📝 ' + SEC.esc(r.note));
+  /* 需注意（2026-10-06 精簡）：
+     未完整圈 → 日報逐圈列（含漏點名稱）；週／月報改成「同一天同一人一行」只給圈數與漏點數，不列點名。
+     確認表異常 → 同樣的問題只寫一次：「❌ 照明 · 6 天 (09-01~03, 09-06…) · sreynin」，備註只保留最新一則、最多 80 字。 */
+  var att = [], MAXN = 8;
+  if (day) {
+    D.inc.slice(0, 6).forEach(function (r) { att.push(patrolRoundLine(r, lang, false)); });
+    if (D.inc.length > 6) att.push('… +' + (D.inc.length - 6));
+  } else {
+    var incBy = {};
+    /* 只刷 1 點、不到 2 分鐘就結束的圈 = 誤觸，另外標示 */
+    var stray = function (r) { var a = G.mins(G.time(r.start)), b = G.mins(G.time(r.end)); return r.chips.length <= 1 && a != null && b != null && (b - a) < 2; };
+    D.inc.forEach(function (r) { var k = r.date + '|' + (r.g || '—'); var o = incBy[k] || (incBy[k] = { date:r.date, g:r.g || '—', n:0, miss:0, stray:0 }); if (stray(r)) o.stray++; else { o.n++; o.miss += roundMissing(r).length; } });
+    var incKeys = Object.keys(incBy).sort();
+    incKeys.slice(0, 6).forEach(function (k) { var o = incBy[k], parts = [];
+      if (o.n) parts.push(lb('未完整', 'incomplete', 'មិនពេញលេញ') + ' <b>' + o.n + '</b>' + lb('圈', ' rounds', ' ជុំ') + ' · ' + lb('漏', 'missed', 'ខកខាន') + ' ' + o.miss + lb('點', ' pts', ' ចំណុច'));
+      if (o.stray) parts.push(lb('誤觸', 'false start', 'ចុចខុស') + ' ' + o.stray);
+      att.push('• ' + G.d(o.date) + ' <b>' + SEC.esc(o.g) + '</b> · ' + parts.join(' · ')); });
+    if (incKeys.length > 6) att.push('… +' + (incKeys.length - 6));
+  }
+  D.issues.slice(0, 4).forEach(function (r) { att.push(patrolManualLine(r, lang, !day) + (r.note ? ' · 📝 ' + SEC.esc(String(r.note).slice(0, 80)) : '')); });
+  if (D.issues.length > 4) att.push('… +' + (D.issues.length - 4));
+  /* 確認表：依「異常項目組合」分組 */
+  var grp = {};
+  D.badChecks.forEach(function (r) {
+    var bad = PC_KEYS.filter(function (k) { return patrolCheckValue(r, k) === 'issue'; }), miss = patrolCheckMissing(r);
+    var key = bad.join(',') + '|' + miss.join(',');
+    var o = grp[key] || (grp[key] = { bad:bad, miss:miss, dates:[], guards:{}, note:'', noteDate:'' });
+    o.dates.push(r.date); if (r.guard) o.guards[r.guard] = 1;
+    if (r.note && String(r.date) >= o.noteDate) { o.note = String(r.note); o.noteDate = String(r.date); }
   });
+  Object.keys(grp).sort(function (a, b) { return grp[b].dates.length - grp[a].dates.length; }).slice(0, 4).forEach(function (k) {
+    var o = grp[k], w = [];
+    if (o.bad.length) w.push('❌ ' + patrolPcGroup(o.bad, lang));
+    if (o.miss.length) w.push('⚠️ ' + lb('未勾', 'Unchecked', 'មិនបានគូស') + ' ' + patrolPcGroup(o.miss, lang));
+    if (!w.length) w.push('📝');
+    var when = day ? '' : ' · ' + (o.dates.length > 1 ? '<b>' + o.dates.length + '</b>' + lb('天', ' days', ' ថ្ងៃ') + ' (' + G.ranges(o.dates) + ')' : G.d(o.dates[0]));
+    att.push('• 📋 ' + w.join(' · ') + when + ' · ' + Object.keys(o.guards).slice(0, 2).map(SEC.esc).join(', '));
+    if (o.note) att.push('   📝 ' + SEC.esc(o.note.length > 80 ? o.note.slice(0, 79) + '…' : o.note));
+  });
+  if (att.length > MAXN + 2) { att = att.slice(0, MAXN); att.push('… ' + lb('其餘請看明細', 'more in details', 'បន្ថែមក្នុងលម្អិត')); }
   if (att.length) txt += G.sec('⚠️', lb('需注意', 'Needs attention', 'ត្រូវយកចិត្តទុកដាក់')) + '\n' + att.join('\n');
   /* 六項確認一行：✅ 門 窗 水 電 消防通道 · ❌ 照明 */
   txt += G.sec('📋', lb('巡邏確認', 'Completion check', 'ការបញ្ជាក់ការល្បាត')) + '\n' +

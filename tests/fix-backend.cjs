@@ -479,6 +479,22 @@ await section('#17 approval document (2026-10-01 「核可文件產生失敗」)
  assert(!/<blockquote>/.test(card)&&!/\S {3,}\S/.test(card.replace(/  ·  /g,' · ')),'approval card has no padded table');
 });
 
+await section('#18 same-day daily summary re-send updates the original group message instead of posting again (2026-10-06)',async()=>{
+ const r=rt('2026-10-06T03:00:00Z');const edits=[];r.c.tgEdit=(chat,id,text,kb)=>{edits.push({chat,id,text,kb});return true;};
+ const body=(txt)=>({action:'telegramBatch',module:'commute',lang:'en',mode:'summary',period:'2026-10-06',periodType:'day',scope:'gate',pages:[{text:txt,photo:'',photos:[]}]});
+ let out=r.post(body('🚦 <b>Commute</b>\n🚛 Gate <b>1</b>')).data;assert(out.sent&&!out.updated,'first send posts a new message');
+ const n1=r.messages.length,mid=out.messageId;
+ out=r.post(body('🚦 <b>Commute</b>\n🚛 Gate <b>2</b>')).data;
+ assert(out.sent&&out.updated&&String(out.messageId)===String(mid),'second send same day → edit: '+JSON.stringify(out));
+ assert.equal(r.messages.length,n1,'no new group message');assert(edits.length===1&&/Gate <b>2<\/b>/.test(edits[0].text),'original message now shows the latest numbers');
+ out=r.post(body('🚦 <b>Commute</b>\n🚛 Gate <b>2</b>')).data;assert(out.skippedDuplicate,'identical content → nothing sent');
+ /* month report or a report with photos is never edited into */
+ const m=r.post(Object.assign(body('x'),{period:'2026-10',periodType:'month'})).data;assert(m.sent&&!m.updated);
+ const m2=r.post(Object.assign(body('y'),{period:'2026-10',periodType:'month'})).data;assert(m2.sent&&!m2.updated&&r.messages.length>n1,'monthly re-send posts a new message');
+ /* another day → new message */
+ r.setDate('2026-10-07T03:00:00Z');const n2=r.messages.length;out=r.post(Object.assign(body('🚦 <b>Commute</b>\n🚛 Gate <b>1</b>'),{period:'2026-10-07'})).data;assert(out.sent&&!out.updated&&r.messages.length>n2);
+});
+
 if(failures){console.log('\n'+failures+' section(s) FAILED');process.exit(1);}
 console.log('\nALL fix-backend sections passed');
 })();

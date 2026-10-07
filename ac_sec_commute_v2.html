@@ -236,7 +236,7 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
 <div class="mf"><button class="btn gray" onclick="SEC.closeModal('mDrivers')" data-t="cancel">取消</button>
 <button class="btn" id="btnSaveDrivers" onclick="saveDriverManager()" data-t="save">儲存</button></div></div></div>
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20261002a"></script>
+<script src="./shared/sec-core.js?v=20261006a"></script>
 <script src="./shared/sec-smart-sync.js?v=20260929a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
@@ -1332,7 +1332,9 @@ function commuteSummary(st) {
   var k = [];
   if (commuteScopeOn(st,'vehicle')) k.push(['🚐', lb('派車','Trips','ដំណើរ'), D.trips.length]);
   if (commuteScopeOn(st,'gate')) k.push(['🚛', lb('出入閘','Gate','ច្រក'), D.gate.length + (pax ? ' (👥' + pax + ')' : '')]);
-  if (commuteScopeOn(st,'bike')) k.push(['🏍', day ? lb('機車','Bikes','ម៉ូតូ') : lb('機車日均','Bikes/day','ម៉ូតូ/ថ្ងៃ'), day ? (D.bike[0] ? (+D.bike[0].total || 0) : 0) : avgB]);
+  var bikeA = D.bike.reduce(function (s2, r) { return s2 + (+r.a || 0); }, 0), bikeB = D.bike.reduce(function (s2, r) { return s2 + (+r.b || 0); }, 0), bikeN = D.bike.length || 1;
+  var bikeAB = D.bike.length ? '</b> · A ' + Math.round(bikeA / (day ? 1 : bikeN)) + ' · B ' + Math.round(bikeB / (day ? 1 : bikeN)) + '<b>' : '';
+  if (commuteScopeOn(st,'bike')) k.push(['🏍', day ? lb('機車','Bikes','ម៉ូតូ') : lb('機車日均','Bikes/day','ម៉ូតូ/ថ្ងៃ'), (day ? (D.bike[0] ? (+D.bike[0].total || 0) : 0) : avgB) + bikeAB]);
   if (commuteScopeOn(st,'late')) k.push(['⏰', lb('遲到','Late','មកយឺត'), D.late.length + (Object.keys(D.uniq).length && !day ? ' (' + Object.keys(D.uniq).length + ' ' + lb('人','ppl','នាក់') + ')' : '')]);
   txt += '\n' + G.kpis(k, 2);
   var warn = [];

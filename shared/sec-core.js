@@ -1613,7 +1613,8 @@ function tgOpen(opt) {
         }
         if(typeof opt.onSummarySent==='function')await opt.onSummarySent(st,sentResult);
         scheduleAutoCloudSync(opt.module || '', opt.reportKind==='masterChanges'?'master-summary':'telegram-summary', st.period || '');
-        if (sentResult.skippedDuplicate) toast(L('♻️ 相同摘要已送過，本次未重複發送', '♻️ The same summary was already sent; not sent again', '♻️ សេចក្តីសង្ខេបដដែលបានផ្ញើរួចហើយ មិនផ្ញើម្តងទៀតទេ'), 'warn', 5500);
+        if (sentResult.updated) { toast(L('↻ 今天已發過這份日報，已更新原訊息', '↻ Today\'s report already sent; the original message was updated', '↻ បានធ្វើបច្ចុប្បន្នភាពសារដើមរបស់ថ្ងៃនេះ'), 'ok', 5000); tgSentFx(L('已更新群組訊息', 'Group message updated', 'បានធ្វើបច្ចុប្បន្នភាព')); }
+        else if (sentResult.skippedDuplicate) toast(L('♻️ 相同摘要已送過，本次未重複發送', '♻️ The same summary was already sent; not sent again', '♻️ សេចក្តីសង្ខេបដដែលបានផ្ញើរួចហើយ មិនផ្ញើម្តងទៀតទេ'), 'warn', 5500);
         else { toast(L('✈️ Telegram 摘要已送出', '✈️ Telegram summary sent', '✈️ បានផ្ញើសេចក្តីសង្ខេប Telegram') + (pages.length > 1 ? ' (' + pages.length + ')' : ''), 'ok'); tgSentFx(L('已送到群組', 'Sent to the group', 'បានផ្ញើទៅក្រុម')); }
       } else {
         var items = liveItems(opt.approvalItems ? opt.approvalItems(st) : []);
