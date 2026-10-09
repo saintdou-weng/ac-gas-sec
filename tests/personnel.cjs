@@ -46,11 +46,26 @@ const original={id:'S1',empId:'A001',name:'Original Guard',shift:'A',post:'Gate 
   // Real importer, including repeated workbook and a past-month import after a resignation.
   await w.SEC.dbPut('ac_sec_personnel_db',[copy(original)]);await w.SEC.dbPut('ac_sec_personnel_chg',[]);w.ATT={};w.ATT_LOG=[];w.ATT_INFO={};
   const sheets=[{name:'2026-08',fileName:'Attendance 2026-08.xlsx',rows:[['Day Shift 2026-08'],['ID','Name',...Array.from({length:31},(_,i)=>i+1)],['A001','Original Guard','W','R'],['A002','New Guard','W','W'],['','Red= Dayoff A'],['','Green= take Leave A']]}];
-  let imported;w.SEC.pickExcel=cb=>{imported=cb(copy(sheets));};w.impExcel();await imported;let x=await P.read();assert.equal(x.db.length,2);assert.equal(w.ATT_LOG.length,4);assert.equal(Object.keys(w.ATT['2026-08']).length,2);const count=x.changes.length;
-  w.impExcel();await imported;x=await P.read();assert.equal(x.db.length,2);assert.equal(x.changes.length,count);assert.equal(w.ATT_LOG.length,4);
-  const old=x.db.find(r=>r.id==='S1');P.apply(x.db,x.changes,{...P.snapshot(old,'2026-09'),status:'resigned'},{id:old.id,month:'2026-09',date:'2026-09-14'});await P.persist(x.db,x.changes);w.impExcel();await imported;x=await P.read();assert.equal(P.snapshot(x.db.find(r=>r.id==='S1'),'2026-09').status,'resigned');
-  let uploaded=[];w.SEC.cloudPush=async(tool,rows)=>{uploaded.push({tool,rows:copy(rows)});return true;};await w.doUpload();assert.deepEqual(uploaded.map(x=>x.tool),['personnel','attendance']);assert.equal(uploaded[1].rows.filter(r=>r.month).length,2);
-  console.log('PASS: roster modal save/retry/double-click, real Excel importer repeated twice, legends excluded, old-month reimport after departure and dual-module upload');
+  // Every import waits for the "not in roster" list when needed; the loop keeps Node alive so a hung prompt fails loudly instead of exiting 0.
+  const runImp=async(book,pick)=>{let modal=null,done=false,p;w.SEC.pickExcel=cb=>{p=cb(copy(book));};w.impExcel();p.then(()=>{done=true;});for(let k=0;!done;k++){assert(k<500,'import never finished');const m=w.document.querySelector('[data-att-unmatched]');if(m&&m!==modal){modal=m;if(pick)pick(m);else m.querySelector('[data-ok]').click();}await new Promise(r=>setTimeout(r,10));}await p;return modal;};
+  // Cancel writes nothing.
+  let modal=await runImp(sheets,m=>m.querySelector('[data-cancel]').click());assert(modal);assert.equal(w.ATT_LOG.length,0,'cancel writes no punches');assert.equal((await P.read()).db.length,1,'cancel creates nobody');
+  modal=await runImp(sheets);assert(modal,'unmatched list shown');const listed=[...modal.querySelectorAll('[data-u-name]')].map(r=>r.textContent);assert.deepEqual(listed,['New Guard'],'only the unknown person is listed; roster person matched by ID');
+  let x=await P.read();assert.equal(x.db.length,2);const ng=x.db.find(r=>r.name==='New Guard');assert.equal(P.snapshot(ng,'2026-08').status,'resigned','unknown person is NOT created as active');
+  assert.deepEqual([...P.list(x.db,'2026-08').map(r=>r.name)],['Original Guard'],'historical staff not counted as active');assert.equal(w.ATT_LOG.length,4);assert.equal(Object.keys(w.ATT['2026-08']).length,2);const count=x.changes.length;
+  modal=await runImp(sheets);assert(!modal,'re-import: historical person now matched by ID, no prompt');x=await P.read();assert.equal(x.db.length,2);assert.equal(x.changes.length,count);assert.equal(w.ATT_LOG.length,4);
+  const old=x.db.find(r=>r.id==='S1');P.apply(x.db,x.changes,{...P.snapshot(old,'2026-09'),status:'resigned'},{id:old.id,month:'2026-09',date:'2026-09-14'});await P.persist(x.db,x.changes);await runImp(sheets);x=await P.read();assert.equal(P.snapshot(x.db.find(r=>r.id==='S1'),'2026-09').status,'resigned');
+  // Long format, three months in one file: ID first (A001 = 1), then name ignoring case/spaces, manual match remembered.
+  w.PER.at=new w.Date(2026,0,1);
+  const longBook=[{name:'Log',fileName:'att-log.xlsx',rows:[['Attendance log'],['工號','姓名','日期','狀態','上班','下班'],['1','Someone Else','2026-07-31','W','07:00','19:00'],['',' new   GUARD ','2026-09-02','absent','',''],['A777','Mapped Person','2026-09-03','Present','07:05','19:00'],['A001','Original Guard','2026-08-03','Leave','','']]}];
+  const k1=w.key(P.snapshot(x.db.find(r=>r.id==='S1'),'2026-07')),k2=w.key(P.snapshot(ng,'2026-09'));
+  modal=await runImp(longBook,m=>{const rows=[...m.querySelectorAll('[data-u-row]')];assert.equal(rows.length,1,'only the unknown ID is listed');assert(rows[0].textContent.includes('Mapped Person'));m.querySelector('select[data-u]').value='S1';m.querySelector('[data-ok]').click();});
+  assert(modal);assert.equal(w.ATT['2026-07'][k1]['31'],'W','ID 1 matched A001 → July');assert.equal(w.ATT['2026-08'][k1]['03'],'L','August by date, not displayed month');
+  assert.equal(w.ATT['2026-09'][k2]['02'],'A','name matched ignoring case/spaces → September');assert.equal(w.ATT['2026-09'][k1]['03'],'W','manual match to S1');
+  assert(w.ATT_LOG.some(r=>r.date==='2026-07-31'&&r.inTime==='07:00'&&r.outTime==='19:00'));x=await P.read();assert.equal(x.db.length,2,'long import created nobody');
+  const logN=w.ATT_LOG.length;modal=await runImp(longBook);assert(!modal,'manual match remembered');assert.equal(w.ATT_LOG.length,logN,'long re-import no duplicates');
+  let uploaded=[];w.SEC.cloudPush=async(tool,rows)=>{uploaded.push({tool,rows:copy(rows)});return true;};await w.doUpload();assert.deepEqual(uploaded.map(x=>x.tool),['personnel','attendance']);assert.equal(uploaded[1].rows.filter(r=>r.month).length,5,'07:1 + 08:2 + 09:2 person-month rows');
+  console.log('PASS: roster modal save/retry/double-click, real Excel importer (unknown names listed, cancel = no write, historical not active, ID-first / name ignoring case+spaces, remembered matches, long format across 3 months) repeated, legends excluded, old-month reimport after departure and dual-module upload');
  }finally{page.dom.window.close();}
  const personnel=await load('ac_sec_personnel_v1.html'),v=personnel.w,Q=v.SEC.Personnel;assert.deepEqual(personnel.errors,[]);
  try{

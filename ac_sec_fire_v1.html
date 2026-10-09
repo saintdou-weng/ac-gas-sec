@@ -296,6 +296,7 @@
       <h3>💾 <span data-zh="資料工具" data-en="Data Tools" data-km="ឧបករណ៍ទិន្នន័យ">資料工具</span></h3>
       <div class="row">
         <button class="btn" onclick="impExcel()">📥 <span data-zh="匯入設備清單 Excel" data-en="Import equipment" data-km="នាំចូលឧបករណ៍">匯入設備清單 Excel</span></button>
+        <button class="btn gh" onclick="impHistExcel()">📜 <span data-zh="匯入歷史月檢表" data-en="Import past monthly checks" data-km="នាំចូលការត្រួតពិនិត្យចាស់">匯入歷史月檢表</span></button>
         <button class="btn" onclick="applyFireSeed(true)">🔄 <span data-zh="套用附件 Excel 基準" data-en="Apply supplied Excel baseline" data-km="អនុវត្តមូលដ្ឋាន Excel">套用附件 Excel 基準</span></button>
         <button class="btn gh" onclick="expExcel()">📊 <span data-zh="匯出 Excel" data-en="Export Excel" data-km="នាំចេញ Excel">匯出 Excel</span></button>
         <button class="btn gh" onclick="doBackup()">💾 <span data-zh="備份 JSON" data-en="Backup JSON" data-km="បម្រុងទុក JSON">備份 JSON</span></button>
@@ -1234,6 +1235,96 @@ function impExcel() {
     });
     Object.keys(importedPeriods).forEach(function (p) { SEC.scheduleAutoCloudSync(TOOL, 'fire-excel-import', p); });
     SEC.toast(added || updated ? '✅ ' + L('消防 Excel 已更新：新增 ' + added + '／更新 ' + updated, 'Fire Excel updated: ' + added + ' new / ' + updated + ' updated', 'បានធ្វើបច្ចុប្បន្នភាព៖ ថ្មី ' + added + ' / កែ ' + updated) : '⚠ ' + L('沒有匯入任何消防設備', 'No fire equipment rows imported', 'គ្មានឧបករណ៍ត្រូវបាននាំចូល'), added || updated ? 'ok' : 'warn', 6500);
+  });
+}
+/* ═══ 2026-10-09 匯入歷史月檢表：只寫進「巡檢歷史」，不動設備總表 ═══
+   分頁可用中文或英文：滅火器／警報器／緊急照明（出口燈）／水帶（消防栓）／煙霧偵測器。
+   每列：編號（FE01…）＋檢查日（沒有就用分頁標題的日期或月份）＋檢查人＋結果（X／異常＝故障）＋備註。
+   同一天、同一檢查人、同一分頁 = 一個巡檢批次；重匯會取代同批次，不會重複。 */
+function fireHistProfile(name) {
+  var p = fireProfile(name); if (p) return p;
+  var s = fireNorm(name);
+  if (/滅火器|灭火器|extinguisher|ពន្លត់/.test(s)) return { type:'ext', prefix:'FE' };
+  if (/警報|警报|alarm|សំឡេងរោទ៍/.test(s)) return { type:'alarm', prefix:'FA' };
+  if (/緊急照明|紧急照明|出口燈|逃生燈|emergencylight|exit|ភ្លើងសង្គ្រោះ/.test(s)) return { type:'light', prefix:'EL' };
+  if (/水帶|水带|消防栓|hose|hosereel|ទុយោ/.test(s)) return { type:'hose', prefix:'HR' };
+  if (/煙霧|烟雾|偵測|侦测|smoke|detector|ផ្សែង/.test(s)) return { type:'smoke', prefix:'F' };
+  return null;
+}
+var FIRE_MONTHS = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+/* 分頁上方標題的日期：先找真正的日期，再找「September 2026」「2026-09」「2026年9月」 */
+function fireSheetDate(sh, limit) {
+  var rows = (sh.rows || []).slice(0, Math.min(6, limit == null ? 6 : limit)), txt = [sh.name, sh.fileName || ''].concat(rows.map(function (r) { return (r || []).join(' '); })).join(' ');
+  for (var i = 0; i < rows.length; i++) for (var c = 0; c < (rows[i] || []).length; c++) {
+    var v = rows[i][c]; if (v === '' || v == null) continue;
+    if (typeof v === 'number' && (v < 30000 || v > 80000)) continue;
+    if (typeof v === 'string' && !/\d{1,4}[\/\-.年]\d{1,2}[\/\-.月]\d{1,4}/.test(v)) continue;
+    var d = fireDate(v); if (d) return { date:d, exact:true };
+  }
+  var m = txt.match(/(20\d{2})\s*(?:年|[-\/.])\s*(\d{1,2})(?!\d)/), y, mo;
+  if (m) { y = m[1]; mo = +m[2]; }
+  if (!mo) { var mm = txt.toLowerCase().match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*[-\/ ]?\s*(20\d{2})?/); if (mm) { mo = FIRE_MONTHS[mm[1]]; y = mm[2] || ((txt.match(/(20\d{2})/) || [])[1]); } }
+  if (mo >= 1 && mo <= 12 && y) return { date:y + '-' + SEC.p2(mo) + '-01', exact:false };
+  return null;
+}
+function impHistExcel() {
+  return SEC.pickExcel(function (sheets) {
+    var log = [], batches = {}, rowsIn = 0, noDate = 0, unknown = 0;
+    sheets.forEach(function (sh) {
+      var prof = fireHistProfile(sh.name);
+      if (!prof) { log.push('· <b>' + SEC.esc(sh.name) + '</b>: ' + SEC.esc(L('不是消防月檢表，略過', 'not a fire check sheet; skipped', 'មិនមែនតារាងត្រួតពិនិត្យ; រំលង'))); return; }
+      var rows = sh.rows || [], cc = fireCodeCol(rows, prof.prefix);
+      if (cc < 0) { log.push('· <b>' + SEC.esc(sh.name) + '</b>: ' + SEC.esc(L('找不到 ' + prof.prefix + ' 編號，略過', 'no ' + prof.prefix + ' codes found; skipped', 'រកមិនឃើញលេខ ' + prof.prefix + '; រំលង'))); return; }
+      var lc = fireCol(rows, ['location','位置','place','area','地點','ទីតាំង']),
+        dc = fireCol(rows, ['date check','check date','inspection date','date checked','檢查日','巡檢日期','កាលបរិច្ឆេទត្រួតពិនិត្យ']),
+        bc = fireCol(rows, ['checked by','check by','inspector','檢查人','巡檢人','អ្នកត្រួតពិនិត្យ']),
+        rc = fireCol(rows, ['remarks','remark','comment','備註','說明','កំណត់ចំណាំ']);
+      /* 只有「Date／日期」（完全相同）才當檢查日；Expire date、Replacement date 不算 */
+      if (dc < 0) for (var hr = 0; hr < Math.min(rows.length, 12) && dc < 0; hr++) (rows[hr] || []).forEach(function (v, c) { if (dc < 0 && /^(date|日期|កាលបរិច្ឆេទ)$/.test(fireNorm(v))) dc = c; });
+      /* 標題日期只看第一筆設備編號以上的列（避免把資料列的過期日當成檢查日） */
+      var firstCode = rows.findIndex(function (R) { return new RegExp('^(?:VRT\\s*)?(?:' + prof.prefix + '|F)\\s*\\d{1,3}$', 'i').test(SEC.str((R || [])[cc])); });
+      var sheetDate = fireSheetDate(sh, firstCode < 0 ? 6 : firstCode), section = 'a', n = 0, sheetNoDate = 0;
+      for (var i = 0; i < rows.length; i++) {
+        var R = rows[i] || [], joined = R.map(SEC.str).join(' ');
+        if (/building\s*a|\bsda\b|a\s*factory|a廠|a棟/i.test(joined)) section = 'a';
+        if (/building\s*b|\bsdb\b|b\s*factory|b廠|b棟/i.test(joined)) section = 'b';
+        var code = SEC.str(R[cc]).replace(/^VRT\s*/i, '').replace(/\s+/g, '').replace(/FOO/ig, 'F00');
+        if (!new RegExp('^(?:' + prof.prefix + '|F)\\d{1,3}$', 'i').test(code)) continue;
+        rowsIn++;
+        var date = (dc >= 0 ? fireDate(R[dc]) : '') || (sheetDate ? sheetDate.date : '');
+        if (!date) { noDate++; sheetNoDate++; continue; }
+        var loc = lc >= 0 ? SEC.str(R[lc]) : '', by = bc >= 0 ? SEC.str(R[bc]) : '', note = rc >= 0 ? SEC.str(R[rc]) : '';
+        /* 對應到總表上的同一台設備（只讀，不修改總表）；總表沒有的也照樣記進歷史 */
+        var key = fireSeedKey({ code:code, type:prof.type }), dev = DB.filter(function (x) { return !x._deleted && fireSeedKey(x) === key; })[0];
+        if (!dev) unknown++;
+        var factory = dev ? factoryOf(dev) : fireFactoryFromText(joined + ' ' + loc, section), zone = dev ? dev.zone : fireZoneFromText(joined + ' ' + loc, factory);
+        var it = { id:dev ? dev.id : fireStableId({ code:code, type:prof.type, factory:factory, zone:zone, loc:loc }), code:code, type:prof.type, factory:factory, zone:zone, loc:loc || (dev && dev.loc) || '',
+          result:fireImportedStatus(joined) === 'fault' ? 'fault' : 'ok', note:note };
+        var hk = date + '|' + by + '|' + sh.name;
+        var h = batches[hk] || (batches[hk] = { id:'HX' + btoa(unescape(encodeURIComponent(hk))).replace(/[^A-Za-z0-9]/g, '').slice(0, 24), importKey:hk, date:date, by:by, source:'excel-history', n:0, ok:0, bad:0, badList:[], items:[], photos:[] });
+        if (h.items.some(function (x) { return x.code === code && x.type === it.type; })) continue;
+        h.items.push(it); h.n++; if (it.result === 'fault') { h.bad++; h.badList.push(code + (note ? ' ' + note : '')); } else h.ok++; n++;
+      }
+      log.push('· <b>' + SEC.esc(sh.name) + '</b>: ' + SEC.esc(fireTypeLabel(prof.type)) + ' · <b>' + n + '</b>' + (sheetDate && !sheetDate.exact && dc < 0 ? ' · ' + SEC.esc(L('沒有檢查日欄，用標題月份 ' + sheetDate.date.slice(0, 7), 'no date column; using title month ' + sheetDate.date.slice(0, 7), 'គ្មានជួរកាលបរិច្ឆេទ; ប្រើខែ ' + sheetDate.date.slice(0, 7))) : '') +
+        (sheetNoDate ? ' · ⚠ ' + SEC.esc(L(sheetNoDate + ' 列沒有日期已略過', sheetNoDate + ' rows without a date skipped', sheetNoDate + ' ជួរគ្មានកាលបរិច្ឆេទ ត្រូវរំលង')) : ''));
+    });
+    var keys = Object.keys(batches), added = 0, replaced = 0, at = new Date().toISOString(), periods = {};
+    keys.forEach(function (k) {
+      var h = batches[k]; h.updatedAt = at;
+      var pos = HIST.findIndex(function (x) { return x.importKey === k; });
+      if (pos >= 0) { h.id = HIST[pos].id; h.photos = HIST[pos].photos || []; HIST[pos] = h; replaced++; } else { HIST.unshift(h); added++; }
+      SEC.clearDeleted('fire-history', h); periods[h.date.slice(0, 7)] = 1;
+    });
+    HIST.sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
+    var el = document.getElementById('impLog');
+    if (el) el.innerHTML = '<b>' + SEC.esc(L('歷史月檢表匯入結果', 'Inspection history import', 'លទ្ធផលនាំចូលប្រវត្តិ')) + '</b>: ' +
+      SEC.esc(L('新增 ' + added + ' 批、取代 ' + replaced + ' 批（設備總表沒有變動）', added + ' batches added, ' + replaced + ' replaced (equipment master unchanged)', 'បន្ថែម ' + added + ', ជំនួស ' + replaced + ' (បញ្ជីមេមិនផ្លាស់ប្តូរ)')) +
+      (unknown ? '<br>ℹ️ ' + SEC.esc(L(unknown + ' 筆編號不在設備總表，只記在歷史', unknown + ' rows have codes not in the equipment master; kept in history only', unknown + ' ជួរមិនមានក្នុងបញ្ជីមេ')) : '') + '<br>' + log.join('<br>');
+    if (!keys.length) { SEC.toast('⚠ ' + L('沒有匯入任何巡檢紀錄', 'No inspection rows imported', 'គ្មានការត្រួតពិនិត្យត្រូវបាននាំចូល'), 'warn', 6000); return; }
+    /* 只存歷史：不呼叫 normalizeFireMaster／AssetChanges.capture，不改 DB */
+    SEC.dbPut(LSH, HIST); renderAll();
+    Object.keys(periods).sort().forEach(function (p) { SEC.scheduleAutoCloudSync(TOOL, 'fire-history-import', p); });
+    SEC.toast('✅ ' + L('已匯入巡檢歷史 ' + keys.length + ' 批、' + Object.keys(periods).length + ' 個月', keys.length + ' inspection batches imported across ' + Object.keys(periods).length + ' month(s)', 'បាននាំចូល ' + keys.length + ' វគ្គ ' + Object.keys(periods).length + ' ខែ'), 'ok', 6500);
   });
 }
 function expExcel() {

@@ -343,16 +343,20 @@ function wire(w, el) { const code = el.getAttribute('onclick'); if (code && !el.
       for (let i = 0; i < people; i++) aoa.push([i + 1, 7000 + i, 'Guard ' + i].concat(Array.from({ length:30 }, (_, k) => k % 7 === 6 ? 'R' : (i % 2 ? 0.2916666667 : '07:00 AM 19:00 PM'))));
       const sheets = xlsxRows(w, aoa, 'September 2026');
       sheets[0].fileName = 'Day Shift Attendance.xlsx';
-      w.SEC.pickExcel = cb => cb(JSON.parse(JSON.stringify(sheets)));
-      let t0 = Date.now(); await w.impExcel(); await sleep(50);
-      for (let k = 0; k < 200 && w.ATT_LOG.length < people * 30; k++) await sleep(50);
+      /* 名冊沒有的人 → 先列名單（en 不含中文），選「全部設成歷史人員」再匯入；不會建成在職 */
+      const runImp = async pick => { let p, modal = null, done = false; w.SEC.pickExcel = cb => { p = cb(JSON.parse(JSON.stringify(sheets))); }; w.impExcel(); p.then(() => { done = true; });
+        for (let k = 0; !done; k++) { assert(k < 2000, 'import never finished'); const m = d.querySelector('[data-att-unmatched]'); if (m && m !== modal) { modal = m; pick(m); } await sleep(10); } await p; return modal; };
+      let t0 = Date.now();
+      const modal = await runImp(m => { assert.equal(m.querySelectorAll('[data-u-row]').length, people); assert(!cjkIn(m.textContent), 'unmatched list en without Chinese'); m.querySelector('[data-all="__history"]').click(); m.querySelector('[data-ok]').click(); });
+      assert(modal, 'unknown guards listed first');
+      assert.equal(w.SEC.Personnel.list(w.ALL_STAFF, '2026-09').filter(r => /^Guard \d+$/.test(r.name)).length, 0, 'imported unknown guards are not active');
       const first = Date.now() - t0;
       assert.equal(w.ATT_LOG.length, people * 30, 'all raw punches imported');
       const odd = w.ATT_LOG.find(r => r.empId === '7001' && r.date === '2026-09-01');
       assert.equal(odd.inTime, '07:00', 'numeric Excel time fraction → HH:MM');
       const even = w.ATT_LOG.find(r => r.empId === '7000' && r.date === '2026-09-01');
       assert.equal(even.inTime, '07:00'); assert.equal(even.outTime, '19:00');
-      t0 = Date.now(); await w.impExcel(); await sleep(400);
+      t0 = Date.now(); assert(!(await runImp(() => assert.fail('no prompt on re-import'))), 're-import matched by ID');
       assert.equal(w.ATT_LOG.length, people * 30, 're-import does not duplicate');
       const src = fs.readFileSync(path.join(__dirname, '..', 'ac_sec_attendance_v2.html'), 'utf8');
       assert(/var old = rawById\[rec\.id\]/.test(src) && !/ATT_LOG\.filter\(function \(x\) \{ return x\.id === rec\.id; \}\)/.test(src), 'import uses an id→record map');

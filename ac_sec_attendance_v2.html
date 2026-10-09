@@ -825,73 +825,230 @@ function jumpToImportedMonth(months) {
   var m = list[list.length - 1].match(/^(\d{4})-(\d{2})$/);
   if (m) { PER.at = new Date(+m[1], +m[2] - 1, 1); if (paintPeriodNav) paintPeriodNav(); }
 }
-function impExcel() {
-  SEC.pickExcel(async function (sheets) {
-    var personData=await SEC.Personnel.read();ALL_STAFF=personData.db;
-    var added = 0, rawAdded = 0, rawUpdated = 0, rawSkipped = 0, newStaff = 0, log = [], importedMonths = {};
-    /* 只建一次 id → 原始打卡索引，避免每格都掃描整個 ATT_LOG（O(n²)）。 */
-    var rawById = {}, revived = [];
-    ATT_LOG.forEach(function (x) { if (x && x.id) rawById[x.id] = x; });
-    sheets.forEach(function (sh) {
-      var rows = sh.rows;
-      var h = findAttendanceHeader(rows), targetYm = sheetPeriod(sh);
-      if (!h) { log.push('· <b>' + SEC.esc(sh.name) + '</b>: ' + t('非月曆式出勤表，略過', 'not a calendar-style attendance sheet, skipped', 'មិនមែនតារាងវត្តមានតាមប្រតិទិន រំលង')); return; }
-      importedMonths[targetYm] = true;
-      var M = ATT[targetYm] || (ATT[targetYm] = {}), n = 0, rn = 0;
-      var shift = normalizeShift(rows.slice(0, 8).map(function (r) { return (r || []).join(' '); }).join(' '), sh.fileName || '');
-      for (var i = h.row + 1; i < rows.length; i++) {
-        var R2 = rows[i] || [];
-        var nm = SEC.str(R2[h.map.name]); if (!nm) continue;
-        if (!SEC.Personnel.validName(nm)) continue;
-        var empId = h.map.id === undefined ? '' : SEC.str(R2[h.map.id]);
-        var oldPerson=personData.db.filter(function(x){var v=SEC.Personnel.snapshot(x,targetYm)||x;return SEC.Personnel.same(v,{empId:empId,name:nm});})[0];
-        var beforePerson=oldPerson?(SEC.Personnel.snapshot(oldPerson,targetYm)||SEC.Personnel.fields(oldPerson)):{};
-        var nextPerson=Object.assign({},beforePerson,{name:nm,empId:empId||beforePerson.empId||'',shift:shift||beforePerson.shift||'',status:beforePerson.status||'active'});
-        var applied;
-        try{applied=SEC.Personnel.apply(personData.db,personData.changes,nextPerson,{id:oldPerson&&oldPerson.id,month:targetYm,date:targetYm+'-01',reason:'Attendance Excel import'});}
-        catch(e){log.push('⚠ '+SEC.esc(nm)+' · '+SEC.esc(e.message));continue;}
-        if(applied.isNew)newStaff++;
-        var st=SEC.Personnel.snapshot(applied.row,targetYm);
-        var k = key(st);
-        if (!M[k]) M[k] = {};
-        var rowTouched = false;
-        Object.keys(h.days).forEach(function (c) {
-          var p = normalizePunch(R2[c]); if (!p.raw) return;
-          var day = h.days[c], date = targetYm + '-' + day;
-          var code = p.status || (p.inTime || p.outTime ? 'W' : '');
-          if (code && !M[k][day]) { M[k][day] = code; n++; rowTouched = true; }
-          var rawKey = [date, empId || nm, shift].join('|');
-          var rec = { id:'AR-' + rawKey.replace(/[^A-Za-z0-9_-]/g,'_'),
-            date:date, shift:shift || '—', empId:empId, name:nm,
-            location:h.map.location === undefined ? '' : SEC.str(R2[h.map.location]),
-            company:h.map.company === undefined ? '' : SEC.str(R2[h.map.company]),
-            inTime:p.inTime, outTime:p.outTime, status:p.status || (p.inTime || p.outTime ? 'W' : ''), raw:p.raw,
-            source:sh.fileName ? sh.fileName + ' / ' + sh.name : sh.name };
-          var old = rawById[rec.id];
-          if (old) {
-            var changed = ['date','shift','empId','name','location','company','inTime','outTime','status','raw','source'].some(function (f) { return String(old[f] || '') !== String(rec[f] || ''); });
-            if (changed) { rec.updatedAt = new Date().toISOString(); Object.assign(old, rec); revived.push(Object.assign({ _k:'raw' }, old)); rawUpdated++; }
-            else rawSkipped++;
-          } else { rec.createdAt = rec.updatedAt = new Date().toISOString(); ATT_LOG.push(rec); rawById[rec.id] = rec; revived.push(Object.assign({ _k:'raw' }, rec)); rawAdded++; }
-        });
-        if (rowTouched) touchAttendanceRow(targetYm, k);   /* 每人每月只蓋一次時間戳，不是每格一次 */
-        added++;
-      }
-      log.push('· <b>' + SEC.esc(sh.name) + '</b>: ' + t('寫入 <b>' + targetYm + '</b>、' + n + ' 格（標題第 ' + (h.row + 1) + ' 列）', '<b>' + targetYm + '</b>, ' + n + ' cells written (header row ' + (h.row + 1) + ')', '<b>' + targetYm + '</b>, បានសរសេរ ' + n + ' ក្រឡា (ជួរចំណងជើង ' + (h.row + 1) + ')'));
+/* ═══ 2026-10-09 出勤匯入（重寫）═══
+   ① 讀檔 → 統一成「一人一天一筆」（月曆式：每天一欄；長格式：工號／姓名、日期、狀態［、上下班］）
+   ② 依每筆日期分到各月（跨月檔案一次匯入，不看目前畫面顯示哪個月）
+   ③ 比對名冊：先比工號（A005 = 5），再比姓名（忽略大小寫與空白）；之前手動對應過的會記住
+   ④ 名冊沒有的人不自動建成「在職」：先列出名單，讓人選「對應到現有工號」或「建成已離職／歷史人員」（不算在職人數）或「略過」 */
+var ATT_ALIAS_KEY = 'ac_sec_att_import_alias_v1';
+function attIdKey(v) { var s = String(v == null ? '' : v).trim().toUpperCase().replace(/\s+/g, ''); var m = s.match(/^A?0*(\d+)$/); return m ? String(Number(m[1])) : s; }
+function attNameKey(v) { return String(v == null ? '' : v).toLowerCase().replace(/[\s　]+/g, ''); }
+function attAliasRead() { try { return JSON.parse(localStorage.getItem(ATT_ALIAS_KEY) || '{}') || {}; } catch (e) { return {}; } }
+function attAliasWrite(m) { try { localStorage.setItem(ATT_ALIAS_KEY, JSON.stringify(m || {})); } catch (e) {} }
+/* 長格式狀態文字 → 出勤代碼 */
+function attStatusCode(v) {
+  var s = String(v == null ? '' : v).trim(); if (!s) return '';
+  if (/^[WORLAH]$/i.test(s)) return s.toUpperCase();
+  var n = s.toLowerCase();
+  if (/^(p|present|work|working|duty|on ?duty|出勤|上班|正常|ធ្វើការ|វត្តមាន)$/.test(n)) return 'W';
+  if (/^(ot|overtime|加班|ថែមម៉ោង)$/.test(n)) return 'O';
+  if (/(absent|曠職|缺勤|អវត្តមាន)/.test(n)) return 'A';
+  if (/(holiday|國定|假日|ថ្ងៃបុណ្យ)/.test(n)) return 'H';
+  if (/(leave|請假|事假|病假|特休|ច្បាប់|\b(?:pl|sl|ml|al|fl)\b)/.test(n)) return 'L';
+  if (/(rest|day ?off|off|例休|休息|休假|ឈប់សម្រាក)/.test(n)) return 'R';
+  var p = normalizePunch(s); return p.status || (p.inTime || p.outTime ? 'W' : '');
+}
+/* 長格式表頭：要有 工號或姓名 ＋ 日期 ＋（狀態 或 上下班時間） */
+function findLongAttendanceHeader(rows) {
+  for (var r = 0; r < Math.min(rows.length, 15); r++) {
+    var R = rows[r] || [], map = {};
+    R.forEach(function (v, c) {
+      var n = SEC.norm(v);
+      if (map.id === undefined && /^(id|idno|empid|employeeid|staffid|工號|工号|員工編號|編號|លេខ|អត្តលេខ)$/.test(n)) map.id = c;
+      else if (map.name === undefined && /^(name|姓名|名字|staffname|employeename|ឈ្មោះ)$/.test(n)) map.name = c;
+      else if (map.date === undefined && /^(date|日期|workdate|attendancedate|day|កាលបរិច្ឆេទ|ថ្ងៃ)$/.test(n)) map.date = c;
+      else if (map.status === undefined && /^(status|狀態|状态|code|代碼|代码|出勤|attendance|type|ស្ថានភាព)$/.test(n)) map.status = c;
+      else if (map.inTime === undefined && /^(in|timein|checkin|clockin|上班|上班時間|入廠|入廠時間|ចូល|ម៉ោងចូល)$/.test(n)) map.inTime = c;
+      else if (map.outTime === undefined && /^(out|timeout|checkout|clockout|下班|下班時間|出廠|出廠時間|ចេញ|ម៉ោងចេញ)$/.test(n)) map.outTime = c;
+      else if (map.shift === undefined && /^(shift|班別|班次|វេន)$/.test(n)) map.shift = c;
+      else if (map.location === undefined && /^(location|post|地點|位置|崗位|តំបន់|ទីតាំង|ប៉ុស្តិ៍)$/.test(n)) map.location = c;
+      else if (map.company === undefined && /^(company|公司|ក្រុមហ៊ុន)$/.test(n)) map.company = c;
     });
+    if ((map.id !== undefined || map.name !== undefined) && map.date !== undefined && (map.status !== undefined || map.inTime !== undefined)) return { row:r, map:map };
+  }
+  return null;
+}
+function attShiftCode(v) { var s = String(v == null ? '' : v).trim().toUpperCase(); if (/^[ABC]$/.test(s)) return s; return normalizeShift(v, ''); }
+/* ① 讀檔：回傳 { entries:[{empId,name,date,code,inTime,outTime,raw,shift,location,company,source}], log:[], months:{} } */
+function attParseSheets(sheets) {
+  var entries = [], log = [], months = {};
+  sheets.forEach(function (sh) {
+    var rows = sh.rows || [], src = sh.fileName ? sh.fileName + ' / ' + sh.name : sh.name, n0 = entries.length;
+    var cal = findAttendanceHeader(rows), longH = cal ? null : findLongAttendanceHeader(rows);
+    if (cal) {
+      var targetYm = sheetPeriod(sh), shift = normalizeShift(rows.slice(0, 8).map(function (r) { return (r || []).join(' '); }).join(' '), sh.fileName || '');
+      for (var i = cal.row + 1; i < rows.length; i++) {
+        var R2 = rows[i] || [], nm = SEC.str(R2[cal.map.name]);
+        if (!nm || !SEC.Personnel.validName(nm)) continue;
+        var empId = cal.map.id === undefined ? '' : SEC.str(R2[cal.map.id]);
+        Object.keys(cal.days).forEach(function (c) {
+          var p = normalizePunch(R2[c]); if (!p.raw) return;
+          entries.push({ empId:empId, name:nm, date:targetYm + '-' + cal.days[c], code:p.status || (p.inTime || p.outTime ? 'W' : ''), inTime:p.inTime, outTime:p.outTime, raw:p.raw, shift:shift,
+            location:cal.map.location === undefined ? '' : SEC.str(R2[cal.map.location]), company:cal.map.company === undefined ? '' : SEC.str(R2[cal.map.company]), source:src });
+        });
+      }
+      log.push('· <b>' + SEC.esc(sh.name) + '</b>: ' + t('月曆式，' + targetYm + '，' + (entries.length - n0) + ' 筆（標題第 ' + (cal.row + 1) + ' 列）', 'calendar layout, ' + targetYm + ', ' + (entries.length - n0) + ' cells (header row ' + (cal.row + 1) + ')', 'ទម្រង់ប្រតិទិន ' + targetYm + ', ' + (entries.length - n0) + ' ក្រឡា'));
+    } else if (longH) {
+      var m = longH.map, bad = 0;
+      for (var j = longH.row + 1; j < rows.length; j++) {
+        var R = rows[j] || [], nm2 = m.name === undefined ? '' : SEC.str(R[m.name]), id2 = m.id === undefined ? '' : SEC.str(R[m.id]);
+        if (!nm2 && !id2) continue;
+        if (nm2 && !SEC.Personnel.validName(nm2)) continue;
+        var d = SEC.parseD(R[m.date]); if (!d) { bad++; continue; }
+        var date = SEC.ymd(d), inT = m.inTime === undefined ? '' : normalizePunch(R[m.inTime]).inTime, outT = m.outTime === undefined ? '' : normalizePunch(R[m.outTime]).inTime;
+        var raw = m.status === undefined ? '' : SEC.str(R[m.status]);
+        var code = attStatusCode(raw) || (inT || outT ? 'W' : '');
+        if (!code && !inT && !outT) continue;
+        entries.push({ empId:id2, name:nm2, date:date, code:code, inTime:inT, outTime:outT, raw:raw || [inT, outT].filter(Boolean).join(' '),
+          shift:m.shift === undefined ? normalizeShift('', sh.fileName || '') : attShiftCode(R[m.shift]),
+          location:m.location === undefined ? '' : SEC.str(R[m.location]), company:m.company === undefined ? '' : SEC.str(R[m.company]), source:src });
+      }
+      var ms = {}; entries.slice(n0).forEach(function (x) { ms[x.date.slice(0, 7)] = 1; });
+      log.push('· <b>' + SEC.esc(sh.name) + '</b>: ' + t('長格式，' + (entries.length - n0) + ' 筆，月份 ' + Object.keys(ms).sort().join('、'), 'long layout, ' + (entries.length - n0) + ' rows, months ' + Object.keys(ms).sort().join(', '), 'ទម្រង់បញ្ជី ' + (entries.length - n0) + ' ជួរ, ខែ ' + Object.keys(ms).sort().join(', ')) + (bad ? ' · ⚠ ' + t(bad + ' 列日期看不懂已略過', bad + ' rows with an unreadable date skipped', bad + ' ជួរកាលបរិច្ឆេទមិនច្បាស់ ត្រូវបានរំលង') : ''));
+    } else {
+      log.push('· <b>' + SEC.esc(sh.name) + '</b>: ' + t('看不出是出勤表（需要「每天一欄」或「工號／姓名＋日期＋狀態」），略過', 'not an attendance sheet (needs one column per day, or ID/Name + Date + Status), skipped', 'មិនមែនតារាងវត្តមាន រំលង'));
+    }
+  });
+  entries.forEach(function (x) { months[x.date.slice(0, 7)] = true; });
+  return { entries:entries, log:log, months:months };
+}
+/* ③ 比對名冊（工號 → 姓名 → 記住的對應） */
+function attBuildIndex(db) {
+  var byId = {}, byName = {};
+  (db || []).forEach(function (r) {
+    var vs = [r].concat(Object.keys(r._rosterHistory || {}).map(function (k) { return SEC.unwrapObject(r._rosterHistory[k]).data || {}; }));
+    vs.forEach(function (v) {
+      if (v.empId) { var ik = attIdKey(v.empId); (byId[ik] = byId[ik] || {})[r.id] = r; }
+      if (v.name) { var nk = attNameKey(v.name); (byName[nk] = byName[nk] || {})[r.id] = r; }
+    });
+  });
+  return { byId:byId, byName:byName };
+}
+function attPersonIds(r) {
+  var out = {}; [r].concat(Object.keys(r._rosterHistory || {}).map(function (k) { return SEC.unwrapObject(r._rosterHistory[k]).data || {}; })).forEach(function (v) { if (v.empId) out[attIdKey(v.empId)] = 1; });
+  return out;
+}
+function attMatchPerson(ent, idx, alias, db) {
+  var ik = ent.empId ? attIdKey(ent.empId) : '', nk = attNameKey(ent.name);
+  if (ik && idx.byId[ik]) { var ids = Object.keys(idx.byId[ik]); if (ids.length === 1) return { person:idx.byId[ik][ids[0]], by:'id' }; }
+  var al = alias[(ik ? 'id:' + ik : 'name:' + nk)] || (nk ? alias['name:' + nk] : '');
+  if (al) { var hit = (db || []).filter(function (r) { return r.id === al; })[0]; if (hit) return { person:hit, by:'alias' }; }
+  if (nk && idx.byName[nk]) {
+    var nids = Object.keys(idx.byName[nk]);
+    if (nids.length === 1) {
+      var cand = idx.byName[nk][nids[0]], cids = attPersonIds(cand);
+      /* 檔案的工號和名冊的不同 → 不自動對應，放進待確認並預先選好這個人 */
+      if (!ik || !Object.keys(cids).length || cids[ik]) return { person:cand, by:'name' };
+      return { suggest:cand };
+    }
+  }
+  return null;
+}
+/* ④ 未對應名單視窗：每人選「對應到…／建成歷史人員／略過」 */
+function attResolveUnmatched(list, db) {
+  return new Promise(function (resolve) {
+    var opts = (db || []).map(function (r) { var v = SEC.Personnel.snapshot(r, SEC.Personnel.currentMonth()) || SEC.Personnel.fields(r); return { id:r.id, label:(v.empId ? v.empId + ' · ' : '') + (v.name || r.name || r.id) + (v.status && v.status !== 'active' ? ' (' + t('已離職', 'left', 'បានចេញ') + ')' : '') }; })
+      .sort(function (a, b) { return a.label.localeCompare(b.label, undefined, { numeric:true }); });
+    var mask = document.createElement('div'); mask.className = 'mask on'; mask.setAttribute('data-att-unmatched', '');
+    var rowsHtml = list.map(function (u, i) {
+      return '<div data-u-row style="border:1px solid var(--line,#dde3ea);border-radius:10px;padding:8px 10px;margin:6px 0"><div style="display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline"><b data-u-id>' + SEC.esc(u.empId || '—') + '</b><span data-u-name style="font-weight:600">' + SEC.esc(u.name || '—') + '</span>' +
+        '<small style="color:var(--ink2,#667)">' + u.count + ' ' + SEC.esc(t('筆', 'rows', 'ជួរ')) + ' · ' + SEC.esc(Object.keys(u.months).sort().join(', ')) + '</small></div>' +
+        '<select data-u="' + i + '" style="width:100%;margin-top:6px"><option value="__history">📦 ' + SEC.esc(t('建成已離職／歷史人員', 'Create as former / historical staff', 'បង្កើតជាបុគ្គលិកចាស់')) + '</option>' +
+        '<option value="__skip">⏭ ' + SEC.esc(t('略過，不匯入', 'Skip, do not import', 'រំលង មិននាំចូល')) + '</option>' +
+        opts.map(function (o) { return '<option value="' + SEC.esc(o.id) + '"' + (u.suggest && u.suggest.id === o.id ? ' selected' : '') + '>🔗 ' + SEC.esc(o.label) + '</option>'; }).join('') + '</select>' +
+        (u.suggest ? '<small style="display:block;color:#b45309;margin-top:4px">⚠ ' + SEC.esc(t('同名但工號不同，已預選此人，請確認', 'Same name, different ID — pre-selected, please confirm', 'ឈ្មោះដូចគ្នា អត្តលេខខុស — សូមបញ្ជាក់')) + '</small>' : '') + '</div>';
+    }).join('');
+    mask.innerHTML = '<div class="modal" style="max-width:820px"><div class="mh"><span>👥</span><b>' + SEC.esc(t('名冊沒有這些人：請選擇怎麼處理', 'These people are not in the roster — choose what to do', 'អ្នកទាំងនេះមិនមានក្នុងបញ្ជី — សូមជ្រើស')) + '</b><button class="x" data-cancel>×</button></div>' +
+      '<div class="mb"><p class="hint">' + SEC.esc(t('不會自動建成「在職」。選「對應」= 這是名冊上的某人（工號不同或改名）；選「歷史人員」= 建成已離職，出勤照樣保存，但不算在職人數。對應過的下次匯入會自動記住。', 'Nobody is added as active automatically. "Match" = this is someone already in the roster (different ID or renamed). "Historical" = saved as former staff: attendance is kept but not counted as active headcount. Matches are remembered for next time.', 'មិនបន្ថែមជាបុគ្គលិកកំពុងធ្វើការដោយស្វ័យប្រវត្តិទេ។')) + '</p>' +
+      '<div class="row" style="gap:8px;margin:6px 0"><button class="btn sm gh" data-all="__history">📦 ' + SEC.esc(t('全部設成歷史人員', 'All historical', 'ទាំងអស់ជាបុគ្គលិកចាស់')) + '</button><button class="btn sm gh" data-all="__skip">⏭ ' + SEC.esc(t('全部略過', 'Skip all', 'រំលងទាំងអស់')) + '</button></div>' +
+      '<div style="max-height:52vh;overflow:auto">' + rowsHtml + '</div></div>' +
+      '<div class="mf"><button class="btn gray" data-cancel>' + SEC.esc(t('取消匯入', 'Cancel import', 'បោះបង់')) + '</button><button class="btn" data-ok>✅ ' + SEC.esc(t('確認並匯入', 'Confirm and import', 'បញ្ជាក់ និងនាំចូល')) + '</button></div></div>';
+    document.body.appendChild(mask);
+    var done = function (v) { if (mask.parentNode) mask.parentNode.removeChild(mask); resolve(v); };
+    mask.querySelectorAll('[data-all]').forEach(function (b) { b.onclick = function () { mask.querySelectorAll('select[data-u]').forEach(function (sel) { sel.value = b.getAttribute('data-all'); }); }; });
+    mask.querySelectorAll('[data-cancel]').forEach(function (b) { b.onclick = function () { done(null); }; });
+    mask.querySelector('[data-ok]').onclick = function () { var out = {}; mask.querySelectorAll('select[data-u]').forEach(function (sel) { out[list[+sel.getAttribute('data-u')].key] = sel.value; }); done(out); };
+  });
+}
+function impExcel() {
+  return SEC.pickExcel(async function (sheets) {
+    var personData = await SEC.Personnel.read(); ALL_STAFF = personData.db;
+    var parsed = attParseSheets(sheets), log = parsed.log.slice();
+    if (!parsed.entries.length) { document.getElementById('impLog').innerHTML = log.join('<br>'); SEC.toast('⚠ ' + t('未匯入，請看偵測記錄', 'Nothing imported; see the detection log', 'មិនបាននាំចូល; សូមមើលកំណត់ហេតុ'), 'warn', 6000); return; }
+    /* ③ 比對 */
+    var idx = attBuildIndex(personData.db), alias = attAliasRead(), byPerson = {}, unmatched = {}, order = [];
+    parsed.entries.forEach(function (ent) {
+      var hit = attMatchPerson(ent, idx, alias, personData.db);
+      if (hit && hit.person) { ent.person = hit.person; ent.matchedBy = hit.by; return; }
+      var uk = ent.empId ? 'id:' + attIdKey(ent.empId) : 'name:' + attNameKey(ent.name);
+      var u = unmatched[uk] || (unmatched[uk] = { key:uk, empId:ent.empId, name:ent.name, count:0, months:{}, suggest:hit && hit.suggest || null });
+      if (!u.name && ent.name) u.name = ent.name; u.count++; u.months[ent.date.slice(0, 7)] = 1; ent.uKey = uk;
+    });
+    var ulist = Object.keys(unmatched).map(function (k) { return unmatched[k]; }).sort(function (a, b) { return String(a.empId || a.name).localeCompare(String(b.empId || b.name), undefined, { numeric:true }); });
+    var choice = {}, created = 0, mapped = 0, skippedPeople = 0;
+    if (ulist.length) {
+      choice = await attResolveUnmatched(ulist, personData.db);
+      if (!choice) { SEC.toast('ℹ️ ' + t('已取消匯入，沒有寫入任何資料', 'Import cancelled; nothing was written', 'បានបោះបង់ មិនបានសរសេរទេ'), 'warn', 4000); return; }
+      /* 套用選擇 */
+      ulist.forEach(function (u) {
+        var c = choice[u.key];
+        if (c === '__skip' || !c) { skippedPeople++; return; }
+        if (c === '__history') {
+          var first = Object.keys(u.months).sort()[0];
+          try {
+            var res = SEC.Personnel.apply(personData.db, personData.changes, { empId:u.empId || '', name:u.name || u.empId, status:'resigned', remark:t('出勤匯入：歷史人員', 'Attendance import: historical staff', 'នាំចូលវត្តមាន: បុគ្គលិកចាស់') },
+              { month:first, date:first + '-01', reason:'Attendance import (historical staff)', attKey:u.empId || u.name });
+            /* 匯入建立的歷史人員不是「這個月離職」，不寫異動紀錄、不會發離職通知 */
+            if (res.change) personData.changes.splice(personData.changes.indexOf(res.change), 1);
+            u.person = res.row; created++;
+          } catch (e) { log.push('⚠ ' + SEC.esc(u.name || u.empId) + ' · ' + SEC.esc(e.message)); skippedPeople++; }
+          return;
+        }
+        u.person = personData.db.filter(function (r) { return r.id === c; })[0];
+        if (u.person) { alias[u.key] = u.person.id; mapped++; } else skippedPeople++;
+      });
+      attAliasWrite(alias);
+    }
+    /* ② 寫入各月份 */
+    var rawById = {}, revived = [], touched = {}, cells = 0, keptCells = 0, rawAdded = 0, rawUpdated = 0, rawSkipped = 0, people = {};
+    ATT_LOG.forEach(function (x) { if (x && x.id) rawById[x.id] = x; });
+    parsed.entries.forEach(function (ent) {
+      var person = ent.person || (ent.uKey && unmatched[ent.uKey].person);
+      if (!person) return;
+      var m = ent.date.slice(0, 7), day = ent.date.slice(8, 10);
+      var snap = SEC.Personnel.snapshot(person, m) || SEC.Personnel.snapshot(person, SEC.Personnel.currentMonth()) || Object.assign({ id:person.id, _attKey:person._attKey }, SEC.Personnel.fields(person));
+      var k = key(snap), M = ATT[m] || (ATT[m] = {});
+      if (!M[k]) M[k] = {};
+      if (ent.code) { if (!M[k][day]) { M[k][day] = ent.code; cells++; touched[m + '|' + k] = [m, k]; } else if (M[k][day] !== ent.code) keptCells++; }
+      people[person.id] = 1;
+      var empId = snap.empId || ent.empId || '', nm = snap.name || ent.name;
+      var rawKey = [ent.date, empId || nm, ent.shift || snap.shift || ''].join('|');
+      var rec = { id:'AR-' + rawKey.replace(/[^A-Za-z0-9_-]/g, '_'), date:ent.date, shift:ent.shift || snap.shift || '—', empId:empId, name:nm, location:ent.location || '', company:ent.company || '',
+        inTime:ent.inTime || '', outTime:ent.outTime || '', status:ent.code || '', raw:ent.raw || '', source:ent.source || '' };
+      var old = rawById[rec.id];
+      if (old) {
+        var changed = ['date','shift','empId','name','location','company','inTime','outTime','status','raw','source'].some(function (f) { return String(old[f] || '') !== String(rec[f] || ''); });
+        if (changed) { rec.updatedAt = new Date().toISOString(); Object.assign(old, rec); revived.push(Object.assign({ _k:'raw' }, old)); rawUpdated++; } else rawSkipped++;
+      } else { rec.createdAt = rec.updatedAt = new Date().toISOString(); ATT_LOG.push(rec); rawById[rec.id] = rec; revived.push(Object.assign({ _k:'raw' }, rec)); rawAdded++; }
+    });
+    Object.keys(touched).forEach(function (tk) { touchAttendanceRow(touched[tk][0], touched[tk][1]); });
     batchClearDeleted(TOOL, revived);
-    var stored=await SEC.Personnel.persist(personData.db,personData.changes);ALL_STAFF=stored.db;captureAttendanceInfo();
-    Object.keys(importedMonths).forEach(function(m){SEC.scheduleAutoCloudSync('personnel','personnel-change',m+'-01');});
-    jumpToImportedMonth(importedMonths);
+    var stored = await SEC.Personnel.persist(personData.db, personData.changes); ALL_STAFF = stored.db; captureAttendanceInfo();
+    var months = Object.keys(parsed.months).sort();
+    if (created) months.forEach(function (m) { SEC.scheduleAutoCloudSync('personnel', 'personnel-change', m + '-01'); });
+    jumpToImportedMonth(parsed.months);
     ATT_LOG.sort(function (a, b) { return String(b.date + b.inTime).localeCompare(String(a.date + a.inTime)); });
     await save(); renderAll();
-    Object.keys(importedMonths).forEach(function (p) { SEC.scheduleAutoCloudSync(TOOL, 'attendance-excel-import', p); });
-    document.getElementById('impLog').innerHTML = '<b>' + t('匯入結果（目前顯示 ' + ym() + '）', 'Import result (showing ' + ym() + ')', 'លទ្ធផលនាំចូល (បង្ហាញ ' + ym() + ')') + '</b><br>' + log.join('<br>') +
-      (newStaff ? '<br>➕ ' + t('自動建立 <b>' + newStaff + '</b> 位新人員（已寫回名冊）', '<b>' + newStaff + '</b> new people created (saved to the roster)', 'បានបង្កើតបុគ្គលិកថ្មី <b>' + newStaff + '</b> (រក្សាទុកក្នុងបញ្ជី)') : '');
-    SEC.toast(added ? '✅ ' + t('匯入 ' + added + ' 人；打卡新增 ' + rawAdded + '、更新 ' + rawUpdated + '、略過相同 ' + rawSkipped + (newStaff ? '（新增 ' + newStaff + ' 人）' : ''),
-        added + ' people imported; punches ' + rawAdded + ' added, ' + rawUpdated + ' updated, ' + rawSkipped + ' unchanged' + (newStaff ? ' (' + newStaff + ' new people)' : ''),
-        'បាននាំចូល ' + added + ' នាក់; ស្កេន បន្ថែម ' + rawAdded + ', កែ ' + rawUpdated + ', ដដែល ' + rawSkipped + (newStaff ? ' (ថ្មី ' + newStaff + ')' : ''))
-      : '⚠ ' + t('未匯入，請看偵測記錄', 'Nothing imported; see the detection log', 'មិនបាននាំចូល; សូមមើលកំណត់ហេតុ'), added ? 'ok' : 'warn', 6000);
+    months.forEach(function (m) { SEC.scheduleAutoCloudSync(TOOL, 'attendance-excel-import', m); });
+    var nPeople = Object.keys(people).length;
+    log.push('📅 ' + t('寫入月份：', 'Months written: ', 'ខែដែលបានសរសេរ: ') + months.join(', ') + ' · ' + t('新填 ' + cells + ' 格', cells + ' cells filled', 'បំពេញ ' + cells + ' ក្រឡា') +
+      (keptCells ? ' · ' + t('已有不同代碼保留原值 ' + keptCells + ' 格', keptCells + ' cells kept (already had a different code)', 'រក្សាតម្លៃដើម ' + keptCells) : ''));
+    if (ulist.length) log.push('👥 ' + t('未對應 ' + ulist.length + ' 人：對應 ' + mapped + '、建成歷史人員 ' + created + '、略過 ' + skippedPeople, ulist.length + ' not in roster: ' + mapped + ' matched, ' + created + ' historical, ' + skippedPeople + ' skipped', ulist.length + ' មិនមានក្នុងបញ្ជី: ផ្គូផ្គង ' + mapped + ', ចាស់ ' + created + ', រំលង ' + skippedPeople));
+    document.getElementById('impLog').innerHTML = '<b>' + t('匯入結果', 'Import result', 'លទ្ធផលនាំចូល') + '</b><br>' + log.join('<br>');
+    SEC.toast(nPeople ? '✅ ' + t('匯入 ' + nPeople + ' 人、' + months.length + ' 個月；打卡新增 ' + rawAdded + '、更新 ' + rawUpdated + '、相同略過 ' + rawSkipped,
+        nPeople + ' people, ' + months.length + ' month(s); punches ' + rawAdded + ' added, ' + rawUpdated + ' updated, ' + rawSkipped + ' unchanged',
+        'បាននាំចូល ' + nPeople + ' នាក់ ' + months.length + ' ខែ; ស្កេន បន្ថែម ' + rawAdded + ', កែ ' + rawUpdated + ', ដដែល ' + rawSkipped)
+      : '⚠ ' + t('未匯入，請看偵測記錄', 'Nothing imported; see the detection log', 'មិនបាននាំចូល; សូមមើលកំណត់ហេតុ'), nPeople ? 'ok' : 'warn', 6000);
   });
 }
 function expGrid() {
@@ -1056,12 +1213,13 @@ function attSummaryData(st) {
   staff.forEach(function (r) {
     var s = attendanceStatsFor(r, p);
     Object.keys(total).forEach(function (k) { total[k] += s.c[k]; }); hours += s.hrs;
-    if (r.shift in byShift) byShift[r.shift]++; else other++;
+    if (!r._archived) { if (r.shift in byShift) byShift[r.shift]++; else other++; }
     list.push({ r:r, s:s, cd:attCodeDates(r, p) });
   });
   list.sort(function (a, b) { return String(a.r.shift || 'Z').localeCompare(String(b.r.shift || 'Z')) || String(a.r.empId || '').localeCompare(String(b.r.empId || ''), undefined, { numeric:true }) || String(a.r.name || '').localeCompare(String(b.r.name || '')); });
   var bad = list.filter(function (x) { return x.s.c.A >= 1 || x.s.c.L >= 1; }).sort(function (a, b) { return b.s.c.A - a.s.c.A || b.s.c.L - a.s.c.L; });
-  return { p:p, staff:staff, total:total, hours:hours, list:list, bad:bad, byShift:byShift, other:other, raw:ATT_LOG.filter(function (r) { return p.has(r.date); }) };
+  var active = staff.filter(function (r) { return !r._archived; });
+  return { p:p, staff:staff, active:active, archived:staff.length - active.length, total:total, hours:hours, list:list, bad:bad, byShift:byShift, other:other, raw:ATT_LOG.filter(function (r) { return p.has(r.date); }) };
 }
 function attWho(r) { return '• ' + (r.empId ? SEC.esc(r.empId) + ' ' : '') + '<b>' + SEC.esc(r.name || '—') + '</b>'; }
 function attBadLine(x, lang, day) {
@@ -1078,7 +1236,7 @@ function attendanceSummary(st) {
   var planned = (T.W + T.O + T.L + T.A);
   if (planned) txt += '\n' + G.bar(T.W + T.O, planned) + ' ' + lb('出勤率', 'attendance', 'អត្រាវត្តមាន');
   txt += '\n' + G.kpis([
-    ['👮', lb('在職', 'Staff', 'បុគ្គលិក'), D.staff.length],
+    ['👮', lb('在職', 'Staff', 'បុគ្គលិក'), D.active.length + (D.archived ? ' (+' + D.archived + ' ' + lb('歷史', 'former', 'ចាស់') + ')' : '')],
     ['📆', day ? lb('出勤', 'On duty', 'ធ្វើការ') : lb('出勤人日', 'Man-days', 'ថ្ងៃធ្វើការ'), T.W + T.O],
     ['⏱', lb('總工時', 'Hours', 'ម៉ោង'), attHours(D.hours)],
     ['➕', lb('加班', 'Overtime', 'ថែមម៉ោង'), T.O],
