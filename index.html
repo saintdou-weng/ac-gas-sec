@@ -91,6 +91,29 @@ body::before{
   background:rgba(0,0,0,.3);border-radius:20px;padding:1px 6px;color:var(--gold);font-weight:700;
 }
 
+/* 首頁雲端同步：全部同步／勾選同步（2026-10-15） */
+.sync-box{background:rgba(0,0,0,.16);border:1px solid rgba(255,255,255,.14);border-radius:var(--r);padding:9px;display:flex;flex-direction:column;gap:7px}
+.sync-h{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:800;color:#fff;padding:0 2px}
+.sync-h .sync-pick{margin-left:auto;background:none;border:none;color:var(--gold);font:700 11px/1 inherit;font-family:inherit;cursor:pointer;min-height:32px;padding:0 4px}
+.sync-chips{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.sc{display:flex;align-items:center;gap:6px;background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.1);border-radius:9px;padding:6px 7px;min-height:44px;cursor:pointer;color:#fff;font-size:11.5px;font-weight:700;position:relative;overflow:hidden}
+.sc input{width:16px;height:16px;accent-color:#f5c842;flex-shrink:0;margin:0}
+.sc.on{background:rgba(42,143,176,.38);border-color:rgba(245,200,66,.55)}
+.sc .sc-t{display:flex;flex-direction:column;min-width:0;line-height:1.2}
+.sc .sc-t small{font-size:9.5px;font-weight:600;color:rgba(255,255,255,.66);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:'DM Mono','Noto Sans TC',monospace}
+.sc.run{border-color:#fbbf24}.sc.run small{color:#fde68a}
+.sc.ok small{color:#86efac}.sc.err{border-color:#f87171;background:rgba(153,27,27,.45)}.sc.err small{color:#fecaca}
+.sc.run::after{content:'';position:absolute;left:0;bottom:0;height:2px;width:40%;background:#fbbf24;animation:scrun 1s linear infinite}
+@keyframes scrun{from{transform:translateX(-100%)}to{transform:translateX(260%)}}
+.sync-prog{height:6px;border-radius:6px;background:rgba(0,0,0,.25);overflow:hidden;display:none}
+.sync-prog.on{display:block}
+.sync-prog i{display:block;height:100%;width:0;background:linear-gradient(90deg,#4ade80,#f5c842);transition:width .35s}
+.sync-msg{font-size:11px;color:rgba(255,255,255,.85);min-height:0;padding:0 2px;line-height:1.45}
+.sync-msg:empty{display:none}
+.sync-act{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.sync-act button{min-height:46px;border-radius:10px;border:1px solid rgba(255,255,255,.16);font:800 12px/1.2 inherit;font-family:inherit;cursor:pointer;color:#0f2b46;background:var(--gold)}
+.sync-act button.alt{background:rgba(0,0,0,.22);color:#fff}
+.sync-act button:disabled{opacity:.5;cursor:wait}
 /* Quick actions */
 /* 管理捷徑（與保安模組分開） */
 .admin-box{background:rgba(0,0,0,.14);border:1px dashed rgba(255,255,255,.22);border-radius:var(--r);padding:8px;display:flex;flex-direction:column;gap:6px}
@@ -162,6 +185,17 @@ body::before{
   </div>
 
   <div class="mod-grid" id="grid"></div>
+
+  <div class="sync-box" id="syncBox" aria-labelledby="syncH">
+    <div class="sync-h" id="syncH"><span data-zh="☁ 雲端同步（下載＋上傳）" data-en="☁ Cloud sync (download + upload)" data-km="☁ ធ្វើសមកាលកម្មពពក">☁ 雲端同步（下載＋上傳）</span><button type="button" class="sync-pick" id="syncPick"></button></div>
+    <div class="sync-chips" id="syncChips"></div>
+    <div class="sync-prog" id="syncProg"><i></i></div>
+    <div class="sync-msg" id="syncMsg"></div>
+    <div class="sync-act">
+      <button type="button" id="syncAllBtn"></button>
+      <button type="button" class="alt" id="syncSelBtn"></button>
+    </div>
+  </div>
 
   <div class="admin-box" aria-labelledby="adminH">
     <div class="admin-h" id="adminH" data-zh="🔐 管理捷徑（主管用，結果發到 Telegram 群組）" data-en="🔐 Admin shortcuts (managers; results go to the Telegram group)" data-km="🔐 ផ្លូវកាត់អ្នកគ្រប់គ្រង (លទ្ធផលផ្ញើទៅក្រុម Telegram)">🔐 管理捷徑（主管用，結果發到 Telegram 群組）</div>
@@ -252,6 +286,7 @@ function applyLang() {
   document.querySelectorAll('.lb').forEach(function (b) { b.classList.toggle('on', b.dataset.l === L); });
   paintCloud();
   renderGrid();
+  paintSync();
 }
 document.querySelectorAll('.lb').forEach(function (b) {
   b.onclick = function () { SEC.dataReady().then(function () { SEC.setLang(b.dataset.l); }).catch(SEC.bootError); };
@@ -302,6 +337,130 @@ async function act(action, btn) {
     if (e && (e.code === 'NETWORK' || e.code === 'HTTP')) { CLOUD = 'offline'; paintCloud(); }
     SEC.toast('❌ ' + SEC.esc(e.message), 'err', 0, { label: SEC.L('🔄 再試一次', '🔄 Try again', '🔄 ព្យាយាមម្តងទៀត'), fn: function () { act(action, btn); } });
   } finally { if (t && t.parentNode) t.parentNode.removeChild(t); BUSY = false; if (btn) btn.disabled = false; }
+}
+/* ═══ 首頁雲端同步：全部同步／只同步勾選的模組 ═══
+   每個模組在背景開自己的頁面，執行該頁同一套「先下載合併、再上傳」同步（與頁首 ⬆️⬇️ 相同），
+   所以各模組的合併、刪除紀錄、照片、人員版本規則都一樣，不會因為從首頁同步而不同。
+   一次一個模組，避免雲端鎖互搶；失敗的模組會留著勾選，可再按一次重試。 */
+var SYNC_SEL_KEY = 'ac_sec_home_sync_sel_v1', SYNC_BUSY = false, SYNC_ST = {}, SYNC_TIMEOUT = 120000;
+function syncSelRead() {
+  try { var v = JSON.parse(localStorage.getItem(SYNC_SEL_KEY) || 'null'); if (Array.isArray(v)) return v.filter(function (id) { return MODS.some(function (m) { return m.id === id; }); }); } catch (e) {}
+  return MODS.map(function (m) { return m.id; });
+}
+function syncSelWrite(ids) { try { localStorage.setItem(SYNC_SEL_KEY, JSON.stringify(ids)); } catch (e) {} }
+var SYNC_SEL = syncSelRead();
+function syncShortTime(t) { var m = String(t || '').match(/(\d{2}:\d{2})(?::\d{2})?\s*$/); var d = String(t || '').match(/\d{4}-(\d{2}-\d{2})/); return t && t !== '—' ? (d && d[1] !== SEC.ymd().slice(5) ? d[1] + ' ' : '') + (m ? m[1] : t) : ''; }
+function paintSync() {
+  var L = SEC.lang(), box = document.getElementById('syncChips'); if (!box) return;
+  box.innerHTML = MODS.map(function (m) {
+    var st = SYNC_ST[m.id] || {}, on = SYNC_SEL.indexOf(m.id) >= 0, sub;
+    if (st.state === 'run') sub = '⏳ ' + SEC.L('同步中…', 'Syncing…', 'កំពុងធ្វើ…');
+    else if (st.state === 'wait') sub = '… ' + SEC.L('排隊中', 'Queued', 'កំពុងរង់ចាំ');
+    else if (st.state === 'ok') sub = '✅ ' + (st.msg || syncShortTime(SEC.lastSync(m.id)));
+    else if (st.state === 'err') sub = '❌ ' + (st.msg || SEC.L('失敗', 'Failed', 'បរាជ័យ'));
+    else sub = syncShortTime(SEC.lastSync(m.id)) ? '☁ ' + syncShortTime(SEC.lastSync(m.id)) : '— ' + SEC.L('尚未同步', 'Not synced yet', 'មិនទាន់');
+    return '<label class="sc' + (on ? ' on' : '') + (st.state ? ' ' + st.state : '') + '" title="' + SEC.esc(sub) + '"><input type="checkbox" data-sync="' + m.id + '"' + (on ? ' checked' : '') + (SYNC_BUSY ? ' disabled' : '') + '>' +
+      '<span>' + m.ic + '</span><span class="sc-t"><span>' + SEC.esc(m[L] || m.zh) + '</span><small>' + SEC.esc(sub) + '</small></span></label>';
+  }).join('');
+  box.querySelectorAll('input[data-sync]').forEach(function (cb) {
+    cb.onchange = function () {
+      var id = cb.getAttribute('data-sync');
+      SYNC_SEL = SYNC_SEL.filter(function (x) { return x !== id; }); if (cb.checked) SYNC_SEL.push(id);
+      SYNC_SEL = MODS.map(function (m) { return m.id; }).filter(function (x) { return SYNC_SEL.indexOf(x) >= 0; });
+      syncSelWrite(SYNC_SEL); paintSync();
+    };
+  });
+  var all = SYNC_SEL.length === MODS.length, pick = document.getElementById('syncPick');
+  pick.textContent = all ? SEC.L('全不選', 'Select none', 'មិនជ្រើសទាំងអស់') : SEC.L('全選', 'Select all', 'ជ្រើសទាំងអស់');
+  pick.disabled = SYNC_BUSY;
+  var a = document.getElementById('syncAllBtn'), b = document.getElementById('syncSelBtn');
+  a.textContent = SYNC_BUSY ? '⏳ ' + SEC.L('同步中…', 'Syncing…', 'កំពុងធ្វើ…') : '☁ ' + SEC.L('全部同步', 'Sync all', 'ធ្វើទាំងអស់') + ' (' + MODS.length + ')';
+  b.textContent = '☑ ' + SEC.L('同步勾選的', 'Sync selected', 'ធ្វើដែលបានជ្រើស') + ' (' + SYNC_SEL.length + ')';
+  a.disabled = SYNC_BUSY; b.disabled = SYNC_BUSY || !SYNC_SEL.length;
+  paintSyncResult();
+}
+document.getElementById('syncPick').onclick = function () {
+  SYNC_SEL = SYNC_SEL.length === MODS.length ? [] : MODS.map(function (m) { return m.id; }); syncSelWrite(SYNC_SEL); paintSync();
+};
+document.getElementById('syncAllBtn').onclick = function () { syncModules(MODS.map(function (m) { return m.id; })); };
+document.getElementById('syncSelBtn').onclick = function () { syncModules(SYNC_SEL.slice()); };
+var SYNC_RESULT = null, SYNC_FAIL_TOAST = null;
+/* 結果文字依目前語言重畫（切換語言後不會殘留別的語言） */
+function paintSyncResult() {
+  var msg = document.getElementById('syncMsg'), r = SYNC_RESULT; if (!msg || SYNC_BUSY || !r) return;
+  var names = r.bad.map(function (id) { var m = MODS.filter(function (x) { return x.id === id; })[0]; return m ? (m[SEC.lang()] || m.zh) : id; });
+  msg.textContent = (r.bad.length ? '⚠ ' : '✅ ') + SEC.L('完成 ' + r.ok + '/' + r.total, 'Done ' + r.ok + '/' + r.total, 'រួច ' + r.ok + '/' + r.total) +
+    (r.bad.length ? ' · ❌ ' + names.join(SEC.lang() === 'zh' ? '、' : ', ') + ' · ' + SEC.L('已勾選失敗的，可再按「同步勾選的」', 'failed ones are selected — tap "Sync selected" to retry', 'បានជ្រើសដែលបរាជ័យ — ចុចម្តងទៀត') : '');
+}
+function syncSleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+async function syncWaitFor(fn, ms) {
+  var end = Date.now() + ms;
+  while (Date.now() < end) { try { if (fn()) return true; } catch (e) {} await syncSleep(150); }
+  return false;
+}
+/* 在背景開一個模組頁，用該頁自己的同步流程跑一次，完成後關掉 */
+function syncOne(m) {
+  return new Promise(function (resolve) {
+    var f = document.createElement('iframe'), done = false, started = false;
+    f.setAttribute('aria-hidden', 'true'); f.tabIndex = -1; f.title = 'sync ' + m.id;
+    f.style.cssText = 'position:fixed;left:-12000px;top:0;width:400px;height:820px;border:0;opacity:0;pointer-events:none';
+    var timer = setTimeout(function () { finish({ ok:false, msg:SEC.L('逾時', 'Timed out', 'អស់ពេល') }); }, SYNC_TIMEOUT);
+    function finish(r) {
+      if (done) return; done = true; clearTimeout(timer);
+      setTimeout(function () { try { f.src = 'about:blank'; } catch (e) {} if (f.parentNode) f.parentNode.removeChild(f); }, 60);
+      resolve(r);
+    }
+    f.onload = async function () {
+      if (started || done) return; started = true;
+      try {
+        var w = f.contentWindow;
+        if (!(await syncWaitFor(function () { return w.SEC && typeof w.SEC.runAutoCloudSync === 'function'; }, 20000))) throw new Error(SEC.L('頁面載入失敗', 'Page did not load', 'ទំព័រមិនបានផ្ទុក'));
+        if (typeof w.SEC.dataReady === 'function') await w.SEC.dataReady();
+        var dbg = function () { return w.SEC.autoSyncDebug ? w.SEC.autoSyncDebug() : { busy:{}, net:{} }; };
+        /* 頁面開啟時會自己先同步一次：等它跑完，再跑我們這次（結果以這次為準） */
+        await syncSleep(900);
+        await syncWaitFor(function () { return !dbg().busy[m.id]; }, SYNC_TIMEOUT - 10000);
+        var ok = await w.SEC.runAutoCloudSync(m.id, { tool:m.id, reason:'home-sync', period:'', at:Date.now(), manual:true });
+        var net = dbg().net[m.id];
+        await syncWaitFor(function () { return !dbg().busy[m.id]; }, 30000);
+        if (ok) finish({ ok:true });
+        else if (net && net.ok) finish({ ok:true, msg:SEC.L('雲端已檢查', 'Cloud checked', 'បានពិនិត្យ') + ' ' + SEC.nowStr().slice(-5) });
+        else finish({ ok:false, msg:(net && net.code !== 'NETWORK' && net.error) || (navigator.onLine ? SEC.L('雲端沒有回應', 'Cloud did not respond', 'ពពកមិនឆ្លើយតប') : SEC.L('離線', 'Offline', 'គ្មានអ៊ីនធឺណិត')) });
+      } catch (e) { finish({ ok:false, msg:String(e && e.message || e) }); }
+    };
+    f.src = m.u + (m.u.indexOf('?') >= 0 ? '&' : '?') + 'homeSync=1';
+    document.body.appendChild(f);
+  });
+}
+async function syncModules(ids) {
+  if (SYNC_BUSY || !ids.length) return;
+  if (!navigator.onLine) { CLOUD = 'offline'; paintCloud(); SEC.toast(SEC.netFailText(), 'err', 0, { label:SEC.L('🔄 再試一次', '🔄 Try again', '🔄 ព្យាយាមម្តងទៀត'), fn:function () { syncModules(ids); } }); return; }
+  SYNC_BUSY = true;
+  if (SYNC_FAIL_TOAST && SYNC_FAIL_TOAST.parentNode) SYNC_FAIL_TOAST.parentNode.removeChild(SYNC_FAIL_TOAST); SYNC_FAIL_TOAST = null;
+  var list = MODS.filter(function (m) { return ids.indexOf(m.id) >= 0; }), okN = 0, bad = [], prog = document.getElementById('syncProg'), msg = document.getElementById('syncMsg');
+  list.forEach(function (m) { SYNC_ST[m.id] = { state:'wait' }; });
+  SYNC_RESULT = null; prog.classList.add('on'); prog.firstChild.style.width = '4%'; msg.textContent = ''; CLOUD = 'checking'; paintCloud(); paintSync();
+  try {
+    for (var i = 0; i < list.length; i++) {
+      var m = list[i]; SYNC_ST[m.id] = { state:'run' }; paintSync();
+      msg.textContent = '⏳ ' + (i + 1) + '/' + list.length + ' · ' + m.ic + ' ' + (m[SEC.lang()] || m.zh);
+      var r = await syncOne(m);
+      SYNC_ST[m.id] = { state:r.ok ? 'ok' : 'err', msg:r.msg || '' };
+      if (r.ok) okN++; else bad.push(m);
+      prog.firstChild.style.width = Math.round((i + 1) / list.length * 100) + '%'; paintSync();
+    }
+  } finally {
+    SYNC_BUSY = false;
+    /* 失敗的保留勾選，方便直接按「同步勾選的」重試 */
+    if (bad.length) { SYNC_SEL = bad.map(function (m) { return m.id; }); syncSelWrite(SYNC_SEL); }
+    CLOUD = okN ? 'ok' : 'offline'; paintCloud();
+    var ts = SEC.nowStr(); if (okN) document.getElementById('cTs').textContent = ts;
+    SYNC_RESULT = { ok:okN, total:list.length, bad:bad.map(function (m) { return m.id; }) };
+    setTimeout(function () { prog.classList.remove('on'); }, 1200);
+    paintSync(); renderGrid();
+    if (bad.length) SYNC_FAIL_TOAST = SEC.toast('⚠ ' + SEC.L('雲端同步 ' + okN + '/' + list.length + '，' + bad.length + ' 個失敗', 'Cloud sync ' + okN + '/' + list.length + ', ' + bad.length + ' failed', 'សមកាលកម្ម ' + okN + '/' + list.length), 'warn', 0, { label:SEC.L('🔄 重試失敗的', '🔄 Retry failed', '🔄 ព្យាយាមម្តងទៀត'), fn:function () { syncModules(bad.map(function (m) { return m.id; })); } });
+    else SEC.toast('✅ ' + SEC.L('已與雲端同步 ' + okN + ' 個模組', 'Synced ' + okN + ' module(s) with the cloud', 'បានធ្វើសមកាលកម្ម ' + okN + ' ម៉ូឌុល'), 'ok', 4000);
+  }
 }
 function openCfg() { SEC.openSettings(); }
 window.addEventListener('online', function () { ping(true); });
