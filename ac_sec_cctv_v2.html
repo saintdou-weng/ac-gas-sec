@@ -245,7 +245,10 @@
 <button class="btn" id="eSaveBtn" onclick="saveEdit()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20261006a"></script>
+<script src="./shared/sec-core.js?v=20261022a"></script>
+<script src="./shared/sec-import-hub.js?v=20261022a"></script>
+<script src="./shared/ac-report-doc.js?v=20261022a"></script>
+<script src="./shared/sec-report.js?v=20261022a"></script>
 <script src="./shared/sec-asset-changes.js?v=20260929a"></script>
 <script src="./shared/sec-smart-sync.js?v=20260929a"></script>
 <script>
@@ -466,7 +469,32 @@ function repaintPnavLang() {
   var td = el.querySelector('.ptoday'); if (td) td.textContent = T.today;
 }
 window.onLangChange = function () { fillZones(); repaintPnavLang(); var il = document.getElementById('impLog'); if (il) il.innerHTML = ''; renderAll(); setBrush(BRUSH, true); if (EDIT_ID !== null) paintEditTitle(); };
-SEC.dataReady().then(load).then(function () { loadDay(); renderAll(); }).catch(SEC.bootError);
+SEC.dataReady().then(load).then(function () { loadDay(); renderAll(); SEC.markPageReady(); }).catch(SEC.bootError);
+/* ═══ 智慧匯入／參考報告登記（2026-10-22）：同一個匯入器（impExcel）、同一套 Telegram 巡檢摘要（＋設備異動）邏輯 ═══ */
+SEC.registerImporter(TOOL, { default:'excel', kinds:{
+  excel:{ label:{ zh:'攝影機清單', en:'Camera list', km:'បញ្ជីកាមេរ៉ា' }, accept:'excel', run:function () { return impExcel(); } } } });
+/* 明細：期間內每次巡檢的異常攝影機一列（勾明細時列出全部攝影機） */
+function cctvReportRows(st) {
+  var lang = st.lang || 'zh', p = cctvSummaryPeriod(st), cams = cctvUniqueCameras(cctvScopedCameras(st)).slice().sort(function (a, b) { return String(a.code || '').localeCompare(String(b.code || '')); });
+  var logs = LOG.filter(function (r) { return p.has(r.date); }).slice().sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); }), rows = [];
+  logs.forEach(function (rec) {
+    cams.forEach(function (c) {
+      var s = cctvRecordStatus(rec, c);
+      if (!st.includeDetails && !isBad(s)) return;
+      rows.push([rec.date, c.code || '—', znLang(c.zone || 'yard', lang), (STAT[s] || STAT.pending).icon + ' ' + statLabel(s, lang), [c.name || '', c.remark || ''].filter(Boolean).join(' · ')]);
+    });
+  });
+  return { widths:[1300, 1500, 2000, 1700, 3200], head:[['日期', 'Date', 'កាលបរិច្ឆេទ'], ['編號', 'Camera', 'កាមេរ៉ា'], ['區域', 'Zone', 'តំបន់'], ['狀態', 'Status', 'ស្ថានភាព'], ['名稱／備註', 'Name / note', 'ឈ្មោះ / កំណត់ចំណាំ']], rows:rows };
+}
+SEC.registerReport(TOOL, { title:{ zh:'CCTV 監控', en:'CCTV', km:'កាមេរ៉ា CCTV' }, ptypes:['day', 'week', 'month', 'year'], periods:cctvPeriods,
+  currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); }, scopeOptions:function () { return cctvScopeOptions().map(function (x) { return { value:x.value, label:x.value === 'all' ? { zh:'全部攝影機', en:'All cameras', km:'កាមេរ៉ាទាំងអស់' } : x.value.indexOf('factory:') === 0 ? CCTV_FACTORIES[x.value.slice(8)] : ZONES.filter(function (z) { return z.id === x.value.slice(5); })[0] || x.label }; }); },
+  summary:function (st) { return cctvSummaryPages(st).concat(SEC.AssetChanges.pages('cctv', cctvAssetEvents(), st, cctvScopeMatch).map(function (d) { return d.text; })); },
+  kpis:function (st) { var D = cctvSummaryData(st), s = D.s, bad = cctvBadN(s);
+    return [{ label:{ zh:'攝影機', en:'Cameras', km:'កាមេរ៉ា' }, value:D.list.length }, { label:{ zh:'已巡檢', en:'Checked', km:'បានពិនិត្យ' }, value:(s.ok || 0) + bad + (s.dis || 0) },
+      { label:{ zh:'正常', en:'OK', km:'ធម្មតា' }, value:s.ok || 0 }, { label:{ zh:'異常', en:'Faulty', km:'មានបញ្ហា' }, value:bad }, { label:{ zh:'待確認', en:'Pending', km:'រង់ចាំពិនិត្យ' }, value:s.pending || 0 },
+      { label:{ zh:'巡檢天數', en:'Days checked', km:'ថ្ងៃពិនិត្យ' }, value:D.logs.length }, { label:{ zh:'可用率 %', en:'Uptime %', km:'អត្រាដំណើរការ %' }, value:D.uptime == null ? '—' : D.uptime }]; },
+  rows:cctvReportRows,
+  counts:function (st) { return cctvSummaryData(st).logs.length; } });
 
 function fillZones() {
   var l = SEC.lang();

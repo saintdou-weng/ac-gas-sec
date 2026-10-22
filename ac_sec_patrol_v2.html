@@ -280,7 +280,10 @@
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20261006a"></script>
+<script src="./shared/sec-core.js?v=20261022a"></script>
+<script src="./shared/sec-import-hub.js?v=20261022a"></script>
+<script src="./shared/ac-report-doc.js?v=20261022a"></script>
+<script src="./shared/sec-report.js?v=20261022a"></script>
 <script src="./shared/sec-smart-sync.js?v=20260929a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
@@ -528,7 +531,46 @@ SEC.dataReady().then(load).then(function () {
   rebuild();
   loadPatrolCheckForm();
   if (paintPatrolPeriod) paintPatrolPeriod();
+  SEC.markPageReady();
 }).catch(SEC.bootError);
+/* ═══ 智慧匯入／參考報告登記（2026-10-22）：同一個匯入器（impWand／impGeneric）、同一套 Telegram 摘要邏輯 ═══ */
+SEC.registerImporter(TOOL, { default:'wand', kinds:{
+  wand:{ label:{ zh:'巡邏機紀錄', en:'Patrol reader log', km:'កំណត់ត្រាម៉ាស៊ីនល្បាត' }, accept:'excel', run:function () { return impWand(); } },
+  generic:{ label:{ zh:'一般巡邏表', en:'Patrol sheet', km:'តារាងល្បាត' }, accept:'excel', run:function () { return impGeneric(); } } } });
+function patrolReportShift(night, lang) { return night ? '🌙 ' + pt(lang, '夜班', 'Night', 'យប់') : '☀️ ' + pt(lang, '日班', 'Day', 'ថ្ងៃ'); }
+/* 明細：巡更棒每圈一列＋人工巡邏每筆一列（日期、班別、時間、巡邏點、巡邏員、結果） */
+function patrolReportRows(st) {
+  var lang = st.lang || 'zh', G = SEC.TG, D = patrolSummaryData(st), rows = [];
+  D.list.forEach(function (r) {
+    var miss = roundMissing(r);
+    rows.push([r.date, patrolReportShift(r.night, lang), (G.time(r.start) || '—') + '–' + (G.time(r.end) || '—'),
+      r.chips.length + '/' + roundExpected(r) + (miss.length ? ' · ' + pt(lang, '漏', 'Missed', 'ខកខាន') + ': ' + miss.map(function (c) { return chipName(c, lang); }).join(', ') : ''),
+      r.g || '—', miss.length ? '✗ ' + pt(lang, '未完整', 'Incomplete', 'មិនពេញលេញ') : '✓ ' + pt(lang, '完整', 'Complete', 'ពេញលេញ')]);
+  });
+  D.manual.forEach(function (r) {
+    rows.push([r.date, patrolReportShift(r.shift === 'N', lang), G.time(r.time) || '—', dispName(r.location || '—', lang), r.guard || '—',
+      (r.status === 'issue' ? '✗ ' + pt(lang, '異常', 'Issue', 'បញ្ហា') : '✓ ' + pt(lang, '正常', 'OK', 'ធម្មតា')) + (r.note ? ' · ' + r.note : '')]);
+  });
+  rows.sort(function (a, b) { return String(a[0] + ' ' + a[2]).localeCompare(String(b[0] + ' ' + b[2])); });
+  return { widths:[1300, 1200, 1500, 2800, 1500, 1400], head:[['日期', 'Date', 'កាលបរិច្ឆេទ'], ['班別', 'Shift', 'វេន'], ['時間', 'Time', 'ម៉ោង'], ['巡邏點', 'Checkpoints', 'ចំណុចល្បាត'], ['巡邏員', 'Guard', 'អ្នកល្បាត'], ['結果', 'Result', 'លទ្ធផល']], rows:rows };
+}
+SEC.registerReport(TOOL, { title:{ zh:'保安巡邏', en:'Patrol', km:'ការល្បាតសន្តិសុខ' }, ptypes:['day', 'week', 'month', 'year'], periods:patrolPeriods,
+  currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); },
+  scopeOptions:function () { return [{ value:'all', label:{ zh:'全天', en:'All day', km:'ពេញមួយថ្ងៃ' } }, { value:'day', label:{ zh:'日班', en:'Day shift', km:'វេនថ្ងៃ' } }, { value:'night', label:{ zh:'夜班', en:'Night shift', km:'វេនយប់' } }]; },
+  summary:function (st) { return patrolSummaryPages(st).concat(st.scope === 'day' ? [] : patrolNightSummaryPages(st)); },
+  kpis:function (st) {
+    var D = patrolSummaryData(st), out = [
+      { label:{ zh:'巡邏圈數', en:'Rounds', km:'ជុំល្បាត' }, value:D.list.length },
+      { label:{ zh:'完整圈', en:'Complete rounds', km:'ជុំពេញលេញ' }, value:D.full },
+      { label:{ zh:'漏點', en:'Missed points', km:'ចំណុចខកខាន' }, value:D.missed },
+      { label:{ zh:'巡邏員', en:'Guards', km:'អ្នកល្បាត' }, value:Object.keys(D.byG).length },
+      { label:{ zh:'人工巡邏', en:'Manual patrols', km:'ល្បាតដោយដៃ' }, value:D.manual.length },
+      { label:{ zh:'人工異常', en:'Manual issues', km:'បញ្ហាដោយដៃ' }, value:D.issues.length },
+      { label:{ zh:'巡邏確認表', en:'Check forms', km:'ទម្រង់ពិនិត្យ' }, value:D.checks.length }];
+    if (st.scope !== 'day') { var N = patrolNightData(st); out.push({ label:{ zh:'夜巡夜數', en:'Nights patrolled', km:'យប់ល្បាត' }, value:N.ks.length }, { label:{ zh:'夜巡達標夜數', en:'Nights met target', km:'យប់គ្រប់គោលដៅ' }, value:N.ks.length - N.short.length }); }
+    return out; },
+  rows:patrolReportRows,
+  counts:function (st) { var D = patrolSummaryData(st); return D.list.length + D.manual.length; } });
 
 /* ═══════════ 巡邏圈偵測 ═══════════ */
 function chipIsActive(c) { return !!CHIP[c] && CHIP[c].active !== false; }

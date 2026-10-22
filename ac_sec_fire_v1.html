@@ -350,7 +350,10 @@
 <button class="btn" id="eSaveBtn" onclick="saveEdit()" data-zh="儲存" data-en="Save" data-km="រក្សាទុក">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20261006a"></script>
+<script src="./shared/sec-core.js?v=20261022a"></script>
+<script src="./shared/sec-import-hub.js?v=20261022a"></script>
+<script src="./shared/ac-report-doc.js?v=20261022a"></script>
+<script src="./shared/sec-report.js?v=20261022a"></script>
 <script src="./shared/sec-asset-changes.js?v=20260929a"></script>
 <script src="./shared/sec-smart-sync.js?v=20260929a"></script>
 <script>
@@ -630,7 +633,21 @@ document.getElementById('cDate').value = SEC.ymd();
 if (document.getElementById('e_type')) document.getElementById('e_type').addEventListener('change', syncFireServiceLabel);
 fillZoneSelects();
 window.onLangChange = function () { renderAll(); applyFireLanguage(); };
-SEC.dataReady().then(load).then(function () { renderAll(); }).catch(SEC.bootError);
+SEC.dataReady().then(load).then(function () { renderAll(); SEC.markPageReady(); }).catch(SEC.bootError);
+/* ═══ 智慧匯入／參考報告登記（2026-10-22）：同一個匯入器、同一套摘要邏輯 ═══ */
+SEC.registerImporter(TOOL, { default:'equipment', kinds:{
+  equipment:{ label:{ zh:'設備清單', en:'Equipment list', km:'បញ្ជីឧបករណ៍' }, accept:'excel', run:function () { return impExcel(); } },
+  history:{ label:{ zh:'歷史月檢表', en:'Past monthly checks', km:'ការត្រួតពិនិត្យចាស់' }, accept:'excel', run:function () { return impHistExcel(); } } } });
+SEC.registerReport(TOOL, { title:{ zh:'消防設施', en:'Fire Equipment', km:'ឧបករណ៍ពន្លត់អគ្គិភ័យ' }, ptypes:['week', 'month', 'year'], periods:firePeriods,
+  currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); }, scopeOptions:fireScopeOptions,
+  summary:function (st) { return fireInspectionSummaryPages(st).concat(fireSummaryPages(st)); },
+  kpis:function (st) { var rows = fireInspectionRows(st), checked = 0, bad = 0; rows.forEach(function (r) { if (r.aggregate) { checked += +r.n || 0; bad += +r.bad || 0; } else { checked++; if (r.result === 'fault') bad++; } });
+    var over = DB.filter(function (e) { return fireScopeMatch(st, e) && statusOf(e) === 'over'; }).length, soon = DB.filter(function (e) { return fireScopeMatch(st, e) && statusOf(e) === 'soon'; }).length;
+    return [{ label:{ zh:'設備總數', en:'Equipment', km:'ឧបករណ៍' }, value:DB.filter(function (e) { return fireScopeMatch(st, e); }).length }, { label:{ zh:'本期巡檢台次', en:'Inspections', km:'ការត្រួតពិនិត្យ' }, value:checked }, { label:{ zh:'巡檢異常', en:'Faults found', km:'ខូច' }, value:bad }, { label:{ zh:'故障／已過日期', en:'Fault / date passed', km:'ខូច / ហួសកាលបរិច្ឆេទ' }, value:over }, { label:{ zh:'日期將近', en:'Date approaching', km:'ជិតដល់' }, value:soon }]; },
+  rows:function (st) { var lang = st.lang || 'zh', rows = fireInspectionRows(st).filter(function (r) { return !r.aggregate; });
+    return { widths:[1300, 1300, 1500, 1700, 2300, 1600], head:[['日期', 'Date', 'កាលបរិច្ឆេទ'], ['編號', 'Code', 'លេខ'], ['類型', 'Type', 'ប្រភេទ'], ['區域', 'Zone', 'តំបន់'], ['位置', 'Location', 'ទីតាំង'], ['結果', 'Result', 'លទ្ធផល']],
+      rows:rows.map(function (r) { return [r.date, r.code, fireTypeLabel(r.type, lang), zoneName(r.zone, lang), r.loc || '', (r.result === 'fault' ? (lang === 'en' ? '✗ Fault' : lang === 'km' ? '✗ ខូច' : '✗ 異常') : (lang === 'en' ? '✓ OK' : lang === 'km' ? '✓ ល្អ' : '✓ 正常')) + (r.note ? ' · ' + r.note : '')]; }) }; },
+  counts:function (st) { var n = 0; fireInspectionRows(st).forEach(function (r) { n += r.aggregate ? (+r.n || 0) : 1; }); return n; } });
 
 function fillZoneSelects() {
   var opts=ZONES.map(function(z){return '<option value="'+z.id+'">'+SEC.esc(fireUiLabel(z))+'</option>';}).join('');

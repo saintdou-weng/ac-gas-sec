@@ -18,7 +18,7 @@
 html,body{height:100%;font-family:'DM Sans','Noto Sans TC','Noto Sans Khmer',system-ui,sans-serif;overflow-x:hidden}
 body{
   background:linear-gradient(160deg,#0f2b46 0%,#1e6f8e 48%,#134a63 100%);
-  min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:12px;
+  min-height:100dvh;display:flex;align-items:flex-start;justify-content:center;padding:12px;
 }
 body::before{
   content:'';position:fixed;inset:0;pointer-events:none;opacity:.07;
@@ -31,7 +31,7 @@ body::before{
     radial-gradient(circle at 60% 40%, #fff 1px, transparent 1px);
   background-size:160px 160px;
 }
-.wrap{width:100%;max-width:360px;display:flex;flex-direction:column;gap:8px;position:relative;z-index:1}
+.wrap{width:100%;max-width:360px;display:flex;flex-direction:column;gap:8px;position:relative;z-index:1;margin:auto}
 
 /* Header */
 .portal-hdr{
@@ -114,6 +114,11 @@ body::before{
 .sync-act button{min-height:46px;border-radius:10px;border:1px solid rgba(255,255,255,.16);font:800 12px/1.2 inherit;font-family:inherit;cursor:pointer;color:#0f2b46;background:var(--gold)}
 .sync-act button.alt{background:rgba(0,0,0,.22);color:#fff}
 .sync-act button:disabled{opacity:.5;cursor:wait}
+/* 首頁智慧匯入（2026-10-22） */
+.hub-box{background:#fff;border-radius:var(--r);padding:10px;box-shadow:var(--shadow);color:#15293d}
+.hub-h{display:flex;flex-direction:column;gap:2px;padding:0 2px 8px}.hub-h span{font-size:13px;font-weight:800;color:#0f2b46}.hub-h small{font-size:10.5px;color:#6b8398}
+.hub-box .btn{min-height:40px;padding:6px 14px;border:none;border-radius:9px;background:#1e6f8e;color:#fff;font:700 12.5px/1.2 inherit;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.hub-box .btn.gray{background:#64748b}.hub-box .btn.sm{min-height:36px;padding:5px 10px;font-size:11.5px}.hub-box .btn:disabled{opacity:.5;cursor:wait}
 /* Quick actions */
 /* 管理捷徑（與保安模組分開） */
 .admin-box{background:rgba(0,0,0,.14);border:1px dashed rgba(255,255,255,.22);border-radius:var(--r);padding:8px;display:flex;flex-direction:column;gap:6px}
@@ -178,6 +183,11 @@ body::before{
     </div>
   </div>
 
+  <div class="hub-box" id="hubBox">
+    <div class="hub-h"><span data-zh="⇧ 智慧匯入" data-en="⇧ Smart import" data-km="⇧ នាំចូលឆ្លាតវៃ">⇧ 智慧匯入</span><small data-zh="msg／Excel／zip／照片丟同一個地方，自動分到各模組" data-en="Drop msg / Excel / zip / photos here; routed to the right module" data-km="ទម្លាក់ឯកសារនៅទីនេះ">msg／Excel／zip／照片丟同一個地方，自動分到各模組</small></div>
+    <div id="homeHub"></div>
+  </div>
+
   <div class="cloud-bar" id="cloudBar" role="status">
     <span class="c-dot" id="dot"></span>
     <span class="c-lbl" id="cLbl">☁ 雲端狀態</span>
@@ -215,7 +225,8 @@ body::before{
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20261006a"></script>
+<script src="./shared/sec-core.js?v=20261022a"></script>
+<script src="./shared/sec-import-hub.js?v=20261022a"></script>
 <script src="./shared/sec-smart-sync.js?v=20260929a"></script>
 <script>
 /* ═══ 模組定義（含本機筆數） ═══ */
@@ -292,8 +303,10 @@ document.querySelectorAll('.lb').forEach(function (b) {
   b.onclick = function () { SEC.dataReady().then(function () { SEC.setLang(b.dataset.l); }).catch(SEC.bootError); };
 });
 /* 任何地方切換語言（語言鈕或設定視窗）都重畫首頁 */
-window.onLangChange = function () { applyLang(); };
+window.onLangChange = function () { applyLang(); if (window.HOME_HUB) HOME_HUB.render(); };
 SEC.dataReady().then(applyLang).catch(SEC.bootError);
+/* 首頁智慧匯入中心：匯完後更新模組筆數 */
+var HOME_HUB = SEC.ImportHub ? SEC.ImportHub.mount('#homeHub', { onDone:function () { renderGrid(); paintSync(); } }) : null;
 
 /* ═══ 雲端狀態 ═══ */
 var lastTs = '';

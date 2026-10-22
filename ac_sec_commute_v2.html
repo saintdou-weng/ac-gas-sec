@@ -236,7 +236,10 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
 <div class="mf"><button class="btn gray" onclick="SEC.closeModal('mDrivers')" data-t="cancel">取消</button>
 <button class="btn" id="btnSaveDrivers" onclick="saveDriverManager()" data-t="save">儲存</button></div></div></div>
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20261006a"></script>
+<script src="./shared/sec-core.js?v=20261022a"></script>
+<script src="./shared/sec-import-hub.js?v=20261022a"></script>
+<script src="./shared/ac-report-doc.js?v=20261022a"></script>
+<script src="./shared/sec-report.js?v=20261022a"></script>
 <script src="./shared/sec-smart-sync.js?v=20260929a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
@@ -367,7 +370,68 @@ window.onLangChange = function () {
   var log = document.getElementById('impLog'); log.innerHTML = IMP_LOG_DEFAULT; SEC.applyI18n(log);
   applyPageLang(); renderAll();
 };
-SEC.dataReady().then(load).then(function () { renderAll(); }).catch(SEC.bootError);
+SEC.dataReady().then(load).then(function () { renderAll(); SEC.markPageReady(); }).catch(SEC.bootError);
+
+/* ═══ 智慧匯入／參考報告登記（2026-10-22）：同一個匯入器、同一套摘要邏輯（docs/SMART_IMPORT_GUIDE.md） ═══
+   四種 kind 與首頁判斷規則一致（car／bike／gate／late）；同一個 kind 丟進來的若是照片就走表單辨識（commuteOcrStart
+   → SEC.pickPhoto 由 hub 餵檔），Excel 就走原本的 impXxx（SEC.pickExcel 由 hub 餵檔）。舊的 ⋯ 選單按鈕仍用 smartCommuteImport()。 */
+function commuteIsImageFile(file) {
+  var type = String(file && file.type || '').toLowerCase(), name = String(file && file.name || '').toLowerCase();
+  return /^image\//.test(type) || /\.(jpe?g|png|webp|heic|heif|gif|bmp)$/.test(name);
+}
+function commuteHubRun(kind, excelFn) {
+  return function (file) { return commuteIsImageFile(file) ? commuteOcrStart(kind) : excelFn(); };
+}
+SEC.registerImporter(TOOL, { default:'car', kinds:{
+  car: { label:{ zh:'車輛派遣', en:'Vehicle dispatch', km:'ការចាត់ចែងរថយន្ត' }, accept:'excel', photo:true, run:commuteHubRun('car', impCar) },
+  bike:{ label:{ zh:'摩托車', en:'Motorbike', km:'ម៉ូតូ' }, accept:'excel', photo:true, run:commuteHubRun('bike', impBike) },
+  gate:{ label:{ zh:'車輛出入閘', en:'Gate log', km:'កំណត់ត្រាច្រក' }, accept:'excel', photo:true, run:commuteHubRun('gate', impGate) },
+  late:{ label:{ zh:'遲到登記', en:'Come late', km:'មកយឺត' }, accept:'excel', photo:true, run:commuteHubRun('late', impLate) } } });
+function commuteReportScopeOptions() {
+  return [{ value:'all', label:{ zh:'全部分類', en:'All categories', km:'គ្រប់ប្រភេទ' } }, { value:'vehicle', label:{ zh:'車輛派遣', en:'Vehicle dispatch', km:'ការចាត់ចែងរថយន្ត' } },
+    { value:'bike', label:{ zh:'摩托車', en:'Motorbike', km:'ម៉ូតូ' } }, { value:'gate', label:{ zh:'車輛出入閘', en:'Gate log', km:'កំណត់ត្រាច្រក' } }, { value:'late', label:{ zh:'遲到登記', en:'Come late', km:'មកយឺត' } }];
+}
+function commuteReportDur(from, to) { var a = SEC.TG.mins(from), b = SEC.TG.mins(to); return a != null && b != null && b >= a ? SEC.TG.dur(b - a) : ''; }
+SEC.registerReport(TOOL, { title:{ zh:'通勤交通', en:'Commute', km:'ការធ្វើដំណើរបុគ្គលិក' }, ptypes:['week', 'month', 'year'], periods:commutePeriods,
+  currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); }, scopeOptions:commuteReportScopeOptions,
+  summary:function (st) { return commuteSummaryPages(st); },
+  kpis:function (st) {
+    var D = commuteSummaryData(st), out = [], sum = function (arr, k) { return arr.reduce(function (s, r) { return s + (+r[k] || 0); }, 0); }, nb = D.bike.length;
+    if (commuteScopeOn(st, 'vehicle')) {
+      out.push({ label:{ zh:'派車行程', en:'Vehicle trips', km:'ដំណើររថយន្ត' }, value:D.trips.length });
+      out.push({ label:{ zh:'派車紀錄', en:'Dispatch records', km:'កំណត់ត្រាចាត់ចែង' }, value:D.car.length });
+      out.push({ label:{ zh:'派車里程 (km)', en:'Dispatch distance (km)', km:'ចម្ងាយ (គ.ម)' }, value:Math.round(sum(D.car, 'km')) });
+    }
+    if (commuteScopeOn(st, 'bike')) {
+      out.push({ label:{ zh:'機車日均（A 廠）', en:'Bikes per day (Bldg A)', km:'ម៉ូតូ/ថ្ងៃ (អគារ A)' }, value:nb ? Math.round(sum(D.bike, 'a') / nb) : 0 });
+      out.push({ label:{ zh:'機車日均（B 廠）', en:'Bikes per day (Bldg B)', km:'ម៉ូតូ/ថ្ងៃ (អគារ B)' }, value:nb ? Math.round(sum(D.bike, 'b') / nb) : 0 });
+      out.push({ label:{ zh:'機車日均（合計）', en:'Bikes per day (total)', km:'ម៉ូតូ/ថ្ងៃ (សរុប)' }, value:nb ? Math.round(sum(D.bike, 'total') / nb) : 0 });
+    }
+    if (commuteScopeOn(st, 'gate')) {
+      out.push({ label:{ zh:'出入閘車次', en:'Gate log entries', km:'ច្រកចេញចូល' }, value:D.gate.length });
+      out.push({ label:{ zh:'出入閘乘客', en:'Gate passengers', km:'អ្នកដំណើរ' }, value:sum(D.gate, 'pax') });
+      out.push({ label:{ zh:'出入閘時間有誤', en:'Gate time to check', km:'ម៉ោងច្រកត្រូវពិនិត្យ' }, value:D.gate.filter(function (r) { return commuteTimeIssue(r.outTime, r.inTime); }).length });
+    }
+    if (commuteScopeOn(st, 'late')) {
+      out.push({ label:{ zh:'遲到人次', en:'Late arrivals', km:'មកយឺត' }, value:D.late.length });
+      out.push({ label:{ zh:'遲到人數', en:'Late employees', km:'បុគ្គលិកមកយឺត' }, value:Object.keys(D.uniq).length });
+      out.push({ label:{ zh:'遲到 3 次以上', en:'Late 3+ times', km:'មកយឺត 3 ដង+' }, value:D.rep.length });
+    }
+    return out;
+  },
+  rows:function (st) {
+    var lang = st.lang || 'zh', D = commuteSummaryData(st), G = SEC.TG, rows = [], t = function (zh, en, km) { return tl(lang, zh, en, km); };
+    D.car.forEach(function (r) { var d = commuteReportDur(r.outTime, r.inTime);
+      rows.push([r.date, t('派車', 'Dispatch', 'ចាត់ចែង'), [r.plate, r.driver].filter(Boolean).join(' · ') || '—', G.time(r.outTime) || '', G.time(r.inTime) || '', d + (+r.km ? (d ? ' · ' : '') + (+r.km) + ' km' : ''), [commuteCategoryLabel(r.category || r.type || '', lang), r.reason].filter(function (x) { return x && x !== '—'; }).join(' · ')]); });
+    D.gate.forEach(function (r) {
+      rows.push([r.date, t('出入閘', 'Gate', 'ច្រក'), [r.plate, r.driver].filter(Boolean).join(' · ') || '—', G.time(r.inTime) || '', G.time(r.outTime) || '', commuteTimeIssue(r.outTime, r.inTime) ? t('⚠ 出廠早於進廠', '⚠ out before in', '⚠ ចេញមុនចូល') : (r.inTime && !r.outTime ? t('未出廠', 'still inside', 'នៅក្នុងរោងចក្រ') : commuteReportDur(r.inTime, r.outTime)) + (+r.km ? ' · ' + (+r.km) + ' km' : ''), [r.passenger, r.dept, (+r.pax ? '👥' + (+r.pax) : ''), r.reason].filter(Boolean).join(' · ')]); });
+    D.bike.forEach(function (r) { rows.push([r.date, t('機車', 'Bikes', 'ម៉ូតូ'), 'A ' + (+r.a || 0) + ' · B ' + (+r.b || 0), '', '', t('合計', 'Total', 'សរុប') + ' ' + (+r.total || 0), r.remark || r.note || '']); });
+    D.late.forEach(function (r) { rows.push([r.date, t('遲到', 'Late', 'មកយឺត'), [r.empId, r.name].filter(Boolean).join(' ') || '—', G.time(r.checkIn) || '', G.time(r.checkOut) || '', '', [r.dept, r.note].filter(Boolean).join(' · ')]); });
+    rows.sort(function (a, b) { return String(a[0]).localeCompare(String(b[0])) || String(a[1]).localeCompare(String(b[1])) || String(a[3]).localeCompare(String(b[3])); });
+    return { widths:[1150, 1050, 2100, 950, 950, 1400, 2100], head:[['日期', 'Date', 'កាលបរិច្ឆេទ'], ['類別', 'Type', 'ប្រភេទ'], ['車牌／司機／人員', 'Plate / Driver / Person', 'ស្លាកលេខ / អ្នកបើកបរ / បុគ្គល'], ['出發／進廠', 'Depart / In', 'ចេញដំណើរ / ចូល'], ['返回／出廠', 'Return / Out', 'ត្រឡប់ / ចេញ'], ['時間／里程', 'Duration / km', 'រយៈពេល / គ.ម'], ['說明', 'Note', 'កំណត់ចំណាំ']], rows:rows };
+  },
+  counts:function (st) { var D = commuteSummaryData(st); return D.car.length + D.gate.length + D.bike.length + D.late.length; },
+  notes:[{ zh:'派車行程以「同日、同出發／返回時間、同事由」合併為一趟；遲到人數以工號或姓名去重。', en:'Vehicle trips merge records with the same date, departure/return time and reason; late employees are counted once per ID or name.', km:'ដំណើររថយន្តបញ្ចូលគ្នាតាមថ្ងៃ ម៉ោង និងមូលហេតុដូចគ្នា; បុគ្គលិកមកយឺតរាប់ម្តងតាមអត្តលេខ ឬឈ្មោះ។' }] });
 
 function smartCommuteImport() {
   var v = prompt(L('智慧匯入：輸入 1 車輛派遣、2 摩托車、3 出入閘、4 遲到登記',

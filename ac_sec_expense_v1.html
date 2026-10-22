@@ -182,7 +182,10 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20261006a"></script>
+<script src="./shared/sec-core.js?v=20261022a"></script>
+<script src="./shared/sec-import-hub.js?v=20261022a"></script>
+<script src="./shared/ac-report-doc.js?v=20261022a"></script>
+<script src="./shared/sec-report.js?v=20261022a"></script>
 <script src="./shared/sec-smart-sync.js?v=20260929a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
@@ -298,7 +301,28 @@ document.getElementById('q').oninput = renderList;
 applyPageLang();
 resetForm();
 window.onLangChange = function () { paintLangWidgets(); document.getElementById('impLog').innerHTML = ''; applyPageLang(); renderAll(); };
-SEC.dataReady().then(load).then(function () { renderAll(); }).catch(SEC.bootError);
+SEC.dataReady().then(load).then(function () { renderAll(); SEC.markPageReady(); }).catch(SEC.bootError);
+/* ═══ 智慧匯入／參考報告登記（2026-10-22）：同一個匯入器（impFee／impExcel）、同一套 Telegram 摘要邏輯 ═══ */
+SEC.registerImporter(TOOL, { default:'fee', kinds:{
+  fee:{ label:{ zh:'保安服務費申請表', en:'Security fee application', km:'ពាក្យស្នើថ្លៃសេវាសន្តិសុខ' }, accept:'excel', run:function () { return impFee(); } },
+  excel:{ label:{ zh:'一般費用表', en:'Expense sheet', km:'តារាងចំណាយ' }, accept:'excel', run:function () { return impExcel(); } } } });
+function expenseReportList(st) {
+  var p = expenseSummaryPeriod(st);
+  return live().filter(function (r) { return p.has(r.date); }).slice().sort(function (a, b) { return String(a.date || '').localeCompare(String(b.date || '')) || String(a.code || '').localeCompare(String(b.code || '')); });
+}
+SEC.registerReport(TOOL, { title:{ zh:'保安費用', en:'Security Expense', km:'ចំណាយសន្តិសុខ' }, ptypes:['week', 'month', 'year'], periods:expensePeriods,
+  currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); },
+  summary:function (st) { return expenseSummaryPages(st); },
+  kpis:function (st) { var list = expenseReportList(st), fee = list.filter(isSecurityFee);
+    return [{ label:{ zh:'費用合計 (USD)', en:'Total amount (USD)', km:'ចំណាយសរុប (USD)' }, value:expTotal(list).toFixed(2) }, { label:{ zh:'費用筆數', en:'Expense items', km:'ចំនួនចំណាយ' }, value:list.length },
+      { label:{ zh:'保安服務費筆數', en:'Security fee items', km:'ចំនួនថ្លៃសេវា' }, value:fee.length }, { label:{ zh:'保安服務費 (USD)', en:'Security fee (USD)', km:'ថ្លៃសេវា (USD)' }, value:expTotal(fee).toFixed(2) },
+      { label:{ zh:'已核可', en:'Approved', km:'បានអនុម័ត' }, value:fee.filter(function (r) { return r.apprStatus === 'approved'; }).length },
+      { label:{ zh:'待核', en:'Pending approval', km:'រង់ចាំអនុម័ត' }, value:fee.filter(function (r) { return !!r.batchId && r.apprStatus !== 'approved' && r.apprStatus !== 'rejected'; }).length },
+      { label:{ zh:'未送核／退件', en:'Not sent / rejected', km:'មិនទាន់ស្នើ / បដិសេធ' }, value:fee.filter(function (r) { return (!r.batchId && r.apprStatus !== 'approved') || r.apprStatus === 'rejected'; }).length }]; },
+  rows:function (st) { var lang = st.lang || 'zh';
+    return { widths:[1300, 1200, 2700, 1900, 1300, 1500], head:[['日期', 'Date', 'កាលបរិច្ឆេទ'], ['編號', 'Code', 'លេខ'], ['項目／人員', 'Item / guard', 'ធាតុ / បុគ្គលិក'], ['分類', 'Category', 'ប្រភេទ'], ['金額', 'Amount', 'ទឹកប្រាក់'], ['狀態', 'Status', 'ស្ថានភាព']],
+      rows:expenseReportList(st).map(function (r) { return [r.date || '', r.code || '', trData(r.name || '—', lang) + (r.vendor ? ' · ' + r.vendor : ''), catLabel(r.cat || '—', lang), money(r.amount), statusText(r, lang)]; }) }; },
+  counts:function (st) { return expenseReportList(st).length; } });
 
 /* ═══ 篩選 ═══ */
 function inPeriod() { return live().filter(function (r) { return PER.has(r.date); }); }

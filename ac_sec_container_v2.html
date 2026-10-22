@@ -350,7 +350,10 @@
 <button class="btn" id="tkSaveBtn" onclick="tkSaveEdit()" data-zh="儲存並執行" data-en="Save & process" data-km="រក្សាទុក និងដំណើរការ">儲存並執行</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20261006a"></script>
+<script src="./shared/sec-core.js?v=20261022a"></script>
+<script src="./shared/sec-import-hub.js?v=20261022a"></script>
+<script src="./shared/ac-report-doc.js?v=20261022a"></script>
+<script src="./shared/sec-report.js?v=20261022a"></script>
 <script src="./shared/sec-smart-sync.js?v=20260929a"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
@@ -544,7 +547,49 @@ document.getElementById('gd_date').value = SEC.ymd();
 document.getElementById('gd_time').value = SEC.hm();
 buildChecks(); ciAddItem(); gdType('gp'); gdAddItem();
 window.onLangChange = function () { containerLangRefresh(); renderAll(); };
-SEC.dataReady().then(load).then(function () { renderAll(); }).catch(SEC.bootError);
+SEC.dataReady().then(load).then(function () { renderAll(); SEC.markPageReady(); }).catch(SEC.bootError);
+
+/* ═══ 智慧匯入／參考報告登記（2026-10-22）：同一個匯入器（tkImp 貨櫃車登記表）、同一套 Telegram 摘要邏輯（docs/SMART_IMPORT_GUIDE.md） ═══ */
+SEC.registerImporter(TOOL, { default:'excel', kinds:{
+  excel:{ label:{ zh:'貨櫃車登記表', en:'Truck register', km:'បញ្ជីរថយន្តកុងតឺន័រ' }, accept:'excel', run:function () { return tkImp(); } } } });
+function containerReportSizeText(sz) { return sz ? (sz === '40HQ' ? '40HQ' : sz + 'ft') : ''; }
+SEC.registerReport(TOOL, { title:{ zh:'貨櫃出入', en:'Container', km:'ចេញចូលកុងតឺន័រ' }, ptypes:['week', 'month', 'year'], periods:containerPeriods,
+  currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); },
+  summary:function (st) { return containerSummaryPages(st); },
+  kpis:function (st) {
+    var D = containerSummaryData(st), out = [], sz = D.sizes;
+    out.push({ label:{ zh:'貨櫃總數', en:'Containers', km:'កុងតឺន័រ' }, value:D.tk.length });
+    out.push({ label:{ zh:'進口貨櫃', en:'Import containers', km:'កុងតឺន័រនាំចូល' }, value:D.imp });
+    out.push({ label:{ zh:'進口 20ft', en:'Import 20ft', km:'នាំចូល 20ft' }, value:sz.imp['20'] || 0 });
+    out.push({ label:{ zh:'進口 40ft', en:'Import 40ft', km:'នាំចូល 40ft' }, value:sz.imp['40'] || 0 });
+    out.push({ label:{ zh:'進口 40HQ', en:'Import 40HQ', km:'នាំចូល 40HQ' }, value:sz.imp['40HQ'] || 0 });
+    out.push({ label:{ zh:'出口貨櫃', en:'Export containers', km:'កុងតឺន័រនាំចេញ' }, value:D.exp });
+    out.push({ label:{ zh:'出口 20ft', en:'Export 20ft', km:'នាំចេញ 20ft' }, value:sz.exp['20'] || 0 });
+    out.push({ label:{ zh:'出口 40ft', en:'Export 40ft', km:'នាំចេញ 40ft' }, value:sz.exp['40'] || 0 });
+    out.push({ label:{ zh:'出口 40HQ', en:'Export 40HQ', km:'នាំចេញ 40HQ' }, value:sz.exp['40HQ'] || 0 });
+    if (st.ptype !== 'month' && D.mKey) {
+      out.push({ label:{ zh:'本月累計進口', en:'Month-to-date import', km:'នាំចូលសរុបខែនេះ' }, value:D.mtdSizes.imp.n });
+      out.push({ label:{ zh:'本月累計出口', en:'Month-to-date export', km:'នាំចេញសរុបខែនេះ' }, value:D.mtdSizes.exp.n });
+    }
+    out.push({ label:{ zh:'平均在廠（分鐘）', en:'Avg time in factory (min)', km:'មធ្យមក្នុងរោងចក្រ (នាទី)' }, value:D.avg });
+    out.push({ label:{ zh:'仍在廠內', en:'Still inside', km:'នៅក្នុងរោងចក្រ' }, value:D.inside.length });
+    out.push({ label:{ zh:'時間有誤', en:'Time to check', km:'ម៉ោងត្រូវពិនិត្យ' }, value:D.timeBad.length });
+    out.push({ label:{ zh:'裝櫃檢查', en:'Loading inspections', km:'ការត្រួតពិនិត្យផ្ទុក' }, value:D.ci.length });
+    out.push({ label:{ zh:'檢查不合格', en:'Inspection fail', km:'ត្រួតពិនិត្យមិនជាប់' }, value:D.fail.length });
+    out.push({ label:{ zh:'出入閘單據', en:'Gate documents', km:'លិខិតច្រកចេញចូល' }, value:D.gd.length });
+    return out;
+  },
+  rows:function (st) {
+    var lang = st.lang || 'zh', D = containerSummaryData(st), G = SEC.TG, t = function (zh, en, km) { return LT(lang, zh, en, km); };
+    var rows = D.tk.map(function (r) {
+      var dir = r.isImport && r.isExport ? t('進口＋出口', 'Import + Export', 'នាំចូល + នាំចេញ') : r.isImport ? t('進口', 'Import', 'នាំចូល') : r.isExport ? t('出口', 'Export', 'នាំចេញ') : '';
+      var stay = containerTimeIssue(r) ? t('⚠ 出廠早於進廠', '⚠ out before in', '⚠ ចេញមុនចូល') : !r.timeOut ? t('未出廠', 'still inside', 'នៅក្នុងរោងចក្រ') : (G.dur(containerStayMins(r)) || '');
+      return [r.date, r.containerNo || '', containerReportSizeText(containerSizeOf(r)), dir, [r.truckNo, r.name, r.company].filter(Boolean).join(' · '), G.time(r.timeIn) || '', G.time(r.timeOut) || (r.timeOut ? String(r.timeOut) : ''), stay, r.remark || ''];
+    });
+    return { widths:[1050, 1450, 700, 950, 1900, 750, 750, 1000, 1150], head:[['日期', 'Date', 'កាលបរិច្ឆេទ'], ['貨櫃號', 'Container No.', 'លេខកុងតឺន័រ'], ['櫃型', 'Size', 'ទំហំ'], ['方向', 'Direction', 'ទិស'], ['車牌／司機／公司', 'Truck / Driver / Company', 'រថយន្ត / អ្នកបើកបរ / ក្រុមហ៊ុន'], ['進廠', 'In', 'ចូល'], ['出廠', 'Out', 'ចេញ'], ['在廠時間', 'Stay', 'រយៈពេលក្នុងរោងចក្រ'], ['備註', 'Remark', 'កំណត់ចំណាំ']], rows:rows };
+  },
+  counts:function (st) { return containerSummaryData(st).tk.length; },
+  notes:[{ zh:'櫃型依「櫃型」欄位，舊資料從貨櫃號或備註中的 20FT／40FT／40HQ 判斷；出廠單 GA-01 與出貨單 GA-04 另列於「出入閘單據」。', en:'Size comes from the size field, or from 20FT/40FT/40HQ in the container number or remark for older records; gate passes GA-01 and delivery notes GA-04 are listed separately under "Gate Documents".', km:'ទំហំយកពីវាលទំហំ ឬពី 20FT/40FT/40HQ ក្នុងលេខកុងតឺន័រ; លិខិត GA-01/GA-04 បង្ហាញដោយឡែក។' }] });
 
 /* 期間導覽按鈕（共用元件只在初始化時產生文字）→ 語言切換時更新。 */
 function paintPnavLang() {

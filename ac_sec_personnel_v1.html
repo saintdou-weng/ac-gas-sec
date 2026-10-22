@@ -182,7 +182,10 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
   </div>
 </div>
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20261006a"></script>
+<script src="./shared/sec-core.js?v=20261022a"></script>
+<script src="./shared/sec-import-hub.js?v=20261022a"></script>
+<script src="./shared/ac-report-doc.js?v=20261022a"></script>
+<script src="./shared/sec-report.js?v=20261022a"></script>
 <script src="./shared/sec-personnel.js?v=20260929a"></script>
 <script src="./shared/sec-smart-sync.js?v=20260929a"></script>
 <script>
@@ -292,7 +295,34 @@ document.getElementById('cDate').onchange=function(){fillSelects();fillFrom();};
 applyPageLang();
 (function () { var op = SEC.getCfg().operator; if (op && !document.getElementById('cBy').value) document.getElementById('cBy').value = op; })();
 window.onLangChange = function () { paintLangWidgets(); document.getElementById('impLog').innerHTML = ''; applyPageLang(); renderAll(); };
-SEC.dataReady().then(load).then(function () { renderAll(); }).catch(SEC.bootError);
+SEC.dataReady().then(load).then(function () { renderAll(); SEC.markPageReady(); }).catch(SEC.bootError);
+/* ═══ 智慧匯入／參考報告登記（2026-10-22）：同一個 importRosterFile、同一套 Telegram 異動摘要邏輯 ═══ */
+SEC.registerImporter(TOOL, { default:'roster', kinds:{
+  roster:{ label:{ zh:'名冊', en:'Roster', km:'បញ្ជីឈ្មោះ' }, accept:'excel', run:function () { return importRosterFile(false); } } } });
+/* 報告用：期間的名冊以期間最後一個月的版本為準（人員資料按生效月份保存） */
+function personnelReportMonth(st) { return personnelSummaryPeriod(st).range().to.slice(0, 7); }
+function personnelReportChanges(st, kinds) {
+  var p = personnelSummaryPeriod(st);
+  return CHG.filter(function (r) { return !r._deleted && SEC.Personnel.validName(r.name) && r.date && p.has(r.date) && kinds.indexOf(r.kind) >= 0; });
+}
+function personnelReportRows(st) {
+  var p = personnelSummaryPeriod(st), m = personnelReportMonth(st);
+  return SEC.Personnel.list(DB, m, true).filter(function (r) { return r.status === 'active' || (r.resignDate && p.has(r.resignDate)); })
+    .sort(function (a, b) { return (a.status === 'active' ? 0 : 1) - (b.status === 'active' ? 0 : 1) || String(a.shift || 'Z').localeCompare(String(b.shift || 'Z')) || String(a.empId || '').localeCompare(String(b.empId || ''), undefined, { numeric:true }) || String(a.name || '').localeCompare(String(b.name || '')); });
+}
+SEC.registerReport(TOOL, { title:{ zh:'保安人員', en:'Personnel', km:'បុគ្គលិកសន្តិសុខ' }, ptypes:['week', 'month', 'year'], periods:personnelPeriods,
+  currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); },
+  scopeOptions:[{ value:'allChanges', label:{ zh:'本期全部異動', en:'All changes in period', km:'ការផ្លាស់ប្តូរទាំងអស់ក្នុងរយៈពេល' } }, { value:'changes', label:{ zh:'未送異動', en:'Unsent changes', km:'ការផ្លាស់ប្តូរមិនទាន់ផ្ញើ' } }],
+  summary:function (st) { return personnelSummaryPages(st); },
+  kpis:function (st) { var a = SEC.Personnel.list(DB, personnelReportMonth(st)), byS = { A:0, B:0, C:0 };
+    a.forEach(function (r) { if (r.shift in byS) byS[r.shift]++; });
+    return [{ label:{ zh:'在職人數', en:'Active headcount', km:'បុគ្គលិកកំពុងធ្វើការ' }, value:a.length }, { label:{ zh:'本期新進', en:'Joined', km:'ចូលថ្មី' }, value:personnelReportChanges(st, ['join']).length },
+      { label:{ zh:'本期離職', en:'Left', km:'ចេញ' }, value:personnelReportChanges(st, ['resign', 'remove']).length },
+      { label:{ zh:'A 班', en:'Shift A', km:'វេន A' }, value:byS.A }, { label:{ zh:'B 班', en:'Shift B', km:'វេន B' }, value:byS.B }, { label:{ zh:'C 班', en:'Shift C', km:'វេន C' }, value:byS.C }]; },
+  rows:function (st) { var lang = st.lang || 'zh';
+    return { widths:[1100, 2300, 800, 1600, 1300, 1300, 1300], head:[['工號', 'ID', 'អត្តលេខ'], ['姓名', 'Name', 'ឈ្មោះ'], ['班別', 'Shift', 'វេន'], ['崗位', 'Post', 'ប៉ុស្តិ៍'], ['狀態', 'Status', 'ស្ថានភាព'], ['到職日', 'Join date', 'ថ្ងៃចូល'], ['離職日', 'Leave date', 'ថ្ងៃចេញ']],
+      rows:personnelReportRows(st).map(function (r) { return [r.empId || '', r.name || '', r.shift || '', r.post || '', statusName(r.status, lang), r.joinDate || '', r.status === 'active' ? '' : (r.resignDate || '')]; }) }; },
+  counts:function (st) { return personnelReportRows(st).length; } });
 
 function renderAll() { renderRos(); renderChg(); renderShift(); renderRosterSchedule(); renderAna(); fillSelects(); }
 

@@ -200,7 +200,10 @@
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20261006a"></script>
+<script src="./shared/sec-core.js?v=20261022a"></script>
+<script src="./shared/sec-import-hub.js?v=20261022a"></script>
+<script src="./shared/ac-report-doc.js?v=20261022a"></script>
+<script src="./shared/sec-report.js?v=20261022a"></script>
 <script src="./shared/sec-personnel.js?v=20260929a"></script>
 <script src="./shared/sec-smart-sync.js?v=20260929a"></script>
 <script>
@@ -390,7 +393,23 @@ function repaintPnavLang() {
 }
 window.onLangChange = function () { applyAttLang(); repaintPnavLang(); var il = document.getElementById('impLog'); if (il) il.innerHTML = ''; renderAll(); };
 applyAttLang();
-SEC.dataReady().then(load).then(function () { renderAll(); }).catch(SEC.bootError);
+SEC.dataReady().then(load).then(function () { renderAll(); SEC.markPageReady(); }).catch(SEC.bootError);
+/* ═══ 智慧匯入／參考報告登記（2026-10-22）：同一個 impExcel、同一套 Telegram 摘要邏輯 ═══ */
+SEC.registerImporter(TOOL, { default:'excel', kinds:{
+  excel:{ label:{ zh:'出勤表', en:'Attendance sheet', km:'តារាងវត្តមាន' }, accept:'excel', run:function () { return impExcel(); } } } });
+/* 報告用：期間內有紀錄（任一出勤代碼或打卡）的人 */
+function attHasRecords(x) { var c = x.s.c; return !!((x.s.workDates || []).length || c.W || c.O || c.R || c.L || c.A || c.H); }
+SEC.registerReport(TOOL, { title:{ zh:'保安出勤', en:'Attendance', km:'វត្តមាន' }, ptypes:['week', 'month', 'year'], periods:attendancePeriods,
+  currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); },
+  summary:function (st) { return attendanceSummaryPages(st); },
+  kpis:function (st) { var D = attSummaryData(st), T = D.total;
+    return [{ label:{ zh:'在職人數', en:'Active staff', km:'បុគ្គលិកកំពុងធ្វើការ' }, value:D.active.length }, { label:{ zh:'歷史人員', en:'Former staff', km:'បុគ្គលិកចាស់' }, value:D.archived },
+      { label:{ zh:'出勤人日', en:'Man-days', km:'ថ្ងៃធ្វើការ' }, value:T.W + T.O }, { label:{ zh:'總工時', en:'Hours', km:'ម៉ោង' }, value:Math.round(D.hours * 10) / 10 },
+      { label:{ zh:'加班', en:'Overtime', km:'ថែមម៉ោង' }, value:T.O }, { label:{ zh:'請假', en:'Leave', km:'ច្បាប់' }, value:T.L }, { label:{ zh:'曠職', en:'Absent', km:'អវត្តមាន' }, value:T.A }]; },
+  rows:function (st) { var D = attSummaryData(st);
+    return { widths:[900, 1900, 700, 1100, 900, 800, 800, 800, 800, 1000], head:[['工號', 'ID', 'អត្តលេខ'], ['姓名', 'Name', 'ឈ្មោះ'], ['班別', 'Shift', 'វេន'], ['崗位', 'Post', 'ប៉ុស្តិ៍'], ['出勤日', 'Work days', 'ថ្ងៃធ្វើការ'], ['加班', 'OT', 'ថែមម៉ោង'], ['例休', 'Rest', 'សម្រាក'], ['請假', 'Leave', 'ច្បាប់'], ['曠職', 'Absent', 'អវត្តមាន'], ['工時', 'Hours', 'ម៉ោង']],
+      rows:D.list.map(function (x) { var r = x.r, c = x.s.c; return [r.empId || '', r.name || '', r.shift || '', r.post || '', (x.s.workDates || []).length, c.O, c.R, c.L, c.A, Math.round(x.s.hrs * 10) / 10]; }) }; },
+  counts:function (st) { return attSummaryData(st).list.filter(attHasRecords).length; } });
 
 function addOnePerson() { return editAttendancePerson(); }
 function setBrush(s) {
@@ -944,8 +963,16 @@ function attMatchPerson(ent, idx, alias, db) {
   }
   return null;
 }
-/* ④ 未對應名單視窗：每人選「對應到…／建成歷史人員／略過」 */
-function attResolveUnmatched(list, db) {
+/* ④ 未對應名單視窗：每人選「對應到…／建成歷史人員／略過」
+   首頁智慧匯入在背景開本頁跑（網址 ?hubImport=1）時沒有人能看視窗：一律建成歷史人員（不算在職），並寫進匯入記錄。 */
+function attHubBackground() { try { return /[?&]hubImport=1/.test(window.location.search); } catch (e) { return false; } }
+function attResolveUnmatched(list, db, log) {
+  if (attHubBackground()) {
+    var auto = {}; list.forEach(function (u) { auto[u.key] = '__history'; });
+    if (log) log.push('🤖 ' + t('背景匯入（首頁智慧匯入）：名冊沒有的 ' + list.length + ' 人全部建成已離職／歷史人員，不算在職；要對應到現有工號請到本頁重匯：', 'Background import (home smart import): ' + list.length + ' people not in the roster were created as former / historical staff (not active); re-import on this page to match them to existing IDs:', 'នាំចូលផ្ទៃខាងក្រោយ: ' + list.length + ' នាក់មិនមានក្នុងបញ្ជី បង្កើតជាបុគ្គលិកចាស់:') +
+      ' ' + list.map(function (u) { return SEC.esc((u.empId ? u.empId + ' ' : '') + (u.name || '')); }).join(listSep()));
+    return Promise.resolve(auto);
+  }
   return new Promise(function (resolve) {
     var opts = (db || []).map(function (r) { var v = SEC.Personnel.snapshot(r, SEC.Personnel.currentMonth()) || SEC.Personnel.fields(r); return { id:r.id, label:(v.empId ? v.empId + ' · ' : '') + (v.name || r.name || r.id) + (v.status && v.status !== 'active' ? ' (' + t('已離職', 'left', 'បានចេញ') + ')' : '') }; })
       .sort(function (a, b) { return a.label.localeCompare(b.label, undefined, { numeric:true }); });
@@ -987,7 +1014,7 @@ function impExcel() {
     var ulist = Object.keys(unmatched).map(function (k) { return unmatched[k]; }).sort(function (a, b) { return String(a.empId || a.name).localeCompare(String(b.empId || b.name), undefined, { numeric:true }); });
     var choice = {}, created = 0, mapped = 0, skippedPeople = 0;
     if (ulist.length) {
-      choice = await attResolveUnmatched(ulist, personData.db);
+      choice = await attResolveUnmatched(ulist, personData.db, log);
       if (!choice) { SEC.toast('ℹ️ ' + t('已取消匯入，沒有寫入任何資料', 'Import cancelled; nothing was written', 'បានបោះបង់ មិនបានសរសេរទេ'), 'warn', 4000); return; }
       /* 套用選擇 */
       ulist.forEach(function (u) {
