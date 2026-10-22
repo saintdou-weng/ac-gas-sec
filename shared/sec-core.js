@@ -1370,6 +1370,8 @@ function pageText(v, fallbackZh, fallbackEn, fallbackKm) {
   return L(fallbackZh, fallbackEn, fallbackKm);
 }
 function liveItems(list) { return (Array.isArray(list) ? list : []).filter(function (r) { return r && !r._deleted; }); }
+var TG_PRESET = null;
+function tgPreset(p) { TG_PRESET = p || null; }
 function tgOpen(opt) {
   opt = opt || {};
   var firstType = opt.defaultType || 'month';
@@ -1379,6 +1381,9 @@ function tgOpen(opt) {
   var st = { mode:'summary', ptype:firstType, period:opt.defaultPeriod || '',
     lang:defLang, scope:opt.defaultScope || (opt.scopeOptions && opt.scopeOptions[0] ? opt.scopeOptions[0].value : ''),
     includeDetails:false };
+  /* 智慧匯入／網址 ?tg= 開啟時預先選好期間與模式（只用一次） */
+  var preset = TG_PRESET; TG_PRESET = null;
+  if (preset) { if (preset.ptype) { st.ptype = preset.ptype; firstType = preset.ptype; } if (preset.period) st.period = preset.period; }
   var mask = document.createElement('div');
   mask.className = 'mask on tg-mask';
   var scopeHtml = opt.scopeOptions && opt.scopeOptions.length ?
@@ -1570,6 +1575,7 @@ function tgOpen(opt) {
     };
   });
   q('[data-tg-mode="summary"]').classList.add('on');
+  if (preset && preset.mode === 'approval' && opt.canApprove) setTimeout(function () { var b = q('[data-tg-mode="approval"]'); if (b && !b.disabled) b.onclick(); }, 60);
   function cancelled() { var e = new Error(L('已取消傳送', 'Sending cancelled', 'បានបោះបង់ការផ្ញើ')); e.cancelled = true; return e; }
   q('#tgSend').onclick = async function () {
     if(sending)return;sending=true;
@@ -1712,6 +1718,13 @@ async function sendApproval(opt) {
 
 /* ───────── 照片（壓縮成 dataURL，免後端） ───────── */
 function pickPhoto(cb, maxW, maxCount) {
+  var qf = queuedFile();
+  if (qf) {
+    queueResult(new Promise(function (res, rej) {
+      try { compressImage(qf, maxW || 760, function (data) { try { res(cb(data)); } catch (e) { rej(e); } }); } catch (e) { rej(e); }
+    }));
+    return;
+  }
   var mask = document.createElement('div');
   mask.className = 'mask on';
   mask.style.zIndex = 3200;
@@ -1782,8 +1795,9 @@ function viewPhoto(i, el) {
    ═══════════════════════════════════════════════════════════════════════ */
 
 /* 讀檔 → 每張工作表的二維陣列 */
-function readWorkbook(file, cb) {
+function readWorkbook(file, cb, onError) {
   var fr = new FileReader();
+  fr.onerror = function () { if (typeof onError === 'function') onError(new Error('read failed')); };
   fr.onload = function (e) {
     try {
       if (typeof XLSX === 'undefined') throw new Error(L('Excel 元件尚未載入', 'The Excel component is not loaded', 'កម្មវិធី Excel មិនទាន់ផ្ទុក'));
@@ -1803,6 +1817,7 @@ function readWorkbook(file, cb) {
         ? L('檔案可能已損壞，請用 Excel 開啟原檔「另存新檔」後再匯入。', 'The file may be damaged. Open it in Excel, use "Save As", then import again.', 'ឯកសារអាចខូច។ បើកក្នុង Excel ហើយ «រក្សាទុកជា» រួចនាំចូលម្តងទៀត។')
         : L('請重新整理頁面後再試。', 'Please reload the page and try again.', 'សូមផ្ទុកទំព័រឡើងវិញ ហើយព្យាយាមម្តងទៀត។');
       toast('❌ ' + L('Excel 讀取失敗：', 'Could not read the Excel file: ', 'មិនអាចអានឯកសារ Excel៖ ') + esc(em) + '<br>' + hint, 'err', 0);
+      if (typeof onError === 'function') onError(err);
     }
   };
   fr.readAsArrayBuffer(file);
@@ -1925,7 +1940,48 @@ function restoreJson(cb) {
   };
   inp.click();
 }
+/* ═══ 智慧匯入（2026-10-22）：讓既有的匯入函式不開檔案選擇視窗、直接吃進丟進來的檔案 ═══
+   importFromFiles(files, fn)：fn 內呼叫 SEC.pickExcel／SEC.pickPhoto 時，依序取用 files，
+   回傳的 Promise 在匯入函式（含 pickExcel 回呼）跑完後才完成。每個檔案各跑一次 fn。 */
+var IMPORT_QUEUE = null, IMPORTERS = {};
+function queuedFile() {
+  if (!IMPORT_QUEUE || !IMPORT_QUEUE.files.length) return null;
+  return IMPORT_QUEUE.files.shift();
+}
+function queueResult(p) { if (IMPORT_QUEUE) IMPORT_QUEUE.results.push(Promise.resolve(p).catch(function (e) { IMPORT_QUEUE && IMPORT_QUEUE.errors.push(e); })); }
+async function importFromFiles(files, fn) {
+  var list = Array.prototype.slice.call(files || []), errors = [], n = 0;
+  for (var i = 0; i < list.length; i++) {
+    IMPORT_QUEUE = { files:[list[i]], results:[], errors:errors };
+    try {
+      queueResult(fn(list[i], i));
+      /* 匯入函式可能在 confirm／await 之後才呼叫 pickExcel：多等幾回合直到檔案被取走 */
+      for (var k = 0; k < 40 && IMPORT_QUEUE.files.length; k++) await new Promise(function (r) { setTimeout(r, 50); });
+      await Promise.all(IMPORT_QUEUE.results);
+      /* 回呼裡再排的非同步工作（save、renderAll）給一點時間 */
+      await new Promise(function (r) { setTimeout(r, 30); });
+      n++;
+    } finally { IMPORT_QUEUE = null; }
+  }
+  if (errors.length) { var e = errors[0]; throw (e instanceof Error ? e : new Error(String(e))); }
+  return n;
+}
+/* 每一頁登記自己的匯入方式，給首頁／頁首的「⇧ 智慧匯入」用（同一個匯入器，不另寫一套）。
+   spec = { kinds:{ key:{ label:{zh,en,km}, accept:'excel'|'photo', run:function(file){…} } }, default:'key' } */
+var PAGE_READY_RESOLVE = null, PAGE_READY = new Promise(function (r) { PAGE_READY_RESOLVE = r; });
+/* 頁面把自己的資料載好（load → renderAll）後呼叫，智慧匯入才會在背景開這一頁跑匯入 */
+function markPageReady() { if (PAGE_READY_RESOLVE) { PAGE_READY_RESOLVE(true); PAGE_READY_RESOLVE = null; } }
+function registerImporter(tool, spec) { if (tool && spec && spec.kinds) { spec.ready = spec.ready || PAGE_READY; IMPORTERS[String(tool)] = spec; } }
+function importers() { return IMPORTERS; }
 function pickExcel(cb) {
+  var qf = queuedFile();
+  if (qf) {
+    queueResult(new Promise(function (res, rej) {
+      if (typeof XLSX === 'undefined') return rej(new Error(xlsxMissingText()));
+      readWorkbook(qf, function (sheets, wb) { try { res(cb(sheets, wb)); } catch (e) { rej(e); } }, rej);
+    }));
+    return;
+  }
   var inp = document.createElement('input');
   inp.type = 'file'; inp.accept = '.xlsx,.xls,.csv';
   inp.onchange = function () {
@@ -1967,6 +2023,7 @@ function headerHtml(icon, title, sub) {
           '<button type="button" class="lb" data-l="km" lang="km">ខ្មែរ</button>' +
         '</div>' +
         hdrBtn('btnTg', '✈️', 'Telegram', 'Telegram', 'Telegram') +
+        hdrBtn('btnHub', '⇧', '智慧匯入', 'Smart import', 'នាំចូលឆ្លាតវៃ', 'hub-btn') +
         hdrBtn('btnHome', '🏠', '首頁', 'Home', 'ទំព័រដើម', '', 'a', 'index.html') +
         '<div class="more-wrap">' +
           hdrBtn('btnMore', '⋯', '管理', 'More', 'បន្ថែម', 'more-btn') +
@@ -1974,6 +2031,7 @@ function headerHtml(icon, title, sub) {
             menuItem('btnUp', '⬆️☁', '上傳雲端', 'Upload to cloud', 'ផ្ទុកឡើងពពក') +
             menuItem('btnDown', '⬇️☁', '從雲端更新', 'Update from cloud', 'ធ្វើបច្ចុប្បន្នភាពពីពពក') +
             menuItem('btnSmart', '📥', '智慧匯入 Excel', 'Smart Excel import', 'នាំចូល Excel ឆ្លាតវៃ') +
+            menuItem('btnReport', '📝', '產生報告（Word）', 'Generate report (Word)', 'បង្កើតរបាយការណ៍ (Word)') +
             menuItem('btnCfg', '⚙️', '設定', 'Settings', 'ការកំណត់') +
           '</div>' +
         '</div>' +
@@ -2037,6 +2095,19 @@ function bindHeader(tool, handlers) {
   if (tg && typeof handlers.onTelegram === 'function') bindAction('btnTg', handlers.onTelegram);
   else if (tg) tg.style.display = 'none';
   var cf = document.getElementById('btnCfg'); if (cf) cf.onclick = function () { closeMenu(); openSettings(); };
+  var hub = document.getElementById('btnHub');
+  if (hub) hub.onclick = function () { closeMenu(); if (G.SEC && SEC.ImportHub) SEC.ImportHub.open({ tool:HEADER_TOOL }); else toast('⚠ ' + L('智慧匯入元件未載入', 'Smart import is not loaded', 'មិនបានផ្ទុក'), 'warn'); };
+  var rp = document.getElementById('btnReport');
+  if (rp) rp.onclick = function () { closeMenu(); if (G.SEC && SEC.Report) SEC.Report.open({ tool:HEADER_TOOL }); else toast('⚠ ' + L('報告元件未載入', 'Report module is not loaded', 'មិនបានផ្ទុក'), 'warn'); };
+  /* 網址 ?tg=summary|approval&ptype=month&period=2026-09：資料載入後直接打開 Telegram 視窗（智慧匯入「發摘要／核可」用） */
+  try {
+    var qs = new URLSearchParams(location.search), tgq = qs.get('tg');
+    if (tgq && typeof handlers.onTelegram === 'function') {
+      tgPreset({ mode:tgq === 'approval' ? 'approval' : 'summary', ptype:qs.get('ptype') || '', period:qs.get('period') || '' });
+      dataReady().then(function () { setTimeout(function () { try { run(handlers.onTelegram); } catch (e) {} }, 900); });
+      try { history.replaceState(null, '', location.pathname); } catch (e) {}
+    }
+  } catch (e) {}
   var bar = document.getElementById('cloudBar');
   if (bar) bar.onclick = function () {
     /* 紅色（離線／未上雲）時點狀態列＝再試一次 */
@@ -2183,5 +2254,6 @@ G.SEC = {
   openSettings:openSettings, closeSettings:closeSettings, saveSettings:saveSettings,
   pingGas:pingGas, tgTest:tgTest, sendMenu:sendMenu,
   openModal:openModal, closeModal:closeModal,
+  importFromFiles:importFromFiles, registerImporter:registerImporter, importers:importers, tgPreset:tgPreset, markPageReady:markPageReady,
 };
 })(window);
