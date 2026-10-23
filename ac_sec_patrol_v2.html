@@ -280,7 +280,7 @@
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20261022a"></script>
+<script src="./shared/sec-core.js?v=20261023a"></script>
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
 <script src="./shared/ac-report-doc.js?v=20261022a"></script>
 <script src="./shared/sec-report.js?v=20261022a"></script>
@@ -881,10 +881,12 @@ function deletePatrolCheck(){
   SEC.markDeleted(TOOL,Object.assign({_k:'check'},rec));CHECK=CHECK.filter(function(x){return x.id!==rec.id;});saveCheck();loadPatrolCheckForm();SEC.scheduleAutoCloudSync(TOOL,'patrol-confirmation-delete',rec.date);
   SEC.toast('🗑 '+t('已刪除巡邏確認並排入雲端同步','Check deleted; cloud sync queued','បានលុប ហើយនឹងធ្វើសមកាលកម្មពពក'),'ok');
 }
-function goToPatrolCheck(date) {
+function goToPatrolCheck(date, shift) {
   showTab('check');
-  var el = document.getElementById('pcDate');
-  if (date && el.value !== date) { el.value = date; loadPatrolCheckForm(); }
+  var el = document.getElementById('pcDate'), sh = document.getElementById('pcShift'), changed = false;
+  if (date && el.value !== date) { el.value = date; changed = true; }
+  if (shift && sh && sh.value !== shift && sh.querySelector('option[value="' + shift + '"]')) { sh.value = shift; changed = true; }
+  if (changed) loadPatrolCheckForm();
   var card = document.getElementById('patrolConfirmCard');
   if (card && card.scrollIntoView) try { card.scrollIntoView({behavior:'smooth',block:'start'}); } catch (e) {}
 }
@@ -894,9 +896,9 @@ function ensurePatrolCheck() {
       !(Array.isArray(x.photos) && x.photos.length && (!Array.isArray(x.photoNotes) || x.photoNotes.slice(0,x.photos.length).some(function(n){return !String(n||'').trim();})));
   });
   if (found || (!SCAN.length && !MAN.length)) return true;
-  goToPatrolCheck(latest);
-  SEC.toast('⚠️ ' + t('請先完成 ' + latest + ' 巡邏確認：姓名、六項結果、異常備註及照片說明', 'Complete the ' + latest + ' patrol check first: guard, six items, issue note and photo notes', 'សូមបញ្ចប់ការបញ្ជាក់ការល្បាត ' + latest + ' ជាមុនសិន'),'warn',8000);
-  return false;
+  /* 2026-10-23 Paul：不擋，只提醒 */
+  SEC.toast('ℹ️ ' + t(latest + ' 尚未填巡邏確認（可之後在「✅ 巡邏確認」補）', latest + ' patrol check not filled yet (can be added later under ✅ Check)', latest + ' មិនទាន់បញ្ជាក់ការល្បាត'),'warn',5000);
+  return true;
 }
 function fillGuards() {
   var g = {};
@@ -2013,24 +2015,23 @@ function patrolValidateConfirmation(rec) {
   var photos = Array.isArray(rec.photos) ? rec.photos : [], notes = Array.isArray(rec.photoNotes) ? rec.photoNotes : [];
   if (photos.length && photos.some(function(_,i){return !String(notes[i] || '').trim();})) throw new Error(t('每張巡邏照片都必須填寫內容說明', 'Caption every patrol photo', 'សូមពិពណ៌នារូបថតល្បាតនីមួយៗ'));
 }
+/* 2026-10-23 Paul：沒存巡邏確認也直接發，不擋；摘要本文會自己標「⚠️ 尚未儲存巡邏確認」。這裡只提醒，不丟錯。 */
 async function patrolBeforeSummarySend(st) {
   var p = patrolSummaryPeriod(st);
   var hasData = ROUNDS.some(function(r){return p.has(r.date) && patrolScopeMatch(st,r,false);}) || MAN.some(function(r){return p.has(r.date) && patrolScopeMatch(st,r,true);});
   if (!hasData) throw new Error(t('所選期間沒有巡邏資料，不能發送空白摘要', 'No patrol data in the selected period', 'គ្មានទិន្នន័យល្បាតក្នុងរយៈពេលដែលបានជ្រើស'));
+  var warn = [];
   if (st.ptype === 'day') {
     var checks = patrolCheckRecordsForDailySummary(st, p);
-    if (!checks.length) {
-      goToPatrolCheck(p.range().from);
-      throw new Error(t('請先完成所選日期的巡邏確認', 'Complete the patrol check for the selected day first', 'សូមបញ្ចប់ការបញ្ជាក់ការល្បាតសម្រាប់ថ្ងៃដែលបានជ្រើសជាមុន'));
-    }
-    checks.forEach(patrolValidateConfirmation);
+    if (!checks.length) warn.push(t('未填巡邏確認（摘要已註明）', 'patrol check not filled (noted in the summary)', 'មិនទាន់បញ្ជាក់ការល្បាត (បានកត់ក្នុងសេចក្តីសង្ខេប)'));
+    else checks.forEach(function (c) { try { patrolValidateConfirmation(c); } catch (e) { warn.push(e.message); } });
   }
   if (st.ptype === 'week' && new Date().getDay() === 1) {
     var nightChecks = CHECK.filter(function(r){return p.has(r.date) && (r.shift === 'N' || r.shift === 'all');});
-    nightChecks.forEach(patrolValidateConfirmation);
     var photos = nightChecks.reduce(function(n,r){return n + (Array.isArray(r.photos) ? r.photos.length : 0);},0);
-    if (photos < 2) throw new Error(t('週一發送週報前，請附上夜班巡邏照片至少 2 張（建議 2–4 張）', 'Add 2–4 night patrol photos before sending the Monday weekly report', 'សូមភ្ជាប់រូបថតល្បាតយប់ 2–4 មុនផ្ញើរបាយការណ៍ប្រចាំសប្តាហ៍ថ្ងៃច័ន្ទ'));
+    if (photos < 2) warn.push(t('週報沒有夜班巡邏照片（建議 2–4 張）', 'no night patrol photos in the weekly report (2–4 suggested)', 'គ្មានរូបថតល្បាតយប់ (ណែនាំ 2–4)'));
   }
+  if (warn.length) SEC.toast('ℹ️ ' + warn.join(' · '), 'warn', 6000);
   return true;
 }
 function openPatrolTelegram() {
@@ -2120,7 +2121,7 @@ function patrolCloudRecords() {
 }
 async function doUpload(opts) {
   opts = opts || {};
-  if (!opts.auto && !ensurePatrolCheck()) return false;
+  if (!opts.auto) ensurePatrolCheck(); /* 2026-10-23：只提醒，不擋上傳 */
   if(patrolDedupe()){saveMan();saveCheck();}var recs = patrolCloudRecords();
   if(!CHIP_REV&&Object.keys(CHIP).length){CHIP_REV=new Date().toISOString();saveChip(false);}
   return await SEC.cloudPush(TOOL, recs, { rounds: ROUNDS.length, scans: SCAN.length, checkpoints: totalCp(), confirmations:CHECK.length }, { chip:SEC.replaceObject(CHIP,CHIP_REV||'1970-01-01T00:00:00.000Z') });

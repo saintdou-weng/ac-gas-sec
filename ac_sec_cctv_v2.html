@@ -245,7 +245,7 @@
 <button class="btn" id="eSaveBtn" onclick="saveEdit()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20261022a"></script>
+<script src="./shared/sec-core.js?v=20261023a"></script>
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
 <script src="./shared/ac-report-doc.js?v=20261022a"></script>
 <script src="./shared/sec-report.js?v=20261022a"></script>
@@ -471,7 +471,136 @@ function repaintPnavLang() {
 window.onLangChange = function () { fillZones(); repaintPnavLang(); var il = document.getElementById('impLog'); if (il) il.innerHTML = ''; renderAll(); setBrush(BRUSH, true); if (EDIT_ID !== null) paintEditTitle(); };
 SEC.dataReady().then(load).then(function () { loadDay(); renderAll(); SEC.markPageReady(); }).catch(SEC.bootError);
 /* ═══ 智慧匯入／參考報告登記（2026-10-22）：同一個匯入器（impExcel）、同一套 Telegram 巡檢摘要（＋設備異動）邏輯 ═══ */
-SEC.registerImporter(TOOL, { default:'excel', kinds:{
+/* ═══ 日檢表匯入（2026-10-23）：VRT CCTV Camera Check — 每台攝影機一列、每天一欄打 √／×，分 Building A／B 區段 ═══
+   月份：先看表頭「Month:」，再看檔名（Oct 2026、2026-10），都沒有就用目前畫面的月份。
+   每個有打勾的日期 → 一筆巡檢（跟手動「儲存巡檢」同一種紀錄）；名單上沒有的攝影機會新增；同檔再匯＝不重複。
+   「abnormal check list」分頁的 × 與說明會寫進該日巡檢的備註。 */
+function cctvCheckMonth(sheets) {
+  var MON = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+  function fromText(txt) {
+    txt = String(txt || '');
+    var m = txt.match(/(20\d{2})\s*[-\/.年]\s*(0?[1-9]|1[0-2])(?![\d])/); if (m) return m[1] + '-' + SEC.p2(+m[2]);
+    m = txt.toLowerCase().match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?[\s_-]*(20\d{2})/); if (m) return m[2] + '-' + SEC.p2(MON[m[1]]);
+    m = txt.match(/(0?[1-9]|1[0-2])\s*月\s*(20\d{2})?/); if (m && m[2]) return m[2] + '-' + SEC.p2(+m[1]);
+    return '';
+  }
+  var found = '';
+  sheets.forEach(function (sh) { if (found) return; (sh.rows || []).slice(0, 6).forEach(function (r) { (r || []).forEach(function (v) { if (!found && /month|月份/i.test(String(v))) { var i = r.indexOf(v); found = fromText(r[i + 1]) || fromText(v); } }); }); });
+  if (!found) sheets.forEach(function (sh) { if (!found) found = fromText(sh.fileName) || fromText(sh.name); });
+  return found;
+}
+function cctvCheckMark(v) {
+  var s = String(v == null ? '' : v).trim().toLowerCase();
+  if (!s) return '';
+  if (/^(√|✓|✔|v|ok|o|1|y|yes|正常)$/.test(s)) return 'ok';
+  if (/^(×|✗|✘|x|✕|no|n|0|異常|故障|fault|off|offline)$/.test(s)) return 'fault';
+  if (/blur|模糊/.test(s)) return 'blur';
+  if (/dis|停用/.test(s)) return 'dis';
+  return '';
+}
+function cctvCheckHeader(rows) {
+  for (var r = 0; r < Math.min(rows.length, 12); r++) {
+    var R = rows[r] || [], code = -1, loc = -1, days = {};
+    R.forEach(function (v, c) {
+      var n = SEC.norm(v);
+      if (code < 0 && /^(code|編號|编号|camera|cctv|攝影機)$/.test(n)) code = c;
+      if (loc < 0 && /^(location|位置|name|名稱|安裝位置|ទីតាំង)$/.test(n)) loc = c;
+      var d = /^\d{1,2}(\.0+)?$/.test(String(v).trim()) ? parseInt(v, 10) : 0;
+      if (d >= 1 && d <= 31) days[c] = SEC.p2(d);
+    });
+    if (code >= 0 && Object.keys(days).length >= 20) return { row:r, code:code, loc:loc, days:days };
+  }
+  return null;
+}
+function impCheckExcel() {
+  return SEC.pickExcel(function (sheets) {
+    var month = cctvCheckMonth(sheets) || new SEC.Period('month', PER.at).key(), log = [], before = SEC.AssetChanges.clone(DB);
+    var byDate = {}, newCams = 0, camsSeen = 0, cells = 0, inspector = '', notes = {};
+    sheets.forEach(function (sh) {
+      var rows = sh.rows || [], H = cctvCheckHeader(rows);
+      if (!H) {
+        /* abnormal check list：日期 + ok／× + 說明 */
+        var hdr = -1; for (var i = 0; i < Math.min(rows.length, 8); i++) { if ((rows[i] || []).some(function (v) { return /abnormal|異常/i.test(String(v)); })) { hdr = i; } }
+        if (hdr >= 0) {
+          /* 只讀標題寫明的說明欄（簡短敘述異常／異常原因備註／處理方案），旁邊夾雜的價錢、數量等雜欄不讀 */
+          var textCols = {}, checkCols = [];
+          for (var hi = 0; hi < Math.min(rows.length, hdr + 4); hi++) (rows[hi] || []).forEach(function (v, c) {
+            var s = SEC.str(v).toLowerCase();
+            if (/brief write down|簡短敘述|敘述異常/.test(s)) textCols.brief = c;
+            else if (/abnormal reason|remark|異常原因|備註/.test(s)) textCols.reason = c;
+            else if (/solution|處理方案/.test(s)) textCols.fix = c;
+            else if (/^(位置|螢幕|外觀|記錄|position|screen|outlook|recording)$/.test(s) && checkCols.indexOf(c) < 0) checkCols.push(c);
+          });
+          var got = 0;
+          for (var j = hdr + 1; j < rows.length; j++) {
+            var R = rows[j] || [], d = null, dc = -1;
+            for (var c = 0; c < Math.min(R.length, 4); c++) { var pd = SEC.parseD(R[c]); if (pd && pd.getFullYear() > 2015) { d = pd; dc = c; break; } }
+            if (!d) continue;
+            var marks = (checkCols.length ? checkCols : [dc + 2, dc + 3, dc + 4, dc + 5]).map(function (c) { return cctvCheckMark(R[c]); }), bad = marks.some(function (m) { return m === 'fault'; });
+            var txt = ['brief', 'reason', 'fix'].map(function (k) { return textCols[k] == null ? '' : SEC.str(R[textCols[k]]); })
+              .filter(function (v) { return v && !/^normal operation$/i.test(v) && !/^\d+(\.\d+)?$/.test(v) && v.length > 2; }).filter(function (v, k, a) { return a.indexOf(v) === k; });
+            if (bad && !txt.length) txt.push(t('異常檢查表標 ×', 'Marked × on the abnormal check list', 'បានសម្គាល់ × ក្នុងបញ្ជីមិនប្រក្រតី'));
+            if (txt.length) { notes[SEC.ymd(d)] = (bad ? '× ' : '') + txt.slice(0, 3).join(' · '); got++; }
+          }
+          log.push('· <b>' + SEC.esc(sh.name) + '</b>: ' + t('異常檢查表，' + got + ' 天有異常說明', 'abnormal list, ' + got + ' day(s) with notes', 'បញ្ជីមិនប្រក្រតី ' + got + ' ថ្ងៃ'));
+        } else log.push('· <b>' + SEC.esc(sh.name) + '</b>: ' + t('不是日檢表，略過', 'not a daily check sheet; skipped', 'មិនមែនតារាងត្រួតពិនិត្យ; រំលង'));
+        return;
+      }
+      var factory = 'a', n = 0;
+      for (var r = H.row + 1; r < rows.length; r++) {
+        var row = rows[r] || [], joined = row.slice(0, 4).map(SEC.str).join(' ');
+        if (/building\s*b|\bb棟|b\s*廠/i.test(joined) && !/^cctv/i.test(SEC.str(row[H.code]))) { factory = 'b'; continue; }
+        if (/building\s*a|\ba棟|a\s*廠/i.test(joined) && !/^cctv/i.test(SEC.str(row[H.code]))) { factory = 'a'; continue; }
+        var by = joined.match(/inspect(?:ed)?\s*by\s*:?\s*([^(]+)/i); if (by) { inspector = inspector || by[1].trim(); continue; }
+        var rawCode = SEC.str(row[H.code]), num = rawCode.match(/(\d{1,3})\s*$/);
+        if (!num) continue;
+        var parts = cctvCodeParts({ code:'CCTV ' + factory.toUpperCase() + '-' + num[1] }); if (!parts) continue;
+        var loc = H.loc >= 0 ? SEC.str(row[H.loc]) : '';
+        var cam = DB.filter(function (x) { return cctvIdentity(x) === 'camera:' + parts.key; })[0];
+        if (!cam) {
+          var zRaw = loc.toLowerCase();
+          var zone = /宿舍|house|dorm/.test(zRaw) ? 'house' : /finish|warehouse|\bwh\b|倉/.test(zRaw) ? 'fwh' : /back/.test(zRaw) ? 'back' : /front ?gate|\bgate\b/.test(zRaw) ? 'gate' : /office/.test(zRaw) ? 'office' : factory === 'b' ? 'bldB' : 'bldA';
+          cam = cctvNormalise({ code:parts.code, name:loc, factory:factory, zone:zone, type:'dome', status:'ok', remark:'', src:sh.name, updatedAt:new Date().toISOString() });
+          if (DB.length < CCTV_MAX) { DB.push(cam); newCams++; } else continue;
+        } else if (loc && !cam.name) cam.name = loc;
+        camsSeen++;
+        Object.keys(H.days).forEach(function (c) {
+          var m = cctvCheckMark(row[c]); if (!m) return;
+          var d = month + '-' + H.days[c]; (byDate[d] = byDate[d] || {})[cam.id] = m; cells++;
+        });
+        n++;
+      }
+      log.push('· <b>' + SEC.esc(sh.name) + '</b>: ' + t('日檢表 ' + month + '，' + n + ' 台攝影機（標題第 ' + (H.row + 1) + ' 列）', 'daily check sheet ' + month + ', ' + n + ' cameras (header row ' + (H.row + 1) + ')', 'តារាងត្រួតពិនិត្យ ' + month + ', ' + n + ' កាមេរ៉ា'));
+    });
+    var dates = Object.keys(byDate).sort();
+    if (!dates.length) {
+      document.getElementById('impLog').innerHTML = '<b>' + t('匯入結果', 'Import result', 'លទ្ធផលនាំចូល') + '</b><br>' + log.join('<br>');
+      SEC.toast('⚠ ' + t('未匯入，請看偵測記錄', 'Nothing imported; see the detection log', 'មិនបាននាំចូល; សូមមើលកំណត់ហេតុ'), 'warn', 6000); return;
+    }
+    var added = 0, updated = 0, same = 0, now = new Date().toISOString(), snap = DB.map(function (c) { return { id:c.id, code:c.code, name:c.name, factory:c.factory, zone:c.zone, type:c.type }; });
+    dates.forEach(function (d) {
+      var old = LOG.filter(function (l) { return l.date === d; })[0], st = Object.assign({}, old && old.st || {}, byDate[d]);
+      var c = { ok:0, off:0, blur:0, fault:0, dis:0 }, badList = [];
+      DB.forEach(function (cam) { var s = cctvSafeStatus(st[cam.id]); if (s === 'pending') return; c[s]++; if (isBad(s)) badList.push((cam.code || '') + ' ' + (cam.name || '') + ' (' + STAT[s].en + ')');
+        var last = String(cam.lastCheck || ''); if (!last || d >= last) { if (cam.status !== s || cam.lastCheck !== d) { cam.status = s; cam.lastCheck = d; cam.updatedAt = now; } } });
+      var n = c.ok + c.off + c.blur + c.fault + c.dis, live = n - c.dis;
+      var note = [old && old.note, notes[d]].filter(Boolean).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(' · ');
+      var rec = { id:'L' + d, date:d, by:(old && old.by) || inspector || SEC.getCfg().operator || '', note:note, n:n, ok:c.ok, off:c.off, blur:c.blur, fault:c.fault, dis:c.dis, uptime:live ? Math.round(c.ok / live * 100) : 0, badList:badList, st:st, photos:(old && old.photos) || [], cameras:snap, updatedAt:now, src:'excel' };
+      if (old && JSON.stringify(old.st) === JSON.stringify(st) && (old.note || '') === note) { same++; return; }
+      if (old) updated++; else added++;
+      LOG = LOG.filter(function (l) { return l.date !== d; }); LOG.unshift(rec); SEC.clearDeleted('cctv-log', rec);
+    });
+    LOG.sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
+    if (newCams) SEC.AssetChanges.capture(TOOL, ASSET_CHANGES, before, DB, { source:'import' });
+    save(); loadDay(); renderAll();
+    if (added || updated || newCams) SEC.scheduleAutoCloudSync(TOOL, 'cctv-check-import', month);
+    log.push('📅 ' + t('月份 ' + month + '：' + dates.length + ' 天有打勾，新增 ' + added + ' 天、更新 ' + updated + ' 天、相同 ' + same + ' 天；' + cells + ' 格；新增攝影機 ' + newCams, 'Month ' + month + ': ' + dates.length + ' day(s) ticked, ' + added + ' added, ' + updated + ' updated, ' + same + ' unchanged; ' + cells + ' cells; ' + newCams + ' new camera(s)', 'ខែ ' + month + ': ' + dates.length + ' ថ្ងៃ, ថ្មី ' + added + ', កែ ' + updated + ', ដដែល ' + same));
+    document.getElementById('impLog').innerHTML = '<b>' + t('匯入結果', 'Import result', 'លទ្ធផលនាំចូល') + '</b><br>' + log.join('<br>');
+    SEC.toast((added || updated) ? '✅ ' + t('日檢表 ' + month + '：新增 ' + added + ' 天、更新 ' + updated + ' 天', 'Check sheet ' + month + ': ' + added + ' day(s) added, ' + updated + ' updated', 'បាននាំចូល ' + month + ': ថ្មី ' + added + ', កែ ' + updated) : 'ℹ️ ' + t('日檢表 ' + month + ' 已是最新，0 新增', 'Check sheet ' + month + ' already imported; 0 new', month + ' ដដែល 0 ថ្មី'), (added || updated) ? 'ok' : 'warn', 6000);
+  });
+}
+SEC.registerImporter(TOOL, { default:'check', kinds:{
+  check:{ label:{ zh:'每日檢查表（打勾）', en:'Daily check sheet (ticks)', km:'តារាងត្រួតពិនិត្យប្រចាំថ្ងៃ' }, accept:'excel', run:function () { return impCheckExcel(); } },
   excel:{ label:{ zh:'攝影機清單', en:'Camera list', km:'បញ្ជីកាមេរ៉ា' }, accept:'excel', run:function () { return impExcel(); } } } });
 /* 明細：期間內每次巡檢的異常攝影機一列（勾明細時列出全部攝影機） */
 function cctvReportRows(st) {
