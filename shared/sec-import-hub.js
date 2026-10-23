@@ -61,6 +61,8 @@
 
   /* ── cctv（impExcel 的 SPEC：編號 Code／名稱 Name／廠區 Factory／區域 Zone／類型 Type／NVR／通道 Channel／IP／狀態 Status／備註 Remark；資料列為 CCTV A-01 類正式編號）── */
   RULES_BY_TOOL.cctv = [
+    /* 日檢表：Code／Location ＋ 01…31 每天一欄打 √，標題「CCTV Camera Inspect report / Camera check」 */
+    { tool:'cctv', kind:'check', bonus:1, name:/cctv.{0,30}(check|inspect)|camera ?check|攝影機.{0,6}(檢查|巡檢)/i, sheet:/camera ?check|cctv ?check|日檢|巡檢/i, head:/cctv ?camera ?(inspect|check)|(code|編號).{0,40}(location|位置).{0,40}\b0?1\b.{0,20}\b0?2\b.{0,20}\b0?3\b|normal ?= ?√/ },
     { tool:'cctv', kind:'excel', name:/cctv|camera|cam ?list|攝影機|攝影|監視|監控|鏡頭/i, sheet:/cctv|camera|cam\b|攝影|監視|監控|鏡頭/i, head:/cctv ?[ab] ?-? ?\d{1,3}|\bcctv\b|camera|攝影機|監視器|鏡頭|\bnvr\b|\bdvr\b|ip ?address|lightbox/ },
   ];
 
@@ -111,7 +113,7 @@
   var KIND_LABEL = {
     roster:['名冊', 'Roster', 'បញ្ជីឈ្មោះ'], excel:['Excel', 'Excel', 'Excel'], wand:['巡邏機紀錄', 'Patrol reader log', 'កំណត់ត្រាម៉ាស៊ីនល្បាត'], generic:['一般巡邏表', 'Patrol sheet', 'តារាងល្បាត'],
     fee:['保安費', 'Security fee', 'ថ្លៃសន្តិសុខ'], car:['車輛派遣', 'Vehicle dispatch', 'រថយន្ត'], bike:['摩托車', 'Motorbike', 'ម៉ូតូ'], gate:['出入閘', 'Gate log', 'ច្រកចេញចូល'], late:['遲到登記', 'Come late', 'មកយឺត'],
-    equipment:['設備清單', 'Equipment list', 'បញ្ជីឧបករណ៍'], history:['歷史月檢表', 'Past monthly checks', 'ការត្រួតពិនិត្យចាស់'],
+    equipment:['設備清單', 'Equipment list', 'បញ្ជីឧបករណ៍'], history:['歷史月檢表', 'Past monthly checks', 'ការត្រួតពិនិត្យចាស់'], check:['每日檢查表', 'Daily check sheet', 'តារាងត្រួតពិនិត្យ'],
   };
   function kindLabel(k) { var x = KIND_LABEL[k]; return x ? L(x[0], x[1], x[2]) : k; }
   function toolName(t) { var d = TOOLS[t]; return d ? d.ic + ' ' + L(d.zh, d.en, d.km) : t; }
@@ -214,6 +216,7 @@
       if (!photo && r.sheet && ctx.sheets.some(function (x) { return r.sheet.test(x) || r.sheet.test(x.replace(/[\s\u3000_\-\/()（）:：.．]/g, '')); })) s += 2;
       if (!photo && r.head && (r.head.test(ctx.head) || r.head.test(ctx.headc))) s += 2;
       if (!s) return;
+      if (r.bonus) s += r.bonus; /* 較專門的表（如 CCTV 日檢表）比同模組的一般清單多 1 分，才不會兩邊同分要問 */
       var key = r.tool + '|' + r.kind; scores[key] = Math.max(scores[key] || 0, s) + (scores[key] ? 0.5 : 0);
     });
     if (bias && !photo) { var spec = SEC.importers()[bias]; if (spec) Object.keys(spec.kinds).forEach(function (k) { var key = bias + '|' + k; if (scores[key]) scores[key] += 0.5; }); }

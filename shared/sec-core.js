@@ -1636,10 +1636,12 @@ function tgOpen(opt) {
       sending = false;
       close();
     } catch (e) {
-      toast((e && e.cancelled ? 'ℹ️ ' : '❌ ') + esc(e && e.message || e), e && e.cancelled ? 'warn' : 'err', e && e.cancelled ? 3000 : 0);
+      toast((e && e.cancelled ? 'ℹ️ ' : '❌ ') + esc(e && e.message || e), e && e.cancelled ? 'warn' : 'err', e && e.cancelled ? 3000 : e && e.closeModal ? 15000 : 0);
       btn.textContent = sendText;
       sending = false;
       btn.disabled = false;
+      /* 模組要使用者先到頁面補資料（例如巡邏確認）時，關掉視窗讓他看得到表單 */
+      if (e && e.closeModal) close();
     } finally { sending = false; mask.classList.remove('busy'); }
   };
   q('#tgType').value = firstType;
