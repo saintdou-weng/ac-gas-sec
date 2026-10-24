@@ -355,7 +355,7 @@ async function act(action, btn) {
    每個模組在背景開自己的頁面，執行該頁同一套「先下載合併、再上傳」同步（與頁首 ⬆️⬇️ 相同），
    所以各模組的合併、刪除紀錄、照片、人員版本規則都一樣，不會因為從首頁同步而不同。
    一次一個模組，避免雲端鎖互搶；失敗的模組會留著勾選，可再按一次重試。 */
-var SYNC_SEL_KEY = 'ac_sec_home_sync_sel_v1', SYNC_BUSY = false, SYNC_ST = {}, SYNC_TIMEOUT = 120000, SYNC_IDLE = 150000, SYNC_MAX = 1200000;
+var SYNC_SEL_KEY = 'ac_sec_home_sync_sel_v1', SYNC_BUSY = false, SYNC_ST = {}, SYNC_TIMEOUT = 120000, SYNC_IDLE = 380000, SYNC_MAX = 1800000;  /* 2026-10-24：GAS 單一請求最長 6 分鐘，大區塊（地圖、照片）不可被當成沒反應 */
 function syncSelRead() {
   try { var v = JSON.parse(localStorage.getItem(SYNC_SEL_KEY) || 'null'); if (Array.isArray(v)) return v.filter(function (id) { return MODS.some(function (m) { return m.id === id; }); }); } catch (e) {}
   return MODS.map(function (m) { return m.id; });
