@@ -227,7 +227,7 @@ body::before{
 <div id="toastwrap"></div>
 <script src="./shared/sec-core.js?v=20261023a"></script>
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
-<script src="./shared/sec-smart-sync.js?v=20260929a"></script>
+<script src="./shared/sec-smart-sync.js?v=20261024a"></script>
 <script>
 /* ═══ 模組定義（含本機筆數） ═══ */
 var CLOUD = 'unknown';   /* unknown / checking / ok / offline */
@@ -355,7 +355,7 @@ async function act(action, btn) {
    每個模組在背景開自己的頁面，執行該頁同一套「先下載合併、再上傳」同步（與頁首 ⬆️⬇️ 相同），
    所以各模組的合併、刪除紀錄、照片、人員版本規則都一樣，不會因為從首頁同步而不同。
    一次一個模組，避免雲端鎖互搶；失敗的模組會留著勾選，可再按一次重試。 */
-var SYNC_SEL_KEY = 'ac_sec_home_sync_sel_v1', SYNC_BUSY = false, SYNC_ST = {}, SYNC_TIMEOUT = 120000;
+var SYNC_SEL_KEY = 'ac_sec_home_sync_sel_v1', SYNC_BUSY = false, SYNC_ST = {}, SYNC_TIMEOUT = 120000, SYNC_IDLE = 150000, SYNC_MAX = 1200000;
 function syncSelRead() {
   try { var v = JSON.parse(localStorage.getItem(SYNC_SEL_KEY) || 'null'); if (Array.isArray(v)) return v.filter(function (id) { return MODS.some(function (m) { return m.id === id; }); }); } catch (e) {}
   return MODS.map(function (m) { return m.id; });
@@ -367,7 +367,7 @@ function paintSync() {
   var L = SEC.lang(), box = document.getElementById('syncChips'); if (!box) return;
   box.innerHTML = MODS.map(function (m) {
     var st = SYNC_ST[m.id] || {}, on = SYNC_SEL.indexOf(m.id) >= 0, sub;
-    if (st.state === 'run') sub = '⏳ ' + SEC.L('同步中…', 'Syncing…', 'កំពុងធ្វើ…');
+    if (st.state === 'run') sub = '⏳ ' + (st.msg || SEC.L('同步中…', 'Syncing…', 'កំពុងធ្វើ…'));
     else if (st.state === 'wait') sub = '… ' + SEC.L('排隊中', 'Queued', 'កំពុងរង់ចាំ');
     else if (st.state === 'ok') sub = '✅ ' + (st.msg || syncShortTime(SEC.lastSync(m.id)));
     else if (st.state === 'err') sub = '❌ ' + (st.msg || SEC.L('失敗', 'Failed', 'បរាជ័យ'));
@@ -417,9 +417,22 @@ function syncOne(m) {
     var f = document.createElement('iframe'), done = false, started = false;
     f.setAttribute('aria-hidden', 'true'); f.tabIndex = -1; f.title = 'sync ' + m.id;
     f.style.cssText = 'position:fixed;left:-12000px;top:0;width:400px;height:820px;border:0;opacity:0;pointer-events:none';
-    var timer = setTimeout(function () { finish({ ok:false, msg:SEC.L('逾時', 'Timed out', 'អស់ពេល') }); }, SYNC_TIMEOUT);
+    /* 2026-10-24：不再固定 2 分鐘判逾時；模組還在傳（進度或網路請求有動）就繼續等，
+       超過 SYNC_IDLE 沒有任何進展或總共超過 SYNC_MAX 才算逾時。 */
+    var startAt = Date.now(), lastAct = Date.now(), lastSig = '';
+    var timer = setInterval(function () {
+      var sig = '';
+      try {
+        var w = f.contentWindow, p = w && w.SEC && w.SEC.syncProgress && w.SEC.syncProgress[m.id];
+        var n = w && w.performance && w.performance.getEntriesByType ? w.performance.getEntriesByType('resource').length : 0;
+        sig = (p ? p.phase + ':' + p.done + '/' + p.total + '@' + p.at : '') + '|' + n;
+        if (p && p.total) { SYNC_ST[m.id] = { state:'run', msg:(p.phase === 'download' ? '⬇ ' : '⬆ ') + p.done + '/' + p.total }; paintSync(); }
+      } catch (e) {}
+      if (sig && sig !== lastSig) { lastSig = sig; lastAct = Date.now(); }
+      if (Date.now() - lastAct > SYNC_IDLE || Date.now() - startAt > SYNC_MAX) finish({ ok:false, msg:SEC.L('逾時', 'Timed out', 'អស់ពេល') });
+    }, 2000);
     function finish(r) {
-      if (done) return; done = true; clearTimeout(timer);
+      if (done) return; done = true; clearInterval(timer);
       setTimeout(function () { try { f.src = 'about:blank'; } catch (e) {} if (f.parentNode) f.parentNode.removeChild(f); }, 60);
       resolve(r);
     }
@@ -427,15 +440,16 @@ function syncOne(m) {
       if (started || done) return; started = true;
       try {
         var w = f.contentWindow;
+        try { w.performance.setResourceTimingBufferSize(20000); } catch (e) {}
         if (!(await syncWaitFor(function () { return w.SEC && typeof w.SEC.runAutoCloudSync === 'function'; }, 20000))) throw new Error(SEC.L('頁面載入失敗', 'Page did not load', 'ទំព័រមិនបានផ្ទុក'));
         if (typeof w.SEC.dataReady === 'function') await w.SEC.dataReady();
         var dbg = function () { return w.SEC.autoSyncDebug ? w.SEC.autoSyncDebug() : { busy:{}, net:{} }; };
         /* 頁面開啟時會自己先同步一次：等它跑完，再跑我們這次（結果以這次為準） */
         await syncSleep(900);
-        await syncWaitFor(function () { return !dbg().busy[m.id]; }, SYNC_TIMEOUT - 10000);
+        await syncWaitFor(function () { return done || !dbg().busy[m.id]; }, SYNC_MAX);
         var ok = await w.SEC.runAutoCloudSync(m.id, { tool:m.id, reason:'home-sync', period:'', at:Date.now(), manual:true });
         var net = dbg().net[m.id];
-        await syncWaitFor(function () { return !dbg().busy[m.id]; }, 30000);
+        await syncWaitFor(function () { return done || !dbg().busy[m.id]; }, SYNC_MAX);
         if (ok) finish({ ok:true });
         else if (net && net.ok) finish({ ok:true, msg:SEC.L('雲端已檢查', 'Cloud checked', 'បានពិនិត្យ') + ' ' + SEC.nowStr().slice(-5) });
         else finish({ ok:false, msg:(net && net.code !== 'NETWORK' && net.error) || (navigator.onLine ? SEC.L('雲端沒有回應', 'Cloud did not respond', 'ពពកមិនឆ្លើយតប') : SEC.L('離線', 'Offline', 'គ្មានអ៊ីនធឺណិត')) });
