@@ -208,22 +208,24 @@
     if (!m || (m.exists === undefined && m.legacy === undefined)) throw noSmart();
     return m;
   }
-  async function smartAll(tool, remote, wantedKeys) {
+  async function smartAll(tool, remote, wantedKeys, partialOk) {
     var rows = [], extra = {}, missing = [], per = {};
     var keys = Array.isArray(wantedKeys) ? wantedKeys.slice().sort() : Object.keys(remote.hashes || {}).sort();
     /* 2026-10-24：3 條並行下載（大區塊每包 20–30 秒，依序下載太慢）；結果仍依鍵排序合併。 */
-    var got = {}, next = 0, done = 0, fatal = null;
+    var got = {}, next = 0, done = 0, fatal = null, okCount = 0, netMissing = 0;
     progress(tool, 'download', 0, keys.length);
     async function worker() {
       while (next < keys.length && !fatal) {
         var k = keys[next++];
         var tries = 0;
         for (;;) {
-          try { got[k] = { ok:true, b:await get('smartBucket', tool, k) }; break; }
+          try { got[k] = { ok:true, b:await get('smartBucket', tool, k) }; okCount++; break; }
           catch (e) {
             if (e && (e.code === 'NETWORK' || e.code === 'HTTP')) {
               /* GAS 偶爾單次失敗：同一包最多再試 2 次（2 秒、5 秒後），仍失敗才整輪稍後重試。 */
               if (++tries <= 2 && !fatal) { await new Promise(function (r) { setTimeout(r, tries === 1 ? 2000 : 5000); }); continue; }
+              /* 下載（pull）時：已有其他包成功 → 這包記為缺少、下次只補這包，不讓整輪白做。上傳前的合併仍維持整輪失敗（避免覆蓋雲端）。 */
+              if (partialOk && okCount > 0) { got[k] = { ok:false }; netMissing++; break; }
               fatal = fatal || e; return;
             }
             got[k] = { ok:false }; break;
@@ -373,7 +375,7 @@
       stateWrite(tool, Object.assign({}, state || {}, { hashes:remoteHashes, counts:remote.counts || {}, metaHash:remote.metaHash || '', updatedAt:remote.updatedAt || now(), needsPull:false }));
       statusDot('ok'); SEC.markSync(tool); return unchanged;
     }
-    var all = await smartAll(tool, remote, changedKeys), out = all.records;
+    var all = await smartAll(tool, remote, changedKeys, true), out = all.records;
     out._cloudExtra = all.extra; out._cloudMeta = Object.assign({}, remote.meta || {}, {
       downloadedBuckets:changedKeys.length,
       missingBuckets:(remote.missingBuckets || []).concat(all.missing || [])
