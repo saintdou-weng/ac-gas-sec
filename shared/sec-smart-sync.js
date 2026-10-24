@@ -211,17 +211,29 @@
   async function smartAll(tool, remote, wantedKeys) {
     var rows = [], extra = {}, missing = [], per = {};
     var keys = Array.isArray(wantedKeys) ? wantedKeys.slice().sort() : Object.keys(remote.hashes || {}).sort();
-    for (var i = 0; i < keys.length; i++) {
-      progress(tool, 'download', i, keys.length);
-      try {
-        var b = await get('smartBucket', tool, keys[i]);
-        var x = extraFrom((b && b.records) || []); per[keys[i]] = x.records;
-        rows = rows.concat(x.records); if (Object.keys(x.extra).length) extra = x.extra;
-      } catch (e) {
-        if (e && (e.code === 'NETWORK' || e.code === 'HTTP')) throw e;   /* 斷網：整輪同步稍後重試 */
-        missing.push(keys[i]);
+    /* 2026-10-24：3 條並行下載（大區塊每包 20–30 秒，依序下載太慢）；結果仍依鍵排序合併。 */
+    var got = {}, next = 0, done = 0, fatal = null;
+    progress(tool, 'download', 0, keys.length);
+    async function worker() {
+      while (next < keys.length && !fatal) {
+        var k = keys[next++];
+        try { got[k] = { ok:true, b:await get('smartBucket', tool, k) }; }
+        catch (e) {
+          if (e && (e.code === 'NETWORK' || e.code === 'HTTP')) { fatal = fatal || e; return; }   /* 斷網：整輪同步稍後重試 */
+          got[k] = { ok:false };
+        }
+        done++; progress(tool, 'download', done, keys.length);
       }
     }
+    var pool = []; for (var w = 0; w < Math.min(3, keys.length); w++) pool.push(worker());
+    await Promise.all(pool);
+    if (fatal) throw fatal;
+    keys.forEach(function (k) {
+      var g = got[k];
+      if (!g || !g.ok) { missing.push(k); return; }
+      var x = extraFrom((g.b && g.b.records) || []); per[k] = x.records;
+      rows = rows.concat(x.records); if (Object.keys(x.extra).length) extra = x.extra;
+    });
     if (missing.length && !SEC._autoSyncSilent) SEC.toast(L('⚠️ 雲端有部分舊資料區塊遺失；已保留手機資料，下次上傳會自動修復。',
       '⚠️ Some old cloud data blocks are missing. Phone data was kept and the next upload will repair them.',
       '⚠️ ប្លុកទិន្នន័យចាស់មួយចំនួននៅលើពពកបាត់។ ទិន្នន័យក្នុងទូរស័ព្ទត្រូវបានរក្សា ហើយការផ្ទុកឡើងបន្ទាប់នឹងជួសជុល។'), 'warn', 6500);
