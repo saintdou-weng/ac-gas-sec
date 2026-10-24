@@ -60,6 +60,17 @@
     });
   }
   function post(body) { return SEC.gasPost(body); }
+  /* 2026-10-24 續傳：上傳中斷（首頁同步逾時、關頁）後，25 分鐘內且雲端沒有被任何人提交過時，
+     沿用同一個 uploadId，已送到雲端暫存的區塊不重送（雲端 30 分鐘後才清暫存檔）。 */
+  var STAGE = 'ac_sec_smart_stage_v1_', STAGE_AGE = 25 * 60000;
+  function stageRead(tool, base) { try { var st = JSON.parse(localStorage.getItem(STAGE + tool) || 'null'); if (st && st.uploadId && st.base === base && Date.now() - Number(st.at || 0) < STAGE_AGE) return st; } catch (e) {} return null; }
+  function stageWrite(tool, st) { try { localStorage.setItem(STAGE + tool, JSON.stringify(st)); } catch (e) {} }
+  function stageClear(tool) { try { localStorage.removeItem(STAGE + tool); } catch (e) {} }
+  /* 同步進度：首頁同步以此判斷「還在動」，不會固定 2 分鐘就判逾時。 */
+  function progress(tool, phase, done, total) {
+    try { var all = SEC.syncProgress || (SEC.syncProgress = {}); all[tool] = { phase:phase, done:done, total:total, at:Date.now() }; } catch (e) {}
+  }
+  function sigOf(h) { var o = {}; Object.keys(h || {}).sort().forEach(function (k) { o[k] = h[k]; }); return JSON.stringify(o); }
 
   function stable(v) {
     if (v === null || v === undefined) return 'null';
@@ -201,6 +212,7 @@
     var rows = [], extra = {}, missing = [], per = {};
     var keys = Array.isArray(wantedKeys) ? wantedKeys.slice().sort() : Object.keys(remote.hashes || {}).sort();
     for (var i = 0; i < keys.length; i++) {
+      progress(tool, 'download', i, keys.length);
       try {
         var b = await get('smartBucket', tool, keys[i]);
         var x = extraFrom((b && b.records) || []); per[keys[i]] = x.records;
@@ -275,20 +287,31 @@
       if (migrated || remoteH[k] !== buckets[k].hash) changed.push(k);
     });
     Object.keys(checked).forEach(function (k) { if (!hashes[k] || hashes[k] !== checked[k]) delete checked[k]; });
-    var meta = metaFor(tool, local.records, local.extra, summary), metaHash = hash(meta), uploadId = 'sec_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+    var remoteSig = sigOf(remoteH), stage = migrated ? null : stageRead(tool, remoteSig);
+    if (!stage) stage = { uploadId:'sec_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8), at:Date.now(), base:remoteSig, buckets:{} };
+    var meta = metaFor(tool, local.records, local.extra, summary), metaHash = hash(meta), uploadId = stage.uploadId;
+    progress(tool, 'upload', 0, changed.length);
     for (var i = 0; i < changed.length; i++) {
       var b = buckets[changed[i]];
-      await post({ action:'smartBucket', tool:tool, uploadId:uploadId, bucket:b.key, hash:b.hash, count:b.count, records:b.records });
+      if (stage.buckets[b.key] !== b.hash) {
+        await post({ action:'smartBucket', tool:tool, uploadId:uploadId, bucket:b.key, hash:b.hash, count:b.count, records:b.records });
+        stage.buckets[b.key] = b.hash; if (!migrated) stageWrite(tool, stage);
+      }
+      progress(tool, 'upload', i + 1, changed.length);
     }
     var recordCount = local.records.length, droppedKeys = Object.keys(dropped);
     var metaChanged = migrated || metaHash !== (remote.metaHash || '');
     var stamp = now();
     if (changed.length || metaChanged || !remote.exists || droppedKeys.length) {
-      var result = await post({ action:'smartCommit', tool:tool, uploadId:uploadId, hashes:hashes, counts:counts,
-        recordCount:recordCount, meta:Object.assign({}, meta, {_smartMetaHash:metaHash}), summary:summary || {} });
+      var result;
+      try {
+        result = await post({ action:'smartCommit', tool:tool, uploadId:uploadId, hashes:hashes, counts:counts,
+          recordCount:recordCount, meta:Object.assign({}, meta, {_smartMetaHash:metaHash}), summary:summary || {} });
+      } catch (ce) { if (!(ce && (ce.code === 'NETWORK' || ce.timeout))) stageClear(tool); throw ce; }
+      stageClear(tool);
       stamp = result && (result.timestamp || result.updatedAt) || stamp;
       if (!SEC._autoSyncSilent) SEC.toast(L('☁️ 已上傳雲端', '☁️ Saved to the cloud', '☁️ បានរក្សាទុកក្នុងពពក') + (changed.length ? ' · ' + changed.length : ''), 'ok', 4000);
-    } else if (!SEC._autoSyncSilent) {
+    } else { stageClear(tool); } if (!(changed.length || metaChanged || !remote.exists || droppedKeys.length) && !SEC._autoSyncSilent) {
       SEC.toast(L('☁️ 雲端已是最新，無需重傳', '☁️ The cloud is already up to date', '☁️ ពពកមានទិន្នន័យថ្មីបំផុតហើយ'), 'ok', 4000);
     }
     /* state.hashes = 「頁面本機已包含」的雲端版本。雲端貢獻的區塊記成舊值，下一次下載才會補給頁面。 */
