@@ -217,10 +217,17 @@
     async function worker() {
       while (next < keys.length && !fatal) {
         var k = keys[next++];
-        try { got[k] = { ok:true, b:await get('smartBucket', tool, k) }; }
-        catch (e) {
-          if (e && (e.code === 'NETWORK' || e.code === 'HTTP')) { fatal = fatal || e; return; }   /* 斷網：整輪同步稍後重試 */
-          got[k] = { ok:false };
+        var tries = 0;
+        for (;;) {
+          try { got[k] = { ok:true, b:await get('smartBucket', tool, k) }; break; }
+          catch (e) {
+            if (e && (e.code === 'NETWORK' || e.code === 'HTTP')) {
+              /* GAS 偶爾單次失敗：同一包最多再試 2 次（2 秒、5 秒後），仍失敗才整輪稍後重試。 */
+              if (++tries <= 2 && !fatal) { await new Promise(function (r) { setTimeout(r, tries === 1 ? 2000 : 5000); }); continue; }
+              fatal = fatal || e; return;
+            }
+            got[k] = { ok:false }; break;
+          }
         }
         done++; progress(tool, 'download', done, keys.length);
       }
