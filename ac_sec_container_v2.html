@@ -350,7 +350,9 @@
 <button class="btn" id="tkSaveBtn" onclick="tkSaveEdit()" data-zh="儲存並執行" data-en="Save & process" data-km="រក្សាទុក និងដំណើរការ">儲存並執行</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20261023a"></script>
+<script src="./shared/sec-core.js?v=20261103a"></script>
+<script src="./shared/ac-holidays.js?v=20261103a"></script>
+<script src="./shared/ac-tg-chart.js?v=20261103a"></script>
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
 <script src="./shared/ac-report-doc.js?v=20261022a"></script>
 <script src="./shared/sec-report.js?v=20261022a"></script>
@@ -1399,6 +1401,10 @@ function containerSummary(st) {
   var sz = D.sizes, impS = containerSizeText(sz.imp, lang), expS = containerSizeText(sz.exp, lang);
   txt += '\n📦 ' + lb('貨櫃', 'Containers', 'កុងតឺន័រ') + ' <b>' + D.tk.length + '</b>' + (D.avg ? '  ·  ⏱ ' + lb('平均在廠', 'Avg in factory', 'មធ្យមក្នុងរោងចក្រ') + ' <b>' + G.dur(D.avg) + '</b>' : '') + (!day && D.inside.length ? '  ·  🏭 ' + lb('仍在廠內', 'Still inside', 'នៅក្នុងរោងចក្រ') + ' <b>' + D.inside.length + '</b>' : '');
   txt += '\n📥 ' + lb('進口', 'Import', 'នាំចូល') + ' <b>' + D.imp + '</b>' + (impS ? ' (' + impS + ')' : '') + '  ·  📤 ' + lb('出口', 'Export', 'នាំចេញ') + ' <b>' + D.exp + '</b>' + (expS ? ' (' + expS + ')' : '');
+  /* 20261103 視覺比例列（Paul：用圖表表示進出口比例、櫃型大小比）：🟦 進度條只畫占比，數字不重複 */
+  var sh = containerShares(D);
+  if (sh.dir) txt += '\n📊 ' + lb('進口', 'Import', 'នាំចូល') + ' ' + G.bar(D.imp, sh.dir, 10, 'neutral') + '  ·  ' + lb('出口', 'Export', 'នាំចេញ') + ' ' + sh.expPct + '%';
+  if (sh.size) txt += '\n📐 ' + lb('櫃型', 'Size', 'ទំហំ') + ' 20ft ' + G.bar(sh.s20, sh.size, 10, 'neutral') + '  ·  40ft+ ' + sh.s40Pct + '%';
   if (!month && D.mKey) {
     var m = D.mtdSizes, mi = containerSizeText(m.imp, lang), me = containerSizeText(m.exp, lang);
     txt += '\n📆 ' + lb('本月累計', 'Month to date', 'សរុបខែនេះ') + ' ' + D.mKey.slice(5) + lb('月', '', '') + '：📥 <b>' + m.imp.n + '</b>' + (mi ? ' (' + mi + ')' : '') + ' · 📤 <b>' + m.exp.n + '</b>' + (me ? ' (' + me + ')' : '');
@@ -1455,6 +1461,62 @@ function containerCompactPhotos(p){
   return out;
 }
 
+/* 進出口與櫃型占比（文字 🟦 條與附圖共用）：dir = 進口＋出口方向數；size = 有櫃型的櫃數（20ft 與 40ft 以上） */
+function containerShares(D) {
+  var cnt = containerSizeCounts(D.tk), s20 = cnt['20'] || 0, s40 = (cnt['40'] || 0) + (cnt['40HQ'] || 0) + (cnt['45'] || 0), dir = D.imp + D.exp, size = s20 + s40;
+  return { dir:dir, expPct:dir ? Math.round(D.exp / dir * 100) : 0, size:size, s20:s20, s40:s40, s40Pct:size ? Math.round(s40 / size * 100) : 0 };
+}
+function containerSizeCounts(rows) {
+  var out = {};
+  rows.forEach(function (r) { var sz = containerSizeOf(r); out[sz] = (out[sz] || 0) + 1; });
+  return out;
+}
+/* 20261103 Telegram 摘要附圖（shared/ac-tg-chart.js）：進口／出口圓環、櫃型圓環、在廠時間分布、每日（每月）櫃數、指標列。
+   回傳 PNG dataURL；沒有貨櫃、沒有 ACChart 或畫不出來時回傳 ''（摘要照常送，只是沒有圖）。
+   文字語言跟摘要一致：both → 中＋英；en → 只有英文；km → 英文＋柬文。 */
+function containerSummaryChart(st) {
+  if (typeof ACChart === 'undefined' || !ACChart || typeof ACChart.render !== 'function') return '';
+  try {
+    var lang = st.lang || 'zh', G = SEC.TG, D = containerSummaryData(st), P = ACChart.PALETTE || [];
+    if (!D.tk.length) return '';
+    var t = function (zh, en, km) { return lang === 'both' ? zh + ' · ' + en : lang === 'en' ? en : lang === 'km' ? en + (km ? ' · ' + km : '') : zh; };
+    /* 圓環中央的小字只放一種語言（中／英／柬），才不會超出圓環 */
+    var cs = lang === 'en' ? 'containers' : lang === 'km' ? 'កុងតឺន័រ' : '貨櫃';
+    var C = { imp:P[0] || '#2b8fbd', exp:P[1] || '#2e9c6a', s20:P[5] || '#3fb9c9', s40:P[0] || '#2b8fbd', hq:P[4] || '#8e6cc9', s45:P[6] || '#c97c2e', na:P[7] || '#6c8ea4', ok:P[1] || '#2e9c6a', mid:P[2] || '#f2a93b', bad:P[3] || '#e35d5b' };
+    var blocks = [];
+    blocks.push({ type:'donut', title:t('進口／出口', 'Import / Export', 'នាំចូល / នាំចេញ'), center:String(D.tk.length), centerSub:cs,
+      items:[{ label:t('進口', 'Import', 'នាំចូល'), value:D.imp, color:C.imp }, { label:t('出口', 'Export', 'នាំចេញ'), value:D.exp, color:C.exp }] });
+    var cnt = containerSizeCounts(D.tk), sizes = [];
+    [['20', '20ft', C.s20], ['40', '40ft', C.s40], ['40HQ', '40HQ', C.hq], ['45', '45ft', C.s45]].forEach(function (x) { if (cnt[x[0]]) sizes.push({ label:x[1], value:cnt[x[0]], color:x[2] }); });
+    if (cnt['']) sizes.push({ label:t('未填', 'n/a', 'មិនបានបំពេញ'), value:cnt[''], color:C.na });
+    blocks.push({ type:'donut', title:t('櫃型', 'Container size', 'ទំហំកុងតឺន័រ'), center:String(D.tk.length), centerSub:cs, items:sizes });
+    var bk = [0, 0, 0, 0];
+    D.tk.forEach(function (r) { var m = containerStayMins(r); if (m == null || containerTimeIssue(r)) return; bk[m < 120 ? 0 : m < 240 ? 1 : m < 480 ? 2 : 3]++; });
+    var stay = [{ label:'< 2h', value:bk[0], color:C.ok }, { label:'2–4h', value:bk[1], color:C.imp }, { label:'4–8h', value:bk[2], color:C.mid }, { label:'> 8h', value:bk[3], color:C.bad },
+      { label:t('未出廠', 'not out yet', 'មិនទាន់ចេញ'), value:D.inside.length, color:C.hq }];
+    if (D.timeBad.length) stay.push({ label:t('時間有誤', 'to check', 'ពិនិត្យម៉ោង'), value:D.timeBad.length, color:C.bad });
+    blocks.push({ type:'bars', title:t('在廠時間', 'Time in factory', 'រយៈពេលក្នុងរោងចក្រ'), items:stay });
+    var toCheck = D.timeBad.length + D.fail.length;
+    blocks.push({ type:'stats', items:[
+      { label:t('貨櫃', 'Containers', 'កុងតឺន័រ'), value:String(D.tk.length), color:C.imp },
+      { label:t('平均在廠', 'Avg stay', 'មធ្យម'), value:D.avg ? G.dur(D.avg) : '—', color:C.ok },
+      { label:t('需注意', 'To check', 'ពិនិត្យ'), value:String(toCheck), color:toCheck ? C.bad : C.na }] });
+    if (st.ptype !== 'day') {
+      var byDate = {}, cols = [], rg = D.p.range();
+      D.tk.forEach(function (r) { var d = String(r.date || ''); byDate[d] = (byDate[d] || 0) + 1; });
+      if (st.ptype === 'year') {
+        var byM = {}; Object.keys(byDate).forEach(function (d) { var k = d.slice(5, 7); byM[k] = (byM[k] || 0) + byDate[d]; });
+        for (var mi = 1; mi <= 12; mi++) { var mk = (mi < 10 ? '0' : '') + mi; cols.push({ label:String(mi), value:byM[mk] || 0 }); }
+      } else {
+        for (var dd = new Date(rg.fromD); dd <= rg.toD; dd.setDate(dd.getDate() + 1)) { var key = SEC.ymd(dd); cols.push({ label:st.ptype === 'week' ? G.d(key) : String(dd.getDate()), value:byDate[key] || 0 }); }
+      }
+      blocks.push({ type:'columns', title:st.ptype === 'year' ? t('每月貨櫃數', 'Containers per month', 'កុងតឺន័រក្នុងមួយខែ') : t('每日貨櫃數', 'Containers per day', 'កុងតឺន័រក្នុងមួយថ្ងៃ'), items:cols, color:C.imp });
+    }
+    return ACChart.render({ title:t('進出口貨櫃', 'Import / Export Containers', 'កុងតឺន័រនាំចូល / នាំចេញ'), subtitle:D.p.label(), theme:'navy', width:1080, blocks:blocks,
+      footer:'AC Security · ' + t('貨櫃出入', 'Container log', 'កំណត់ត្រាកុងតឺន័រ') }) || '';
+  } catch (e) { return ''; }
+}
+
 function containerSummaryPageDefs(st){
   var lang=st.lang||'zh',G=SEC.TG,lb=function(zh,en,km){return G.lbl(lang,zh,en,km);},D=containerSummaryData(st),pages=[];
   pages.push({text:containerSummary(st),photos:containerCompactPhotos(D.p)});
@@ -1483,7 +1545,12 @@ function containerSummaryPageDefs(st){
 }
 function containerSummaryPages(st) { return containerSummaryPageDefs(st).map(function(x){return x.text;}); }
 
-function containerSummaryPhotos(st,pageIndex){var d=containerSummaryPageDefs(st)[pageIndex];return d&&d.photos?d.photos.slice(0,4):[];}
+/* 第 1 頁照片：先放摘要圖（有貨櫃才畫），再接最新照片，合計 ≤ 4 張 */
+function containerSummaryPhotos(st,pageIndex){
+  var d=containerSummaryPageDefs(st)[pageIndex],ph=d&&d.photos?d.photos.slice():[];
+  if(pageIndex===0){var chart=containerSummaryChart(st);if(chart)ph.unshift(chart);}
+  return ph.slice(0,4);
+}
 function openContainerTelegram() {
   return SEC.tgOpen({ module:'container', defaultType:PER.mode, defaultPeriod:PER.key(),
     defaultLang: SEC.lang() === 'zh' ? 'both' : SEC.lang(),

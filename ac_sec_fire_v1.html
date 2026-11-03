@@ -86,6 +86,9 @@
 .fire-insp-period{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 8px}
 .fire-insp-period .tag{white-space:normal}
 .fire-insp-photo{margin-top:8px;min-width:0}
+.fire-insp-dates{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px}
+.fire-insp-dates label{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;color:var(--ink2);min-width:0}
+.fire-insp-dates input{width:100%;box-sizing:border-box;min-height:38px}
 @media(max-width:720px){
   .fire-filters{grid-template-columns:1fr 1fr}
   .fire-insp-grid{grid-template-columns:1fr}
@@ -350,7 +353,9 @@
 <button class="btn" id="eSaveBtn" onclick="saveEdit()" data-zh="儲存" data-en="Save" data-km="រក្សាទុក">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20261023a"></script>
+<script src="./shared/sec-core.js?v=20261103a"></script>
+<script src="./shared/ac-holidays.js?v=20261103a"></script>
+<script src="./shared/ac-tg-chart.js?v=20261103a"></script>
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
 <script src="./shared/ac-report-doc.js?v=20261022a"></script>
 <script src="./shared/sec-report.js?v=20261022a"></script>
@@ -916,7 +921,7 @@ function firePeriodInspectionMap() {
       var key = x.id || x.code;
       if (!key) return;
       if (!out[key] || String(h.date) >= String(out[key].date || '')) {
-        out[key] = { date:h.date, by:h.by || '', result:x.result || '', note:x.note || '', photos:Array.isArray(x.photos) ? x.photos.slice(0, 4) : [] };
+        out[key] = { date:h.date, by:h.by || '', result:x.result || '', note:x.note || '', due:x.due || '', done:x.done || '', photos:Array.isArray(x.photos) ? x.photos.slice(0, 4) : [] };
       }
     });
   });
@@ -955,6 +960,11 @@ function fireInspPhotoMarkup(e, v) {
   return '<div class="fire-insp-photo"><button type="button" class="btn sm gh fire-photo-add" data-i="' + SEC.esc(e.id) + '">📷 ' + SEC.esc(L('照片','Photo','រូបថត')) + '</button>' +
     '<span class="hint fire-photo-count">' + (arr.length ? ' ' + arr.length : '') + '</span><div class="fire-photo-list">' + SEC.photoListHtml(arr,true) + '</div></div>';
 }
+/* 20261103 異常項目的「預計完成日 / 完成日」（選填；只有判定 ⛔ 異常時顯示並儲存，舊紀錄沒有這兩個欄位也照常運作）。 */
+function fireInspDatesMarkup(e, v, r) {
+  return '<div class="fire-insp-dates"' + (r === 'fault' ? '' : ' hidden') + '><label><span>📅 ' + SEC.esc(L('預計完成', 'Target date', 'កាលបរិច្ឆេទគោលដៅ')) + '</span><input type="date" class="insp-due" data-i="' + SEC.esc(e.id) + '" value="' + SEC.esc(v.due || '') + '"></label>' +
+    '<label><span>✔️ ' + SEC.esc(L('完成日', 'Completed', 'បានបញ្ចប់')) + '</span><input type="date" class="insp-done" data-i="' + SEC.esc(e.id) + '" value="' + SEC.esc(v.done || '') + '"></label></div>';
+}
 function fireRefreshInspPhoto(id, host) {
   var v = INSP[id] || {}, arr = Array.isArray(v.photos) ? v.photos : [];
   host.querySelector('.fire-photo-count').textContent = arr.length ? ' ' + arr.length : '';
@@ -966,7 +976,7 @@ function fireRefreshInspPhoto(id, host) {
 function fireEnsureInsp(id, map) {
   if (!INSP[id]) {
     var old=map[id] || map[(DB.filter(function(e){return e.id===id;})[0] || {}).code] || {};
-    INSP[id]={r:old.result || old.r || '',n:old.note || old.n || '',photos:Array.isArray(old.photos)?old.photos.slice(0,4):[]};
+    INSP[id]={r:old.result || old.r || '',n:old.note || old.n || '',due:old.due || '',done:old.done || '',photos:Array.isArray(old.photos)?old.photos.slice(0,4):[]};
   }
   return INSP[id];
 }
@@ -985,10 +995,11 @@ function renderInsp() {
       '<div class="insp-meta">'+T.icon+' <b>'+SEC.esc(fireTypeLabel(e.type))+'</b><br>'+SEC.esc(zoneName(e.zone))+(e.loc?' · '+SEC.esc(e.loc):'')+'<br><span class="hint">'+SEC.esc(L('本期','Period','រយៈពេល'))+': '+SEC.esc(PER.label())+'</span></div>'+
       '<div class="fire-insp-period">'+fireInspectionResultTag(r,l)+(dateTag?' '+dateTag:'')+'</div>'+
       '<div class="insp-actions"><button type="button" data-i="'+SEC.esc(e.id)+'" data-r="ok" class="insp-choice ok'+(r==='ok'?' on':'')+'">✅ '+SEC.esc(L('正常','Normal','ធម្មតា'))+'</button><button type="button" data-i="'+SEC.esc(e.id)+'" data-r="fault" class="insp-choice fault'+(r==='fault'?' on':'')+'">⛔ '+SEC.esc(L('異常','Fault','មិនប្រក្រតី'))+'</button></div>'+
-      '<input data-i="'+SEC.esc(e.id)+'" class="insp-note" value="'+SEC.esc(v.n||'')+'" placeholder="'+SEC.esc(L('異常原因／備註','Abnormal reason / remark','មូលហេតុ / កំណត់ចំណាំ'))+'">'+fireInspPhotoMarkup(e,v)+'</div>';
+      '<input data-i="'+SEC.esc(e.id)+'" class="insp-note" value="'+SEC.esc(v.n||'')+'" placeholder="'+SEC.esc(L('異常原因／備註','Abnormal reason / remark','មូលហេតុ / កំណត់ចំណាំ'))+'">'+fireInspDatesMarkup(e,v,r)+fireInspPhotoMarkup(e,v)+'</div>';
   }).join('')+'</div>' : '<div class="empty" style="padding:30px">'+SEC.esc(L('此篩選沒有設備。請先匯入或新增。','No equipment in this filter. Import or add equipment first.','គ្មានឧបករណ៍ក្នុងការជ្រើសនេះទេ។ សូមនាំចូល ឬបន្ថែមជាមុន។'))+'</div>';
-  box.querySelectorAll('.insp-choice').forEach(function(b){b.onclick=function(){var v=fireEnsureInsp(b.dataset.i,map);v.r=b.dataset.r;b.parentNode.querySelectorAll('.insp-choice').forEach(function(x){x.classList.toggle('on',x===b);});b.closest('.fire-insp-item').querySelector('.fire-insp-period').innerHTML=fireInspectionResultTag(v.r,l)+(statusOf(DB.filter(function(e){return e.id===b.dataset.i;})[0])==='over'?' '+stLabel('over'):'');paintFireInspCount();};});
+  box.querySelectorAll('.insp-choice').forEach(function(b){b.onclick=function(){var v=fireEnsureInsp(b.dataset.i,map);v.r=b.dataset.r;b.parentNode.querySelectorAll('.insp-choice').forEach(function(x){x.classList.toggle('on',x===b);});var card=b.closest('.fire-insp-item');card.querySelector('.fire-insp-period').innerHTML=fireInspectionResultTag(v.r,l)+(statusOf(DB.filter(function(e){return e.id===b.dataset.i;})[0])==='over'?' '+stLabel('over'):'');var dates=card.querySelector('.fire-insp-dates');if(dates)dates.hidden=v.r!=='fault';paintFireInspCount();};});
   box.querySelectorAll('.insp-note').forEach(function(s){s.oninput=function(){fireEnsureInsp(s.dataset.i,map).n=s.value;paintFireInspCount();};});
+  box.querySelectorAll('.insp-due,.insp-done').forEach(function(s){s.onchange=function(){fireEnsureInsp(s.dataset.i,map)[s.classList.contains('insp-done')?'done':'due']=s.value;};});
   box.querySelectorAll('.fire-photo-add').forEach(function(add){var id=add.dataset.i,host=add.parentNode;add.onclick=function(){var v=fireEnsureInsp(id,map),arr=v.photos=Array.isArray(v.photos)?v.photos:[];if(arr.length>=4){SEC.toast(L('每台設備最多4張照片','Maximum 4 photos per item','អតិបរមា 4 រូបក្នុងមួយឧបករណ៍'),'warn');return;}SEC.pickPhoto(function(d){if(arr.length<4)arr.push(d);fireRefreshInspPhoto(id,host);},760,4-arr.length);};fireRefreshInspPhoto(id,host);});
   paintFireInspCount();
 }
@@ -1051,7 +1062,9 @@ function saveInsp(push) {
     ids.forEach(function (id) {
       var e = DB.filter(function (x) { return x.id === id; })[0]; if (!e) return;
       var result = INSP[id].r, photos = Array.isArray(INSP[id].photos) ? INSP[id].photos.slice(0, 4) : [];
-      items.push({ id:id, code:e.code || '', type:e.type || 'other', factory:factoryOf(e), zone:e.zone || '', loc:e.loc || '', result:result, note:INSP[id].n || '', photos:photos });
+      var item = { id:id, code:e.code || '', type:e.type || 'other', factory:factoryOf(e), zone:e.zone || '', loc:e.loc || '', result:result, note:INSP[id].n || '', photos:photos };
+      if (result === 'fault') { if (INSP[id].due) item.due = INSP[id].due; if (INSP[id].done) item.done = INSP[id].done; }
+      items.push(item);
       if (!fireApplyInspection(e, date, result, by, INSP[id].n || '', photos)) older++;
       if (result === 'fault') bad.push(e.code || '');
     });
@@ -1066,7 +1079,7 @@ function saveInsp(push) {
 function editFireHistory(id){
   var h=HIST.filter(function(x){return x.id===id;})[0];if(!h)return;
   var tab=document.querySelector('#tabs .tab[data-p="insp"]');if(tab)tab.click();   /* 先切換（會清除舊編輯狀態），再載入 */
-  FIRE_HIST_EDIT_ID=id;INSP={};(h.items||[]).forEach(function(x){var e=DB.filter(function(q){return q.id===x.id||fireItemKey(q)===fireItemKey(x);})[0];if(e)INSP[e.id]={r:x.result||'ok',n:x.note||'',photos:Array.isArray(x.photos)?x.photos.slice(0,4):[]};});
+  FIRE_HIST_EDIT_ID=id;INSP={};(h.items||[]).forEach(function(x){var e=DB.filter(function(q){return q.id===x.id||fireItemKey(q)===fireItemKey(x);})[0];if(e)INSP[e.id]={r:x.result||'ok',n:x.note||'',due:x.due||'',done:x.done||'',photos:Array.isArray(x.photos)?x.photos.slice(0,4):[]};});
   INSP_OVERALL_PHOTOS=Array.isArray(h.photos)?h.photos.slice(0,4):[];document.getElementById('cDate').value=h.date||SEC.ymd();document.getElementById('cBy').value=h.by||'';renderFireOverallPhotos();
   renderInsp();paintFireEditBanner();SEC.toast('✏️ '+L('已載入巡檢批次；儲存時會更新原紀錄，不會重複新增','Inspection batch loaded; saving updates it instead of adding a new one','បានផ្ទុកវគ្គត្រួតពិនិត្យ; ការរក្សាទុកនឹងកែវគ្គដើម'),'ok',5000);
 }
@@ -1540,22 +1553,26 @@ function fireExpand(entries, seen) {
   (entries||[]).forEach(function(en){
     var fresh=(en.photos||[]).filter(function(p){if(!p||seen[p])return false;seen[p]=true;return true;});
     var n=Math.max(1,Math.ceil(fresh.length/4)), text=String(en.text||'').replace(/[\r\n]+/g,' ');
-    for(var i=0;i<n;i++)out.push({text:text+(i?' · 📷 '+(i+1)+'/'+n:''),photos:fresh.slice(i*4,i*4+4)});
+    for(var i=0;i<n;i++)out.push({text:text+(i?' · 📷 '+(i+1)+'/'+n:''),photos:fresh.slice(i*4,i*4+4),head:!!en.head});
   });
   return out;
 }
-/* 頁面組合：每頁 ≤ 3000 字、≤ 4 張照片；第 1 頁的需處理清單最多 12 行（其餘接續下一頁） */
-function fireReportDefs(st, summary, ex, okLine, detTitle, groups) {
+/* 頁面組合：每頁 ≤ 3000 字、≤ 4 張照片；第 1 頁的需處理清單最多 12 行（其餘接續下一頁）
+   lead：第 1 頁最前面要附的圖（例如統計圖），先占一個照片名額，後面的照片不會被擠掉 */
+function fireReportDefs(st, summary, ex, okLine, detTitle, groups, lead) {
   var lang=st.lang||'zh', lb=function(zh,en,km){return SEC.TG.lbl(lang,zh,en,km);}, seen={}, defs=[];
-  var page={text:summary,photos:[],n:0,first:true};
+  var page={text:summary,photos:(lead||[]).filter(Boolean).slice(0,1),n:0,first:true};
   function flush(){if(page&&page.text)defs.push({text:page.text,photos:page.photos});page=null;}
   function room(lines,ph){return page&&page.text.length+lines.join('\n').length+1<=3000&&page.photos.length+ph.length<=4&&(!page.first||page.n+lines.length<=12);}
   function add(lines,ph){page.text+='\n'+lines.join('\n');page.photos=page.photos.concat(ph);page.n+=lines.length;}
-  var title=lb('需處理','Needs attention','ត្រូវដោះស្រាយ');
-  if(ex.length){
-    page.text+=SEC.TG.sec('⚠️',title+' · '+ex.length);
-    fireExpand(ex,seen).forEach(function(it){
-      if(!room([it.text],it.photos)){flush();page={text:'<b>⚠️ '+title+' ('+lb('續','cont.','បន្ត')+')</b>',photos:[],n:0};}
+  var title=lb('需處理','Needs attention','ត្រូវដោះស្រាយ'), exCount=ex.filter(function(x){return !x.head;}).length;
+  if(exCount){
+    page.text+=SEC.TG.sec('⚠️',title+' · '+exCount);
+    var list=fireExpand(ex,seen);
+    list.forEach(function(it,i){
+      /* 種類標題（head）要和它的第一筆同一頁 */
+      var nx=it.head&&list[i+1]&&!list[i+1].head?list[i+1]:null;
+      if(!room(nx?[it.text,nx.text]:[it.text],nx?it.photos.concat(nx.photos):it.photos)){flush();page={text:'<b>⚠️ '+title+' ('+lb('續','cont.','បន្ត')+')</b>',photos:[],n:0};}
       add([it.text],it.photos);
     });
   } else if(okLine) page.text+='\n\n'+okLine;
@@ -1599,7 +1616,7 @@ function fireEquipExLine(x, lang, year) {
   }
   if(x.s==='soon')parts.push((x.fault?'⏰ ':'')+lb('到期','Due','ផុតកំណត់')+' '+fireDay(due,year));
   if(r&&r.date)parts.push('🔍 '+fireWho(r,year));
-  return '• '+fireStatusMark(x)+' <b>'+SEC.esc(e.code||'—')+'</b> · '+fireWhere(e,lang)+(parts.length?' · '+parts.join(' · '):'');
+  return '• '+fireStatusMark(x)+' <b>'+SEC.esc(e.code||'—')+'</b> · '+fireWhere(e,lang)+(parts.length?' · '+parts.join(' · '):'')+(x.fault?fireFaultExtras(r,lang,year):'');
 }
 function fireSummary(st) {
   var lang=st.lang||'zh',G=SEC.TG,lb=function(zh,en,km){return G.lbl(lang,zh,en,km);},p=fireSummaryPeriod(st),year=fireRefYear(st),list=fireScopedEquipment(st),hs=fireHistoryStats(st);
@@ -1623,7 +1640,7 @@ function fireSummary(st) {
 function fireEquipmentPageDefs(st) {
   var lang=st.lang||'zh',G=SEC.TG,lb=function(zh,en,km){return G.lbl(lang,zh,en,km);},year=fireRefYear(st),D=fireStatusData(st),ex=[],groups=[],by={};
   D.items.filter(function(x){return x.ex;}).sort(function(a,b){return (a.s==='soon'&&!a.fault?1:0)-(b.s==='soon'&&!b.fault?1:0);}).forEach(function(x){ex.push({text:fireEquipExLine(x,lang,year),photos:x.photos});});
-  D.orphans.forEach(function(r){ex.push({text:'• ⚠️ <b>'+SEC.esc(r.code||r.id||'—')+'</b> · '+fireWhere(r,lang)+' · '+(r.note?SEC.esc(r.note):lb('巡檢異常','Abnormal','មិនប្រក្រតី'))+' · '+fireWho(r,year),photos:r.photos||[]});});
+  D.orphans.forEach(function(r){ex.push({text:fireFaultLine(r,lang,year),photos:r.photos||[]});});
   D.legacy.forEach(function(r){ex.push({text:fireLegacyLine(r,lang,year),photos:r.photos||[]});});
   D.items.forEach(function(x){
     var fk=factoryOf(x.e),k=fk+'|'+(x.e.zone||''),g=by[k];
@@ -1649,7 +1666,7 @@ function fireInspectionRows(st) {
     if (Array.isArray(h.items) && h.items.length) {
       h.items.filter(function (x) { return fireScopeMatch(st, x); }).forEach(function (x) {
         var key=x.id||[x.type||'',x.factory||'',x.zone||'',String(x.code||'').toUpperCase(),String(x.loc||'').toUpperCase()].join('|');
-        latest[key]={ date:h.date, by:h.by, code:x.code, id:x.id, type:x.type, factory:x.factory || factoryOf(x), zone:x.zone, loc:x.loc, result:x.result, note:x.note || '', photos:Array.isArray(x.photos)?x.photos.slice(0,4):[] };
+        latest[key]={ date:h.date, by:h.by, code:x.code, id:x.id, type:x.type, factory:x.factory || factoryOf(x), zone:x.zone, loc:x.loc, result:x.result, note:x.note || '', due:x.due || '', done:x.done || '', photos:Array.isArray(x.photos)?x.photos.slice(0,4):[] };
       });
     } else if (!st.scope || st.scope === 'all') {
       legacy.push({ date:h.date, by:h.by, aggregate:true, n:h.n, ok:h.ok, bad:h.bad, badList:h.badList || [], photos:(+h.bad||0)>0&&Array.isArray(h.photos)?h.photos.slice():[] });
@@ -1673,10 +1690,87 @@ function fireInspectionSummary(st) {
   txt+='\n'+fireLatestLine(latest&&latest.date,latest&&latest.by,year,lang);
   var dates={},names={};rows.forEach(function(r){if(r.date)dates[r.date]=1;if(r.by)names[r.by]=1;});
   if(Object.keys(dates).length>1)txt+='\n🗓 '+SEC.esc(G.ranges(Object.keys(dates)))+' · 👤 '+Object.keys(names).sort().map(SEC.esc).join(', ');
+  /* 20261103 依設備種類分開：滅火器／警鈴／煙感／緊急燈…各自一行，圖示＋✅⚠️⏳＋色條，群組一眼看懂、不混在一起 */
+  var ts=fireInspectionTypeStats(st);
+  if(ts.length)txt+='\n\n'+ts.map(function(s){return fireTypeLine(s,lang);}).join('\n');
   return txt;
+}
+/* 本期巡檢依設備種類統計（TYPES 順序）：total 範圍內設備數、checked 已檢、ok／bad、pending 未檢、faults 異常列 */
+function fireInspectionTypeStats(st) {
+  var by={};
+  function get(k){k=TYPES[k]?k:'other';if(!by[k])by[k]={k:k,icon:TYPES[k].icon,total:0,checked:0,ok:0,bad:0,pending:0,faults:[]};return by[k];}
+  fireScopedEquipment(st).forEach(function(e){get(e.type).total++;});
+  fireInspectionRows(st).forEach(function(r){if(r.aggregate)return;var s=get(r.type);s.checked++;if(r.result==='fault'){s.bad++;s.faults.push(r);}else s.ok++;});
+  return Object.keys(TYPES).filter(function(k){return by[k]&&(by[k].checked||by[k].total);}).map(function(k){var s=by[k];if(s.checked>s.total)s.total=s.checked;s.pending=s.total-s.checked;return s;});
+}
+function fireTypeLbl(k, lang) { return (TYPES[k]||TYPES.other).icon+' '+SEC.TG.lbl('zh', SEC.esc(fireTypeLabel(k, lang))); }
+/* 「🧯 滅火器 48 · ✅ 45 · ⚠️ 3 🟩🟩🟩🟩🟩🟩🟩🟩🟩🟨 94%」：色條＝本期已檢設備中正常的比例 */
+function fireTypeLine(s, lang) {
+  var parts=[fireTypeLbl(s.k,lang)+' <b>'+s.total+'</b>'];
+  if(s.checked)parts.push('✅ '+s.ok);
+  if(s.bad)parts.push('⚠️ '+s.bad);
+  if(s.pending)parts.push('⏳ '+s.pending);
+  return parts.join(' · ')+(s.checked?' '+SEC.TG.bar(s.ok,s.checked):'');
+}
+/* 異常項目尾巴：有沒有照片、預計完成日／完成日；沒有的就提醒（📷 無照片、📅 完成日未填） */
+function fireFaultExtras(r, lang, year) {
+  var lb=function(zh,en,km){return SEC.TG.lbl(lang,zh,en,km);}, n=(r.photos||[]).filter(Boolean).length, out=[];
+  out.push(n?'📷 '+n:'📷 '+lb('無照片','no photo','គ្មានរូបថត'));
+  if(r.done)out.push('✔️ '+lb('完成','done','រួចរាល់')+' '+fireDay(r.done,year));
+  else if(r.due)out.push((String(r.due)<SEC.ymd()?'⏰ '+lb('逾期','overdue','ហួសកំណត់'):'📅 '+lb('預計','due','កំណត់'))+' '+fireDay(r.due,year));
+  else out.push('📅 '+lb('完成日未填','no due date','គ្មានកាលបរិច្ឆេទ'));
+  return ' · '+out.join(' · ');
+}
+function fireFaultLine(r, lang, year) {
+  var lb=function(zh,en,km){return SEC.TG.lbl(lang,zh,en,km);};
+  return '• ⚠️ <b>'+SEC.esc(r.code||r.id||'—')+'</b> · '+fireWhere(r,lang)+' · '+(r.note?SEC.esc(r.note):lb('異常','Abnormal','មិនប្រក្រតី'))+' · '+fireWho(r,year)+fireFaultExtras(r,lang,year);
+}
+/* 20261103 Telegram 摘要附圖（shared/ac-tg-chart.js）：各種類正常／異常橫條、正常／異常／未檢圓環、指標列、每次巡檢日期的檢查數。
+   回傳 PNG dataURL；本期沒有巡檢、沒有 ACChart 或畫不出來時回傳 ''（摘要照常送，只是沒有圖）。
+   文字語言跟摘要一致：both → 中＋英；en → 只有英文；km → 英文＋柬文。 */
+function fireInspectionChart(st) {
+  if (typeof ACChart === 'undefined' || !ACChart || typeof ACChart.render !== 'function') return '';
+  try {
+    var lang=st.lang||'zh', G=SEC.TG, P=ACChart.PALETTE||[], rows=fireInspectionRows(st), ts=fireInspectionTypeStats(st);
+    var t=function(zh,en,km){return lang==='both'?zh+' · '+en:lang==='en'?en:lang==='km'?en+(km?' · '+km:''):zh;};
+    var C={ok:P[1]||'#2e9c6a',bad:P[3]||'#e35d5b',mid:P[2]||'#f2a93b',na:P[7]||'#6c8ea4',blue:P[0]||'#2b8fbd'};
+    var checked=0,ok=0,bad=0;rows.forEach(function(r){if(r.aggregate){checked+=+r.n||0;ok+=+r.ok||0;bad+=+r.bad||0;}else{checked++;if(r.result==='fault')bad++;else ok++;}});
+    if(!checked)return '';
+    var total=Math.max(fireScopedEquipment(st).length,checked), pending=total-checked, blocks=[];
+    if(ts.length){
+      var max=ts.reduce(function(a,s){return Math.max(a,s.total);},1);
+      blocks.push({type:'bars',title:t('各類設備 正常／已檢','Normal / checked by type','ធម្មតា / បានពិនិត្យ តាមប្រភេទ'),max:max,
+        items:ts.map(function(s){return {label:s.icon+' '+(lang==='en'||lang==='km'?TYPES[s.k].en:TYPES[s.k].zh),value:s.ok,color:s.bad?(s.ok/Math.max(1,s.checked)>=0.9?C.mid:C.bad):C.ok,text:s.ok+'/'+s.checked+(s.pending?'  ·  '+s.pending+' '+(lang==='en'||lang==='km'?'pending':'未檢'):'')};})});
+    }
+    blocks.push({type:'donut',title:t('巡檢結果','Inspection result','លទ្ធផលត្រួតពិនិត្យ'),center:String(checked),centerSub:lang==='en'?'checked':lang==='km'?'បានពិនិត្យ':'已檢查',
+      items:[{label:t('正常','Normal','ធម្មតា'),value:ok,color:C.ok},{label:t('異常','Abnormal','មិនប្រក្រតី'),value:bad,color:C.bad},{label:t('未檢查','Not checked','មិនទាន់ពិនិត្យ'),value:pending,color:C.na}]});
+    /* 指標格較窄：標籤只放一種語言（both → 中文，其餘英文），圓環圖例已有雙語 */
+    var ts1=function(zh,en){return lang==='both'||lang==='zh'?zh:en;};
+    blocks.push({type:'stats',items:[
+      {label:ts1('已檢查','Checked'),value:String(checked),color:C.blue},
+      {label:ts1('正常率','Normal rate'),value:Math.round(ok/checked*100)+'%',color:C.ok},
+      {label:ts1('異常','Abnormal'),value:String(bad),color:bad?C.bad:C.na},
+      {label:ts1('未檢查','Not checked'),value:String(pending),color:pending?C.mid:C.na}]});
+    if(st.ptype!=='day'){
+      var byDate={};rows.forEach(function(r){var d=String(r.date||'');if(!d)return;byDate[d]=(byDate[d]||0)+(r.aggregate?(+r.n||0):1);});
+      var keys=Object.keys(byDate).sort(), cols=[];
+      if(st.ptype==='year'){var byM={};keys.forEach(function(d){var k=d.slice(5,7);byM[k]=(byM[k]||0)+byDate[d];});for(var mi=1;mi<=12;mi++){var mk=(mi<10?'0':'')+mi;cols.push({label:String(mi),value:byM[mk]||0});}}
+      else keys.forEach(function(d){cols.push({label:G.d(d),value:byDate[d]});});
+      if(cols.length)blocks.push({type:'columns',title:st.ptype==='year'?t('每月檢查數','Checks per month','ការពិនិត្យក្នុងមួយខែ'):t('各巡檢日檢查數','Checks per inspection date','ការពិនិត្យតាមថ្ងៃ'),items:cols,color:C.blue});
+    }
+    var p=fireSummaryPeriod(st), sub=p.label()+(st.scope&&st.scope!=='all'?' · '+SEC.TG.strip(fireScopeLabel(st,lang==='both'?'zh':lang)).replace(/<[^>]*>/g,''):'');
+    return ACChart.render({title:t('消防巡檢','Fire inspection','ការត្រួតពិនិត្យអគ្គិភ័យ'),subtitle:sub,theme:'navy',width:1080,blocks:blocks,
+      footer:'AC Security · '+t('消防設備','Fire equipment','ឧបករណ៍ពន្លត់អគ្គិភ័យ')})||'';
+  } catch (e) { return ''; }
 }
 function fireInspectionPageDefs(st) {
   var lang=st.lang||'zh',G=SEC.TG,lb=function(zh,en,km){return G.lbl(lang,zh,en,km);},year=fireRefYear(st),monthly=fireMonthly(st),rows=fireInspectionRows(st),ex=[],groups=[],by={},legacy=[];
+  /* 需處理清單依設備種類分組：種類標題一行（圖示＋數量），再逐筆列出 */
+  fireInspectionTypeStats(st).forEach(function(s){
+    if(!s.faults.length)return;
+    ex.push({text:(TYPES[s.k]||TYPES.other).icon+' <b>'+G.lbl('zh',SEC.esc(fireTypeLabel(s.k,lang)))+'</b> · '+s.faults.length,photos:[],head:true});
+    s.faults.forEach(function(r){ex.push({text:fireFaultLine(r,lang,year),photos:r.photos||[]});});
+  });
   rows.forEach(function(r){
     if(r.aggregate){
       var line={text:fireLegacyLine(r,lang,year),photos:(!monthly||(+r.bad||0)>0)?r.photos||[]:[]};
@@ -1684,7 +1778,6 @@ function fireInspectionPageDefs(st) {
       return;
     }
     var fault=r.result==='fault';
-    if(fault)ex.push({text:'• ⚠️ <b>'+SEC.esc(r.code||r.id||'—')+'</b> · '+fireWhere(r,lang)+' · '+(r.note?SEC.esc(r.note):lb('異常','Abnormal','មិនប្រក្រតី'))+' · '+fireWho(r,year),photos:r.photos||[]});
     var fk=r.factory||'common',k=fk+'|'+(r.zone||''),g=by[k];
     if(!g){g=by[k]={factory:fk,zone:r.zone,key:fireGroupKey(fk,r.zone),counts:{},rows:[]};groups.push(g);}
     g.counts[fault?'⚠️':'✅']=(g.counts[fault?'⚠️':'✅']||0)+1;
@@ -1695,7 +1788,7 @@ function fireInspectionPageDefs(st) {
   });
   if(legacy.length)groups.push({head:'📋 <b>'+lb('舊式紀錄','Older records','កំណត់ត្រាចាស់')+'</b>',items:legacy});
   return fireReportDefs(st,fireInspectionSummary(st),ex,rows.length?'✅ '+lb('全部正常','All normal','ធម្មតាទាំងអស់'):'',
-    '<b>✅ '+lb('巡檢明細','Inspection details','ព័ត៌មានលម្អិតការត្រួតពិនិត្យ')+'</b>',groups);
+    '<b>✅ '+lb('巡檢明細','Inspection details','ព័ត៌មានលម្អិតការត្រួតពិនិត្យ')+'</b>',groups,[fireInspectionChart(st)]);
 }
 function fireInspectionSummaryPages(st) { return fireInspectionPageDefs(st).map(function(d){return d.text;}); }
 function fireInspectionSummaryPhotos(st, pageIndex) { var d=fireInspectionPageDefs(st)[pageIndex];return d?d.photos:[]; }
