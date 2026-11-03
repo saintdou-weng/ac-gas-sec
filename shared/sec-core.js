@@ -1337,10 +1337,11 @@ function tgChunk(title, lines, budget) {
   return pages;
 }
 /* 彩色進度條：🟩 好／🟨 普通／🟥 差，一眼看到比例（Telegram 文字也能有「視覺」） */
-function tgBar(value, total, width) {
+function tgBar(value, total, width, tone) {
   width = width || 10; total = Number(total) || 0; value = Number(value) || 0;
   if (total <= 0) return '';
-  var r = Math.max(0, Math.min(1, value / total)), n = Math.round(r * width), block = r >= 0.9 ? '🟩' : r >= 0.7 ? '🟨' : '🟥', out = '';
+  /* tone 'neutral'：純資訊比例（例如送水天數、進出口占比），不用紅黃綠評分 */
+  var r = Math.max(0, Math.min(1, value / total)), n = Math.round(r * width), block = tone === 'neutral' ? '🟦' : r >= 0.9 ? '🟩' : r >= 0.7 ? '🟨' : '🟥', out = '';
   for (var i = 0; i < width; i++) out += i < n ? block : '⬜';
   return out + ' ' + Math.round(r * 100) + '%';
 }
@@ -1383,7 +1384,7 @@ function tgOpen(opt) {
     includeDetails:false };
   /* 智慧匯入／網址 ?tg= 開啟時預先選好期間與模式（只用一次） */
   var preset = TG_PRESET; TG_PRESET = null;
-  if (preset) { if (preset.ptype) { st.ptype = preset.ptype; firstType = preset.ptype; } if (preset.period) st.period = preset.period; }
+  if (preset) { if (preset.ptype) { st.ptype = preset.ptype; firstType = preset.ptype; } if (preset.period) st.period = preset.period; if (preset.lang && /^(both|zh|en|km)$/.test(preset.lang)) st.lang = preset.lang; if (preset.scope) st.scope = preset.scope; }
   var mask = document.createElement('div');
   mask.className = 'mask on tg-mask';
   var scopeHtml = opt.scopeOptions && opt.scopeOptions.length ?
@@ -1634,8 +1635,10 @@ function tgOpen(opt) {
         tgSentFx(L('核可請求已送出', 'Approval request sent', 'បានផ្ញើសំណើអនុម័ត'));
       }
       sending = false;
+      if (autosend) G.__AC_AUTOSEND = Object.assign(G.__AC_AUTOSEND || {}, { state:'sent' });
       close();
     } catch (e) {
+      if (autosend) G.__AC_AUTOSEND = Object.assign(G.__AC_AUTOSEND || {}, { state:e && e.cancelled ? 'skipped' : 'error', reason:String(e && e.message || e) });
       toast((e && e.cancelled ? 'ℹ️ ' : '❌ ') + esc(e && e.message || e), e && e.cancelled ? 'warn' : 'err', e && e.cancelled ? 3000 : e && e.closeModal ? 15000 : 0);
       btn.textContent = sendText;
       sending = false;
@@ -1646,6 +1649,16 @@ function tgOpen(opt) {
   };
   q('#tgType').value = firstType;
   fillPeriods(); note(); preview();
+  /* 2026-11-03 代發排程：?autosend=1 → 預覽建好後自動按「發送」，結果放在 window.__AC_AUTOSEND（pending/sending/sent/skipped/error） */
+  var autosend = !!(preset && preset.autosend);
+  if (autosend) {
+    G.__AC_AUTOSEND = { state:'pending', tool:opt.module, ptype:st.ptype, period:st.period, mode:st.mode, lang:st.lang };
+    setTimeout(function () {
+      var b = q('#tgSend');
+      if (!b || b.disabled) { G.__AC_AUTOSEND = Object.assign(G.__AC_AUTOSEND, { state:'skipped', reason:(q('#tgPreview') && q('#tgPreview').textContent || '').slice(0, 200) }); return; }
+      G.__AC_AUTOSEND.state = 'sending'; b.onclick();
+    }, 1500);
+  }
   return { close:close };
 }
 
@@ -2105,7 +2118,7 @@ function bindHeader(tool, handlers) {
   try {
     var qs = new URLSearchParams(location.search), tgq = qs.get('tg');
     if (tgq && typeof handlers.onTelegram === 'function') {
-      tgPreset({ mode:tgq === 'approval' ? 'approval' : 'summary', ptype:qs.get('ptype') || '', period:qs.get('period') || '' });
+      tgPreset({ mode:tgq === 'approval' ? 'approval' : 'summary', ptype:qs.get('ptype') || '', period:qs.get('period') || '', lang:qs.get('lang') || '', scope:qs.get('scope') || '', autosend:qs.get('autosend') === '1' });
       dataReady().then(function () { setTimeout(function () { try { run(handlers.onTelegram); } catch (e) {} }, 900); });
       try { history.replaceState(null, '', location.pathname); } catch (e) {}
     }
