@@ -280,6 +280,13 @@
       if (want.length) {
         var cloud = await smartAll(tool, remote, want);
         fetched = cloud.perBucket;
+        /* 雲端合併不會自己移除缺少的列：雲端多出、本機已不再推算出來的 round 要送刪除墓碑，否則每次同步都重傳。 */
+        if (DERIVED[tool]) {
+          var have = {};
+          local.records.forEach(function (r, i) { have[rowKey(tool, r, i)] = 1; });
+          var stale = (cloud.records || []).filter(function (r, i) { return r && !r._deleted && DERIVED[tool][r._k] && !have[rowKey(tool, r, i)]; });
+          if (stale.length && SEC.markDeletedMany) local.records = local.records.concat(SEC.markDeletedMany(tool, stale) || []);
+        }
         local = mergeLocal(tool, local.records, normalizeRecords(tool, cloud.records), local.extra, cloud.extra);
         local.records = normalizeRecords(tool, local.records);
         buckets = buildBuckets(tool, local.records, local.extra);
