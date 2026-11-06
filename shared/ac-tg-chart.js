@@ -20,9 +20,38 @@
   };
   var PALETTE = ['#2b8fbd', '#2e9c6a', '#f2a93b', '#e35d5b', '#8e6cc9', '#3fb9c9', '#c97c2e', '#6c8ea4', '#d45fa0', '#55a630'];
   var FONT = '"Segoe UI", "Noto Sans", "Noto Sans CJK TC", "Noto Sans Khmer", "Khmer UI", "Leelawadee UI", "PingFang TC", "Microsoft JhengHei", Arial, "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
-  function f(size, bold) { return (bold ? '600 ' : '400 ') + size + 'px ' + FONT; }
+  /* 2026-11-06 手機看太小：版面用較窄的邏輯寬度（像素 ÷ SCALE），字再放大 FS 倍 → 手機上字約大一倍；輸出仍是原本像素寬，清晰。 */
+  var SCALE = 1.5, FS = 1.12, CUR_W = 1000, MC = null;
+  function f(size, bold) { return (bold ? '600 ' : '400 ') + Math.round(size * FS) + 'px ' + FONT; }
+  function mctx() { if (!MC && typeof document !== 'undefined' && document.createElement) { var cv = document.createElement('canvas'); MC = cv.getContext && cv.getContext('2d'); } return MC; }
+  /* 圖例自動換行：回傳每一行的項目 */
+  function legendLines(items, maxW) {
+    var c = mctx(), lines = [[]], lx = 0;
+    if (c) c.font = f(13);
+    (items || []).forEach(function (it) {
+      var w = 22 + (c ? c.measureText(it.label).width : String(it.label).length * 8) + 22;
+      if (lx && lx + w > maxW) { lines.push([]); lx = 0; }
+      lines[lines.length - 1].push(it); lx += w;
+    });
+    return (items || []).length ? lines : [];
+  }
+  function legendH(b) { return legendLines(b.legend, CUR_W - 2 * 24 - 32).length * 26 + ((b.legend || []).length ? 12 : 0); }
+  function drawLegend(ctx, T, items, x, cy, maxW) {
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    legendLines(items, maxW).forEach(function (line) {
+      var lx = x; ctx.font = f(13);
+      line.forEach(function (it) { ctx.fillStyle = it.color || T.card; round(ctx, lx, cy + 3, 16, 16, 4); ctx.fill(); ctx.fillStyle = T.muted; ctx.fillText(it.label, lx + 22, cy + 11); lx += 22 + ctx.measureText(it.label).width + 22; });
+      cy += 26;
+    });
+  }
   function round(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
   function fit(ctx, s, maxW) { s = String(s == null ? '' : s); if (ctx.measureText(s).width <= maxW) return s; while (s.length > 1 && ctx.measureText(s + '…').width > maxW) s = s.slice(0, -1); return s + '…'; }
+  /* 先把字縮小到放得下（最小 min），還放不下才截斷加「…」 */
+  function fitf(ctx, s, maxW, size, bold, min) {
+    s = String(s == null ? '' : s); min = min || Math.max(10, Math.round(size * 0.7));
+    for (var z = size; z >= min; z--) { ctx.font = f(z, bold); if (ctx.measureText(s).width <= maxW) return s; }
+    ctx.font = f(min, bold); return fit(ctx, s, maxW);
+  }
   function fmt(v) { v = +v || 0; return Math.abs(v) >= 1000 ? v.toLocaleString('en-US', { maximumFractionDigits:0 }) : (Math.round(v * 10) / 10).toString(); }
   function color(item, i) { return item.color || PALETTE[i % PALETTE.length]; }
 
@@ -33,7 +62,7 @@
     if (b.type === 'columns') return 250;
     if (b.type === 'stats') return 110;
     if (b.type === 'table') return 60 + 34 + Math.max(1, n) * 32 + (b.total ? 36 : 0) + (b.note ? 26 : 0);
-    if (b.type === 'grid') { var two = (b.rows || []).some(function (r) { return r.sub || (r.cells || []).some(function (c) { return c && c.sub; }); }), wx = (b.cols || []).some(function (c) { return c && c.wx; }); return 60 + (wx ? 70 : 46) + Math.max(1, n) * (two ? 54 : 40) + ((b.legend || []).length ? 34 : 0); }
+    if (b.type === 'grid') { var two = (b.rows || []).some(function (r) { return r.sub || (r.cells || []).some(function (c) { return c && c.sub; }); }), wx = (b.cols || []).some(function (c) { return c && c.wx; }); return 60 + (wx ? 70 : 46) + Math.max(1, n) * (two ? 56 : 42) + legendH(b); }
     if (b.type === 'tiles') return tilesLayout(b).height;
     return 120;
   }
@@ -41,9 +70,9 @@
   function tilesLayout(b) {
     var groups = b.groups || [], maxCells = 1;
     groups.forEach(function (g) { (g.rows || []).forEach(function (r) { maxCells = Math.max(maxCells, (r.cells || []).length); }); });
-    var per = b.perRow || Math.min(7, maxCells), h = 56, lines = 0;
+    var per = b.perRow || Math.min(6, maxCells), h = 56, lines = 0;
     groups.forEach(function (g) { h += 34; (g.rows || []).forEach(function (r) { var n = Math.max(1, Math.ceil((r.cells || []).length / per)); lines += n; h += n * 56; }); h += 8; });
-    if ((b.legend || []).length) h += 34;
+    h += legendH(b);
     return { per:per, height:h, lines:lines };
   }
   function drawDonut(ctx, T, b, x, y, w, h) {
@@ -101,8 +130,8 @@
       ctx.fillStyle = T.card; round(ctx, cx, y + 12, cw, h - 24, 12); ctx.fill();
       ctx.fillStyle = it.color || T.accent; round(ctx, cx, y + 12, 6, h - 24, 3); ctx.fill();
       ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = T.text; ctx.font = f(30, true); ctx.fillText(fit(ctx, it.value, cw - 30), cx + 18, y + h / 2 - 10);
-      ctx.fillStyle = T.muted; ctx.font = f(13); ctx.fillText(fit(ctx, it.label + (it.sub ? ' · ' + it.sub : ''), cw - 30), cx + 18, y + h / 2 + 20);
+      ctx.fillStyle = T.text; ctx.fillText(fitf(ctx, it.value, cw - 30, 30, true, 16), cx + 18, y + h / 2 - 10);
+      ctx.fillStyle = T.muted; ctx.fillText(fitf(ctx, it.label + (it.sub ? ' · ' + it.sub : ''), cw - 30, 13, false, 10), cx + 18, y + h / 2 + 20);
     });
   }
   /* 清單表格：第一欄靠左，其他欄依 align（預設靠右）；斑馬紋；最後一列可加合計。 */
@@ -113,8 +142,8 @@
     cw = cw.map(function (v) { return inner * v / sum; });
     function cell(text, ci, cy, bold, colorTxt) {
       var cx = x + 16 + cw.slice(0, ci).reduce(function (a, v) { return a + v; }, 0), a = align[ci] || (ci === 0 ? 'l' : 'r');
-      ctx.font = f(15, bold); ctx.fillStyle = colorTxt || T.text; ctx.textBaseline = 'middle';
-      var s2 = fit(ctx, text == null ? '' : String(text), cw[ci] - 14);
+      ctx.fillStyle = colorTxt || T.text; ctx.textBaseline = 'middle';
+      var s2 = fitf(ctx, text == null ? '' : String(text), cw[ci] - 14, 15, bold, 11);
       if (a === 'r') { ctx.textAlign = 'right'; ctx.fillText(s2, cx + cw[ci] - 6, cy); }
       else if (a === 'c') { ctx.textAlign = 'center'; ctx.fillText(s2, cx + cw[ci] / 2, cy); }
       else { ctx.textAlign = 'left'; ctx.fillText(s2, cx + 6, cy); }
@@ -138,44 +167,37 @@
   /* 週檢查表：第一欄＝區域名稱，其他欄＝日期；格子用顏色表示狀態，裡面放短文字（✓ 次數／異常項目／溫度）。 */
   function drawGrid(ctx, T, b, x, y, w, h) {
     var cols = b.cols || [], rows = b.rows || [], nc = Math.max(1, cols.length);
-    var two = rows.some(function (r) { return r.sub || (r.cells || []).some(function (c) { return c && c.sub; }); }), rh = two ? 54 : 40;
+    var two = rows.some(function (r) { return r.sub || (r.cells || []).some(function (c) { return c && c.sub; }); }), rh = two ? 56 : 42;
     var wx = cols.some(function (c) { return c && c.wx; });
-    var labelW = Math.min(230, Math.max(150, w * 0.22)), gx = x + 16 + labelW, gw = (w - 32 - labelW) / nc, cy = y + 50;
+    var labelW = Math.min(200, Math.max(120, w * 0.2)), gx = x + 16 + labelW, gw = (w - 32 - labelW) / nc, cy = y + 50;
     cols.forEach(function (c, ci) {
       var cx = gx + ci * gw + gw / 2; c = c && typeof c === 'object' ? c : { label:c };
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = T.text; ctx.font = f(15, true);
-      ctx.fillText(fit(ctx, c.label, gw - 6), cx, cy + (c.sub ? 11 : 20));
-      if (c.sub) { ctx.font = f(12); ctx.fillStyle = T.muted; ctx.fillText(fit(ctx, c.sub, gw - 6), cx, cy + 31); }
-      if (c.wx) { ctx.font = f(13); ctx.fillStyle = T.text; ctx.fillText(fit(ctx, c.wx, gw - 6), cx, cy + 54); }
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = T.text;
+      ctx.fillText(fitf(ctx, c.label, gw - 6, 15, true, 11), cx, cy + (c.sub ? 11 : 20));
+      if (c.sub) { ctx.fillStyle = T.muted; ctx.fillText(fitf(ctx, c.sub, gw - 6, 12, false, 10), cx, cy + 31); }
+      if (c.wx) { ctx.fillStyle = T.text; ctx.fillText(fitf(ctx, c.wx, gw - 6, 13, false, 10), cx, cy + 54); }
     });
-    if (wx) { ctx.textAlign = 'left'; ctx.font = f(12); ctx.fillStyle = T.muted; ctx.fillText(fit(ctx, b.wxLabel || '', labelW - 10), x + 16, cy + 54); }
+    if (wx) { ctx.textAlign = 'left'; ctx.fillStyle = T.muted; ctx.fillText(fitf(ctx, b.wxLabel || '', labelW - 10, 12, false, 10), x + 16, cy + 54); }
     cy += wx ? 70 : 46;
     rows.forEach(function (r) {
-      ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = T.text; ctx.font = f(15, true);
-      ctx.fillText(fit(ctx, r.label, labelW - 10), x + 16, cy + (r.sub ? rh / 2 - 9 : rh / 2));
-      if (r.sub) { ctx.font = f(12); ctx.fillStyle = T.muted; ctx.fillText(fit(ctx, r.sub, labelW - 10), x + 16, cy + rh / 2 + 11); }
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = T.text;
+      ctx.fillText(fitf(ctx, r.label, labelW - 10, 15, true, 11), x + 16, cy + (r.sub ? rh / 2 - 9 : rh / 2));
+      if (r.sub) { ctx.fillStyle = T.muted; ctx.fillText(fitf(ctx, r.sub, labelW - 10, 12, false, 9), x + 16, cy + rh / 2 + 11); }
       for (var ci = 0; ci < nc; ci++) {
         var c = (r.cells || [])[ci] || {}, cx = gx + ci * gw + 3;
         ctx.fillStyle = c.color || T.card; round(ctx, cx, cy + 3, gw - 6, rh - 6, 8); ctx.fill();
         var dark = c.color && c.color !== T.card && !c.light;
         ctx.textAlign = 'center'; ctx.fillStyle = dark ? '#ffffff' : T.muted;
-        ctx.font = f(c.sub ? 14 : 15, true);
-        ctx.fillText(fit(ctx, c.text == null || c.text === '' ? '—' : String(c.text), gw - 14), cx + (gw - 6) / 2, cy + (c.sub ? rh / 2 - 9 : rh / 2));
-        if (c.sub) { ctx.font = f(12); ctx.fillText(fit(ctx, c.sub, gw - 14), cx + (gw - 6) / 2, cy + rh / 2 + 11); }
+        ctx.fillText(fitf(ctx, c.text == null || c.text === '' ? '—' : String(c.text), gw - 12, c.sub ? 15 : 16, true, 10), cx + (gw - 6) / 2, cy + (c.sub ? rh / 2 - 9 : rh / 2));
+        if (c.sub) { ctx.fillText(fitf(ctx, c.sub, gw - 12, 13, false, 9), cx + (gw - 6) / 2, cy + rh / 2 + 12); }
       }
       cy += rh;
     });
-    if ((b.legend || []).length) {
-      var lx = x + 16; cy += 10; ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.font = f(13);
-      b.legend.forEach(function (it) {
-        ctx.fillStyle = it.color || T.card; round(ctx, lx, cy + 3, 16, 16, 4); ctx.fill();
-        ctx.fillStyle = T.muted; ctx.fillText(it.label, lx + 22, cy + 11); lx += 22 + ctx.measureText(it.label).width + 22;
-      });
-    }
+    if ((b.legend || []).length) drawLegend(ctx, T, b.legend, x + 16, cy + 8, w - 32);
   }
   /* 房間平面格：地點標題 → 每層樓一列（左邊樓層、右邊一間一格） */
   function drawTiles(ctx, T, b, x, y, w, h) {
-    var L = tilesLayout(b), per = L.per, labelW = 96, gx = x + 16 + labelW, cw = (w - 32 - labelW) / per, cy = y + 50;
+    var L = tilesLayout(b), per = L.per, labelW = 70, gx = x + 16 + labelW, cw = (w - 32 - labelW) / per, cy = y + 50;
     (b.groups || []).forEach(function (g) {
       ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = T.text; ctx.font = f(16, true);
       var head = fit(ctx, g.label || '', w - 40); ctx.fillText(head, x + 16, cy + 15);
@@ -183,27 +205,25 @@
       cy += 34;
       (g.rows || []).forEach(function (r) {
         var cells = r.cells || [], n = Math.max(1, Math.ceil(cells.length / per));
-        ctx.textAlign = 'left'; ctx.fillStyle = T.muted; ctx.font = f(14, true); ctx.fillText(fit(ctx, r.label || '', labelW - 8), x + 16, cy + 28);
+        ctx.textAlign = 'left'; ctx.fillStyle = T.muted; ctx.fillText(fitf(ctx, r.label || '', labelW - 8, 14, true, 10), x + 16, cy + 28);
         cells.forEach(function (c, i) {
           var row = Math.floor(i / per), col = i % per, cx = gx + col * cw + 3, ty = cy + row * 56 + 3;
           ctx.fillStyle = c.color || T.card; round(ctx, cx, ty, cw - 6, 50, 9); ctx.fill();
           var dark = c.color && !c.light; ctx.textAlign = 'center'; ctx.fillStyle = dark ? '#ffffff' : T.muted;
-          ctx.font = f(16, true); ctx.fillText(fit(ctx, c.text == null ? '' : String(c.text), cw - 14), cx + (cw - 6) / 2, ty + (c.sub ? 17 : 25));
-          if (c.sub) { ctx.font = f(12); ctx.fillText(fit(ctx, c.sub, cw - 14), cx + (cw - 6) / 2, ty + 37); }
+          ctx.fillText(fitf(ctx, c.text == null ? '' : String(c.text), cw - 12, 17, true, 11), cx + (cw - 6) / 2, ty + (c.sub ? 17 : 25));
+          if (c.sub) { ctx.fillText(fitf(ctx, c.sub, cw - 12, 13, false, 9), cx + (cw - 6) / 2, ty + 37); }
         });
         cy += n * 56;
       });
       cy += 8;
     });
-    if ((b.legend || []).length) {
-      var lx = x + 16; cy += 8; ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.font = f(13);
-      b.legend.forEach(function (it) { ctx.fillStyle = it.color || T.card; round(ctx, lx, cy + 3, 16, 16, 4); ctx.fill(); ctx.fillStyle = T.muted; ctx.fillText(it.label, lx + 22, cy + 11); lx += 22 + ctx.measureText(it.label).width + 22; });
-    }
+    if ((b.legend || []).length) drawLegend(ctx, T, b.legend, x + 16, cy + 8, w - 32);
   }
   function render(spec) {
     spec = spec || {};
     if (typeof document === 'undefined' || !document.createElement) return '';
-    var T = THEMES[spec.theme] || THEMES.navy, W = spec.width || 1000, blocks = (spec.blocks || []).filter(Boolean);
+    var S = spec.scale || SCALE, PX = spec.width || 1000, W = Math.round(PX / S), blocks = (spec.blocks || []).filter(Boolean), T = THEMES[spec.theme] || THEMES.navy;
+    CUR_W = W;
     var cols = spec.columns || (blocks.length > 1 ? 2 : 1), pad = 24, gap = 16, colW = (W - pad * 2 - gap * (cols - 1)) / cols;
     /* 排版：大數字列（stats）或 span:2 的區塊自己佔一整列；其餘兩欄並排 */
     var rows = [];
@@ -215,13 +235,14 @@
     });
     var headH = 84, bodyH = rows.reduce(function (a, r) { return a + Math.max.apply(null, r.map(heightOf)) + gap; }, 0), footH = spec.footer ? 34 : 18;
     var H = headH + pad + bodyH + footH;
-    var c = document.createElement('canvas'); c.width = W; c.height = H;
+    var c = document.createElement('canvas'); c.width = Math.round(W * S); c.height = Math.round(H * S);
     var ctx = c.getContext('2d'); if (!ctx) return '';
+    ctx.scale(S, S);
     ctx.fillStyle = T.bg; ctx.fillRect(0, 0, W, H);
     var gr = ctx.createLinearGradient(0, 0, W, 0); gr.addColorStop(0, T.head); gr.addColorStop(1, T.head2);
     ctx.fillStyle = gr; ctx.fillRect(0, 0, W, headH);
     ctx.fillStyle = '#ffffff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.font = f(26, true); ctx.fillText(fit(ctx, spec.title || '', W - pad * 2), pad, spec.subtitle ? 32 : headH / 2);
+    ctx.fillText(fitf(ctx, spec.title || '', W - pad * 2, 26, true, 16), pad, spec.subtitle ? 32 : headH / 2);
     if (spec.subtitle) { ctx.font = f(15); ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fillText(fit(ctx, spec.subtitle, W - pad * 2), pad, 60); }
     var y = headH + pad;
     rows.forEach(function (r) {
@@ -229,7 +250,7 @@
       r.forEach(function (b, ci) {
         var x = pad + ci * (colW + gap), bw = (r.full || (r.length === 1 && cols > 1 && b.span !== 1)) ? W - pad * 2 : colW;
         ctx.fillStyle = T.bg; ctx.strokeStyle = T.grid; ctx.lineWidth = 1; round(ctx, x, y, bw, rh, 14); ctx.fill(); ctx.stroke();
-        if (b.title) { ctx.fillStyle = T.text; ctx.font = f(17, true); ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(fit(ctx, b.title, bw - 32), x + 16, y + 26); }
+        if (b.title) { ctx.fillStyle = T.text; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(fitf(ctx, b.title, bw - 32, 17, true, 12), x + 16, y + 26); }
         try {
           if (b.type === 'donut') drawDonut(ctx, T, b, x, y, bw, rh);
           else if (b.type === 'bars') drawBars(ctx, T, b, x, y, bw, rh);
