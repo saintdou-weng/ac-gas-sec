@@ -1,4 +1,4 @@
-/* ac-tg-chart.js — Telegram 摘要附圖（AC SEC 與 GASCheck 共用）2026-11-03（11-06 加 table 清單表格、grid 週檢查表）
+/* ac-tg-chart.js — Telegram 摘要附圖（AC SEC 與 GASCheck 共用）2026-11-03（11-06 加 table 清單表格、grid 週檢查表、tiles 房間平面格）
    純 canvas，不用外部套件；輸出 PNG dataURL，當摘要第一頁的照片附上。
    ACChart.render({ title, subtitle, theme:'navy'|'green', blocks:[ ... ], footer })
    block.type:
@@ -9,6 +9,8 @@
      'table'  { title, head:[..], rows:[[..]], align:['l','r',..], widths:[..], total:[..] }  清單表格（像餐費的部門表）
      'grid'   { title, cols:[{label,sub,wx}], wxLabel, rows:[{label,sub,cells:[{text,sub,color}]}], legend:[{label,color}] }
                                                                                週檢查表：橫列＝日期，直行＝區域，格子上色（綠＝正常、紅＝異常、灰＝沒檢查）
+     'tiles'  { title, groups:[{label,sub,rows:[{label,cells:[{text,sub,color,light}]}]}], legend, perRow }
+                                                                               房間平面格：每個地點一組、每層樓一列、每間房一格（例如 201／202／203），格子上色
    回傳 '' 表示無法畫（例如沒有 canvas）。 */
 (function (root) {
   'use strict';
@@ -32,7 +34,17 @@
     if (b.type === 'stats') return 110;
     if (b.type === 'table') return 60 + 34 + Math.max(1, n) * 32 + (b.total ? 36 : 0) + (b.note ? 26 : 0);
     if (b.type === 'grid') { var two = (b.rows || []).some(function (r) { return r.sub || (r.cells || []).some(function (c) { return c && c.sub; }); }), wx = (b.cols || []).some(function (c) { return c && c.wx; }); return 60 + (wx ? 70 : 46) + Math.max(1, n) * (two ? 54 : 40) + ((b.legend || []).length ? 34 : 0); }
+    if (b.type === 'tiles') return tilesLayout(b).height;
     return 120;
+  }
+  /* tiles 版面：每列最多 perRow 格（預設取最多的那一列，上限 7），太多就換行 */
+  function tilesLayout(b) {
+    var groups = b.groups || [], maxCells = 1;
+    groups.forEach(function (g) { (g.rows || []).forEach(function (r) { maxCells = Math.max(maxCells, (r.cells || []).length); }); });
+    var per = b.perRow || Math.min(7, maxCells), h = 56, lines = 0;
+    groups.forEach(function (g) { h += 34; (g.rows || []).forEach(function (r) { var n = Math.max(1, Math.ceil((r.cells || []).length / per)); lines += n; h += n * 56; }); h += 8; });
+    if ((b.legend || []).length) h += 34;
+    return { per:per, height:h, lines:lines };
   }
   function drawDonut(ctx, T, b, x, y, w, h) {
     var items = (b.items || []).filter(function (it) { return +it.value > 0; }), total = items.reduce(function (a, it) { return a + (+it.value || 0); }, 0);
@@ -161,6 +173,33 @@
       });
     }
   }
+  /* 房間平面格：地點標題 → 每層樓一列（左邊樓層、右邊一間一格） */
+  function drawTiles(ctx, T, b, x, y, w, h) {
+    var L = tilesLayout(b), per = L.per, labelW = 96, gx = x + 16 + labelW, cw = (w - 32 - labelW) / per, cy = y + 50;
+    (b.groups || []).forEach(function (g) {
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = T.text; ctx.font = f(16, true);
+      var head = fit(ctx, g.label || '', w - 40); ctx.fillText(head, x + 16, cy + 15);
+      if (g.sub) { var hw = ctx.measureText(head).width; ctx.font = f(13); ctx.fillStyle = T.muted; ctx.fillText(fit(ctx, g.sub, w - 60 - hw), x + 28 + hw, cy + 15); }
+      cy += 34;
+      (g.rows || []).forEach(function (r) {
+        var cells = r.cells || [], n = Math.max(1, Math.ceil(cells.length / per));
+        ctx.textAlign = 'left'; ctx.fillStyle = T.muted; ctx.font = f(14, true); ctx.fillText(fit(ctx, r.label || '', labelW - 8), x + 16, cy + 28);
+        cells.forEach(function (c, i) {
+          var row = Math.floor(i / per), col = i % per, cx = gx + col * cw + 3, ty = cy + row * 56 + 3;
+          ctx.fillStyle = c.color || T.card; round(ctx, cx, ty, cw - 6, 50, 9); ctx.fill();
+          var dark = c.color && !c.light; ctx.textAlign = 'center'; ctx.fillStyle = dark ? '#ffffff' : T.muted;
+          ctx.font = f(16, true); ctx.fillText(fit(ctx, c.text == null ? '' : String(c.text), cw - 14), cx + (cw - 6) / 2, ty + (c.sub ? 17 : 25));
+          if (c.sub) { ctx.font = f(12); ctx.fillText(fit(ctx, c.sub, cw - 14), cx + (cw - 6) / 2, ty + 37); }
+        });
+        cy += n * 56;
+      });
+      cy += 8;
+    });
+    if ((b.legend || []).length) {
+      var lx = x + 16; cy += 8; ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.font = f(13);
+      b.legend.forEach(function (it) { ctx.fillStyle = it.color || T.card; round(ctx, lx, cy + 3, 16, 16, 4); ctx.fill(); ctx.fillStyle = T.muted; ctx.fillText(it.label, lx + 22, cy + 11); lx += 22 + ctx.measureText(it.label).width + 22; });
+    }
+  }
   function render(spec) {
     spec = spec || {};
     if (typeof document === 'undefined' || !document.createElement) return '';
@@ -169,7 +208,7 @@
     /* 排版：大數字列（stats）或 span:2 的區塊自己佔一整列；其餘兩欄並排 */
     var rows = [];
     blocks.forEach(function (b) {
-      var full = cols > 1 && (b.type === 'stats' || b.type === 'table' || b.type === 'grid' || b.span === 2), last = rows[rows.length - 1];
+      var full = cols > 1 && (b.type === 'stats' || b.type === 'table' || b.type === 'grid' || b.type === 'tiles' || b.span === 2), last = rows[rows.length - 1];
       if (full || !last || last.length >= cols || last.full) rows.push(full ? [b] : [b]);
       else last.push(b);
       if (full) rows[rows.length - 1].full = true;
@@ -198,6 +237,7 @@
           else if (b.type === 'stats') drawStats(ctx, T, b, x, y, bw, rh);
           else if (b.type === 'table') drawTable(ctx, T, b, x, y, bw, rh);
           else if (b.type === 'grid') drawGrid(ctx, T, b, x, y, bw, rh);
+          else if (b.type === 'tiles') drawTiles(ctx, T, b, x, y, bw, rh);
         } catch (e) {}
       });
       y += rh + gap;
