@@ -565,6 +565,7 @@ SEC.registerReport(TOOL, { title:{ zh:'保安巡邏', en:'Patrol', km:'ការ
       { label:{ zh:'巡邏圈數', en:'Rounds', km:'ជុំល្បាត' }, value:D.list.length },
       { label:{ zh:'完整圈', en:'Complete rounds', km:'ជុំពេញលេញ' }, value:D.full },
       { label:{ zh:'漏點', en:'Missed points', km:'ចំណុចខកខាន' }, value:D.missed },
+      { label:{ zh:'疑似巡更棒問題', en:'Possible wand fault', km:'ឧបករណ៍ល្បាតអាចខូច' }, value:D.wand.length },
       { label:{ zh:'巡邏員', en:'Guards', km:'អ្នកល្បាត' }, value:Object.keys(D.byG).length },
       { label:{ zh:'人工巡邏', en:'Manual patrols', km:'ល្បាតដោយដៃ' }, value:D.manual.length },
       { label:{ zh:'人工異常', en:'Manual issues', km:'បញ្ហាដោយដៃ' }, value:D.issues.length },
@@ -1835,6 +1836,8 @@ function patrolScopeLabel(st, lang) {
   var l = lang || st.lang || SEC.lang();
   return st.scope === 'night' ? '🌙 ' + pt(l, '夜班', 'Night shift', 'វេនយប់') : st.scope === 'day' ? '☀️ ' + pt(l, '日班', 'Day shift', 'វេនថ្ងៃ') : pt(l, '全天', 'All day', 'ពេញមួយថ្ងៃ');
 }
+/* 疑似巡更棒問題：沒刷完、而且只刷到 0～2 個點的圈（巡更棒壞掉時常見：刷一兩點就斷）。 */
+function patrolWandSuspect(r) { return !!r && !roundComplete(r) && (r.chips || []).length <= 2; }
 function patrolSummaryData(st) {
   var p = patrolSummaryPeriod(st);
   var list = ROUNDS.filter(function (r) { return p.has(r.date) && patrolScopeMatch(st, r, false); }).slice().sort(function (a, b) { return a.start.localeCompare(b.start); });
@@ -1843,11 +1846,13 @@ function patrolSummaryData(st) {
   var byG = {}, byD = {};
   list.forEach(function (r) {
     byG[r.g || '—'] = (byG[r.g || '—'] || 0) + 1;
-    var d = byD[r.date] || (byD[r.date] = { n:0, bad:0 }); d.n++; if (!roundComplete(r)) d.bad++;
+    var d = byD[r.date] || (byD[r.date] = { n:0, bad:0, wand:0 }); d.n++; if (patrolWandSuspect(r)) d.wand++; else if (!roundComplete(r)) d.bad++;
   });
-  var inc = list.filter(function (r) { return !roundComplete(r); });
-  return { p:p, list:list, manual:manual, checks:checks, byG:byG, byD:byD, inc:inc,
-    full:list.length - inc.length, missed:list.reduce(function (s, r) { return s + roundMissing(r).length; }, 0),
+  /* 20261106 Paul：巡更棒壞了 → 只刷 0～2 個點就結束的圈標成「疑似巡更棒問題」，不算未完整、不算漏點。 */
+  var wand = list.filter(patrolWandSuspect);
+  var inc = list.filter(function (r) { return !roundComplete(r) && !patrolWandSuspect(r); });
+  return { p:p, list:list, manual:manual, checks:checks, byG:byG, byD:byD, inc:inc, wand:wand,
+    full:list.length - inc.length - wand.length, missed:inc.reduce(function (s, r) { return s + roundMissing(r).length; }, 0),
     issues:manual.filter(function (r) { return r.status === 'issue'; }),
     badChecks:checks.filter(function (r) { return patrolCheckHasIssue(r) || patrolCheckMissing(r).length || r.note; }) };
 }
@@ -1876,12 +1881,13 @@ function patrolDailyMode(byD) {
 function patrolDailyLines(byD, lang, onlyBad) {
   var G = SEC.TG, lb = patrolLb(lang), ds = Object.keys(byD).sort(), mode = patrolDailyMode(byD);
   var okBy = {}, bad = [];
-  ds.forEach(function (d) { var x = byD[d]; if (x.n >= mode && !x.bad) (okBy[x.n] = okBy[x.n] || []).push(d); else bad.push(d); });
+  ds.forEach(function (d) { var x = byD[d]; if (x.n >= mode && !x.bad && !x.wand) (okBy[x.n] = okBy[x.n] || []).push(d); else bad.push(d); });
   var out = onlyBad ? [] : Object.keys(okBy).sort(function (a, b) { return okBy[b].length - okBy[a].length; }).map(function (n) { return '📅 ' + G.ranges(okBy[n]) + ' · 🔄 ' + n + ' ✅'; });
   bad.slice(0, 10).forEach(function (d) {
     var x = byD[d], w = [];
     if (x.n < mode) w.push(lb('少', 'short', 'ខ្វះ') + ' ' + (mode - x.n));
     if (x.bad) w.push(lb('未完整', 'incomplete', 'មិនពេញលេញ') + ' ' + x.bad);
+    if (x.wand) w.push('🔧 ' + lb('疑似巡更棒', 'wand?', 'ឧបករណ៍?') + ' ' + x.wand);
     out.push('📅 <b>' + G.d(d) + '</b> · 🔄 ' + x.n + ' · ⚠️ ' + w.join(' · '));
   });
   if (bad.length > 10) out.push('… +' + (bad.length - 10));
@@ -1899,7 +1905,7 @@ function patrolSummary(st) {
   var lang = st.lang || 'zh', G = SEC.TG, lb = patrolLb(lang), D = patrolSummaryData(st), p = D.p, day = st.ptype === 'day';
   var scope = st.scope === 'night' ? '🌙 ' + lb('夜班', 'Night shift', 'វេនយប់') : st.scope === 'day' ? '☀️ ' + lb('日班', 'Day shift', 'វេនថ្ងៃ') : '';
   var txt = G.head('🚨', lb('巡邏摘要', 'Patrol Summary', 'សេចក្តីសង្ខេបការល្បាត'), p.label(), scope);
-  var nBad = D.inc.length + D.issues.length + D.badChecks.length, hasData = D.list.length || D.manual.length;
+  var nBad = D.inc.length + D.issues.length + D.badChecks.length + (D.wand.length ? 1 : 0), hasData = D.list.length || D.manual.length;
   txt += '\n' + G.verdict(!hasData ? 'warn' : nBad ? (D.inc.length || D.issues.length ? 'bad' : 'warn') : 'ok', !hasData ? lb('沒有巡邏資料', 'No patrol data', 'គ្មានទិន្នន័យល្បាត') : nBad ? lb(nBad + ' 項需注意', nBad + ' to check', nBad + ' ត្រូវពិនិត្យ') : lb('巡邏全部完整', 'All patrols complete', 'ល្បាតពេញលេញទាំងអស់'));
   if (D.list.length) txt += '\n' + G.bar(D.full, D.list.length) + ' ' + lb('完整率', 'complete', 'ពេញលេញ');
   txt += '\n' + G.kpis([
@@ -1912,6 +1918,7 @@ function patrolSummary(st) {
   ], 2);
   var checkBad = D.checks.filter(patrolCheckHasIssue), warn = [];
   if (D.inc.length) warn.push('⚠️ ' + lb('未完整圈', 'Incomplete rounds', 'ជុំមិនពេញលេញ') + ' <b>' + D.inc.length + '</b>');
+  if (D.wand.length) warn.push('🔧 ' + lb('疑似巡更棒問題', 'Possible wand fault', 'ឧបករណ៍ល្បាតអាចខូច') + ' <b>' + D.wand.length + '</b>' + lb('圈', ' rounds', ' ជុំ'));
   if (checkBad.length) warn.push('❌ ' + lb('確認異常', 'Check issues', 'បញ្ហាពិនិត្យ') + ' <b>' + checkBad.length + '</b>');
   var unchecked = D.checks.filter(function (r) { return !patrolCheckHasIssue(r) && patrolCheckMissing(r).length; });
   if (unchecked.length) warn.push('⚠️ ' + lb('確認未勾', 'Unchecked forms', 'ទម្រង់មិនបានគូស') + ' <b>' + unchecked.length + '</b>');
@@ -1928,15 +1935,15 @@ function patrolSummary(st) {
   if (day) {
     D.inc.slice(0, 6).forEach(function (r) { att.push(patrolRoundLine(r, lang, false)); });
     if (D.inc.length > 6) att.push('… +' + (D.inc.length - 6));
+    if (D.wand.length) att.push('• 🔧 ' + lb('疑似巡更棒問題', 'Possible wand fault', 'ឧបករណ៍ល្បាតអាចខូច') + ' · ' + D.wand.slice(0, 6).map(function (r) { return (G.time(r.start) || '—') + ' ' + SEC.esc(r.g || '—') + ' (' + r.chips.length + lb('點', ' pts', ' ចំណុច') + ')'; }).join(', ') + (D.wand.length > 6 ? ' +' + (D.wand.length - 6) : ''));
   } else {
     var incBy = {};
-    /* 只刷 1 點、不到 2 分鐘就結束的圈 = 誤觸，另外標示 */
-    var stray = function (r) { var a = G.mins(G.time(r.start)), b = G.mins(G.time(r.end)); return r.chips.length <= 1 && a != null && b != null && (b - a) < 2; };
-    D.inc.forEach(function (r) { var k = r.date + '|' + (r.g || '—'); var o = incBy[k] || (incBy[k] = { date:r.date, g:r.g || '—', n:0, miss:0, stray:0 }); if (stray(r)) o.stray++; else { o.n++; o.miss += roundMissing(r).length; } });
+    /* 只刷 0～2 點就結束的圈 = 疑似巡更棒問題（20261106），另外標示、不算漏點 */
+    D.inc.concat(D.wand).forEach(function (r) { var k = r.date + '|' + (r.g || '—'); var o = incBy[k] || (incBy[k] = { date:r.date, g:r.g || '—', n:0, miss:0, stray:0 }); if (patrolWandSuspect(r)) o.stray++; else { o.n++; o.miss += roundMissing(r).length; } });
     var incKeys = Object.keys(incBy).sort();
     incKeys.slice(0, 6).forEach(function (k) { var o = incBy[k], parts = [];
       if (o.n) parts.push(lb('未完整', 'incomplete', 'មិនពេញលេញ') + ' <b>' + o.n + '</b>' + lb('圈', ' rounds', ' ជុំ') + ' · ' + lb('漏', 'missed', 'ខកខាន') + ' ' + o.miss + lb('點', ' pts', ' ចំណុច'));
-      if (o.stray) parts.push(lb('誤觸', 'false start', 'ចុចខុស') + ' ' + o.stray);
+      if (o.stray) parts.push('🔧 ' + lb('疑似巡更棒', 'wand?', 'ឧបករណ៍?') + ' ' + o.stray + lb('圈', ' rounds', ' ជុំ'));
       att.push('• ' + G.d(o.date) + ' <b>' + SEC.esc(o.g) + '</b> · ' + parts.join(' · ')); });
     if (incKeys.length > 6) att.push('… +' + (incKeys.length - 6));
   }
@@ -2021,7 +2028,9 @@ function patrolSummaryChart(st) {
     var rows = [], mode = patrolDailyMode(D.byD), multi = Object.keys(D.byD).length > 1;
     rows.push({ label:'🔄 ' + short('圈數', 'Rounds'), sub:t('完整/總圈', 'complete / total', 'ពេញលេញ/សរុប'), cells:days.map(function (day) {
       var n = day.rounds.length; if (!n) return { text:'—', color:NONE, light:true };
-      var inc = day.rounds.filter(function (r) { return !roundComplete(r); }).length;
+      var wd = day.rounds.filter(patrolWandSuspect).length;
+      var inc = day.rounds.filter(function (r) { return !roundComplete(r) && !patrolWandSuspect(r); }).length;
+      if (wd && !inc) return { text:'🔧 ' + wd + ' · ' + (n - wd) + '/' + n, sub:short('巡更棒?', 'wand?'), color:WARN };
       /* 圈數偏少（跟文字卡片「每日圈數」同一個判斷：少於一般每天的圈數） */
       if (!inc && multi && n < mode) return { text:'✓ ' + n + '/' + n, sub:short('少', 'short') + ' ' + (mode - n), color:WARN };
       if (!inc) return { text:'✓ ' + n + '/' + n, color:OK };
@@ -2039,7 +2048,7 @@ function patrolSummaryChart(st) {
     cps.forEach(function (c, i) {
       var lb = cpLabel(c, i);
       rows.push({ label:lb.label, sub:lb.sub, cells:days.map(function (day) {
-        var rs = day.rounds.filter(function (r) { return (r.expectedChips || checkpointOrderForDate(r.date)).indexOf(c) >= 0; });
+        var rs = day.rounds.filter(function (r) { return !patrolWandSuspect(r) && (r.expectedChips || checkpointOrderForDate(r.date)).indexOf(c) >= 0; });
         if (!rs.length) return { text:'—', color:NONE, light:true };
         var hit = rs.filter(function (r) { return r.chips.indexOf(c) >= 0; }).length;
         if (hit === rs.length) return { text:'✓ ' + hit, color:OK };
@@ -2050,11 +2059,11 @@ function patrolSummaryChart(st) {
     var pct = D.list.length ? Math.round(D.full / D.list.length * 100) : 0;
     var blocks = [{ type:'stats', items:[
       { label:t('圈數', 'Rounds', 'ជុំ'), value:String(D.list.length), color:P[0] || '#2b8fbd' },
-      { label:t('完整', 'Complete', 'ពេញលេញ'), value:String(D.full), sub:pct + '%', color:D.inc.length ? WARN : OK },
+      { label:t('完整', 'Complete', 'ពេញលេញ'), value:String(D.full), sub:pct + '%', color:D.inc.length || D.wand.length ? WARN : OK },
       { label:t('漏點', 'Missed points', 'ចំណុចខកខាន'), value:String(D.missed), color:D.missed ? BAD : GREY },
-      { label:t('巡邏員', 'Guards', 'អ្នកល្បាត'), value:String(Object.keys(D.byG).length), color:P[5] || '#3fb9c9' }] }];
+      D.wand.length ? { label:t('疑似巡更棒', 'Wand fault?', 'ឧបករណ៍?'), value:String(D.wand.length), color:WARN } : { label:t('巡邏員', 'Guards', 'អ្នកល្បាត'), value:String(Object.keys(D.byG).length), color:P[5] || '#3fb9c9' }] }];
     blocks.push({ type:'grid', title:t('每日巡邏（✓／✗ 後面是圈數）', 'Daily patrol (number = rounds)', 'ការល្បាតប្រចាំថ្ងៃ'), cols:cols, rows:rows,
-      legend:[{ label:t('全部完成', 'All done', 'រួចរាល់'), color:OK }, { label:t('有漏', 'Missed', 'ខកខាន'), color:BAD }, { label:t('偏少／未勾', 'Short / unchecked', 'ខ្វះ / មិនបានគូស'), color:WARN }, { label:t('沒資料', 'No data', 'គ្មានទិន្នន័យ'), color:NONE }] });
+      legend:[{ label:t('全部完成', 'All done', 'រួចរាល់'), color:OK }, { label:t('有漏', 'Missed', 'ខកខាន'), color:BAD }, { label:t('偏少／未勾／疑似巡更棒', 'Short / unchecked / wand?', 'ខ្វះ / មិនបានគូស / ឧបករណ៍?'), color:WARN }, { label:t('沒資料', 'No data', 'គ្មានទិន្នន័យ'), color:NONE }] });
     var scope = st.scope === 'night' ? t('夜班', 'Night shift', 'វេនយប់') : st.scope === 'day' ? t('日班', 'Day shift', 'វេនថ្ងៃ') : '';
     var img = ACChart.render({ title:t('巡邏 週報', 'Patrol · Weekly', 'ការល្បាត · ប្រចាំសប្ដាហ៍'), subtitle:D.p.label() + (scope ? ' · ' + scope : ''), theme:'navy', width:1080, blocks:blocks,
       footer:'AC Security · ' + t('巡邏', 'Patrol', 'ការល្បាត') }) || '';
