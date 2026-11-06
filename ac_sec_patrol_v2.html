@@ -2210,7 +2210,10 @@ function clearAll() {
 }
 function patrolCloudRecords() {
   return SCAN.map(function (s) {
-    return { _k:'scan', t:s.t, g:s.g, c:s.c, e:s.e, r:s.r || '', updatedAt:String(s.t || '').replace(' ','T') };
+    /* 2026-11-06：還原過的打點帶「還原時間」；不可再用打點時間當 updatedAt，
+       否則其他裝置留著的舊刪除墓碑（10/03）會比它新，又把資料刪掉。 */
+    var st = String(s.t || '').replace(' ','T'), su = String(s.updatedAt || '');
+    return { _k:'scan', t:s.t, g:s.g, c:s.c, e:s.e, r:s.r || '', updatedAt:su > st ? su : st };
   }).concat(ROUNDS.map(function (r) {
     var TC = roundExpected(r);
     return { _k:'round', id:'R|' + r.start + '|' + r.g, date: r.date, time: r.start.slice(11, 16), endTime: r.end.slice(11, 16),
