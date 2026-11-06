@@ -238,7 +238,7 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
 <div id="toastwrap"></div>
 <script src="./shared/sec-core.js?v=20261103a"></script>
 <script src="./shared/ac-holidays.js?v=20261103a"></script>
-<script src="./shared/ac-tg-chart.js?v=20261103a"></script>
+<script src="./shared/ac-tg-chart.js?v=20261106a"></script>
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
 <script src="./shared/ac-report-doc.js?v=20261022a"></script>
 <script src="./shared/sec-report.js?v=20261022a"></script>
@@ -1421,15 +1421,79 @@ function commuteSummary(st) {
   }
   if (day) {
     if (D.late.length) txt += G.sec('⏰', lb('遲到','Late','មកយឺត') + ' · ' + D.late.length) + '\n' + D.late.slice(0, 20).map(commuteLateLine).join('\n') + (D.late.length > 20 ? '\n… +' + (D.late.length - 20) : '');
-  } else if (D.rep.length) {
-    txt += G.sec('🔁', lb('重複遲到','Repeat late','មកយឺតដដែលៗ')) + '\n' + D.rep.sort(function (a, b) { return D.uniq[b].n - D.uniq[a].n; }).slice(0, 12).map(function (key) { var u = D.uniq[key]; return '• ' + SEC.esc(u.id || '—') + ' <b>' + SEC.esc(u.name || key) + '</b>' + (u.dept ? ' · ' + SEC.esc(u.dept) : '') + ' · <b>' + u.n + '</b>' + lb('次','×','ដង'); }).join('\n');
+  } else if (D.late.length) {
+    /* 20261106 精簡：週／月／年只放部門前 3 名＋遲到最多的前 5 人；完整部門表與名單在附圖（像餐費摘要的部門表）。 */
+    var dl = commuteLateByDept(D), top = dl.slice(0, 3);
+    txt += G.sec('⏰', lb('遲到','Late','មកយឺត') + ' · ' + D.late.length);
+    if (top.length) txt += '\n🏭 ' + top.map(function (x) { return SEC.esc(x.dept) + ' <b>' + x.n + '</b>'; }).join(' · ') + (dl.length > 3 ? ' · +' + (dl.length - 3) : '');
+    if (D.rep.length) {
+      var reps = D.rep.slice().sort(function (a, b) { return D.uniq[b].n - D.uniq[a].n; });
+      txt += '\n🔁 ' + lb('遲到最多','Most late','មកយឺតច្រើនជាងគេ') + '\n' + reps.slice(0, 5).map(function (key) { var u = D.uniq[key]; return '• ' + SEC.esc(u.id || '—') + ' <b>' + SEC.esc(u.name || key) + '</b> · <b>' + u.n + '</b>' + lb('次','×','ដង'); }).join('\n') + (reps.length > 5 ? '\n… +' + (reps.length - 5) + ' · 📊 ' + lb('完整名單見圖表','full list in chart','បញ្ជីពេញក្នុងតារាង') : '');
+    }
   }
   if (!D.car.length && !D.gate.length && !D.bike.length && !D.late.length) txt += '\n\nℹ️ ' + lb('這段期間沒有紀錄','No records in this period','គ្មានកំណត់ត្រាក្នុងរយៈពេលនេះ');
   return txt;
 }
 
+/* 20261106 遲到依部門統計（人數、次數、3 次以上人數），依次數排序。 */
+function commuteLateByDept(D) {
+  var by = {};
+  D.late.forEach(function (r) { var d = String(r.dept || '').trim() || '—', x = by[d] || (by[d] = { dept:d, n:0, ppl:{}, rep:0 }); x.n++; x.ppl[r.empId || r.name || '—'] = 1; });
+  Object.keys(D.uniq).forEach(function (k) { var u = D.uniq[k], d = String(u.dept || '').trim() || '—'; if (u.n >= 3 && by[d]) by[d].rep++; });
+  return Object.keys(by).map(function (k) { var x = by[k]; x.people = Object.keys(x.ppl).length; return x; }).sort(function (a, b) { return b.n - a.n || b.people - a.people || a.dept.localeCompare(b.dept); });
+}
+/* 20261106 遲到附圖（shared/ac-tg-chart.js）：重點數字、每日（年報＝每月）遲到次數、部門表、3 次以上名單。
+   只有週／月／年、而且有遲到紀錄才畫；畫不出來回傳 ''（摘要照常送，只是沒有圖）。 */
+var COMMUTE_CHART_CACHE = {};
+function commuteSummaryChart(st) {
+  if (st.ptype === 'day' || !commuteScopeOn(st, 'late')) return '';
+  if (typeof ACChart === 'undefined' || !ACChart || typeof ACChart.render !== 'function') return '';
+  try {
+    var lang = st.lang || 'zh', G = SEC.TG, D = commuteSummaryData(st), P = ACChart.PALETTE || [];
+    if (!D.late.length) return '';
+    var key = [st.ptype, st.period, lang, D.late.length, D.late.map(function (r) { return r.id || ''; }).join(',').length].join('|');
+    if (COMMUTE_CHART_CACHE[key]) return COMMUTE_CHART_CACHE[key];
+    var t = function (zh, en, km) { return lang === 'both' ? zh + ' · ' + en : lang === 'en' ? en : lang === 'km' ? en + (km ? ' · ' + km : '') : zh; };
+    var C = { late:P[3] || '#e35d5b', ppl:P[0] || '#2b8fbd', rep:P[2] || '#f2a93b', avg:P[1] || '#2e9c6a' };
+    var dl = commuteLateByDept(D), ppl = Object.keys(D.uniq).length, blocks = [];
+    var byDate = {}, cols = [], rg = D.p.range(), days = 0;
+    D.late.forEach(function (r) { var d = String(r.date || ''); byDate[d] = (byDate[d] || 0) + 1; });
+    if (st.ptype === 'year') {
+      var byM = {}; Object.keys(byDate).forEach(function (d) { var k = d.slice(5, 7); byM[k] = (byM[k] || 0) + byDate[d]; });
+      for (var mi = 1; mi <= 12; mi++) { var mk = (mi < 10 ? '0' : '') + mi; cols.push({ label:String(mi), value:byM[mk] || 0 }); }
+    } else {
+      for (var dd = new Date(rg.fromD); dd <= rg.toD; dd.setDate(dd.getDate() + 1)) {
+        var k2 = SEC.ymd(dd); if (dd.getDay() === 0 && !byDate[k2]) continue;
+        cols.push({ label:st.ptype === 'week' ? G.d(k2) : String(dd.getDate()), value:byDate[k2] || 0 });
+      }
+    }
+    days = Object.keys(byDate).length;
+    blocks.push({ type:'stats', items:[
+      { label:t('遲到次數', 'Late', 'មកយឺត'), value:String(D.late.length), color:C.late },
+      { label:t('人數', 'People', 'មនុស្ស'), value:String(ppl), color:C.ppl },
+      { label:t('3 次以上', '3+ times', '3 ដង+'), value:String(D.rep.length), color:D.rep.length ? C.rep : (P[7] || '#6c8ea4') },
+      { label:t('每天平均', 'Avg / day', 'មធ្យម/ថ្ងៃ'), value:days ? String(Math.round(D.late.length / days * 10) / 10) : '0', color:C.avg }] });
+    blocks.push({ type:'columns', span:2, title:st.ptype === 'year' ? t('每月遲到次數', 'Late per month', 'មកយឺតក្នុងមួយខែ') : t('每日遲到次數', 'Late per day', 'មកយឺតក្នុងមួយថ្ងៃ'), items:cols, color:C.late });
+    var shown = dl.slice(0, 12), rest = dl.slice(12);
+    var rows = shown.map(function (x) { return [x.dept, String(x.people), { text:String(x.n), bold:true }, x.rep ? { text:String(x.rep), color:C.rep, bold:true } : '—']; });
+    if (rest.length) rows.push([t('其他 ', 'Others ', 'ផ្សេងៗ ') + rest.length, String(rest.reduce(function (a, x) { return a + x.people; }, 0)), String(rest.reduce(function (a, x) { return a + x.n; }, 0)), String(rest.reduce(function (a, x) { return a + x.rep; }, 0) || '—')]);
+    blocks.push({ type:'table', title:t('各部門遲到', 'Late by department', 'មកយឺតតាមផ្នែក'), head:[t('部門', 'Dept', 'ផ្នែក'), t('人數', 'People', 'មនុស្ស'), t('次數', 'Late', 'ដង'), t('3次+', '3+', '3+')], widths:[2.4, 1, 1, 1], align:['l', 'r', 'r', 'r'],
+      rows:rows, total:[t('合計', 'Total', 'សរុប'), String(ppl), String(D.late.length), String(D.rep.length || '—')] });
+    if (D.rep.length) {
+      var reps = D.rep.slice().sort(function (a, b) { return D.uniq[b].n - D.uniq[a].n; }), rr = reps.slice(0, 15);
+      blocks.push({ type:'table', title:t('遲到 3 次以上', 'Late 3+ times', 'មកយឺត 3 ដង+'), head:['ID', t('姓名', 'Name', 'ឈ្មោះ'), t('部門', 'Dept', 'ផ្នែក'), t('次數', 'Times', 'ដង')], widths:[0.8, 2.2, 1.6, 0.8], align:['l', 'l', 'l', 'r'],
+        rows:rr.map(function (k) { var u = D.uniq[k]; return [String(u.id || '—'), String(u.name || k), String(u.dept || '—'), { text:String(u.n), bold:true, color:C.late }]; }),
+        note:reps.length > rr.length ? '+' + (reps.length - rr.length) + ' ' + t('人（3 次）', 'more (3 times)', 'នាក់ទៀត') : '' });
+    }
+    var img = ACChart.render({ title:t('遲到登記', 'Come late', 'មកយឺត'), subtitle:D.p.label(), theme:'navy', width:1080, blocks:blocks,
+      footer:'AC Security · ' + t('通勤交通', 'Commute', 'ការធ្វើដំណើរ') }) || '';
+    COMMUTE_CHART_CACHE = {}; COMMUTE_CHART_CACHE[key] = img;
+    return img;
+  } catch (e) { return ''; }
+}
+
 function commuteSummaryPageDefs(st){
-  var lang=st.lang||'zh',G=SEC.TG,lb=function(zh,en,km){return G.lbl(lang,zh,en,km);},D=commuteSummaryData(st),defs=[{text:commuteSummary(st),photos:[]}];
+  var lang=st.lang||'zh',G=SEC.TG,lb=function(zh,en,km){return G.lbl(lang,zh,en,km);},D=commuteSummaryData(st),chart=commuteSummaryChart(st),defs=[{text:commuteSummary(st),photos:chart?[chart]:[]}];
   if(!st.includeDetails)return defs;
   /* 每頁 ≤ 3000 字；照片跟著同一頁的紀錄，最多 4 張 */
   function add(title,rows,lineFn){
@@ -1453,7 +1517,8 @@ function commuteSummaryPageDefs(st){
   });
   if(commuteScopeOn(st,'gate'))add('🚛 '+lb('出入閘明細','Gate log','កំណត់ត្រាច្រក'),D.gate,function(r){return commuteGateLines(r,lang);});
   if(commuteScopeOn(st,'bike'))add('🏍 '+lb('機車','Motorbikes','ម៉ូតូ'),D.bike,function(r){return ['• A '+(+r.a||0)+' · B '+(+r.b||0)+' · '+lb('合計','Total','សរុប')+' <b>'+(+r.total||0)+'</b>'+((r.remark||r.note)?' · 📝 '+SEC.esc(r.remark||r.note):'')];});
-  if(commuteScopeOn(st,'late'))add('⏰ '+lb('遲到明細','Late records','កំណត់ត្រាមកយឺត'),D.late,function(r){return [commuteLateLine(r)];});
+  /* 20261106 月／年報的遲到不再逐筆分頁（太長）；部門表與 3 次以上名單已在附圖。日／週報照舊可附逐筆明細。 */
+  if(commuteScopeOn(st,'late')&&st.ptype!=='month'&&st.ptype!=='year')add('⏰ '+lb('遲到明細','Late records','កំណត់ត្រាមកយឺត'),D.late,function(r){return [commuteLateLine(r)];});
   return defs;
 }
 function commuteSummaryPages(st) { return commuteSummaryPageDefs(st).map(function(x){return x.text;}); }
