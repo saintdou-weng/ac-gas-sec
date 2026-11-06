@@ -275,7 +275,8 @@
     if (!migrated && remote.exists) {
       /* 只下載「別台裝置改過」且內容與本機不同的區塊。 */
       var want = Object.keys(remoteH).filter(function (k) {
-        return remoteH[k] !== (buckets[k] && buckets[k].hash) && (!state || previous[k] !== remoteH[k]);
+        /* 有推算記錄的工具（巡邏）：雲端與本機不同就下載比對，才能找出要送墓碑的舊 round。 */
+        return remoteH[k] !== (buckets[k] && buckets[k].hash) && (!state || previous[k] !== remoteH[k] || !!DERIVED[tool]);
       });
       if (want.length) {
         var cloud = await smartAll(tool, remote, want);
