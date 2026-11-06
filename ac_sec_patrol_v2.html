@@ -2220,7 +2220,7 @@ function patrolCloudRecords() {
       guard: r.g, shift: r.night ? 'C' : 'A', /* 2026-11-06：不可送空白，雲端合併會保留舊值（曾出現「未命名 ined」）→ 每次同步都重傳 */ location: r.chips.length ? chipRawName(r.chips[0]) : '-',
       points: r.chips.length, expected: TC, dur: r.dur,
       status: roundComplete(r) ? 'ok' : 'issue',
-      missed: roundMissing(r).map(function (c) { return chipRawName(c); }).join(','),
+      missed: roundMissing(r).map(function (c) { return chipRawName(c); }).join(',') || 'ok',
     };
   })).concat(MAN.map(function (r) {
     return { _k:'manual', id:r.id, date: r.date, time: r.time, guard: r.guard, shift: r.shift === 'N' ? 'C' : 'A',
