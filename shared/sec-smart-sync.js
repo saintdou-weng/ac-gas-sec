@@ -197,8 +197,15 @@
     });
     return { records:normal, extra:extra };
   }
+  /* 2026-11-06：由本機資料推算的記錄（巡邏每圈 round）以本機為準，不把雲端舊的併回來；
+     否則雲端舊圈數永遠留著，每次同步都會「下載 9 包→上傳 9 包」來回。 */
+  var DERIVED = { patrol:{ round:1 } };
+  function dropDerived(tool, rows) {
+    var k = DERIVED[tool]; if (!k) return rows || [];
+    return (rows || []).filter(function (r) { return !(r && !r._deleted && k[r._k]); });
+  }
   function mergeLocal(tool, local, remote, localExtra, remoteExtra) {
-    var m = SEC.mergeRecords(tool, remote || [], local || [], { keepTombstones:true });
+    var m = SEC.mergeRecords(tool, dropDerived(tool, remote), local || [], { keepTombstones:true });
     var ex = SEC.mergeObject(remoteExtra || {}, localExtra || {}, tool);
     return { records:m.records, extra:ex };
   }
