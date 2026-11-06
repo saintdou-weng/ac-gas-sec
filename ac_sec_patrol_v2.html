@@ -282,7 +282,7 @@
 <div id="toastwrap"></div>
 <script src="./shared/sec-core.js?v=20261103a"></script>
 <script src="./shared/ac-holidays.js?v=20261103a"></script>
-<script src="./shared/ac-tg-chart.js?v=20261103a"></script>
+<script src="./shared/ac-tg-chart.js?v=20261106b"></script>
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
 <script src="./shared/ac-report-doc.js?v=20261022a"></script>
 <script src="./shared/sec-report.js?v=20261022a"></script>
@@ -1865,13 +1865,19 @@ function patrolGuardLines(byG, lang) {
     gk.slice(0, 12).map(function (k) { return '• <b>' + SEC.esc(k) + '</b> · ' + byG[k] + (byG[k] < max * 0.5 ? ' ⚠️' : ''); }).join('\n') + (gk.length > 12 ? '\n… +' + (gk.length - 12) : '');
 }
 /* 每日圈數：正常的日子壓成日期區間「📅 09-14~18, 09-20~30 · 🔄 10 ✅」，只逐行列出圈數偏少或有未完整圈的日子 */
-function patrolDailyLines(byD, lang) {
-  var G = SEC.TG, lb = patrolLb(lang), ds = Object.keys(byD).sort(), freq = {}, mode = 0;
-  ds.forEach(function (d) { freq[byD[d].n] = (freq[byD[d].n] || 0) + 1; });
+/* 一般每天的圈數（出現最多次的圈數；同樣多取較大的）。少於它的日子＝圈數偏少。 */
+function patrolDailyMode(byD) {
+  var freq = {}, mode = 0;
+  Object.keys(byD).forEach(function (d) { freq[byD[d].n] = (freq[byD[d].n] || 0) + 1; });
   Object.keys(freq).forEach(function (n) { n = +n; if (!mode || freq[n] > freq[mode] || (freq[n] === freq[mode] && n > mode)) mode = n; });
+  return mode;
+}
+/* onlyBad（20261106 週報有附圖時）：只回傳圈數偏少或有未完整圈的日子，正常日子看附圖。 */
+function patrolDailyLines(byD, lang, onlyBad) {
+  var G = SEC.TG, lb = patrolLb(lang), ds = Object.keys(byD).sort(), mode = patrolDailyMode(byD);
   var okBy = {}, bad = [];
   ds.forEach(function (d) { var x = byD[d]; if (x.n >= mode && !x.bad) (okBy[x.n] = okBy[x.n] || []).push(d); else bad.push(d); });
-  var out = Object.keys(okBy).sort(function (a, b) { return okBy[b].length - okBy[a].length; }).map(function (n) { return '📅 ' + G.ranges(okBy[n]) + ' · 🔄 ' + n + ' ✅'; });
+  var out = onlyBad ? [] : Object.keys(okBy).sort(function (a, b) { return okBy[b].length - okBy[a].length; }).map(function (n) { return '📅 ' + G.ranges(okBy[n]) + ' · 🔄 ' + n + ' ✅'; });
   bad.slice(0, 10).forEach(function (d) {
     var x = byD[d], w = [];
     if (x.n < mode) w.push(lb('少', 'short', 'ខ្វះ') + ' ' + (mode - x.n));
@@ -1965,12 +1971,101 @@ function patrolSummary(st) {
     txt += '\n📸 ' + lb('夜班巡邏照片', 'Night patrol photos', 'រូបថតល្បាតយប់') + ' <b>' + nightPhotoCount + '</b> / 2–4';
   }
   txt += patrolGuardLines(D.byG, lang);
-  if (!day && Object.keys(D.byD).length > 1) txt += G.sec('📅', lb('每日圈數', 'Daily rounds', 'ជុំប្រចាំថ្ងៃ')) + '\n' + patrolDailyLines(D.byD, lang).join('\n');
+  /* 20261106 週報有附圖（每天每個巡邏點的檢查表）→ 每日圈數不再逐行列，改看附圖。 */
+  var badDays = !day && Object.keys(D.byD).length > 1 ? patrolDailyLines(D.byD, lang, true) : [];
+  if (patrolSummaryChart(st)) txt += (badDays.length ? G.sec('📅', lb('每日圈數', 'Daily rounds', 'ជុំប្រចាំថ្ងៃ')) + '\n' + badDays.join('\n') + '\n' : '\n\n') + '📊 ' + lb('每天的圈數與每個巡邏點見附圖', 'Daily rounds and each checkpoint in the chart', 'មើលជុំប្រចាំថ្ងៃ និងចំណុចនីមួយៗក្នុងរូបភាព');
+  else if (!day && Object.keys(D.byD).length > 1) txt += G.sec('📅', lb('每日圈數', 'Daily rounds', 'ជុំប្រចាំថ្ងៃ')) + '\n' + patrolDailyLines(D.byD, lang).join('\n');
   return txt;
 }
 
+/* 20261106 週報附圖（shared/ac-tg-chart.js）：重點數字＋一週檢查表（直行＝週一到週六，週日有資料才顯示）。
+   橫列：🔄 圈數（完整圈/總圈）、📋 巡邏確認（六項）、再來每個巡邏點一列（當天有刷到的圈數/總圈）。
+   格子：綠＝全部完成、紅＝有漏（✗ 漏幾圈）、橘＝確認表有項目未勾、灰＝當天沒有巡邏／沒填確認。
+   數字跟文字卡片同一份資料（patrolSummaryData）：每個巡邏點漏掉的圈數加起來＝文字的「漏點」。
+   只有週報畫；沒有 ACChart 或畫不出來回傳 ''（摘要照常送，只是沒有圖）。 */
+var PATROL_CHART_CACHE = {};
+function patrolSummaryChart(st) {
+  if (st.ptype !== 'week') return '';
+  if (typeof ACChart === 'undefined' || !ACChart || typeof ACChart.render !== 'function') return '';
+  try {
+    var lang = st.lang || 'zh', G = SEC.TG, D = patrolSummaryData(st), P = ACChart.PALETTE || [];
+    if (!D.list.length) return '';
+    var key = [st.ptype, st.period, st.scope || 'all', lang, D.list.map(function (r) { return r.g + r.start + r.end + r.chips.join(''); }).join('|'),
+      D.checks.map(function (r) { return r.date + r.shift + JSON.stringify(r.checks || {}); }).join('|'), JSON.stringify(CHIP).length].join('#');
+    if (PATROL_CHART_CACHE[key] != null) return PATROL_CHART_CACHE[key];
+    var t = function (zh, en, km) { return lang === 'both' ? zh + ' · ' + en : lang === 'en' ? en : lang === 'km' ? en + (km ? ' · ' + km : '') : zh; };
+    var short = function (zh, en) { return lang === 'both' ? zh + ' ' + en : lang === 'zh' ? zh : en; };
+    var OK = P[1] || '#2e9c6a', BAD = P[3] || '#e35d5b', WARN = P[2] || '#f2a93b', NONE = '#eef2f5', GREY = P[7] || '#6c8ea4';
+    var WD = [['日', 'Sun'], ['一', 'Mon'], ['二', 'Tue'], ['三', 'Wed'], ['四', 'Thu'], ['五', 'Fri'], ['六', 'Sat']];
+    var rByD = {}, cByD = {};
+    D.list.forEach(function (r) { (rByD[r.date] = rByD[r.date] || []).push(r); });
+    D.checks.forEach(function (r) { (cByD[r.date] = cByD[r.date] || []).push(r); });
+    var rg = D.p.range(), days = [];
+    for (var d = new Date(rg.fromD); d <= rg.toD; d.setDate(d.getDate() + 1)) {
+      var ymd = SEC.ymd(d); if (d.getDay() === 0 && !rByD[ymd] && !cByD[ymd]) continue;
+      days.push({ ymd:ymd, wd:d.getDay(), rounds:rByD[ymd] || [], checks:cByD[ymd] || [] });
+    }
+    /* 巡邏點：本週各圈當日生效的點（聯集），依巡邏順序 */
+    var cps = [];
+    D.list.forEach(function (r) { (r.expectedChips || checkpointOrderForDate(r.date)).forEach(function (c) { if (cps.indexOf(c) < 0) cps.push(c); }); });
+    var lastOrder = checkpointOrderForDate(rg.to);
+    cps.sort(function (a, b) { var ia = lastOrder.indexOf(a), ib = lastOrder.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || chipSeq(a) - chipSeq(b); });
+    function cpLabel(c, i) {
+      var raw = CHIP[c] && CHIP[c].name ? String(CHIP[c].name) : '', cjk = /[㐀-鿿豈-﫿]/;
+      if (!raw) return { label:short('未命名', 'Unnamed') + ' ' + String(c).slice(-4), sub:'#' + (i + 1) };
+      var zh = raw.split(/\s+/).filter(function (w) { return cjk.test(w); }).join(' '), en = raw.split(/\s+/).filter(function (w) { return w && !cjk.test(w); }).join(' ');
+      if (lang === 'zh') return { label:zh || raw, sub:'#' + (i + 1) };
+      if (lang === 'both') return { label:zh || en || raw, sub:'#' + (i + 1) + (zh && en ? ' · ' + en : '') };
+      return { label:en || ('#' + (i + 1)), sub:'#' + (i + 1) };
+    }
+    var rows = [], mode = patrolDailyMode(D.byD), multi = Object.keys(D.byD).length > 1;
+    rows.push({ label:'🔄 ' + short('圈數', 'Rounds'), sub:t('完整/總圈', 'complete / total', 'ពេញលេញ/សរុប'), cells:days.map(function (day) {
+      var n = day.rounds.length; if (!n) return { text:'—', color:NONE, light:true };
+      var inc = day.rounds.filter(function (r) { return !roundComplete(r); }).length;
+      /* 圈數偏少（跟文字卡片「每日圈數」同一個判斷：少於一般每天的圈數） */
+      if (!inc && multi && n < mode) return { text:'✓ ' + n + '/' + n, sub:short('少', 'short') + ' ' + (mode - n), color:WARN };
+      if (!inc) return { text:'✓ ' + n + '/' + n, color:OK };
+      return { text:'✗ ' + inc, sub:(n - inc) + '/' + n, color:BAD };
+    }) });
+    rows.push({ label:'📋 ' + short('巡邏確認', 'Check form'), sub:t('門窗水電等 6 項', '6 items', '6 ចំណុច'), cells:days.map(function (day) {
+      var cs = day.checks; if (!cs.length) return { text:'—', color:NONE, light:true };
+      var bad = PC_KEYS.filter(function (k) { return cs.some(function (r) { return patrolCheckValue(r, k) === 'issue'; }); });
+      var miss = PC_KEYS.filter(function (k) { return bad.indexOf(k) < 0 && cs.some(function (r) { return !patrolCheckValue(r, k); }); });
+      var nm = function (k) { return pcLabel(k, lang === 'zh' ? 'zh' : 'en'); };
+      if (bad.length) return { text:'✗ ' + bad.length, sub:bad.map(nm).join(','), color:BAD };
+      if (miss.length) return { text:'⚠ ' + miss.length, sub:short('未勾', 'unchecked'), color:WARN };
+      return { text:'✓ ' + PC_KEYS.length + '/' + PC_KEYS.length, color:OK };
+    }) });
+    cps.forEach(function (c, i) {
+      var lb = cpLabel(c, i);
+      rows.push({ label:lb.label, sub:lb.sub, cells:days.map(function (day) {
+        var rs = day.rounds.filter(function (r) { return (r.expectedChips || checkpointOrderForDate(r.date)).indexOf(c) >= 0; });
+        if (!rs.length) return { text:'—', color:NONE, light:true };
+        var hit = rs.filter(function (r) { return r.chips.indexOf(c) >= 0; }).length;
+        if (hit === rs.length) return { text:'✓ ' + hit, color:OK };
+        return { text:'✗ ' + (rs.length - hit), sub:hit + '/' + rs.length, color:BAD };
+      }) });
+    });
+    var cols = days.map(function (day) { return { label:short('週' + WD[day.wd][0], WD[day.wd][1]), sub:G.d(day.ymd) }; });
+    var pct = D.list.length ? Math.round(D.full / D.list.length * 100) : 0;
+    var blocks = [{ type:'stats', items:[
+      { label:t('圈數', 'Rounds', 'ជុំ'), value:String(D.list.length), color:P[0] || '#2b8fbd' },
+      { label:t('完整', 'Complete', 'ពេញលេញ'), value:String(D.full), sub:pct + '%', color:D.inc.length ? WARN : OK },
+      { label:t('漏點', 'Missed points', 'ចំណុចខកខាន'), value:String(D.missed), color:D.missed ? BAD : GREY },
+      { label:t('巡邏員', 'Guards', 'អ្នកល្បាត'), value:String(Object.keys(D.byG).length), color:P[5] || '#3fb9c9' }] }];
+    blocks.push({ type:'grid', title:t('每日巡邏（✓／✗ 後面是圈數）', 'Daily patrol (number = rounds)', 'ការល្បាតប្រចាំថ្ងៃ'), cols:cols, rows:rows,
+      legend:[{ label:t('全部完成', 'All done', 'រួចរាល់'), color:OK }, { label:t('有漏', 'Missed', 'ខកខាន'), color:BAD }, { label:t('偏少／未勾', 'Short / unchecked', 'ខ្វះ / មិនបានគូស'), color:WARN }, { label:t('沒資料', 'No data', 'គ្មានទិន្នន័យ'), color:NONE }] });
+    var scope = st.scope === 'night' ? t('夜班', 'Night shift', 'វេនយប់') : st.scope === 'day' ? t('日班', 'Day shift', 'វេនថ្ងៃ') : '';
+    var img = ACChart.render({ title:t('巡邏 週報', 'Patrol · Weekly', 'ការល្បាត · ប្រចាំសប្ដាហ៍'), subtitle:D.p.label() + (scope ? ' · ' + scope : ''), theme:'navy', width:1080, blocks:blocks,
+      footer:'AC Security · ' + t('巡邏', 'Patrol', 'ការល្បាត') }) || '';
+    if (Object.keys(PATROL_CHART_CACHE).length > 6) PATROL_CHART_CACHE = {};
+    PATROL_CHART_CACHE[key] = img;
+    return img;
+  } catch (e) { return ''; }
+}
+
 function patrolSummaryPageDefs(st){
-  var lang=st.lang||'zh',G=SEC.TG,lb=patrolLb(lang),D=patrolSummaryData(st),defs=[{text:patrolSummary(st),photos:patrolSummaryPhotosBase(st)}];
+  var lang=st.lang||'zh',G=SEC.TG,lb=patrolLb(lang),D=patrolSummaryData(st),chart=patrolSummaryChart(st),base=patrolSummaryPhotosBase(st)/* 20261106 週報附圖放第 1 張；base 先放異常照片、夜班照片在後，超過 4 張時先讓出夜班照片 */,defs=[{text:patrolSummary(st),photos:chart?[chart].concat(base).slice(0,4):base}];
   if(!st.includeDetails)return defs;
   var scope=st.scope==='night'?' · 🌙':st.scope==='day'?' · ☀️':'';
   patrolTgAddPages(defs,'🔄 '+lb('巡邏逐圈','Patrol rounds','ជុំល្បាត')+scope,D.list,function(r){return r.date;},function(r){return [patrolRoundLine(r,lang,false)];},null);

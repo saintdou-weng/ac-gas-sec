@@ -202,7 +202,7 @@
 <div id="toastwrap"></div>
 <script src="./shared/sec-core.js?v=20261103a"></script>
 <script src="./shared/ac-holidays.js?v=20261103a"></script>
-<script src="./shared/ac-tg-chart.js?v=20261103a"></script>
+<script src="./shared/ac-tg-chart.js?v=20261106b"></script>
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
 <script src="./shared/ac-report-doc.js?v=20261022a"></script>
 <script src="./shared/sec-report.js?v=20261022a"></script>
@@ -1276,10 +1276,13 @@ function attendanceSummary(st) {
   txt += '\n🕐 ' + lb('班別', 'Shifts', 'វេន') + ' A <b>' + D.byShift.A + '</b> · B <b>' + D.byShift.B + '</b> · C <b>' + D.byShift.C + '</b>' +
     (D.other ? ' · ' + lb('未排', 'Other', 'ផ្សេង') + ' <b>' + D.other + '</b>' : '');
   if (!D.staff.length) return txt + '\n\nℹ️ ' + lb('這段期間沒有保安人員資料', 'No staff data in this period', 'គ្មានទិន្នន័យបុគ្គលិកក្នុងរយៈពេលនេះ');
-  if (!D.bad.length) return txt + '\n✅ ' + lb('沒有請假或曠職', 'No leave or absence', 'គ្មានច្បាប់ ឬអវត្តមាន');
+  /* 20261106 週報附圖（每人每天的出勤表）→ 文字只留請假／曠職名單，其餘看附圖。 */
+  var chartLine = attendanceSummaryChart(st) ? '\n📊 ' + lb('每人每天的出勤見附圖', 'Each guard per day in the chart', 'មើលវត្តមានប្រចាំថ្ងៃក្នុងរូបភាព') : '';
+  if (!D.bad.length) return txt + '\n✅ ' + lb('沒有請假或曠職', 'No leave or absence', 'គ្មានច្បាប់ ឬអវត្តមាន') + chartLine;
   txt += '\n⚠️ ' + lb('請假或曠職', 'On leave or absent', 'ច្បាប់ ឬអវត្តមាន') + ' <b>' + D.bad.length + '</b> ' + lb('人', 'ppl', 'នាក់');
   txt += G.sec('⚠️', lb('請假與曠職', 'Leave &amp; absence', 'ច្បាប់ និងអវត្តមាន')) + '\n' +
     D.bad.slice(0, 12).map(function (x) { return attBadLine(x, lang, day); }).join('\n') + (D.bad.length > 12 ? '\n… +' + (D.bad.length - 12) : '');
+  if (chartLine) txt += '\n' + chartLine;
   return txt;
 }
 /* 逐人明細：月／週／年 = 每人 2–3 行（身分、統計、出勤日期）；日報 = 每人一行（當天代碼與打卡時間）。 */
@@ -1321,10 +1324,71 @@ function attendanceSummaryPages(st) {
   if (cur.length) pages.push(title + '\n' + cur.join('\n'));
   return pages;
 }
+/* 20261106 週報附圖（shared/ac-tg-chart.js）：重點數字＋一週出勤表（橫列＝每位保安，直行＝週一到週日，週日有資料才顯示）。
+   格子＝出勤表的代碼：綠＝出勤、深綠＝加班、灰＝例休／國定假／沒登記、橘＝請假、紅＝曠職。最上面一列＝每天出勤人數。
+   數字跟文字卡片同一份資料（attSummaryData／attCodeDates）：格子裡出勤＋加班加起來＝文字的「出勤人日」，請假、曠職也一樣。
+   人數超過 20 人時，只逐列列出有請假／曠職的人，其餘合成一列「其他 n 人」（顯示每天出勤人數）。
+   只有週報畫；沒有 ACChart 或畫不出來回傳 ''（摘要照常送，只是沒有圖）。 */
+var ATT_CHART_CACHE = {};
+function attendanceSummaryChart(st) {
+  if (st.ptype !== 'week') return '';
+  if (typeof ACChart === 'undefined' || !ACChart || typeof ACChart.render !== 'function') return '';
+  try {
+    var lang = st.lang || 'zh', G = SEC.TG, D = attSummaryData(st), T = D.total, P = ACChart.PALETTE || [];
+    if (!D.list.length || !(T.W + T.O + T.R + T.L + T.A + T.H)) return '';
+    var key = [st.ptype, st.period, lang, D.list.map(function (x) { return (x.r.empId || x.r.name) + ':' + JSON.stringify(x.cd); }).join('|')].join('#');
+    if (ATT_CHART_CACHE[key] != null) return ATT_CHART_CACHE[key];
+    var t = function (zh, en, km) { return lang === 'both' ? zh + ' · ' + en : lang === 'en' ? en : lang === 'km' ? en + (km ? ' · ' + km : '') : zh; };
+    var short = function (zh, en) { return lang === 'both' ? zh + ' ' + en : lang === 'zh' ? zh : en; };
+    var C = { W:P[1] || '#2e9c6a', O:'#1e6b4e', L:P[2] || '#f2a93b', A:P[3] || '#e35d5b', R:'#dde5ec', H:'#dde5ec', NONE:'#eef2f5' };
+    var TXT = { W:['✓', '✓'], O:['加班', 'OT'], R:['休', 'Rest'], L:['假', 'Leave'], A:['缺', 'Absent'], H:['國定', 'Hol.'] };
+    var WD = [['日', 'Sun'], ['一', 'Mon'], ['二', 'Tue'], ['三', 'Wed'], ['四', 'Thu'], ['五', 'Fri'], ['六', 'Sat']];
+    var codeOn = function (x, ymd) { return Object.keys(x.cd).filter(function (k) { return x.cd[k].indexOf(ymd) >= 0; })[0] || ''; };
+    var rg = D.p.range(), days = [];
+    for (var d = new Date(rg.fromD); d <= rg.toD; d.setDate(d.getDate() + 1)) {
+      var ymd = SEC.ymd(d);
+      if (d.getDay() === 0 && !D.list.some(function (x) { return codeOn(x, ymd); })) continue;
+      days.push({ ymd:ymd, wd:d.getDay() });
+    }
+    function cell(code) {
+      if (!code) return { text:'—', color:C.NONE, light:true };
+      return { text:code === 'W' ? '✓' : short(TXT[code][0], TXT[code][1]), color:C[code], light:code === 'R' || code === 'H' };
+    }
+    var many = D.list.length > 20, shown = many ? D.list.filter(function (x) { return x.s.c.L || x.s.c.A; }) : D.list, rest = many ? D.list.filter(function (x) { return shown.indexOf(x) < 0; }) : [];
+    var rows = [{ label:'👮 ' + short('出勤人數', 'On duty'), sub:t('出勤＋加班', 'work + OT', 'ធ្វើការ + ថែម'), cells:days.map(function (day) {
+      var n = D.list.filter(function (x) { var c = codeOn(x, day.ymd); return c === 'W' || c === 'O'; }).length;
+      return { text:String(n), color:'#d6e9f5', light:true };
+    }) }];
+    shown.forEach(function (x) {
+      var r = x.r, sub = [r.empId, r.shift ? (lang === 'zh' ? r.shift + ' 班' : 'Shift ' + r.shift) : '', r.post].filter(Boolean).join(' · ');
+      rows.push({ label:String(r.name || '—'), sub:sub, cells:days.map(function (day) { return cell(codeOn(x, day.ymd)); }) });
+    });
+    if (rest.length) rows.push({ label:short('其他 ' + rest.length + ' 人', rest.length + ' others'), sub:t('沒有請假／曠職', 'no leave / absence', 'គ្មានច្បាប់ / អវត្តមាន'), cells:days.map(function (day) {
+      var n = rest.filter(function (x) { var c = codeOn(x, day.ymd); return c === 'W' || c === 'O'; }).length;
+      return { text:'✓ ' + n, color:C.W };
+    }) });
+    var cols = days.map(function (day) { return { label:short('週' + WD[day.wd][0], WD[day.wd][1]), sub:G.d(day.ymd) }; });
+    var blocks = [{ type:'stats', items:[
+      { label:t('在職', 'Staff', 'បុគ្គលិក'), value:String(D.active.length), color:P[0] || '#2b8fbd' },
+      { label:t('出勤人日', 'Man-days', 'ថ្ងៃធ្វើការ'), value:String(T.W + T.O), sub:T.O ? t('加班', 'OT', 'ថែម') + ' ' + T.O : '', color:C.W },
+      { label:t('請假', 'Leave', 'ច្បាប់'), value:String(T.L), color:T.L ? C.L : (P[7] || '#6c8ea4') },
+      { label:t('曠職', 'Absent', 'អវត្តមាន'), value:String(T.A), color:T.A ? C.A : (P[7] || '#6c8ea4') }] }];
+    blocks.push({ type:'grid', title:t('每日出勤', 'Daily attendance', 'វត្តមានប្រចាំថ្ងៃ'), cols:cols, rows:rows,
+      legend:[{ label:t('出勤', 'Work', 'ធ្វើការ'), color:C.W }, { label:t('加班', 'Overtime', 'ថែមម៉ោង'), color:C.O }, { label:t('例休', 'Rest', 'សម្រាក'), color:C.R },
+        { label:t('請假', 'Leave', 'ច្បាប់'), color:C.L }, { label:t('曠職', 'Absent', 'អវត្តមាន'), color:C.A }, { label:t('沒登記', 'Not marked', 'មិនទាន់កត់'), color:C.NONE }] });
+    var img = ACChart.render({ title:t('保安出勤 週報', 'Security attendance · Weekly', 'វត្តមានសន្តិសុខ · ប្រចាំសប្ដាហ៍'), subtitle:D.p.label(), theme:'navy', width:1080, blocks:blocks,
+      footer:'AC Security · ' + t('保安出勤', 'Attendance', 'វត្តមាន') }) || '';
+    if (Object.keys(ATT_CHART_CACHE).length > 6) ATT_CHART_CACHE = {};
+    ATT_CHART_CACHE[key] = img;
+    return img;
+  } catch (e) { return ''; }
+}
+/* 第 1 頁附週報圖；其他頁沒有照片（出勤模組本來就沒有照片）。 */
+function attendanceSummaryPhotos(st, pageIndex) { if (pageIndex) return []; var c = attendanceSummaryChart(st); return c ? [c] : []; }
 function openAttendanceTelegram() {
   return SEC.tgOpen({ module:'attendance', defaultType:PER.mode, defaultPeriod:PER.key(),
     periods:attendancePeriods, currentPeriod:function (type) { return new SEC.Period(type, PER.at).key(); },
-    summaryPages:attendanceSummaryPages });
+    summaryPages:attendanceSummaryPages, summaryPhotos:attendanceSummaryPhotos });
 }
 function pushSummary() { return openAttendanceTelegram(); }
 SEC.registerAutoUploader(TOOL, function (opts) { return doUpload(opts); });

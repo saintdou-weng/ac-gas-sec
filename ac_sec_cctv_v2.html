@@ -247,7 +247,7 @@
 <div id="toastwrap"></div>
 <script src="./shared/sec-core.js?v=20261103a"></script>
 <script src="./shared/ac-holidays.js?v=20261103a"></script>
-<script src="./shared/ac-tg-chart.js?v=20261103a"></script>
+<script src="./shared/ac-tg-chart.js?v=20261106b"></script>
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
 <script src="./shared/ac-report-doc.js?v=20261022a"></script>
 <script src="./shared/sec-report.js?v=20261022a"></script>
@@ -1001,12 +1001,16 @@ function cctvSummary(st) {
     var g = D.list.filter(function (c) { return (c.zone || 'yard') === z.id; }); if (!g.length) return;
     var gs = cctvStats(g, rec); areas.push({ id:z.id, n:g.length, s:gs, prob:cctvBadN(gs) + (gs.pending || 0) });
   });
-  var shown = areas.length <= 6 ? areas : areas.filter(function (x) { return x.prob; });
-  if (shown.length && areas.length > 1) {
+  /* 20261106 週報有附圖（每天每區的巡檢表）→ 文字只列有問題的區，其餘一行帶過。 */
+  var weekChart = !!cctvSummaryChart(st);
+  var shown = !weekChart && areas.length <= 6 ? areas : areas.filter(function (x) { return x.prob; });
+  if ((shown.length || weekChart) && areas.length > 1) {
     txt += G.sec('📍', lb('分區', 'Areas', 'តំបន់'));
     shown.forEach(function (x) { txt += '\n• <b>' + cctvZoneLbl(x.id, lang) + '</b> ' + (x.s.ok || 0) + '/' + x.n + ' · ' + cctvCountTag(x.s); });
-    if (shown.length < areas.length) txt += '\n• ✅ ' + lb('其他區域全部正常', 'Other areas all OK', 'តំបន់ផ្សេងទៀតធម្មតា') + ' · ' + (areas.length - shown.length);
+    if (!shown.length) txt += '\n• ✅ ' + lb('全部區域正常', 'All areas OK', 'តំបន់ទាំងអស់ធម្មតា') + ' · ' + areas.length;
+    else if (shown.length < areas.length) txt += '\n• ✅ ' + lb('其他區域全部正常', 'Other areas all OK', 'តំបន់ផ្សេងទៀតធម្មតា') + ' · ' + (areas.length - shown.length);
   }
+  if (weekChart) txt += '\n📊 ' + lb('每天每區的巡檢情形見附圖', 'Daily check by area in the chart', 'មើលការត្រួតពិនិត្យប្រចាំថ្ងៃក្នុងរូបភាព');
   if (rec && rec.note) txt += '\n\n📝 ' + SEC.esc(rec.note);
   if (a.duplicate.length) txt += '\n⚠️ ' + lb('重複編號需確認', 'Duplicate camera codes', 'លេខកូដកាមេរ៉ាស្ទួន') + ' <b>' + a.duplicate.length + '</b> · ' + a.duplicate.slice(0, 10).map(SEC.esc).join(', ');
   if (a.invalid) txt += '\nℹ️ ' + lb('已忽略非攝影機列', 'Non-camera rows ignored', 'ជួរមិនមែនកាមេរ៉ាត្រូវបានរំលង') + ' <b>' + a.invalid + '</b>';
@@ -1023,12 +1027,90 @@ function cctvBadLine(c, rec, lang) {
   return '• ' + (STAT[s] || STAT.pending).icon + ' <b>' + SEC.esc(c.code || '—') + '</b>' + (c.name ? ' ' + SEC.esc(c.name) : '') + ' · ' + cctvZoneLbl(c.zone, lang) +
     ' · ' + SEC.TG.lbl('zh', SEC.esc(statLabel(s, lang))) + (c.remark ? ' · 📝 ' + SEC.esc(c.remark) : '');
 }
+/* 20261106 週報附圖（shared/ac-tg-chart.js）：重點數字＋一週檢查表（橫列＝各區域，直行＝週一到週六，週日有巡檢才顯示）
+   ＋本週有異常的攝影機表。格子：綠＝該區全部正常（正常數/攝影機數）、紅＝有異常（✗ 台數＋編號）、橘＝有待確認、灰＝當天沒巡檢。
+   數字跟文字卡片同一份資料：攝影機／正常／異常＝期間內最新一次巡檢（cctvSummaryData），巡檢天數＝D.logs。
+   只有週報畫；沒有 ACChart 或畫不出來回傳 ''（摘要照常送，只是沒有圖）。 */
+var CCTV_CHART_CACHE = {};
+function cctvSummaryChart(st) {
+  if (st.ptype !== 'week') return '';
+  if (typeof ACChart === 'undefined' || !ACChart || typeof ACChart.render !== 'function') return '';
+  try {
+    var lang = st.lang || 'zh', G = SEC.TG, D = cctvSummaryData(st), s = D.s, rec = D.rec, P = ACChart.PALETTE || [];
+    if (!D.list.length || !D.logs.length) return '';
+    var key = [st.ptype, st.period, st.scope || 'all', lang, D.list.map(function (c) { return c.id; }).join(','), D.logs.map(function (r) { return r.date + ':' + JSON.stringify(r.st || {}); }).join('|')].join('#');
+    if (CCTV_CHART_CACHE[key] != null) return CCTV_CHART_CACHE[key];
+    var t = function (zh, en, km) { return lang === 'both' ? zh + ' · ' + en : lang === 'en' ? en : lang === 'km' ? en + (km ? ' · ' + km : '') : zh; };
+    var short = function (zh, en) { return lang === 'both' ? zh + ' ' + en : lang === 'zh' ? zh : en; };
+    var OK = P[1] || '#2e9c6a', BAD = P[3] || '#e35d5b', WARN = P[2] || '#f2a93b', NONE = '#eef2f5', GREY = P[7] || '#6c8ea4';
+    var WD = [['日', 'Sun'], ['一', 'Mon'], ['二', 'Tue'], ['三', 'Wed'], ['四', 'Thu'], ['五', 'Fri'], ['六', 'Sat']];
+    var byDate = {}; D.logs.forEach(function (r) { byDate[r.date] = r; });
+    var rg = D.p.range(), days = [];
+    for (var d = new Date(rg.fromD); d <= rg.toD; d.setDate(d.getDate() + 1)) {
+      var ymd = SEC.ymd(d); if (d.getDay() === 0 && !byDate[ymd]) continue;
+      days.push({ ymd:ymd, wd:d.getDay(), rec:byDate[ymd] || null });
+    }
+    /* 區域：依 ZONES 順序，沒有在 ZONES 的歸到「廠區空地／通道」（與文字卡片 c.zone || 'yard' 一致） */
+    var zi = ZONES.map(function (z) { return z.id; }), groups = {};
+    D.list.forEach(function (c) { var z = c.zone || 'yard'; (groups[z] = groups[z] || []).push(c); });
+    var zones = Object.keys(groups).sort(function (a, b) { return (zi.indexOf(a) < 0 ? 99 : zi.indexOf(a)) - (zi.indexOf(b) < 0 ? 99 : zi.indexOf(b)); });
+    function zName(id) { var z = ZONES.filter(function (x) { return x.id === id; })[0]; return z ? t(z.zh, z.en, z.km) : String(id); }
+    function zObj(id) { return ZONES.filter(function (x) { return x.id === id; })[0] || { zh:String(id), en:String(id), km:'' }; }
+    var rows = zones.map(function (zid) {
+      var cams = groups[zid], z = zObj(zid), n = cams.length;
+      /* 雙語：中文名一行、英文名＋支數放第二行，避免名稱被截斷 */
+      var label = lang === 'both' || lang === 'zh' ? z.zh : z.en, sub = lang === 'both' ? z.en + ' · ' + n + ' cams' : lang === 'zh' ? n + ' 支' : (lang === 'km' && z.km ? z.km + ' · ' : '') + n + ' cams';
+      return { label:label, sub:sub, cells:days.map(function (day) {
+        if (!day.rec) return { text:'—', color:NONE, light:true };
+        var gs = cctvStats(cams, day.rec), bad = cams.filter(function (c) { return isBad(cctvRecordStatus(day.rec, c)); });
+        if (bad.length) return { text:'✗ ' + bad.length, sub:bad.slice(0, 3).map(cctvShortCode).join(' ') + (bad.length > 3 ? ' +' + (bad.length - 3) : ''), color:BAD };
+        if (gs.pending) return { text:(gs.ok || 0) + '/' + cams.length, sub:'⏳ ' + gs.pending, color:WARN };
+        return { text:'✓ ' + (gs.ok || 0) + '/' + cams.length, sub:gs.dis ? '⚪ ' + gs.dis : '', color:OK };
+      }) };
+    });
+    var cols = days.map(function (day) { return { label:short('週' + WD[day.wd][0], WD[day.wd][1]), sub:G.d(day.ymd) }; });
+    var bad = cctvBadN(s);
+    var blocks = [{ type:'stats', items:[
+      { label:t('攝影機', 'Cameras', 'កាមេរ៉ា'), value:String(D.list.length), color:P[0] || '#2b8fbd' },
+      { label:t('正常', 'OK', 'ធម្មតា'), value:String(s.ok || 0), color:OK, sub:rec ? G.d(rec.date) : '' },
+      { label:t('異常', 'Faulty', 'មានបញ្ហា'), value:String(bad), color:bad ? BAD : GREY, sub:rec ? G.d(rec.date) : '' },
+      { label:t('巡檢天數', 'Days checked', 'ថ្ងៃពិនិត្យ'), value:String(D.logs.length), color:P[5] || '#3fb9c9' }] }];
+    blocks.push({ type:'grid', title:t('每日各區巡檢', 'Daily check by area', 'ការត្រួតពិនិត្យប្រចាំថ្ងៃតាមតំបន់'), cols:cols, rows:rows,
+      legend:[{ label:t('正常', 'OK', 'ធម្មតា'), color:OK }, { label:t('有異常', 'Faulty', 'មានបញ្ហា'), color:BAD }, { label:t('待確認', 'Pending', 'រង់ចាំ'), color:WARN }, { label:t('沒巡檢', 'Not checked', 'មិនបានពិនិត្យ'), color:NONE }] });
+    /* 本週曾經異常的攝影機：幾天、哪幾天、最新狀態 */
+    var hist = D.list.map(function (c) {
+      var ds = D.logs.filter(function (r) { return isBad(cctvRecordStatus(r, c)); }).map(function (r) { return r.date; }).sort();
+      return { c:c, dates:ds };
+    }).filter(function (x) { return x.dates.length; }).sort(function (a, b) { return b.dates.length - a.dates.length || String(a.c.code || '').localeCompare(String(b.c.code || '')); });
+    if (hist.length) {
+      var shown = hist.slice(0, 12);
+      blocks.push({ type:'table', title:t('本週有異常的攝影機', 'Cameras with faults this week', 'កាមេរ៉ាមានបញ្ហាសប្ដាហ៍នេះ'),
+        head:[t('編號', 'Camera', 'កាមេរ៉ា'), t('區域', 'Area', 'តំបន់'), t('異常日', 'Fault days', 'ថ្ងៃមានបញ្ហា'), t('天數', 'Days', 'ថ្ងៃ'), t('最新', 'Latest', 'ចុងក្រោយ')],
+        widths:[1.3, 1.9, 1.7, 0.7, 1.4], align:['l', 'l', 'l', 'r', 'l'],
+        rows:shown.map(function (x) {
+          var ls = cctvRecordStatus(rec, x.c), lbad = isBad(ls);
+          return [{ text:cctvShortCode(x.c), bold:true }, zName(x.c.zone || 'yard'), G.ranges(x.dates), { text:String(x.dates.length), bold:true },
+            { text:(STAT[ls] || STAT.pending).icon + ' ' + t(STAT[ls].zh, STAT[ls].en, STAT[ls].km), color:lbad ? BAD : ls === 'ok' ? OK : GREY, bold:lbad }];
+        }),
+        note:hist.length > shown.length ? '+' + (hist.length - shown.length) + ' ' + t('支', 'more', 'ទៀត') : '' });
+    }
+    var sub = D.p.label() + (st.scope && st.scope !== 'all' ? ' · ' + (lang === 'both' ? cctvScopeLabel(st, 'zh') + ' · ' + cctvScopeLabel(st, 'en') : cctvScopeLabel(st, lang === 'km' ? 'en' : lang)) : '');
+    var img = ACChart.render({ title:t('CCTV 巡檢 週報', 'CCTV check · Weekly', 'ការត្រួតពិនិត្យ CCTV · ប្រចាំសប្ដាហ៍'), subtitle:sub, theme:'navy', width:1080, blocks:blocks,
+      footer:'AC Security · CCTV' }) || '';
+    if (Object.keys(CCTV_CHART_CACHE).length > 6) CCTV_CHART_CACHE = {};
+    CCTV_CHART_CACHE[key] = img;
+    return img;
+  } catch (e) { return ''; }
+}
 /* 每頁 ≤ 3000 字、≤ 4 張照片；第 1 頁的異常清單最多 12 行，其餘接續下一頁。照片跟著列出該攝影機的那一頁。 */
 function cctvSummaryPageDefs(st) {
   var lang = st.lang || 'zh', G = SEC.TG, lb = function (zh, en, km) { return G.lbl(lang, zh, en, km); }, D = cctvSummaryData(st), rec = D.rec, seen = {}, defs = [];
   var listed = cctvSummaryDetailList(st, rec), page = { text:cctvSummary(st), photos:[], n:0, first:true };
   if (listed.length && rec && Array.isArray(rec.photos)) page.photos = rec.photos.filter(Boolean).slice(0, 4);
   page.photos.forEach(function (p) { seen[p] = 1; });
+  /* 20261106 週報附圖放第 1 頁第 1 張；巡檢照片讓出 1 個名額（總數仍 ≤ 4），異常攝影機的照片照舊跟著它那一行。 */
+  var chart = cctvSummaryChart(st);
+  if (chart) page.photos = [chart].concat(page.photos).slice(0, 4);
   function fresh(c) { return (Array.isArray(c.photos) ? c.photos : []).filter(function (p) { if (!p || seen[p]) return false; seen[p] = 1; return true; }); }
   function flush() { if (page) defs.push({ text:page.text, photos:page.photos }); page = null; }
   function room(lines, ph) { return page && page.text.length + lines.join('\n').length + 1 <= 3000 && page.photos.length + ph.length <= 4 && (!page.first || page.n + lines.length <= 12); }
