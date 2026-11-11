@@ -356,7 +356,7 @@
 <script src="./shared/sec-core.js?v=20261103a"></script>
 <script src="./shared/ac-holidays.js?v=20261103a"></script>
 <script src="./shared/ac-tg-chart.js?v=20261106d"></script>
-<script src="./shared/sec-compact.js?v=20261111b"></script>
+<script src="./shared/sec-compact.js?v=20261111c"></script>
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
 <script src="./shared/ac-report-doc.js?v=20261022a"></script>
 <script src="./shared/sec-report.js?v=20261022a"></script>
@@ -639,9 +639,58 @@ document.getElementById('cDate').value = SEC.ymd();
 if (document.getElementById('e_type')) document.getElementById('e_type').addEventListener('change', syncFireServiceLabel);
 fillZoneSelects();
 window.onLangChange = function () { renderAll(); applyFireLanguage(); };
+/* ═══ 2026-11-11 手機詳細卡分頁：把「現在」跟「歷史」分開（Paul）═══
+   現況＝設備主檔＋本期結果（原本的欄位）；歷史紀錄＝這台設備每一次巡檢（依月份、最新在上）；
+   異常＝歷史裡判定 ⛔ 的那幾次（含預計完成／完成日）；照片＝設備照（主檔）＋最新巡檢照＋歷次巡檢照。 */
+function fireRowDevice(tr) { var cb = tr && tr.querySelector('.fire-select'), id = cb ? cb.value : ''; return DB.filter(function (e) { return e.id === id; })[0] || null; }
+function fireDeviceHistory(e) {
+  if (!e) return [];
+  var code = String(e.code || '').toUpperCase(), out = [];
+  live(HIST).forEach(function (h) {
+    if (!h || !h.date) return;
+    (h.items || []).forEach(function (x) {
+      if (!(x.id === e.id || (code && String(x.code || '').toUpperCase() === code && (!x.id || !DB.some(function (d) { return d.id === x.id; }))))) return;
+      out.push({ date:h.date, by:h.by || '', result:x.result || '', note:x.note || '', due:x.due || '', done:x.done || '', photos:Array.isArray(x.photos) ? x.photos.slice(0, 4) : [] });
+    });
+  });
+  return out.sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
+}
+function fireDevicePhotoCount(e) { if (!e) return 0; return (Array.isArray(e.photos) ? e.photos.length : 0) + fireDeviceHistory(e).reduce(function (n, x) { return n + x.photos.length; }, 0); }
+function firePhGrid(list) { return '<div class="cmp-ph">' + list.map(function (p) { return '<img loading="lazy" src="' + SEC.esc(p) + '" alt="">'; }).join('') + '</div>'; }
+function fireCardHistory(e, onlyBad) {
+  var all = fireDeviceHistory(e), list = onlyBad ? all.filter(function (x) { return x.result === 'fault'; }) : all, today = SEC.ymd();
+  if (!list.length) return '<p class="cmp-none">' + SEC.esc(onlyBad ? L('✅ 沒有異常紀錄', '✅ No faults on record', '✅ គ្មានកំណត់ត្រាមិនប្រក្រតី') : L('還沒有巡檢紀錄', 'No inspections recorded yet', 'មិនទាន់មានកំណត់ត្រាត្រួតពិនិត្យ')) + '</p>';
+  var ok = all.filter(function (x) { return x.result === 'ok'; }).length, bad = all.filter(function (x) { return x.result === 'fault'; }).length, open = all.filter(function (x) { return x.result === 'fault' && !x.done; }).length;
+  var h = '<div class="cmp-sum"><span class="tag ok">✅ ' + SEC.esc(L('正常', 'Normal', 'ធម្មតា')) + ' ' + ok + '</span><span class="tag ' + (bad ? 'err' : '') + '">⛔ ' + SEC.esc(L('異常', 'Faults', 'មិនប្រក្រតី')) + ' ' + bad + '</span>' +
+    (open ? '<span class="tag warn">🛠 ' + SEC.esc(L('未完成', 'Not fixed', 'មិនទាន់ជួសជុល')) + ' ' + open + '</span>' : '') + '<span class="tag">🗓 ' + SEC.esc(L('最近', 'Latest', 'ចុងក្រោយ')) + ' ' + SEC.esc(all[0].date) + '</span></div>', mon = '';
+  list.forEach(function (x, i) {
+    var m = String(x.date).slice(0, 7);
+    if (m !== mon) { h += (i ? '</ul>' : '') + '<p class="cmp-mon">' + SEC.esc(m) + '</p><ul class="cmp-hist">'; mon = m; }
+    var fault = x.result === 'fault', st = '';
+    if (fault) st = x.done ? '✔️ ' + L('完成', 'Fixed', 'បានជួសជុល') + ' ' + x.done : x.due ? (x.due < today ? '⏰ ' + L('逾期', 'Overdue', 'ហួសកំណត់') : '📅 ' + L('預計', 'Due', 'កំណត់')) + ' ' + x.due : '📅 ' + L('完成日未填', 'No due date', 'គ្មានថ្ងៃកំណត់');
+    h += '<li class="' + (fault ? 'bad' : '') + '"><div class="h1"><span>' + SEC.esc(x.date) + '</span>' + (fault ? '<span class="tag err">⛔ ' + SEC.esc(L('異常', 'Fault', 'មិនប្រក្រតី')) + '</span>' : x.result === 'ok' ? '<span class="tag ok">✅ ' + SEC.esc(L('正常', 'Normal', 'ធម្មតា')) + '</span>' : '') + '<span class="who">👤 ' + SEC.esc(x.by || '—') + '</span></div>' +
+      (x.note ? '<div class="h2">' + SEC.esc(x.note) + '</div>' : '') + (st ? '<div class="h3">' + SEC.esc(st) + '</div>' : '') + (x.photos.length ? firePhGrid(x.photos) : '') + '</li>';
+  });
+  return h + '</ul>';
+}
+function fireCardPhotos(e) {
+  if (!e) return '';
+  var hist = fireDeviceHistory(e).filter(function (x) { return x.photos.length; }), own = Array.isArray(e.photos) ? e.photos : [], h = '';
+  if (!own.length && !hist.length) return '<p class="cmp-none">' + SEC.esc(L('還沒有照片。按「✏️ 編輯」可加設備照；巡檢時拍的照片會自動出現在這裡。', 'No photos yet. Tap “✏️ Edit” to add equipment photos; photos taken during inspections appear here automatically.', 'មិនទាន់មានរូបថត។')) + '</p>';
+  h += '<div class="cmp-phsec"><h5>🧯 ' + SEC.esc(L('設備照（主檔）', 'Equipment photo', 'រូបថតឧបករណ៍')) + '<small>' + own.length + '</small></h5>' + (own.length ? firePhGrid(own) : '<p class="cmp-none" style="padding:8px 0">' + SEC.esc(L('未放設備照', 'None yet', 'មិនទាន់មាន')) + '</p>') + '</div>';
+  hist.forEach(function (x, i) {
+    h += '<div class="cmp-phsec"><h5>' + (i ? '🗓 ' : '🆕 ' + SEC.esc(L('最新巡檢照', 'Latest inspection', 'ត្រួតពិនិត្យចុងក្រោយ')) + ' · ') + SEC.esc(x.date) + (x.result === 'fault' ? ' ⛔' : x.result === 'ok' ? ' ✅' : '') + '<small>' + SEC.esc(x.by || '') + '</small></h5>' + (x.note ? '<div class="h3" style="font-size:12px;color:var(--ink2);margin-top:2px">' + SEC.esc(x.note) + '</div>' : '') + firePhGrid(x.photos) + '</div>';
+  });
+  return h;
+}
 /* 2026-11-11 手機精簡清單（仿 VRT HR 員工頁）：篩選一小條、按鈕收進「⋯」、一筆一行、點開看詳細可左右滑 */
 if (SEC.Compact) SEC.Compact.attach({ card:'#p-list .card', table:'#p-list table.fire-equipment-table', kpis:'#p-list .fire-list-kpis', tools:'#p-list .fire-master-tools',
   cols:{ check:0, title:[1,2], sub:[3,4], right:[10], wide:[9], actions:11 },
+  tabs:[
+    { key:'hist', label:function () { return '🗓 ' + L('歷史紀錄', 'History', 'ប្រវត្តិ'); }, count:function (tr) { return fireDeviceHistory(fireRowDevice(tr)).length; }, render:function (tr) { return fireCardHistory(fireRowDevice(tr), false); } },
+    { key:'bad', label:function () { return '⛔ ' + L('異常', 'Faults', 'មិនប្រក្រតី'); }, count:function (tr) { return fireDeviceHistory(fireRowDevice(tr)).filter(function (x) { return x.result === 'fault'; }).length; }, render:function (tr) { return fireCardHistory(fireRowDevice(tr), true); } },
+    { key:'photo', label:function () { return '📷 ' + L('照片', 'Photos', 'រូបថត'); }, count:function (tr) { return fireDevicePhotoCount(fireRowDevice(tr)); }, render:function (tr) { return fireCardPhotos(fireRowDevice(tr)); } }
+  ],
   select:{ checkbox:'.fire-select', all:'#p-list .fire-master-tools button[onclick^="toggleFireSelectAll"]', del:'#p-list .fire-master-tools button[onclick^="deleteFireSelected"]' } });
 SEC.dataReady().then(load).then(function () { renderAll(); SEC.markPageReady(); }).catch(SEC.bootError);
 /* ═══ 智慧匯入／參考報告登記（2026-10-22）：同一個匯入器、同一套摘要邏輯 ═══ */
