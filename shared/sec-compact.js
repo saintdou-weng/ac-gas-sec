@@ -3,7 +3,7 @@
      ① 上面只留「搜尋＋篩選」一小條（滑動時固定在上面），其他按鈕收進「⋯」
      ② 清單一筆一行，可以一直往下滑
      ③ 點一行 → 開詳細卡（全部欄位兩欄排列），上面有 20/106、◀ ▶ ✕，也可以左右滑換上一筆／下一筆
-   只在手機寬度（≤720px）啟用；電腦畫面完全不變。不改資料、不改各頁原本的函式：
+   精簡清單只在手機寬度（≤720px）啟用；電腦表格不變，但點一列一樣會開詳細卡（置中視窗）。不改資料、不改各頁原本的函式：
    畫面照各頁自己的表格產生，按鈕也是按各頁原本那一顆。
    用法：SEC.Compact.attach({ card:'#p-list .card', table:'#p-list table', kpis:'.fire-list-kpis',
            cols:{ check:0, title:[1,2], sub:[3,4], right:[10], wide:[4,6,9], actions:11 },
@@ -98,7 +98,16 @@
     '.cmp-kv dd .hint{font-weight:400}.cmp-kv dd img{max-width:100%;border-radius:8px}',
     '.cmp-df{flex:none;display:flex;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid var(--line)}',
     '.cmp-df button{flex:1 1 0;min-height:44px;border-radius:10px;border:1px solid var(--n1);background:var(--n1);color:#fff;font-weight:800;font-family:inherit;font-size:14px;cursor:pointer}',
-    '.cmp-df button.gh{background:#fff;color:var(--n1);border-color:var(--line)}.cmp-df button.err{background:#fff;color:#c0392b;border-color:#e8b4ad}'
+    '.cmp-df button.gh{background:#fff;color:var(--n1);border-color:var(--line)}.cmp-df button.err{background:#fff;color:#c0392b;border-color:#e8b4ad}',
+    /* 2026-11-11 電腦也能點一列開詳細卡（表格本身不變）：置中視窗 */
+    '@media(min-width:721px){.cmp-mask{align-items:center}.cmp-drawer{height:90vh;max-width:820px;border-radius:16px}.cmp-sheet{border-radius:16px;margin-bottom:5vh}',
+    'table.cmp-click tbody tr{cursor:pointer}table.cmp-click tbody tr:hover>td{background:#f1f7fa}.cmp-ph{grid-template-columns:repeat(4,minmax(0,1fr))}}',
+    '.cmp-cmp{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px 2px}.cmp-cmp figure{margin:0;min-width:0;background:#f4f7fb;border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}',
+    '.cmp-cmp figcaption{font-size:11.5px;font-weight:800;color:var(--n1);padding:6px 8px;line-height:1.35}.cmp-cmp figcaption small{display:block;font-weight:600;color:var(--ink2)}',
+    '.cmp-cmp img{width:100%;aspect-ratio:4/3;object-fit:cover;cursor:zoom-in;display:block}.cmp-cmp .ph0{aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;text-align:center;color:#9aa9b7;font-size:12px;padding:8px;line-height:1.4}',
+    '.cmp-addph{display:inline-flex;align-items:center;gap:5px;margin-top:8px;min-height:38px;padding:0 14px;border:1px dashed var(--n2);border-radius:9px;background:#f3f9fc;color:var(--n1);font-weight:800;font-size:13px;font-family:inherit;cursor:pointer}',
+    '.cmp-strip{display:flex;flex-wrap:wrap;gap:3px;padding:8px 12px 2px}.cmp-strip i{width:15px;height:15px;border-radius:4px;background:#e6edf2;display:block}.cmp-strip i.ok{background:#35a56b}.cmp-strip i.bad{background:#d9483b}.cmp-strip i.warn{background:#e9a23b}.cmp-strip i.off{background:#9aa9b7}',
+    '.cmp-bars{padding:6px 12px 10px}.cmp-bars .br{display:grid;grid-template-columns:54px 1fr auto;gap:8px;align-items:center;margin-top:7px;font-size:12.5px}.cmp-bars .br b{color:var(--n1)}.cmp-bars .bar{display:flex;height:14px;border-radius:7px;overflow:hidden;background:#edf2f6}.cmp-bars .bar span{display:block;height:100%}.cmp-bars .br small{color:var(--ink2);white-space:nowrap}'
   ].join('\n');
   function injectCss() { if (document.getElementById('cmpCss')) return; var s = document.createElement('style'); s.id = 'cmpCss'; s.textContent = CSS; document.head.appendChild(s); }
 
@@ -121,7 +130,7 @@
     var kpis = cfg.kpis ? $(cfg.kpis) : null, toolsSrc = cfg.tools ? $(cfg.tools) : null, sel = cfg.select || null;
     var more = null, count = null, selbar = null, on = false, painting = false;
 
-    function rows() { return $$('tr', tbody).filter(function (tr) { return !tr.classList.contains('cmp-empty'); }); }
+    function rows() { return $$('tr', tbody).filter(function (tr) { return !tr.classList.contains('cmp-empty') && !(tr.children.length === 1 && tr.children[0].colSpan > 1); }); }
     function cellHtml(tr, i) { var td = tr.children[i]; return td ? td.innerHTML : ''; }
     function headLabel(i) { var th = table.tHead && table.tHead.rows[0] && table.tHead.rows[0].cells[i]; return th ? (th.textContent || '').trim() : ''; }
 
@@ -156,7 +165,7 @@
     function tabBody(tab, tr, k) { try { return tab.render(tr, k) || ''; } catch (e) { return '<p class="cmp-none">⚠ ' + esc(e.message) + '</p>'; } }
     function cardHtml(tr, k, total) {
       var tab = curTab();
-      var n = tr.children.length - 3, skip = {}, wide = arr(cols.wide), kv = '';
+      var n = $$(':scope > td:not(.cmp-main):not(.cmp-right):not(.cmp-go)', tr).length, skip = {}, wide = arr(cols.wide), kv = '';
       [cols.check, cols.actions].forEach(function (i) { if (i != null) skip[i] = 1; });
       for (var i = 0; i < n; i++) {
         if (skip[i]) continue; var lb = headLabel(i); if (!lb) continue;
@@ -197,11 +206,11 @@
       function head() {
         paintTabs();
         cnt.textContent = (cur + 1) + '/' + total; prev.disabled = cur <= 0; next.disabled = cur >= total - 1;
-        var t = recs[cur] && recs[cur].querySelector('.ttl'); now.textContent = t ? (t.textContent || '').replace(/\s+/g, ' ').trim() : '';
+        var t = recs[cur] && recs[cur].querySelector('.ttl'); now.textContent = t ? $$(':scope > span', t).map(function (x) { return (x.textContent || '').replace(/\s+/g, ' ').trim(); }).filter(Boolean).join(' ') : '';
       }
       function go(k, smooth) { k = Math.max(0, Math.min(total - 1, k)); cur = k; head(); body.scrollTo({ top:recs[k].offsetTop - 6, behavior:smooth ? 'smooth' : 'auto' }); }
       function step(dir) { go(cur + dir, true); }
-      overlay(d, { step:step });
+      overlay(d, { step:step, rerender:function () { var tab = curTab(); recs.forEach(function (rec, k) { var bd = rec.querySelector('.cmp-body'); if (bd && tab.render) bd.innerHTML = tabBody(tab, list[k], k); }); paintTabs(); } });
       go(index, false);
       /* 往下滑：看到哪一張，上面的 3/97 就跟著變 */
       var tick = 0;
@@ -292,8 +301,8 @@
     function sync() { if (MQ.matches) enable(); else disable(); }
 
     tbody.addEventListener('click', function (e) {
-      if (!on) return;
       var tr = e.target.closest('tr'); if (!tr || tr.classList.contains('cmp-empty')) return;
+      if (!on) { if (cfg.desktop === false || e.target.closest('button,a,input,select,label,img') || (tr.children.length === 1 && tr.children[0].colSpan > 1)) return; if (root.getSelection && String(root.getSelection())) return; openDetail(rows().indexOf(tr)); return; }
       if (card.classList.contains('cmp-select')) { var cb = tr.querySelector(sel.checkbox); if (cb && e.target !== cb) cb.checked = !cb.checked; return; }
       if (e.target.closest('button,a,input,select,label')) return;
       openDetail(rows().indexOf(tr));
@@ -301,8 +310,9 @@
     new MutationObserver(function () { if (on && !painting) { paint(); relabel(); } }).observe(tbody, { childList:true });
     if (MQ.addEventListener) MQ.addEventListener('change', sync); else if (MQ.addListener) MQ.addListener(sync);
     root.addEventListener('resize', function () { if (on) stickyTop(); });
+    if (cfg.desktop !== false) table.classList.add('cmp-click');
     sync();
-    return { refresh:paint, open:openDetail, tab:function (k) { tabKey = k; }, tools:openTools, isOn:function () { return on; }, selectMode:selectMode };
+    return { refresh:paint, open:openDetail, openWhere:function (fn, tab) { var list = rows(); for (var i = 0; i < list.length; i++) if (fn(list[i])) { if (tab) tabKey = tab; openDetail(i); return true; } return false; }, tab:function (k) { tabKey = k; }, tools:openTools, isOn:function () { return on; }, selectMode:selectMode };
   }
-  SEC.Compact = { attach:attach, close:closeOverlay };
+  SEC.Compact = { attach:attach, close:closeOverlay, rerender:function () { if (OPEN && OPEN.rerender) OPEN.rerender(); } };
 })(typeof window !== 'undefined' ? window : this);
