@@ -185,6 +185,7 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
 <script src="./shared/sec-core.js?v=20261103a"></script>
 <script src="./shared/ac-holidays.js?v=20261103a"></script>
 <script src="./shared/ac-tg-chart.js?v=20261106d"></script>
+<script src="./shared/sec-compact.js?v=20261111a"></script>
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
 <script src="./shared/ac-report-doc.js?v=20261022a"></script>
 <script src="./shared/sec-report.js?v=20261022a"></script>
@@ -297,6 +298,9 @@ document.getElementById('cDate').onchange=function(){fillSelects();fillFrom();};
 applyPageLang();
 (function () { var op = SEC.getCfg().operator; if (op && !document.getElementById('cBy').value) document.getElementById('cBy').value = op; })();
 window.onLangChange = function () { paintLangWidgets(); document.getElementById('impLog').innerHTML = ''; applyPageLang(); renderAll(); };
+/* 2026-11-11 手機精簡清單（仿 VRT HR 員工頁） */
+if (SEC.Compact) SEC.Compact.attach({ card:'#p-ros .card', table:'#p-ros table', kpis:'#p-ros .grid.g4',
+  cols:{ title:[0,2], sub:[1,3,5], right:[4,8], actions:9 } });
 SEC.dataReady().then(load).then(function () { renderAll(); SEC.markPageReady(); }).catch(SEC.bootError);
 /* ═══ 智慧匯入／參考報告登記（2026-10-22）：同一個 importRosterFile、同一套 Telegram 異動摘要邏輯 ═══ */
 SEC.registerImporter(TOOL, { default:'roster', kinds:{

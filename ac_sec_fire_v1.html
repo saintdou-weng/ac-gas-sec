@@ -356,6 +356,7 @@
 <script src="./shared/sec-core.js?v=20261103a"></script>
 <script src="./shared/ac-holidays.js?v=20261103a"></script>
 <script src="./shared/ac-tg-chart.js?v=20261106d"></script>
+<script src="./shared/sec-compact.js?v=20261111a"></script>
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
 <script src="./shared/ac-report-doc.js?v=20261022a"></script>
 <script src="./shared/sec-report.js?v=20261022a"></script>
@@ -638,6 +639,10 @@ document.getElementById('cDate').value = SEC.ymd();
 if (document.getElementById('e_type')) document.getElementById('e_type').addEventListener('change', syncFireServiceLabel);
 fillZoneSelects();
 window.onLangChange = function () { renderAll(); applyFireLanguage(); };
+/* 2026-11-11 手機精簡清單（仿 VRT HR 員工頁）：篩選一小條、按鈕收進「⋯」、一筆一行、點開看詳細可左右滑 */
+if (SEC.Compact) SEC.Compact.attach({ card:'#p-list .card', table:'#p-list table.fire-equipment-table', kpis:'#p-list .fire-list-kpis', tools:'#p-list .fire-master-tools',
+  cols:{ check:0, title:[1,2], sub:[3,4], right:[10], wide:[9], actions:11 },
+  select:{ checkbox:'.fire-select', all:'#p-list .fire-master-tools button[onclick^="toggleFireSelectAll"]', del:'#p-list .fire-master-tools button[onclick^="deleteFireSelected"]' } });
 SEC.dataReady().then(load).then(function () { renderAll(); SEC.markPageReady(); }).catch(SEC.bootError);
 /* ═══ 智慧匯入／參考報告登記（2026-10-22）：同一個匯入器、同一套摘要邏輯 ═══ */
 SEC.registerImporter(TOOL, { default:'equipment', kinds:{
