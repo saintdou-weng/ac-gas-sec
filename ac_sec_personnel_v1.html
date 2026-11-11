@@ -185,7 +185,7 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
 <script src="./shared/sec-core.js?v=20261103a"></script>
 <script src="./shared/ac-holidays.js?v=20261103a"></script>
 <script src="./shared/ac-tg-chart.js?v=20261106d"></script>
-<script src="./shared/sec-compact.js?v=20261111c"></script>
+<script src="./shared/sec-compact.js?v=20261111d"></script>
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
 <script src="./shared/ac-report-doc.js?v=20261022a"></script>
 <script src="./shared/sec-report.js?v=20261022a"></script>
@@ -299,8 +299,61 @@ applyPageLang();
 (function () { var op = SEC.getCfg().operator; if (op && !document.getElementById('cBy').value) document.getElementById('cBy').value = op; })();
 window.onLangChange = function () { paintLangWidgets(); document.getElementById('impLog').innerHTML = ''; applyPageLang(); renderAll(); };
 /* 2026-11-11 手機精簡清單（仿 VRT HR 員工頁） */
-if (SEC.Compact) SEC.Compact.attach({ card:'#p-ros .card', table:'#p-ros table', kpis:'#p-ros .grid.g4',
-  cols:{ title:[0,2], sub:[1,3,5], right:[4,8], actions:9 } });
+/* 2026-11-11 Paul：保安人員詳細卡加分頁 — 歷年出勤、巡邏次數、異動紀錄（讀出勤／巡邏模組已存的資料，只讀不改） */
+var P_ATT = {}, P_MAN = [], P_CHECK = [];
+function personnelLoadSide() { return Promise.all([SEC.dbGet('ac_sec_att_db', {}), SEC.dbGet('ac_sec_patrol_db', []), SEC.dbGet('ac_sec_patrol_confirmations', [])]).then(function (r) { P_ATT = r[0] && typeof r[0] === 'object' ? r[0] : {}; P_MAN = Array.isArray(r[1]) ? r[1] : []; P_CHECK = Array.isArray(r[2]) ? r[2] : []; if (SEC.Compact) SEC.Compact.rerender(); }).catch(function () {}); }
+function pRowPerson(tr) { var id = tr && tr.getAttribute('data-id'); return DB.filter(function (r) { return String(r.id) === id; })[0] || null; }
+function pAttYears(r) {
+  var out = {}; if (!r) return out; var keys = [String(r._attKey || ''), String(r.empId || ''), String(r.name || ''), SEC.norm(r.name || '')].filter(Boolean);
+  Object.keys(P_ATT || {}).forEach(function (m) { if (!/^\d{4}-\d{2}$/.test(m)) return; var M = P_ATT[m] || {}, row = null; for (var i = 0; i < keys.length && !row; i++) if (M[keys[i]]) row = M[keys[i]]; if (!row) return;
+    var y = m.slice(0, 4), o = out[y] || (out[y] = { W:0, O:0, R:0, L:0, A:0, H:0, months:{} }), c = { W:0, O:0, R:0, L:0, A:0, H:0 }, any = 0;
+    Object.keys(row).forEach(function (d) { var v = row[d]; if (c[v] == null) return; c[v]++; o[v]++; any++; }); if (any) o.months[m] = c; else if (!Object.keys(o.months).length && !(o.W + o.O + o.R + o.L + o.A + o.H)) delete out[y]; });
+  return out;
+}
+function pPatrol(r) {
+  var out = { total:0, issue:0, checks:0, years:{} }; if (!r) return out; var n = SEC.norm(r.name || ''), id = String(r.empId || '').toLowerCase();
+  function mine(g) { g = String(g || ''); if (!g) return false; var x = SEC.norm(g); return (n && (x === n || x.indexOf(n) >= 0)) || (id && g.toLowerCase().indexOf(id) >= 0); }
+  function yr(d) { var y = String(d).slice(0, 4); return out.years[y] || (out.years[y] = { n:0, issue:0, checks:0, night:0 }); }
+  P_MAN.forEach(function (x) { if (!x || x._deleted || !x.date || !mine(x.guard)) return; var o = yr(x.date); o.n++; out.total++; if (x.shift === 'N') o.night++; if (x.status === 'issue') { o.issue++; out.issue++; } });
+  P_CHECK.forEach(function (x) { if (!x || x._deleted || !x.date || !mine(x.guard)) return; yr(x.date).checks++; out.checks++; });
+  return out;
+}
+function pChanges(r) { if (!r) return []; var id = normEmpId(r.empId), n = SEC.norm(r.name || ''); return CHG.filter(function (c) { return c && !c._deleted && ((id && normEmpId(c.empId) === id) || (!id && n && SEC.norm(c.name || '') === n)); }).sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); }); }
+function pCardAttendance(r) {
+  var Y = pAttYears(r), ys = Object.keys(Y).sort().reverse();
+  if (!ys.length) return '<p class="cmp-none">' + SEC.esc(L('出勤模組還沒有這個人的紀錄', 'No attendance records for this person yet', 'មិនទាន់មានកំណត់ត្រាវត្តមាន')) + '</p>';
+  var col = { W:'#35a56b', O:'#1e6f8e', R:'#c9d4dd', H:'#b9a7e0', L:'#e9a23b', A:'#d9483b' }, nm = { W:L('出勤', 'Work', 'ធ្វើការ'), O:L('加班', 'OT', 'ថែមម៉ោង'), R:L('例休', 'Rest', 'សម្រាក'), H:L('國定假', 'Holiday', 'បុណ្យ'), L:L('請假', 'Leave', 'ច្បាប់'), A:L('曠職', 'Absent', 'អវត្តមាន') }, h = '';
+  h += '<div class="cmp-sum">' + ['W', 'O', 'L', 'A', 'R', 'H'].map(function (k) { return '<span class="tag" style="border-left:4px solid ' + col[k] + '">' + SEC.esc(nm[k]) + '</span>'; }).join('') + '</div>';
+  ys.forEach(function (y) { var o = Y[y];
+    h += '<p class="cmp-mon">' + SEC.esc(y) + ' · ' + SEC.esc(L('出勤', 'Work', 'ធ្វើការ')) + ' ' + (o.W + o.O) + ' ' + SEC.esc(L('天', 'd', 'ថ្ងៃ')) + (o.O ? ' (' + SEC.esc(L('加班', 'OT', 'ថែមម៉ោង')) + ' ' + o.O + ')' : '') + ' · ' + SEC.esc(L('請假', 'Leave', 'ច្បាប់')) + ' ' + o.L + ' · ' + SEC.esc(L('曠職', 'Absent', 'អវត្តមាន')) + ' ' + o.A + '</p><div class="cmp-bars">';
+    Object.keys(o.months).sort().reverse().forEach(function (m) { var c = o.months[m], tot = c.W + c.O + c.R + c.L + c.A + c.H || 1;
+      h += '<div class="br"><b>' + SEC.esc(m.slice(5)) + (SEC.lang() === 'zh' ? '月' : '') + '</b><div class="bar">' + ['W', 'O', 'L', 'A', 'H', 'R'].map(function (k) { return c[k] ? '<span style="width:' + (c[k] / tot * 100) + '%;background:' + col[k] + '" title="' + SEC.esc(nm[k] + ' ' + c[k]) + '"></span>' : ''; }).join('') + '</div><small>' + (c.W + c.O) + (c.L ? ' · 🟠' + c.L : '') + (c.A ? ' · 🔴' + c.A : '') + '</small></div>'; });
+    h += '</div>'; });
+  return h;
+}
+function pCardPatrol(r) {
+  var P = pPatrol(r), ys = Object.keys(P.years).sort().reverse();
+  if (!ys.length) return '<p class="cmp-none">' + SEC.esc(L('巡邏模組還沒有記到這個人的名字（巡更棒打點不分人，只算人工登錄與巡邏確認表）', 'No patrol records carry this name yet (wand scans are not per person; manual entries and patrol check sheets are counted)', 'មិនទាន់មានកំណត់ត្រាល្បាត')) + '</p>';
+  var max = Math.max.apply(null, ys.map(function (y) { return P.years[y].n + P.years[y].checks; })) || 1;
+  var h = '<div class="cmp-sum"><span class="tag info">🚶 ' + SEC.esc(L('巡邏登錄', 'Patrol entries', 'ល្បាត')) + ' ' + P.total + '</span><span class="tag ok">📋 ' + SEC.esc(L('確認表', 'Check sheets', 'តារាងត្រួតពិនិត្យ')) + ' ' + P.checks + '</span><span class="tag ' + (P.issue ? 'err' : '') + '">⚠️ ' + SEC.esc(L('回報異常', 'Issues reported', 'បញ្ហា')) + ' ' + P.issue + '</span></div><div class="cmp-bars">';
+  ys.forEach(function (y) { var o = P.years[y];
+    h += '<div class="br"><b>' + SEC.esc(y) + '</b><div class="bar"><span style="width:' + (o.n / max * 100) + '%;background:#1e6f8e"></span><span style="width:' + (o.checks / max * 100) + '%;background:#35a56b"></span></div><small>🚶' + o.n + (o.night ? ' (🌙' + o.night + ')' : '') + ' · 📋' + o.checks + (o.issue ? ' · ⚠️' + o.issue : '') + '</small></div>'; });
+  return h + '</div>';
+}
+function pCardChanges(r) {
+  var list = pChanges(r); if (!list.length) return '<p class="cmp-none">' + SEC.esc(L('沒有異動紀錄', 'No changes on record', 'គ្មានការផ្លាស់ប្តូរ')) + '</p>';
+  return '<ul class="cmp-hist">' + list.map(function (c) { var k = KIND[c.kind] || KIND.update, mv = [];
+    if (c.fromShift || c.toShift) mv.push(L('班別', 'Shift', 'វេន') + ' ' + (c.fromShift || '—') + ' → ' + (c.toShift || '—'));
+    if (c.fromPost || c.toPost) mv.push(L('崗位', 'Post', 'ប៉ុស្តិ៍') + ' ' + (c.fromPost || '—') + ' → ' + (c.toPost || '—'));
+    return '<li><div class="h1"><span>' + SEC.esc(c.date || '—') + '</span><span class="tag info">' + (k.icon || '') + ' ' + SEC.esc(kindName(c.kind)) + '</span></div>' + (mv.length ? '<div class="h2">' + SEC.esc(mv.join(' · ')) + '</div>' : '') + (c.note || c.reason ? '<div class="h3">' + SEC.esc(c.note || c.reason) + '</div>' : '') + '</li>'; }).join('') + '</ul>';
+}
+if (SEC.Compact) SEC.Compact.attach({ card:'#p-ros .card', table:'#p-ros table', kpis:'#p-ros .grid.g4', cols:{ title:[0,2], sub:[1,3,5], right:[4,8], actions:9 },
+  tabs:[
+    { key:'att', label:function () { return '📅 ' + L('歷年出勤', 'Attendance', 'វត្តមាន'); }, count:function (tr) { return Object.keys(pAttYears(pRowPerson(tr))).length; }, render:function (tr) { return pCardAttendance(pRowPerson(tr)); } },
+    { key:'patrol', label:function () { return '🚶 ' + L('巡邏次數', 'Patrols', 'ល្បាត'); }, count:function (tr) { var P = pPatrol(pRowPerson(tr)); return P.total + P.checks; }, render:function (tr) { return pCardPatrol(pRowPerson(tr)); } },
+    { key:'chg', label:function () { return '🔁 ' + L('異動紀錄', 'Changes', 'ការផ្លាស់ប្តូរ'); }, count:function (tr) { return pChanges(pRowPerson(tr)).length; }, render:function (tr) { return pCardChanges(pRowPerson(tr)); } }
+  ] });
+personnelLoadSide();
 SEC.dataReady().then(load).then(function () { renderAll(); SEC.markPageReady(); }).catch(SEC.bootError);
 /* ═══ 智慧匯入／參考報告登記（2026-10-22）：同一個 importRosterFile、同一套 Telegram 異動摘要邏輯 ═══ */
 SEC.registerImporter(TOOL, { default:'roster', kinds:{
@@ -359,7 +412,7 @@ function renderRos() {
   }
   tb.innerHTML = list.map(function (r) {
     var id = SEC.esc(r.id);
-    return '<tr><td>' + avatarHtml(r) + '</td><td><code>' + SEC.esc(r.empId || '') + '</code></td>' +
+    return '<tr data-id="' + SEC.esc(String(r.id)) + '"><td>' + avatarHtml(r) + '</td><td><code>' + SEC.esc(r.empId || '') + '</code></td>' +
       '<td><b>' + SEC.esc(r.name || '') + '</b></td>' +
       '<td>' + SEC.esc(trData(r.position || '')) + '</td>' +
       '<td>' + (r.shift ? '<span class="tag info">' + SEC.esc(r.shift) + '</span>' : '<span class="tag gray">' + SEC.esc(L('未排', 'None', 'គ្មាន')) + '</span>') + '</td>' +

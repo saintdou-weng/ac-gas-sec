@@ -248,6 +248,7 @@
 <script src="./shared/sec-core.js?v=20261103a"></script>
 <script src="./shared/ac-holidays.js?v=20261103a"></script>
 <script src="./shared/ac-tg-chart.js?v=20261106d"></script>
+<script src="./shared/sec-compact.js?v=20261111d"></script>
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
 <script src="./shared/ac-report-doc.js?v=20261022a"></script>
 <script src="./shared/sec-report.js?v=20261022a"></script>
@@ -471,6 +472,52 @@ function repaintPnavLang() {
   var td = el.querySelector('.ptoday'); if (td) td.textContent = T.today;
 }
 window.onLangChange = function () { fillZones(); repaintPnavLang(); var il = document.getElementById('impLog'); if (il) il.innerHTML = ''; renderAll(); setBrush(BRUSH, true); if (EDIT_ID !== null) paintEditTitle(); };
+/* 2026-11-11 攝影機清單：手機一筆一行、點一列開詳細卡（現況／每日紀錄／異常／照片比對），做法同消防設備 */
+function cctvRowCam(tr) { var id = tr && tr.getAttribute('data-id'); return DB.filter(function (c) { return String(c.id) === id; })[0] || null; }
+function cctvCamHistory(c) {
+  if (!c) return []; var out = [];
+  LOG.forEach(function (l) { if (!l || l._deleted || !l.date || !l.st) return; var s = l.st[c.id]; if (!s) return; s = cctvSafeStatus(s); if (s === 'pending') return; out.push({ date:l.date, s:s, by:l.by || '', note:l.note || '', photos:Array.isArray(l.photos) ? l.photos.filter(Boolean).slice(0, 4) : [] }); });
+  return out.sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
+}
+function cctvPhGrid(list) { return '<div class="cmp-ph">' + list.map(function (p) { return '<img loading="lazy" src="' + SEC.esc(p) + '" alt="">'; }).join('') + '</div>'; }
+function cctvCardHistory(c, onlyBad) {
+  var all = cctvCamHistory(c), bad = all.filter(function (x) { return isBad(x.s); }), list = onlyBad ? bad : all, lang = SEC.lang();
+  if (!list.length) return '<p class="cmp-none">' + SEC.esc(onlyBad ? t('✅ 沒有異常紀錄', '✅ No faults on record', '✅ គ្មានកំណត់ត្រាមិនប្រក្រតី') : t('還沒有每日巡檢紀錄', 'No daily checks recorded yet', 'មិនទាន់មានកំណត់ត្រា')) + '</p>';
+  var ok = all.filter(function (x) { return x.s === 'ok'; }).length, liveN = all.filter(function (x) { return x.s !== 'dis'; }).length;
+  var h = '<div class="cmp-sum"><span class="tag ok">✅ ' + SEC.esc(t('正常', 'Online', 'ដំណើរការ')) + ' ' + ok + ' ' + SEC.esc(t('天', 'd', 'ថ្ងៃ')) + '</span><span class="tag ' + (bad.length ? 'err' : '') + '">⛔ ' + SEC.esc(t('異常', 'Abnormal', 'មិនប្រក្រតី')) + ' ' + bad.length + ' ' + SEC.esc(t('天', 'd', 'ថ្ងៃ')) + '</span>' +
+    (liveN ? '<span class="tag info">📈 ' + Math.round(ok / liveN * 100) + '%</span>' : '') + '<span class="tag">🗓 ' + SEC.esc(t('最近', 'Latest', 'ចុងក្រោយ')) + ' ' + SEC.esc(all[0].date) + '</span></div>';
+  if (!onlyBad) h += '<div class="cmp-strip" title="' + SEC.esc(t('最近 60 次檢查（左舊右新）', 'Last 60 checks (old → new)', '60 ដងចុងក្រោយ')) + '">' + all.slice(0, 60).reverse().map(function (x) { return '<i class="' + (x.s === 'ok' ? 'ok' : x.s === 'dis' ? 'off' : x.s === 'blur' ? 'warn' : 'bad') + '" title="' + SEC.esc(x.date + ' ' + statLabel(x.s, lang)) + '"></i>'; }).join('') + '</div>';
+  var mon = ''; h += '<div>';
+  list.slice(0, onlyBad ? 200 : 45).forEach(function (x, i) {
+    var m = String(x.date).slice(0, 7); if (m !== mon) { h += (i ? '</ul>' : '') + '<p class="cmp-mon">' + SEC.esc(m) + '</p><ul class="cmp-hist">'; mon = m; }
+    var b = isBad(x.s);
+    h += '<li class="' + (b ? 'bad' : '') + '"><div class="h1"><span>' + SEC.esc(x.date) + '</span><span class="tag ' + (b ? 'err' : x.s === 'ok' ? 'ok' : '') + '">' + STAT[x.s].icon + ' ' + SEC.esc(statLabel(x.s, lang)) + '</span><span class="who">👤 ' + SEC.esc(x.by || '—') + '</span></div>' +
+      (b && x.note ? '<div class="h2">' + SEC.esc(x.note) + '</div>' : '') + (b && x.photos.length ? cctvPhGrid(x.photos) : '') + '</li>';
+  });
+  return h + '</ul></div>';
+}
+function cctvCardPhotos(c) {
+  if (!c) return ''; var own = Array.isArray(c.photos) ? c.photos : [], bad = cctvCamHistory(c).filter(function (x) { return isBad(x.s) && x.photos.length; }), last = bad[0], lang = SEC.lang(), h;
+  function fig(cap, sub, src, empty) { return '<figure><figcaption>' + SEC.esc(cap) + '<small>' + SEC.esc(sub || '—') + '</small></figcaption>' + (src ? '<img loading="lazy" src="' + SEC.esc(src) + '" alt="">' : '<div class="ph0">' + SEC.esc(empty) + '</div>') + '</figure>'; }
+  h = '<div class="cmp-cmp">' + fig('📷 ' + t('攝影機照（標準）', 'Camera photo', 'រូបថតកាមេរ៉ា'), own.length ? own.length + ' ' + t('張', 'photo(s)', 'រូប') : t('還沒放', 'None yet', 'មិនទាន់មាន'), own[0], t('還沒有攝影機照', 'No camera photo yet', 'មិនទាន់មានរូបថត')) +
+    fig('⛔ ' + t('最近異常當天照片', 'Latest abnormal-day photo', 'រូបថតថ្ងៃមិនប្រក្រតីចុងក្រោយ'), last ? last.date + ' ' + statLabel(last.s, lang) : t('沒有', 'None', 'គ្មាន'), last && last.photos[0], t('異常當天的巡檢照片會出現在這裡', 'Photos from an abnormal day show here', 'រូបថតថ្ងៃមិនប្រក្រតី')) + '</div>';
+  h += '<div class="cmp-phsec"><h5>📷 ' + SEC.esc(t('攝影機照（主檔）', 'Camera photos', 'រូបថតកាមេរ៉ា')) + '<small>' + own.length + '/4</small></h5>' + (own.length ? cctvPhGrid(own) : '') +
+    (own.length < 4 ? '<button type="button" class="cmp-addph" data-cctv-camphoto="' + SEC.esc(c.id) + '">📷 ' + SEC.esc(t('加攝影機照', 'Add camera photo', 'បន្ថែមរូបថត')) + '</button>' : '') + '</div>';
+  bad.slice(0, 12).forEach(function (x) { h += '<div class="cmp-phsec"><h5>⛔ ' + SEC.esc(x.date) + ' ' + SEC.esc(statLabel(x.s, lang)) + '<small>' + SEC.esc(x.by || '') + '</small></h5>' + cctvPhGrid(x.photos) + '</div>'; });
+  return h;
+}
+document.addEventListener('click', function (ev) {
+  var b = ev.target.closest && ev.target.closest('[data-cctv-camphoto]'); if (!b) return;
+  var c = DB.filter(function (x) { return String(x.id) === b.getAttribute('data-cctv-camphoto'); })[0]; if (!c) return;
+  var arr = Array.isArray(c.photos) ? c.photos : (c.photos = []); if (arr.length >= 4) return;
+  SEC.pickPhoto(function (d) { if (arr.length < 4) arr.push(d); c.updatedAt = new Date().toISOString(); save(); renderList(); renderBoard(); SEC.Compact.rerender(); SEC.scheduleAutoCloudSync(TOOL, 'cctv-camera-photo', c.code || c.id); SEC.toast('📷 ' + t('已加攝影機照', 'Camera photo added', 'បានបន្ថែមរូបថត'), 'ok'); }, 760, 4 - arr.length);
+});
+if (SEC.Compact) window.CCTV_COMPACT = SEC.Compact.attach({ card:'#p-list .card', table:'#p-list table', cols:{ title:[0,1], sub:[2,3,4], right:[8], actions:10 },
+  tabs:[
+    { key:'hist', label:function () { return '🗓 ' + t('每日紀錄', 'Daily checks', 'ប្រចាំថ្ងៃ'); }, count:function (tr) { return cctvCamHistory(cctvRowCam(tr)).length; }, render:function (tr) { return cctvCardHistory(cctvRowCam(tr), false); } },
+    { key:'bad', label:function () { return '⛔ ' + t('異常', 'Faults', 'មិនប្រក្រតី'); }, count:function (tr) { return cctvCamHistory(cctvRowCam(tr)).filter(function (x) { return isBad(x.s); }).length; }, render:function (tr) { return cctvCardHistory(cctvRowCam(tr), true); } },
+    { key:'photo', label:function () { return '📷 ' + t('照片', 'Photos', 'រូបថត'); }, count:function (tr) { var c = cctvRowCam(tr); return c && Array.isArray(c.photos) ? c.photos.length : 0; }, render:function (tr) { return cctvCardPhotos(cctvRowCam(tr)); } }
+  ] });
 SEC.dataReady().then(load).then(function () { loadDay(); renderAll(); SEC.markPageReady(); }).catch(SEC.bootError);
 /* ═══ 智慧匯入／參考報告登記（2026-10-22）：同一個匯入器（impExcel）、同一套 Telegram 巡檢摘要（＋設備異動）邏輯 ═══ */
 /* ═══ 日檢表匯入（2026-10-23）：VRT CCTV Camera Check — 每台攝影機一列、每天一欄打 √／×，分 Building A／B 區段 ═══
@@ -1200,7 +1247,7 @@ function renderList() {
   var lang = SEC.lang();
   document.getElementById('tbList').innerHTML = list.length ? list.map(function (c) {
     var s = c.status || 'ok', id = SEC.esc(String(c.id).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
-    return '<tr><td><code>' + SEC.esc(c.code || '') + '</code></td><td>' +
+    return '<tr data-id="' + SEC.esc(String(c.id)) + '"><td><code>' + SEC.esc(c.code || '') + '</code></td><td>' +
       (c.photos && c.photos[0] ? '<img class="cam-photo-thumb" src="' + SEC.esc(c.photos[0]) + '" alt="camera">' : '') +
       '<b>' + SEC.esc(c.name || '') + '</b></td>' +
       '<td>' + SEC.esc(factoryLabel(factoryOf(c), lang)) + '</td><td>' + SEC.esc(zn(c.zone, lang)) + '</td><td>' + SEC.esc(typeLabel(c.type, lang)) + '</td>' +
