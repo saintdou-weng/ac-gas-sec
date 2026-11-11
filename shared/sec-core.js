@@ -1258,6 +1258,36 @@ function confirmBlankMerge(conflicts, title) {
 }
 
 /* ───────── Telegram 摘要（自動附平台按鈕，由 GAS 加） ───────── */
+/* 2026-11-11 Paul：資料還沒上雲 → 不准發到群組，並在畫面上明白通知。
+   先自動補傳一次（最多等 45 秒）；補傳成功就照常發，失敗就擋下來＋紅色通知（可按「立即上傳」）。 */
+function cloudPending(tool) {
+  tool = String(tool || ''); if (!tool || typeof SEC_AUTO_UPLOADERS[tool] !== 'function') return false;
+  var p = null; try { p = localStorage.getItem(autoSyncKey(tool)); } catch (e) {}
+  return !!p || !!SEC_AUTO_BUSY[tool];
+}
+async function ensureCloudBeforeSend(tool) {
+  tool = String(tool || ''); if (!tool || typeof SEC_AUTO_UPLOADERS[tool] !== 'function') return true;
+  function marker() { try { return localStorage.getItem(autoSyncKey(tool)); } catch (e) { return null; } }
+  function fail() {
+    var msg = L('☁️ 資料還沒上雲，不能發到群組。請確認網路後按「立即上傳」，上雲成功再發。', '☁️ Not saved to cloud yet — cannot send to the group. Check the network, tap “Upload now”, then send again.', '☁️ មិនទាន់រក្សាទុកក្នុងពពក — មិនអាចផ្ញើទៅក្រុមបានទេ។ ពិនិត្យអ៊ីនធឺណិត ចុច «ផ្ទុកឡើងឥឡូវ» រួចផ្ញើម្តងទៀត។');
+    setAutoSyncState(tool, navigator.onLine ? 'retry' : 'offline');
+    toast(msg, 'err', 0, { label:L('⬆️ 立即上傳', '⬆️ Upload now', '⬆️ ផ្ទុកឡើងឥឡូវ'), fn:function () { manualCloudSync(tool, 'upload'); } });
+    var e = new Error(msg); e.notInCloud = true; return e;
+  }
+  if (!navigator.onLine) throw fail();
+  if (!marker() && !SEC_AUTO_BUSY[tool]) return true;
+  var t0 = Date.now(), tried = 0;
+  while (Date.now() - t0 < 45000) {
+    if (SEC_AUTO_BUSY[tool]) { await new Promise(function (r) { setTimeout(r, 400); }); continue; }
+    var raw = marker(); if (!raw) return true;
+    if (tried >= 2 || !navigator.onLine) break;
+    tried++; clearTimeout(SEC_AUTO_TIMERS[tool]);
+    var m = {}; try { m = JSON.parse(raw) || {}; } catch (e) {}
+    await runAutoCloudSync(tool, { tool:tool, reason:m.reason || 'before-telegram', period:m.period || '', at:m.at || Date.now() });
+  }
+  if (!marker() && !SEC_AUTO_BUSY[tool]) return true;
+  throw fail();
+}
 async function tgSummary(text, module, photo, photos) {
   try {
     var list = Array.isArray(photos) ? photos.filter(Boolean).slice(0, 4) : [];
@@ -1583,6 +1613,9 @@ function tgOpen(opt) {
     var btn = this; btn.disabled = true; btn.textContent = L('⏳ 傳送中…', '⏳ Sending…', '⏳ កំពុងផ្ញើ…');
     mask.classList.add('busy');
     try {
+      btn.textContent = L('☁️ 確認已上雲…', '☁️ Checking cloud…', '☁️ កំពុងពិនិត្យពពក…');
+      await ensureCloudBeforeSend(opt.module);
+      btn.textContent = L('⏳ 傳送中…', '⏳ Sending…', '⏳ កំពុងផ្ញើ…');
       if (st.mode === 'summary') {
         if(typeof opt.canSendSummary==='function'&&!opt.canSendSummary(st))throw new Error(L('沒有待發資料', 'No records to send', 'គ្មានកំណត់ត្រាត្រូវផ្ញើ'));
         var pages = summaryPages();
@@ -1639,7 +1672,7 @@ function tgOpen(opt) {
       close();
     } catch (e) {
       if (autosend) G.__AC_AUTOSEND = Object.assign(G.__AC_AUTOSEND || {}, { state:e && e.cancelled ? 'skipped' : 'error', reason:String(e && e.message || e) });
-      toast((e && e.cancelled ? 'ℹ️ ' : '❌ ') + esc(e && e.message || e), e && e.cancelled ? 'warn' : 'err', e && e.cancelled ? 3000 : e && e.closeModal ? 15000 : 0);
+      if (!(e && e.notInCloud)) toast((e && e.cancelled ? 'ℹ️ ' : '❌ ') + esc(e && e.message || e), e && e.cancelled ? 'warn' : 'err', e && e.cancelled ? 3000 : e && e.closeModal ? 15000 : 0);
       btn.textContent = sendText;
       sending = false;
       btn.disabled = false;
@@ -2248,7 +2281,7 @@ G.SEC = {
   dataReady:dataReady, dbGet:dbGet, dbPut:dbPut, storageEstimate:storageEstimate,
   Period:Period, periodNavHtml:periodNavHtml, bindPeriodNav:bindPeriodNav,
   T:T, L:L, lang:lang, setLang:setLang, applyI18n:applyI18n, I18N:BASE_I18N,
-  toast:toast, gasPost:gasPost, cloudPush:cloudPush, cloudPull:cloudPull,
+  toast:toast, gasPost:gasPost, cloudPush:cloudPush, cloudPull:cloudPull, cloudPending:cloudPending, ensureCloudBeforeSend:ensureCloudBeforeSend,
   registerAutoUploader:registerAutoUploader, registerAutoDownloader:registerAutoDownloader,
   scheduleAutoCloudSync:scheduleAutoCloudSync, retryAutoCloudSync:retryAutoCloudSync,
   startAutoCloudSync:startAutoCloudSync, runAutoCloudSync:runAutoCloudSync,
