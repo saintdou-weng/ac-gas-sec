@@ -74,7 +74,14 @@
     '.cmp-prof{display:flex;gap:10px;align-items:center;margin-top:8px;min-width:0}.cmp-prof img{width:64px;height:64px;object-fit:cover;border-radius:10px;border:1px solid var(--line);flex:none}',
     '.cmp-prof .ttl{font-size:17px;font-weight:800;color:var(--n1);line-height:1.3;display:flex;flex-wrap:wrap;gap:6px;align-items:center}.cmp-prof .ttl img{display:none}.cmp-prof .ttl code{font-size:15px;background:#eef4f8;border-radius:6px;padding:1px 7px}',
     '.cmp-prof .sub{font-size:12.5px;color:var(--ink2);margin-top:3px;line-height:1.45}.cmp-prof .sub br{display:none}.cmp-prof .chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}',
-    '.cmp-db{flex:1 1 auto;overflow:auto;-webkit-overflow-scrolling:touch;padding:12px}',
+    '.cmp-db{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:6px 10px 40vh;position:relative}',
+    '.cmp-rec{background:#fff;border:1px solid var(--line);border-radius:14px;margin:0 0 12px;overflow:hidden;box-shadow:0 1px 3px rgba(15,43,70,.06)}',
+    '.cmp-rec .cmp-prof{margin:0;padding:12px 12px 10px;border-bottom:1px solid #edf2f6;align-items:flex-start}.cmp-rec .cmp-prof .no{flex:none;font-size:11.5px;color:var(--ink2);font-weight:700;font-family:"DM Mono",monospace;background:#eef4f8;border-radius:20px;padding:2px 8px}',
+    '.cmp-rec .cmp-kv{border:0;border-radius:0}',
+    '.cmp-acts{display:flex;gap:8px;padding:10px 12px 12px;border-top:1px solid #edf2f6}.cmp-acts button{flex:1 1 0;min-height:42px;border-radius:10px;border:1px solid var(--n1);background:var(--n1);color:#fff;font-weight:800;font-family:inherit;font-size:14px;cursor:pointer}',
+    '.cmp-acts button.gh{background:#fff;color:var(--n1);border-color:var(--line)}.cmp-acts button.err{background:#fff;color:#c0392b;border-color:#e8b4ad}',
+    '.cmp-end{text-align:center;color:var(--ink2);font-size:12px;margin:10px 0}',
+    '.cmp-nav .now{flex:1 1 0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:800;color:var(--n1);font-size:13.5px}.cmp-nav .cnt{margin-right:0!important;flex:none}',
     '.cmp-kv{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px}',
     '.cmp-kv>div{min-width:0}.cmp-kv>div.w{grid-column:1/-1}.cmp-kv dt{font-size:11.5px;color:var(--ink2);font-weight:600;margin-bottom:2px}.cmp-kv dd{margin:0;font-size:14.5px;font-weight:700;color:var(--ink);overflow-wrap:anywhere;line-height:1.4}',
     '.cmp-kv dd .hint{font-weight:400}.cmp-kv dd img{max-width:100%;border-radius:8px}',
@@ -128,39 +135,66 @@
     }
     function unpaint() { $$('td.cmp-main,td.cmp-right,td.cmp-go', tbody).forEach(function (td) { td.remove(); }); $$('.cmp-check', tbody).forEach(function (td) { td.classList.remove('cmp-check'); }); $$('tr.cmp-empty', tbody).forEach(function (tr) { tr.classList.remove('cmp-empty'); }); }
 
-    /* 詳細卡（仿 VRT HR 員工卡）：全部欄位兩欄、上一筆／下一筆、左右滑 */
-    function openDetail(index) {
-      var list = rows(); if (!list.length) return;
-      index = Math.max(0, Math.min(list.length - 1, index));
-      var tr = list[index], n = tr.children.length - 3, skip = {};
+    /* 詳細卡（仿 VRT HR 員工卡）。2026-11-11 Paul：要能「往下滑」看下一筆，不要只能按 ◀ ▶
+       → 每一筆一張卡、上下相連，手指一直往下滑就是下一筆、往上滑是上一筆；
+         上面固定顯示現在看到第幾筆（3/97）與名稱；◀ ▶、鍵盤左右鍵、左右滑也都還能用。 */
+    function cardHtml(tr, k, total) {
+      var n = tr.children.length - 3, skip = {}, wide = arr(cols.wide), kv = '';
       [cols.check, cols.actions].forEach(function (i) { if (i != null) skip[i] = 1; });
-      var img = tr.querySelector('img'), wide = arr(cols.wide), kv = '';
       for (var i = 0; i < n; i++) {
         if (skip[i]) continue; var lb = headLabel(i); if (!lb) continue;
         var v = cellHtml(tr, i).replace(/<img[^>]*>/g, ''); if (!v.replace(/<[^>]+>/g, '').trim()) v = '—';
         kv += '<div' + (wide.indexOf(i) >= 0 ? ' class="w"' : '') + '><dt>' + esc(lb) + '</dt><dd>' + v + '</dd></div>';
       }
-      var acts = cols.actions != null && tr.children[cols.actions] ? $$('button,a', tr.children[cols.actions]) : [];
-      var d = document.createElement('div'); d.className = 'cmp-drawer';
-      d.innerHTML = '<div class="cmp-dh"><div class="cmp-nav"><span class="cnt">' + (index + 1) + '/' + list.length + '</span>' +
-        '<button type="button" data-step="-1" aria-label="Previous"' + (index <= 0 ? ' disabled' : '') + '>◀</button>' +
-        '<button type="button" data-step="1" aria-label="Next"' + (index >= list.length - 1 ? ' disabled' : '') + '>▶</button>' +
-        '<button type="button" data-x aria-label="Close">✕</button></div>' +
-        '<div class="cmp-prof">' + (img ? '<img src="' + esc(img.getAttribute('src')) + '" alt="">' : '') + '<div style="min-width:0"><div class="ttl">' + arr(cols.title).map(function (i) { return '<span>' + cellHtml(tr, i) + '</span>'; }).join('') + '</div>' +
+      var img = tr.querySelector('img'), acts = cols.actions != null && tr.children[cols.actions] ? $$('button,a', tr.children[cols.actions]) : [];
+      return '<section class="cmp-rec" data-k="' + k + '"><div class="cmp-prof">' + (img ? '<img src="' + esc(img.getAttribute('src')) + '" alt="">' : '') +
+        '<div style="min-width:0;flex:1 1 0"><div class="ttl">' + arr(cols.title).map(function (i) { return '<span>' + cellHtml(tr, i) + '</span>'; }).join('') + '</div>' +
         '<div class="sub">' + arr(cols.sub).map(function (i) { return cellHtml(tr, i); }).filter(Boolean).join(' · ') + '</div>' +
-        '<div class="chips">' + arr(cols.right).map(function (i) { return cellHtml(tr, i); }).join('') + '</div></div></div></div>' +
-        '<div class="cmp-db"><dl class="cmp-kv">' + kv + '</dl></div>' +
-        '<div class="cmp-df">' + (acts.length ? acts.map(function (b, k) { return '<button type="button" data-act="' + k + '" class="' + (/\berr\b/.test(b.className) ? 'err' : k ? 'gh' : '') + '">' + b.innerHTML + (label(b).replace(/[^\w㐀-鿿ក-៿]/g, '') ? '' : ' ' + esc(b.title || b.getAttribute('aria-label') || L('編輯', 'Edit', 'កែ'))) + '</button>'; }).join('') : '') +
-        '<button type="button" class="gh" data-x>' + esc(L('關閉', 'Close', 'បិទ')) + '</button></div>';
-      function step(dir) { var k = index + dir; if (k >= 0 && k < rows().length) openDetail(k); }
+        '<div class="chips">' + arr(cols.right).map(function (i) { return cellHtml(tr, i); }).join('') + '</div></div><span class="no">' + (k + 1) + '/' + total + '</span></div>' +
+        '<dl class="cmp-kv">' + kv + '</dl>' +
+        (acts.length ? '<div class="cmp-acts">' + acts.map(function (b, j) { return '<button type="button" data-act="' + j + '" class="' + (/\berr\b/.test(b.className) ? 'err' : j ? 'gh' : '') + '">' + b.innerHTML + (label(b).replace(/[^\w㐀-鿿ក-៿]/g, '') ? '' : ' ' + esc(b.title || b.getAttribute('aria-label') || L('編輯', 'Edit', 'កែ'))) + '</button>'; }).join('') + '</div>' : '') +
+        '</section>';
+    }
+    function openDetail(index) {
+      var list = rows(); if (!list.length) return;
+      index = Math.max(0, Math.min(list.length - 1, index));
+      var total = list.length, cur = index;
+      var d = document.createElement('div'); d.className = 'cmp-drawer';
+      d.innerHTML = '<div class="cmp-dh"><div class="cmp-nav"><span class="cnt"></span><span class="now"></span>' +
+        '<button type="button" data-step="-1" aria-label="Previous">◀</button><button type="button" data-step="1" aria-label="Next">▶</button>' +
+        '<button type="button" data-x aria-label="Close">✕</button></div></div>' +
+        '<div class="cmp-db">' + list.map(function (tr, k) { return cardHtml(tr, k, total); }).join('') +
+        '<p class="cmp-end">' + esc(L('— 最後一筆 —', '— End of list —', '— ចប់បញ្ជី —')) + '</p></div>';
+      var body = d.querySelector('.cmp-db'), cnt = d.querySelector('.cnt'), now = d.querySelector('.now'), prev = d.querySelector('[data-step="-1"]'), next = d.querySelector('[data-step="1"]');
+      var recs = $$('.cmp-rec', body);
+      function head() {
+        cnt.textContent = (cur + 1) + '/' + total; prev.disabled = cur <= 0; next.disabled = cur >= total - 1;
+        var t = recs[cur] && recs[cur].querySelector('.ttl'); now.textContent = t ? (t.textContent || '').replace(/\s+/g, ' ').trim() : '';
+      }
+      function go(k, smooth) { k = Math.max(0, Math.min(total - 1, k)); cur = k; head(); body.scrollTo({ top:recs[k].offsetTop - body.offsetTop - 6, behavior:smooth ? 'smooth' : 'auto' }); }
+      function step(dir) { go(cur + dir, true); }
       overlay(d, { step:step });
+      go(index, false);
+      /* 往下滑：看到哪一張，上面的 3/97 就跟著變 */
+      var tick = 0;
+      body.addEventListener('scroll', function () {
+        if (tick) return; tick = requestAnimationFrame(function () {
+          tick = 0; var line = body.scrollTop + body.clientHeight * 0.3, k = cur;
+          while (k < total - 1 && recs[k + 1].offsetTop - body.offsetTop <= line) k++;
+          while (k > 0 && recs[k].offsetTop - body.offsetTop > line) k--;
+          if (k !== cur) { cur = k; head(); }
+        });
+      }, { passive:true });
       d.addEventListener('click', function (e) {
         var b = e.target.closest('button'); if (!b) return;
         if (b.hasAttribute('data-x')) return closeOverlay();
         if (b.dataset.step) return step(+b.dataset.step);
-        if (b.dataset.act != null) { var src = acts[+b.dataset.act]; closeOverlay(); if (src) src.click(); }
+        if (b.dataset.act != null) {
+          var rec = b.closest('.cmp-rec'), tr = rows()[+rec.dataset.k], src = tr && tr.children[cols.actions] ? $$('button,a', tr.children[cols.actions])[+b.dataset.act] : null;
+          closeOverlay(); if (src) src.click();
+        }
       });
-      /* 左右滑：上一筆／下一筆（直向捲動不受影響） */
+      /* 左右滑也可以換筆（上下捲動不受影響） */
       var sx = 0, sy = 0, st = 0;
       d.addEventListener('touchstart', function (e) { if (e.touches.length !== 1) { st = 0; return; } sx = e.touches[0].clientX; sy = e.touches[0].clientY; st = Date.now(); }, { passive:true });
       d.addEventListener('touchend', function (e) {
