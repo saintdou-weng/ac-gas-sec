@@ -80,6 +80,17 @@
     '.cmp-rec .cmp-kv{border:0;border-radius:0}',
     '.cmp-acts{display:flex;gap:8px;padding:10px 12px 12px;border-top:1px solid #edf2f6}.cmp-acts button{flex:1 1 0;min-height:42px;border-radius:10px;border:1px solid var(--n1);background:var(--n1);color:#fff;font-weight:800;font-family:inherit;font-size:14px;cursor:pointer}',
     '.cmp-acts button.gh{background:#fff;color:var(--n1);border-color:var(--line)}.cmp-acts button.err{background:#fff;color:#c0392b;border-color:#e8b4ad}',
+    '.cmp-tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;margin:8px -12px -10px;padding:0 10px;border-top:1px solid #edf2f6}.cmp-tabs::-webkit-scrollbar{display:none}',
+    '.cmp-tabs button{flex:none;border:0;background:transparent;padding:9px 10px 8px;font-family:inherit;font-size:13.5px;font-weight:700;color:var(--ink2);border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}',
+    '.cmp-tabs button.on{color:var(--n1);border-bottom-color:var(--n2)}.cmp-tabs button i{font-style:normal;font-size:11px;background:#e8f2f7;color:var(--n2);border-radius:20px;padding:1px 7px;margin-left:2px}.cmp-tabs button i.z{background:#eef2f6;color:#9aa9b7}',
+    '.cmp-body{min-height:60px}.cmp-none{color:var(--ink2);font-size:13px;text-align:center;padding:18px 10px;margin:0}',
+    '.cmp-sum{display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px 0}.cmp-sum .tag{font-size:11.5px}',
+    '.cmp-hist{list-style:none;margin:0;padding:6px 12px 10px}.cmp-hist li{padding:9px 0;border-bottom:1px solid #edf2f6}.cmp-hist li:last-child{border-bottom:0}',
+    '.cmp-hist .h1{display:flex;align-items:center;gap:8px;font-weight:800;color:var(--n1);font-size:14px}.cmp-hist .h1 .who{margin-left:auto;font-weight:600;color:var(--ink2);font-size:12px}',
+    '.cmp-hist .h2{font-size:13px;color:var(--ink);margin-top:3px;line-height:1.45;overflow-wrap:anywhere}.cmp-hist .h3{font-size:11.5px;color:var(--ink2);margin-top:3px}',
+    '.cmp-hist li.bad{background:#fff7f6;margin:0 -12px;padding:9px 12px}.cmp-mon{font-size:11.5px;font-weight:800;color:var(--ink2);padding:10px 12px 0;margin:0}',
+    '.cmp-ph{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:6px}.cmp-ph img{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;border:1px solid var(--line);cursor:zoom-in}',
+    '.cmp-phsec{padding:10px 12px}.cmp-phsec h5{margin:0;font-size:12.5px;color:var(--n1);font-weight:800}.cmp-phsec h5 small{font-weight:600;color:var(--ink2);margin-left:6px}',
     '.cmp-end{text-align:center;color:var(--ink2);font-size:12px;margin:10px 0}',
     '.cmp-nav .now{flex:1 1 0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:800;color:var(--n1);font-size:13.5px}.cmp-nav .cnt{margin-right:0!important;flex:none}',
     '.cmp-kv{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px}',
@@ -138,7 +149,13 @@
     /* 詳細卡（仿 VRT HR 員工卡）。2026-11-11 Paul：要能「往下滑」看下一筆，不要只能按 ◀ ▶
        → 每一筆一張卡、上下相連，手指一直往下滑就是下一筆、往上滑是上一筆；
          上面固定顯示現在看到第幾筆（3/97）與名稱；◀ ▶、鍵盤左右鍵、左右滑也都還能用。 */
+    /* 2026-11-11 Paul：詳細卡要像員工資料有分頁，把「現在」跟「歷史」分開（現況／歷史紀錄／異常／照片）。
+       分頁由各頁提供：cfg.tabs=[{key,label(),count(tr),render(tr)}]；第一頁固定是「現況」（表格欄位）。 */
+    var TABS = [{ key:'info', label:function () { return '📋 ' + L('現況', 'Current', 'បច្ចុប្បន្ន'); } }].concat(cfg.tabs || []), tabKey = 'info';
+    function curTab() { for (var i = 0; i < TABS.length; i++) if (TABS[i].key === tabKey) return TABS[i]; return TABS[0]; }
+    function tabBody(tab, tr, k) { try { return tab.render(tr, k) || ''; } catch (e) { return '<p class="cmp-none">⚠ ' + esc(e.message) + '</p>'; } }
     function cardHtml(tr, k, total) {
+      var tab = curTab();
       var n = tr.children.length - 3, skip = {}, wide = arr(cols.wide), kv = '';
       [cols.check, cols.actions].forEach(function (i) { if (i != null) skip[i] = 1; });
       for (var i = 0; i < n; i++) {
@@ -151,7 +168,7 @@
         '<div style="min-width:0;flex:1 1 0"><div class="ttl">' + arr(cols.title).map(function (i) { return '<span>' + cellHtml(tr, i) + '</span>'; }).join('') + '</div>' +
         '<div class="sub">' + arr(cols.sub).map(function (i) { return cellHtml(tr, i); }).filter(Boolean).join(' · ') + '</div>' +
         '<div class="chips">' + arr(cols.right).map(function (i) { return cellHtml(tr, i); }).join('') + '</div></div><span class="no">' + (k + 1) + '/' + total + '</span></div>' +
-        '<dl class="cmp-kv">' + kv + '</dl>' +
+        '<div class="cmp-body">' + (tab && tab.render ? tabBody(tab, tr, k) : '<dl class="cmp-kv">' + kv + '</dl>') + '</div>' +
         (acts.length ? '<div class="cmp-acts">' + acts.map(function (b, j) { return '<button type="button" data-act="' + j + '" class="' + (/\berr\b/.test(b.className) ? 'err' : j ? 'gh' : '') + '">' + b.innerHTML + (label(b).replace(/[^\w㐀-鿿ក-៿]/g, '') ? '' : ' ' + esc(b.title || b.getAttribute('aria-label') || L('編輯', 'Edit', 'កែ'))) + '</button>'; }).join('') + '</div>' : '') +
         '</section>';
     }
@@ -162,16 +179,27 @@
       var d = document.createElement('div'); d.className = 'cmp-drawer';
       d.innerHTML = '<div class="cmp-dh"><div class="cmp-nav"><span class="cnt"></span><span class="now"></span>' +
         '<button type="button" data-step="-1" aria-label="Previous">◀</button><button type="button" data-step="1" aria-label="Next">▶</button>' +
-        '<button type="button" data-x aria-label="Close">✕</button></div></div>' +
+        '<button type="button" data-x aria-label="Close">✕</button></div>' +
+        (TABS.length > 1 ? '<div class="cmp-tabs" data-noswipe></div>' : '') + '</div>' +
         '<div class="cmp-db">' + list.map(function (tr, k) { return cardHtml(tr, k, total); }).join('') +
         '<p class="cmp-end">' + esc(L('— 最後一筆 —', '— End of list —', '— ចប់បញ្ជី —')) + '</p></div>';
       var body = d.querySelector('.cmp-db'), cnt = d.querySelector('.cnt'), now = d.querySelector('.now'), prev = d.querySelector('[data-step="-1"]'), next = d.querySelector('[data-step="1"]');
-      var recs = $$('.cmp-rec', body);
+      var recs = $$('.cmp-rec', body), tabBar = d.querySelector('.cmp-tabs');
+      function paintTabs() {
+        if (!tabBar) return; var tr = list[cur];
+        tabBar.innerHTML = TABS.map(function (t) { var n = t.count ? t.count(tr, cur) : null; return '<button type="button" data-tab="' + t.key + '" class="' + (t.key === tabKey ? 'on' : '') + '">' + esc(t.label()) + (n != null ? ' <i' + (n ? '' : ' class="z"') + '>' + n + '</i>' : '') + '</button>'; }).join('');
+      }
+      function setTab(key) {
+        if (key === tabKey) return; tabKey = key; var tab = curTab();
+        recs.forEach(function (rec, k) { var tr = list[k], bd = rec.querySelector('.cmp-body'); if (!bd) return; if (tab.render) bd.innerHTML = tabBody(tab, tr, k); else { var tmp = document.createElement('div'); tmp.innerHTML = cardHtml(tr, k, total); bd.innerHTML = tmp.querySelector('.cmp-body').innerHTML; } });
+        paintTabs(); go(cur, false);
+      }
       function head() {
+        paintTabs();
         cnt.textContent = (cur + 1) + '/' + total; prev.disabled = cur <= 0; next.disabled = cur >= total - 1;
         var t = recs[cur] && recs[cur].querySelector('.ttl'); now.textContent = t ? (t.textContent || '').replace(/\s+/g, ' ').trim() : '';
       }
-      function go(k, smooth) { k = Math.max(0, Math.min(total - 1, k)); cur = k; head(); body.scrollTo({ top:recs[k].offsetTop - body.offsetTop - 6, behavior:smooth ? 'smooth' : 'auto' }); }
+      function go(k, smooth) { k = Math.max(0, Math.min(total - 1, k)); cur = k; head(); body.scrollTo({ top:recs[k].offsetTop - 6, behavior:smooth ? 'smooth' : 'auto' }); }
       function step(dir) { go(cur + dir, true); }
       overlay(d, { step:step });
       go(index, false);
@@ -180,15 +208,17 @@
       body.addEventListener('scroll', function () {
         if (tick) return; tick = requestAnimationFrame(function () {
           tick = 0; var line = body.scrollTop + body.clientHeight * 0.3, k = cur;
-          while (k < total - 1 && recs[k + 1].offsetTop - body.offsetTop <= line) k++;
-          while (k > 0 && recs[k].offsetTop - body.offsetTop > line) k--;
+          while (k < total - 1 && recs[k + 1].offsetTop <= line) k++;
+          while (k > 0 && recs[k].offsetTop > line) k--;
           if (k !== cur) { cur = k; head(); }
         });
       }, { passive:true });
       d.addEventListener('click', function (e) {
+        var im = e.target.closest('.cmp-body img'); if (im && SEC.viewPhoto) return SEC.viewPhoto(0, im);
         var b = e.target.closest('button'); if (!b) return;
         if (b.hasAttribute('data-x')) return closeOverlay();
         if (b.dataset.step) return step(+b.dataset.step);
+        if (b.dataset.tab) return setTab(b.dataset.tab);
         if (b.dataset.act != null) {
           var rec = b.closest('.cmp-rec'), tr = rows()[+rec.dataset.k], src = tr && tr.children[cols.actions] ? $$('button,a', tr.children[cols.actions])[+b.dataset.act] : null;
           closeOverlay(); if (src) src.click();
@@ -272,7 +302,7 @@
     if (MQ.addEventListener) MQ.addEventListener('change', sync); else if (MQ.addListener) MQ.addListener(sync);
     root.addEventListener('resize', function () { if (on) stickyTop(); });
     sync();
-    return { refresh:paint, open:openDetail, tools:openTools, isOn:function () { return on; }, selectMode:selectMode };
+    return { refresh:paint, open:openDetail, tab:function (k) { tabKey = k; }, tools:openTools, isOn:function () { return on; }, selectMode:selectMode };
   }
   SEC.Compact = { attach:attach, close:closeOverlay };
 })(typeof window !== 'undefined' ? window : this);
