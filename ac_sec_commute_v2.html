@@ -238,7 +238,7 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
 <div id="toastwrap"></div>
 <script src="./shared/sec-core.js?v=20261111a"></script>
 <script src="./shared/ac-holidays.js?v=20261103a"></script>
-<script src="./shared/ac-tg-chart.js?v=20261106d"></script>
+<script src="./shared/ac-tg-chart.js?v=20261112a"></script>
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
 <script src="./shared/ac-report-doc.js?v=20261022a"></script>
 <script src="./shared/sec-report.js?v=20261022a"></script>
@@ -1375,25 +1375,39 @@ function commuteGateLines(r, lang) {
   return out;
 }
 /* 2026-11-12 Paul：摘要學 HRA 考勤——短、整齊、有色條。出入閘一筆一行：時間（等寬）在前，車牌／司機／對象／事由在後。 */
+function commuteGateIsPm(r) { var m = SEC.TG.mins(r.inTime || r.outTime); return m != null && m >= 12 * 60; }
+/* 欄位位置固定：時間｜停留｜🚚 車牌｜👤 司機｜🏢 對象｜📝 事由；沒填的顯示 —，每一行同一個位置就是同一種資料 */
 function commuteGateRow(r, lang, withDate) {
   var G=SEC.TG, lb=function(zh,en,km){return G.lbl(lang,zh,en,km);}, bad=commuteTimeIssue(r.outTime,r.inTime);
-  var tm=(withDate?G.d(r.date)+' ':'')+(G.time(r.inTime)||'—')+'→'+(G.time(r.outTime)||'…'), d=(!bad&&r.inTime&&r.outTime)?G.dur(G.mins(r.outTime)-G.mins(r.inTime)):'';
-  var tail=[[r.passenger,r.dept].filter(function(x){return x&&x!=='—';}).map(SEC.esc).join(' · '), r.reason?'📝 '+SEC.esc(String(r.reason).replace(/\s+/g,' ').trim()):''].filter(Boolean).join(' · ');
-  return '<code>'+tm+'</code>'+(d?' ⏱'+d:'')+(bad?' ⚠️ '+lb('出廠早於進廠','out before in','ចេញមុនចូល'):(!r.outTime&&r.inTime?' 🏭 '+lb('未出廠','still inside','នៅក្នុងរោងចក្រ'):''))+' · <b>'+SEC.esc(r.plate||'—')+'</b> '+SEC.esc(r.driver||'')+((+r.pax||0)?' 👥'+(+r.pax):'')+((+r.km)?' · '+(+r.km)+' km':'')+(tail?' · '+tail:'');
+  var tm=(withDate?G.d(r.date)+' ':'')+(G.time(r.inTime)||'--:--')+'→'+(G.time(r.outTime)||'--:--'), d=(!bad&&r.inTime&&r.outTime)?G.dur(G.mins(r.outTime)-G.mins(r.inTime)):'';
+  var who=[r.passenger,r.dept].filter(function(x){return x&&x!=='—';}).map(SEC.esc).join(' / ')||'—';
+  return (commuteGateIsPm(r)?'🔵':'🟡')+' <code>'+tm+'</code> '+(bad?'⚠️ '+lb('出廠早於進廠','out before in','ចេញមុនចូល'):(!r.outTime&&r.inTime?'🏭 '+lb('未出廠','still inside','នៅក្នុងរោងចក្រ'):'⏱'+(d||'—')))+
+    ' · 🚚 <b>'+SEC.esc(r.plate||'—')+'</b> · 👤 '+SEC.esc(r.driver||'—')+((+r.pax||0)?' ×'+(+r.pax):'')+' · 🏢 '+who+' · 📝 '+(r.reason?SEC.esc(String(r.reason).replace(/\s+/g,' ').trim()):'—')+((+r.km)?' · '+(+r.km)+' km':'');
 }
-/* 機車每日色條（週＝每天、月＝每週日均、年＝每月日均）；長度相對期間最高值，藍色＝中性（不是好壞） */
-function commuteBikeBars(D, st, lang) {
-  var G=SEC.TG, rows=D.bike.filter(function(r){return r.date;}), buckets=[], mp={}, order=[];
-  if(rows.length<2)return [];
+/* 出入閘分上午／下午兩段（🟡 上午、🔵 下午），各段照時間排 */
+function commuteGateBlock(list, lang, withDate) {
+  var G=SEC.TG, lb=function(zh,en,km){return G.lbl(lang,zh,en,km);}, am=list.filter(function(r){return !commuteGateIsPm(r);}), pm=list.filter(commuteGateIsPm), out=[];
+  if(am.length){out.push('🟡 <b>'+lb('上午','Morning','ព្រឹក')+'</b> · '+am.length);am.forEach(function(r){out.push(commuteGateRow(r,lang,withDate));});}
+  if(pm.length){out.push('🔵 <b>'+lb('下午','Afternoon','រសៀល')+'</b> · '+pm.length);pm.forEach(function(r){out.push(commuteGateRow(r,lang,withDate));});}
+  return out;
+}
+function commuteBikeBuckets(D, st, lang) {
+  var G=SEC.TG, rows=D.bike.filter(function(r){return r.date;}), mp={}, order=[];
   var WD=lang==='zh'||lang==='both'?['日','一','二','三','四','五','六']:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   rows.forEach(function(r){var d=SEC.parseD(r.date),k,lbl;if(!d)return;
-    if(st.ptype==='week'){k=r.date;lbl=WD[d.getDay()];}
+    if(st.ptype==='week'||st.ptype==='day'){k=r.date;lbl=WD[d.getDay()];}
     else if(st.ptype==='year'){k=r.date.slice(0,7);lbl=k.slice(5);}
     else{var m=new Date(d);m.setDate(d.getDate()-((d.getDay()+6)%7));k=SEC.ymd(m);lbl='W '+G.d(k);}
     if(!mp[k]){mp[k]={label:lbl,n:0,t:0,a:0,b:0};order.push(k);}var o=mp[k];o.n++;o.t+=(+r.total||0);o.a+=(+r.a||0);o.b+=(+r.b||0);});
-  order.sort().forEach(function(k){var o=mp[k];buckets.push({label:o.label,t:Math.round(o.t/o.n),a:Math.round(o.a/o.n),b:Math.round(o.b/o.n)});});
+  return order.sort().map(function(k){var o=mp[k];return {label:o.label,t:Math.round(o.t/o.n),a:Math.round(o.a/o.n),b:Math.round(o.b/o.n)};});
+}
+/* 機車停車色條：🟦 A 廠、🟧 B 廠 疊在同一條（週＝每天、月＝每週日均、年＝每月日均）；每行固定「標籤｜色條｜合計｜A｜B」 */
+function commuteBikeBars(D, st, lang) {
+  var buckets=commuteBikeBuckets(D,st,lang); if(buckets.length<2)return [];
   var max=Math.max.apply(null,buckets.map(function(x){return x.t;}))||1;
-  return buckets.slice(0,14).map(function(x){/* 刻度從最高值的 60% 畫起：每天都差不多時從 0 畫會一樣長，看不出差別 */var k=Math.max(x.t?1:0,Math.round(Math.max(0,Math.min(1,(x.t/max-0.6)/0.4))*8)),bar='';for(var i=0;i<8;i++)bar+=i<k?'🟦':'⬜';return SEC.esc(x.label)+' '+bar+' <b>'+x.t+'</b>'+((x.a||x.b)?' · A '+x.a+' · B '+x.b:'');});
+  return buckets.slice(0,14).map(function(x){var k=Math.max(x.t?1:0,Math.round(x.t/max*10)),kb=x.b&&x.t?Math.max(1,Math.round(x.b/x.t*k)):0,ka=Math.max(0,k-kb),bar='';
+    for(var i=0;i<10;i++)bar+=i<ka?'🟦':i<ka+kb?'🟧':'⬜';
+    return SEC.esc(x.label)+' '+bar+' <b>'+x.t+'</b> · 🟦 A '+x.a+' · 🟧 B '+x.b;});
 }
 function commuteLateLine(r) {
   return '• '+(SEC.TG.time(r.checkIn)||'—')+' · '+SEC.esc(r.empId||'—')+' <b>'+SEC.esc(r.name||'—')+'</b>'+(r.dept?' · '+SEC.esc(r.dept):'')+(r.note?' · 📝 '+SEC.esc(r.note):'');
@@ -1435,9 +1449,9 @@ function commuteSummary(st) {
   if (day || D.trips.length <= 6) {
     if (D.trips.length) txt += G.sec('🚐', lb('派車行程','Vehicle trips','ដំណើររថយន្ត')) + '\n' + D.trips.slice(0, 12).map(function (t) { return commuteTripLine(t, lang, !day); }).join('\n') + (D.trips.length > 12 ? '\n… +' + (D.trips.length - 12) : '');
   }
-  if (!day && commuteScopeOn(st,'bike')) { var bars = commuteBikeBars(D, st, lang); if (bars.length) txt += G.sec('🏍', st.ptype === 'week' ? lb('機車每天','Bikes by day','ម៉ូតូប្រចាំថ្ងៃ') : lb('機車日均','Bikes per day','ម៉ូតូ/ថ្ងៃ')) + '\n' + bars.join('\n'); }
+  if (!day && commuteScopeOn(st,'bike')) { var bars = commuteBikeBars(D, st, lang); if (bars.length) txt += G.sec('🏍', (st.ptype === 'week' ? lb('機車停車（每天）','Bike parking by day','ចំណតម៉ូតូប្រចាំថ្ងៃ') : lb('機車停車（日均）','Bike parking per day','ចំណតម៉ូតូ/ថ្ងៃ')) + ' · 🟦 A · 🟧 B') + '\n' + bars.join('\n'); }
   if (day || D.gate.length <= 8) {
-    if (D.gate.length) txt += G.sec('🚛', lb('出入閘','Gate log','កំណត់ត្រាច្រក') + ' · ' + D.gate.length) + '\n' + D.gate.slice(0, 10).map(function (r) { return commuteGateRow(r, lang, !day); }).join('\n') + (D.gate.length > 10 ? '\n… +' + (D.gate.length - 10) : '');
+    if (D.gate.length) txt += G.sec('🚛', lb('出入閘','Gate log','កំណត់ត្រាច្រក') + ' · ' + D.gate.length) + '\n' + commuteGateBlock(D.gate.slice(0, 10), lang, !day).join('\n') + (D.gate.length > 10 ? '\n… +' + (D.gate.length - 10) : '');
   } else if (timeBad.length) {
     txt += G.sec('⚠️', lb('時間有誤','Time to check','ម៉ោងត្រូវពិនិត្យ')) + '\n' + timeBad.slice(0, 6).map(function (r) { return '📅 ' + G.d(r.date) + ' ' + commuteGateLines(r, lang).join('\n'); }).join('\n');
   }
@@ -1473,12 +1487,13 @@ function commuteLateByDept(D) {
    只有週／月／年、而且有遲到紀錄才畫；畫不出來回傳 ''（摘要照常送，只是沒有圖）。 */
 var COMMUTE_CHART_CACHE = {};
 function commuteSummaryChart(st) {
-  if (st.ptype === 'day' || !commuteScopeOn(st, 'late')) return '';
+  if (st.ptype === 'day') return '';
   if (typeof ACChart === 'undefined' || !ACChart || typeof ACChart.render !== 'function') return '';
   try {
     var lang = st.lang || 'zh', G = SEC.TG, D = commuteSummaryData(st), P = ACChart.PALETTE || [];
-    if (!D.late.length) return '';
-    var key = [st.ptype, st.period, lang, D.late.length, D.late.map(function (r) { return r.id || ''; }).join(',').length].join('|');
+    var lateOn = commuteScopeOn(st, 'late') && D.late.length > 0, bikeOn = commuteScopeOn(st, 'bike') && D.bike.length > 0, gateOn = commuteScopeOn(st, 'gate') && D.gate.length > 0;
+    if (!lateOn && !bikeOn && !gateOn) return '';
+    var key = [st.ptype, st.period, lang, st.scope || '', D.bike.map(function (r) { return [r.date, r.a, r.b, r.total].join(':'); }).join(','), D.gate.map(function (r) { return [r.date, r.inTime, r.outTime, r.plate].join(':'); }).join(','), D.late.length, D.late.map(function (r) { return r.id || ''; }).join(',').length].join('|');
     if (COMMUTE_CHART_CACHE[key]) return COMMUTE_CHART_CACHE[key];
     var t = function (zh, en, km) { return lang === 'both' ? zh + ' · ' + en : lang === 'en' ? en : lang === 'km' ? en + (km ? ' · ' + km : '') : zh; };
     var C = { late:P[3] || '#e35d5b', ppl:P[0] || '#2b8fbd', rep:P[2] || '#f2a93b', avg:P[1] || '#2e9c6a' };
@@ -1495,6 +1510,27 @@ function commuteSummaryChart(st) {
       }
     }
     days = Object.keys(byDate).length;
+    /* 2026-11-12 Paul：圖表分開、顏色一致——機車 A 廠藍／B 廠橘疊色直條；出入閘表格上午淡黃／下午淡藍、欄位固定 */
+    var CA = '#2b8fbd', CB = '#f2a93b';
+    if (bikeOn) {
+      var bk = commuteBikeBuckets(D, st, lang === 'both' ? 'zh' : lang), nb = D.bike.length, sa = D.bike.reduce(function (a, r) { return a + (+r.a || 0); }, 0), sb = D.bike.reduce(function (a, r) { return a + (+r.b || 0); }, 0), stt = D.bike.reduce(function (a, r) { return a + (+r.total || 0); }, 0);
+      blocks.push({ type:'stats', items:[
+        { label:t('機車日均', 'Bikes / day', 'ម៉ូតូ/ថ្ងៃ'), value:String(Math.round(stt / nb)), color:P[7] || '#6c8ea4' },
+        { label:t('A 廠', 'Bldg A', 'អគារ A'), value:String(Math.round(sa / nb)), color:CA },
+        { label:t('B 廠', 'Bldg B', 'អគារ B'), value:String(Math.round(sb / nb)), color:CB },
+        { label:t('出入閘', 'Gate logs', 'ច្រកចេញចូល'), value:String(D.gate.length), color:P[1] || '#2e9c6a' }] });
+      blocks.push({ type:'columns', span:2, title:t('機車停車', 'Bike parking', 'ចំណតម៉ូតូ') + (st.ptype === 'week' ? '' : ' · ' + t('日均', 'per day', '/ថ្ងៃ')), legend:[{ label:t('A 廠', 'Bldg A', 'អគារ A'), color:CA }, { label:t('B 廠', 'Bldg B', 'អគារ B'), color:CB }],
+        items:bk.map(function (x) { return { label:x.label, value:x.t, parts:[{ value:x.a, color:CA }, { value:x.b, color:CB }] }; }) });
+    }
+    if (gateOn) {
+      var AMBG = '#fff3c4', PMBG = '#d9ecff', t2 = function (zh, en, km) { return lang === 'both' ? zh : t(zh, en, km); }, gl = D.gate.filter(function (r) { return !commuteGateIsPm(r); }).concat(D.gate.filter(commuteGateIsPm)).slice(0, 18);
+      blocks.push({ type:'table', title:t('車輛出入閘', 'Gate log', 'កំណត់ត្រាច្រក') + ' · ' + D.gate.length, head:[t2('日期', 'Date', 'ថ្ងៃ'), t2('時段', 'Slot', 'ពេល'), t2('進', 'In', 'ចូល'), t2('出', 'Out', 'ចេញ'), t2('停留', 'Stay', 'រយៈពេល'), t('車牌', 'Plate', 'ផ្លាកលេខ'), t('司機', 'Driver', 'អ្នកបើក'), t('對象／事由', 'For / reason', 'សម្រាប់ / មូលហេតុ')],
+        widths:[0.85, 1.05, 0.8, 0.8, 0.9, 1.5, 1.5, 2.6], align:['l', 'c', 'c', 'c', 'c', 'l', 'l', 'l'],
+        rows:gl.map(function (r) { var pm = commuteGateIsPm(r), bad = commuteTimeIssue(r.outTime, r.inTime), d = (!bad && r.inTime && r.outTime) ? G.dur(G.mins(r.outTime) - G.mins(r.inTime)) : '';
+          return [G.d(r.date), { text:lang === 'both' ? (pm ? '下午 PM' : '上午 AM') : pm ? t('下午', 'PM', 'រសៀល') : t('上午', 'AM', 'ព្រឹក'), bg:pm ? PMBG : AMBG, bold:true }, G.time(r.inTime) || '—', r.outTime ? G.time(r.outTime) : { text:t2('未出', 'inside', 'នៅក្នុង'), color:C.late, bold:true }, bad ? { text:'⚠', color:C.late, bold:true } : (d || '—'), { text:String(r.plate || '—'), bold:true }, String(r.driver || '—'), [r.passenger, r.dept, r.reason].filter(function (x) { return x && x !== '—'; }).join(' · ').replace(/\s+/g, ' ') || '—']; }),
+        note:D.gate.length > gl.length ? '+' + (D.gate.length - gl.length) : '' });
+    }
+    if (lateOn) {
     blocks.push({ type:'stats', items:[
       { label:t('遲到次數', 'Late', 'មកយឺត'), value:String(D.late.length), color:C.late },
       { label:t('人數', 'People', 'មនុស្ស'), value:String(ppl), color:C.ppl },
@@ -1512,7 +1548,8 @@ function commuteSummaryChart(st) {
         rows:rr.map(function (k) { var u = D.uniq[k]; return [String(u.id || '—'), String(u.name || k), String(u.dept || '—'), { text:String(u.n), bold:true, color:C.late }]; }),
         note:reps.length > rr.length ? '+' + (reps.length - rr.length) + ' ' + t('人（3 次）', 'more (3 times)', 'នាក់ទៀត') : '' });
     }
-    var img = ACChart.render({ title:t('遲到登記', 'Come late', 'មកយឺត'), subtitle:D.p.label(), theme:'navy', width:1080, blocks:blocks,
+    }
+    var img = ACChart.render({ title:(bikeOn || gateOn) ? t('通勤交通', 'Commute', 'ការធ្វើដំណើរ') : t('遲到登記', 'Come late', 'មកយឺត'), subtitle:D.p.label(), theme:'navy', width:1080, blocks:blocks,
       footer:'AC Security · ' + t('通勤交通', 'Commute', 'ការធ្វើដំណើរ') }) || '';
     COMMUTE_CHART_CACHE = {}; COMMUTE_CHART_CACHE[key] = img;
     return img;
