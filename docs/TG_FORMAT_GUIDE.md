@@ -47,3 +47,15 @@ Reference implementation: `ac_sec_commute_v2.html` → `commuteSummary`, `commut
 
 ## Tests
 All of `tests/*.cjs` must pass (`node tests/<file>.cjs`; browser.cjs uses Playwright Chromium at /opt/pw-browsers). If a test asserts the *old table text* (e.g. a header string like `'ID        Name'`), update it to assert the same **meaning** in the new format (same records present, same counts, photos with their rows, no Chinese in en/km, ≤ 3800 chars per page). Never weaken a data-integrity, photo or translation assertion.
+
+## 2026-11-12／13 補充（Paul：列表、顏色、圖表要一致，數字要正確、欄位要對齊）
+- **欄位位置固定**：同一種清單每一行的欄位順序都一樣，沒填的顯示 `—`（不要省略），這樣同一個位置就是同一種資料。
+- **時間放最前面**，用 `<code>` 包起來（等寬）：`<code>09-30 08:30→09:41</code>`；沒有時間寫 `--:--`。
+- **顏色／燈號放行首**：上午 🟡／下午 🔵（出入閘、貨櫃）；夜班 🌙／日班 ☀️（巡邏）；A 廠 🟦／B 廠 🟧；狀態 🟢／🟠／🔴。
+- **圖示當欄位名稱**：👮 人、📍 地點、🚚 車牌、🏢 公司／部門、📝 備註、📷 照片、🔍 檢查人、⚖️ 重量。
+- **數字核對行**：重點數字後面加一行「✅ 總數＝A＋B＋C · 已核對正確」；要用另一條路徑重新數一次再比（不要拿相減出來的數字自己比自己），不符就亮 ⚠️ 並列出兩邊數字。
+- **不可以用空白補齊**（tests/tg-format.cjs 會擋連續 3 個空白）。要對齊就把固定寬度的東西（色條、燈號、時間）放前面。
+- 出勤率顏色照 Paul 的考勤標準：92% 以上綠、88–92% 黃、88% 以下紅。
+- 已照這套改完：通勤、貨櫃、巡邏、CCTV、出勤、人員異動、費用、消防。
+- 手機精簡清單（shared/sec-compact.js）：消防設備、保安名冊、CCTV、貨櫃（進出／檢查／單據）、通勤（派車／出入閘／遲到）。`keep` 可把「➕ 新增」留在篩選列。
+  費用清單**不要掛**：清單的勾選框是送核可用的，精簡清單會把它藏起來。巡邏逐圈、出勤表是矩陣不是清單，也不掛。

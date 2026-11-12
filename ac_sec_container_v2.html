@@ -356,6 +356,7 @@
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
 <script src="./shared/ac-report-doc.js?v=20261022a"></script>
 <script src="./shared/sec-report.js?v=20261022a"></script>
+<script src="./shared/sec-compact.js?v=20261113b"></script>
 <script src="./shared/sec-smart-sync.js?v=20261024d"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
@@ -1770,6 +1771,15 @@ SEC.registerAutoUploader(TOOL, function (opts) { if (QR_CONT_INFO.mode) return P
 SEC.registerAutoDownloader(TOOL, function (opts) { return doDownload(opts); });
 window.addEventListener('load', function () { setTimeout(function () { if (!QR_CONT_INFO.mode) SEC.startAutoCloudSync(TOOL); }, 350); });
 setTimeout(containerQrStart,0);
+</script>
+<script>
+/* 2026-11-13 手機精簡清單（仿 VRT HR 員工頁，同消防設備／保安名冊）：篩選一小條、按鈕收進「⋯」、一筆一行、點開看詳細卡。
+   只整理畫面：資料、按鈕、原本的函式都不變；電腦寬度表格照舊，點一列一樣會開詳細卡。 */
+if (SEC.Compact) {
+  SEC.Compact.attach({ card:'#p-tk-board .card', table:'#p-tk-board table', kpis:'#p-tk-board .grid.g4', keep:'h3 .sp>button[onclick^="tkAdd"]', cols:{ title:[2,5], sub:[0,1,3,4], right:[6,7], actions:9 } });
+  SEC.Compact.attach({ card:'#p-ci-rec .card', table:'#p-ci-rec table', cols:{ title:[1,5], sub:[0,2,3,6], right:[4], actions:7 } });
+  SEC.Compact.attach({ card:'#p-gd-rec .card', table:'#p-gd-rec table', cols:{ title:[0,1], sub:[2,3,4,5], right:[6], actions:7 } });
+}
 </script>
 <!-- VRT swipe-tabs：左右滑動（手指／滑鼠拖曳）切換分頁，只聽手勢、不改資料 -->
 <script src="https://saintdou-weng.github.io/ac-admin/shared/swipe-tabs.js" defer></script>

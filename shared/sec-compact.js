@@ -32,6 +32,8 @@
     '.cmp-card>h3 .sp>button:not(.cmp-more),.cmp-card>h3 .sp>a,.cmp-card .cmp-tools-src{display:none!important}',
     '.cmp-card>h3 .sp>input{order:-2;flex:1 1 0!important;width:auto!important;min-width:0;height:38px;font-size:14px}',
     '.cmp-card>h3 .sp>.cmp-more{display:inline-flex;order:-1;flex:none;align-items:center;gap:4px;height:38px;padding:0 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--n1);font-weight:800;font-size:13px;font-family:inherit;cursor:pointer}',
+    /* 2026-11-13 cfg.keep：每天都要按的主要按鈕（例如「➕ 新增」）留在篩選列上，不收進「⋯」 */
+    '.cmp-card>h3 .sp>button.cmp-keep{display:inline-flex!important;order:-1;flex:none;align-items:center;height:38px;margin:0}',
     '.cmp-card>h3 .sp>.cmp-brk{order:0;flex:0 0 100%;height:0}',
     '.cmp-card>h3 .sp>select{order:1;flex:1 1 0!important;width:auto!important;min-width:0;height:34px;padding:4px 6px;font-size:12.5px}',
     /* 清單：一筆一行 */
@@ -129,6 +131,7 @@
     var tbody = table.tBodies[0], h3 = card.querySelector('h3'), sp = h3 && h3.querySelector('.sp'), cols = cfg.cols || {};
     var kpis = cfg.kpis ? $(cfg.kpis) : null, toolsSrc = cfg.tools ? $(cfg.tools) : null, sel = cfg.select || null;
     var more = null, count = null, selbar = null, on = false, painting = false;
+    if (cfg.keep) $$(cfg.keep, card).forEach(function (b) { b.classList.add('cmp-keep'); });
 
     function rows() { return $$('tr', tbody).filter(function (tr) { return !tr.classList.contains('cmp-empty') && !(tr.children.length === 1 && tr.children[0].colSpan > 1); }); }
     function cellHtml(tr, i) { var td = tr.children[i]; return td ? td.innerHTML : ''; }
@@ -145,7 +148,7 @@
           main.innerHTML = '<div class="cmp-t">' + arr(cols.title).map(function (i) { return '<span>' + cellHtml(tr, i) + '</span>'; }).join('') + '</div>' +
             '<div class="cmp-s">' + arr(cols.sub).map(function (i) { return cellHtml(tr, i); }).filter(function (x) { return x && x.replace(/<[^>]+>/g, '').trim() && x.replace(/<[^>]+>/g, '').trim() !== '—'; }).join(' · ') + '</div>';
           var right = document.createElement('td'); right.className = 'cmp-right';
-          right.innerHTML = arr(cols.right).map(function (i) { return cellHtml(tr, i); }).filter(function (x) { var t = x.replace(/<[^>]+>/g, '').trim(); return t && t !== '—'; }).join('');
+          right.innerHTML = arr(cols.right).map(function (i) { return cellHtml(tr, i); }).filter(function (x) { var t = x.replace(/<[^>]+>/g, '').trim(); return t && t !== '—'; }).join(' ');   /* 2026-11-13：右側兩欄之間留一格（進廠、出廠時間原本黏在一起） */
           var go = document.createElement('td'); go.className = 'cmp-go'; go.textContent = '›';
           if (cols.check != null && tr.children[cols.check]) tr.children[cols.check].classList.add('cmp-check');
           tr.appendChild(main); tr.appendChild(right); tr.appendChild(go);
@@ -176,7 +179,7 @@
       return '<section class="cmp-rec" data-k="' + k + '"><div class="cmp-prof">' + (img ? '<img src="' + esc(img.getAttribute('src')) + '" alt="">' : '') +
         '<div style="min-width:0;flex:1 1 0"><div class="ttl">' + arr(cols.title).map(function (i) { return '<span>' + cellHtml(tr, i) + '</span>'; }).join('') + '</div>' +
         '<div class="sub">' + arr(cols.sub).map(function (i) { return cellHtml(tr, i); }).filter(Boolean).join(' · ') + '</div>' +
-        '<div class="chips">' + arr(cols.right).map(function (i) { return cellHtml(tr, i); }).join('') + '</div></div><span class="no">' + (k + 1) + '/' + total + '</span></div>' +
+        '<div class="chips">' + arr(cols.right).map(function (i) { return cellHtml(tr, i); }).join(' ') + '</div></div><span class="no">' + (k + 1) + '/' + total + '</span></div>' +
         '<div class="cmp-body">' + (tab && tab.render ? tabBody(tab, tr, k) : '<dl class="cmp-kv">' + kv + '</dl>') + '</div>' +
         (acts.length ? '<div class="cmp-acts">' + acts.map(function (b, j) { return '<button type="button" data-act="' + j + '" class="' + (/\berr\b/.test(b.className) ? 'err' : j ? 'gh' : '') + '">' + b.innerHTML + (label(b).replace(/[^\w㐀-鿿ក-៿]/g, '') ? '' : ' ' + esc(b.title || b.getAttribute('aria-label') || L('編輯', 'Edit', 'កែ'))) + '</button>'; }).join('') + '</div>' : '') +
         '</section>';
