@@ -718,7 +718,10 @@ async function sendTruckLiveUpdate(o, phase) {
   var entryPhotos = truckEntryPhotos(o).slice(), exitPhotos = truckExitPhotos(o).slice();
   var entrySig = sig(entryPhotos), exitSig = sig(exitPhotos);
   /* A completed update must carry the photos already saved on the record. */
-  var photos = phase === 'entry' ? unique(entryPhotos) : unique(entryPhotos.concat(exitPhotos));
+  /* 2026-11-12 Paul：出廠時群組又收到一次入廠照片（重複）。入廠那次已經發過的照片，出廠／完成時不再發；
+     只補「入廠後才加的入廠照」與出廠照。入廠通知沒發過（直接存成完成）時才整批帶上。 */
+  var entryAlreadySent = o.tgMessageId ? Math.min(entryPhotos.length, Number(o.tgEntryPhotoSentCount) || 0) : 0;
+  var photos = phase === 'entry' ? unique(entryPhotos) : unique(entryPhotos.slice(entryAlreadySent).concat(exitPhotos)).filter(function (p) { return entryPhotos.slice(0, entryAlreadySent).indexOf(p) < 0; });
   var result = await SEC.gasPost({ action:'containerLiveUpdate', phase:phase, record:o,
     messageId:o.tgMessageId || '', photos:photos.slice(0, 8), lang:SEC.lang() });
   if (!result || result.sent !== true || !result.messageId) throw new Error(result && result.error ? result.error :

@@ -1374,6 +1374,27 @@ function commuteGateLines(r, lang) {
   if(r.reason)out.push('   📝 '+SEC.esc(r.reason));
   return out;
 }
+/* 2026-11-12 Paul：摘要學 HRA 考勤——短、整齊、有色條。出入閘一筆一行：時間（等寬）在前，車牌／司機／對象／事由在後。 */
+function commuteGateRow(r, lang, withDate) {
+  var G=SEC.TG, lb=function(zh,en,km){return G.lbl(lang,zh,en,km);}, bad=commuteTimeIssue(r.outTime,r.inTime);
+  var tm=(withDate?G.d(r.date)+' ':'')+(G.time(r.inTime)||'—')+'→'+(G.time(r.outTime)||'…'), d=(!bad&&r.inTime&&r.outTime)?G.dur(G.mins(r.outTime)-G.mins(r.inTime)):'';
+  var tail=[[r.passenger,r.dept].filter(function(x){return x&&x!=='—';}).map(SEC.esc).join(' · '), r.reason?'📝 '+SEC.esc(String(r.reason).replace(/\s+/g,' ').trim()):''].filter(Boolean).join(' · ');
+  return '<code>'+tm+'</code>'+(d?' ⏱'+d:'')+(bad?' ⚠️ '+lb('出廠早於進廠','out before in','ចេញមុនចូល'):(!r.outTime&&r.inTime?' 🏭 '+lb('未出廠','still inside','នៅក្នុងរោងចក្រ'):''))+' · <b>'+SEC.esc(r.plate||'—')+'</b> '+SEC.esc(r.driver||'')+((+r.pax||0)?' 👥'+(+r.pax):'')+((+r.km)?' · '+(+r.km)+' km':'')+(tail?' · '+tail:'');
+}
+/* 機車每日色條（週＝每天、月＝每週日均、年＝每月日均）；長度相對期間最高值，藍色＝中性（不是好壞） */
+function commuteBikeBars(D, st, lang) {
+  var G=SEC.TG, rows=D.bike.filter(function(r){return r.date;}), buckets=[], mp={}, order=[];
+  if(rows.length<2)return [];
+  var WD=lang==='zh'||lang==='both'?['日','一','二','三','四','五','六']:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  rows.forEach(function(r){var d=SEC.parseD(r.date),k,lbl;if(!d)return;
+    if(st.ptype==='week'){k=r.date;lbl=WD[d.getDay()];}
+    else if(st.ptype==='year'){k=r.date.slice(0,7);lbl=k.slice(5);}
+    else{var m=new Date(d);m.setDate(d.getDate()-((d.getDay()+6)%7));k=SEC.ymd(m);lbl='W '+G.d(k);}
+    if(!mp[k]){mp[k]={label:lbl,n:0,t:0,a:0,b:0};order.push(k);}var o=mp[k];o.n++;o.t+=(+r.total||0);o.a+=(+r.a||0);o.b+=(+r.b||0);});
+  order.sort().forEach(function(k){var o=mp[k];buckets.push({label:o.label,t:Math.round(o.t/o.n),a:Math.round(o.a/o.n),b:Math.round(o.b/o.n)});});
+  var max=Math.max.apply(null,buckets.map(function(x){return x.t;}))||1;
+  return buckets.slice(0,14).map(function(x){/* 刻度從最高值的 60% 畫起：每天都差不多時從 0 畫會一樣長，看不出差別 */var k=Math.max(x.t?1:0,Math.round(Math.max(0,Math.min(1,(x.t/max-0.6)/0.4))*8)),bar='';for(var i=0;i<8;i++)bar+=i<k?'🟦':'⬜';return SEC.esc(x.label)+' '+bar+' <b>'+x.t+'</b>'+((x.a||x.b)?' · A '+x.a+' · B '+x.b:'');});
+}
 function commuteLateLine(r) {
   return '• '+(SEC.TG.time(r.checkIn)||'—')+' · '+SEC.esc(r.empId||'—')+' <b>'+SEC.esc(r.name||'—')+'</b>'+(r.dept?' · '+SEC.esc(r.dept):'')+(r.note?' · 📝 '+SEC.esc(r.note):'');
 }
@@ -1414,8 +1435,9 @@ function commuteSummary(st) {
   if (day || D.trips.length <= 6) {
     if (D.trips.length) txt += G.sec('🚐', lb('派車行程','Vehicle trips','ដំណើររថយន្ត')) + '\n' + D.trips.slice(0, 12).map(function (t) { return commuteTripLine(t, lang, !day); }).join('\n') + (D.trips.length > 12 ? '\n… +' + (D.trips.length - 12) : '');
   }
-  if (day || D.gate.length <= 4) {
-    if (D.gate.length) txt += G.sec('🚛', lb('出入閘','Gate log','កំណត់ត្រាច្រក')) + '\n' + D.gate.slice(0, 8).map(function (r) { return commuteGateLines(r, lang).join('\n'); }).join('\n') + (D.gate.length > 8 ? '\n… +' + (D.gate.length - 8) : '');
+  if (!day && commuteScopeOn(st,'bike')) { var bars = commuteBikeBars(D, st, lang); if (bars.length) txt += G.sec('🏍', st.ptype === 'week' ? lb('機車每天','Bikes by day','ម៉ូតូប្រចាំថ្ងៃ') : lb('機車日均','Bikes per day','ម៉ូតូ/ថ្ងៃ')) + '\n' + bars.join('\n'); }
+  if (day || D.gate.length <= 8) {
+    if (D.gate.length) txt += G.sec('🚛', lb('出入閘','Gate log','កំណត់ត្រាច្រក') + ' · ' + D.gate.length) + '\n' + D.gate.slice(0, 10).map(function (r) { return commuteGateRow(r, lang, !day); }).join('\n') + (D.gate.length > 10 ? '\n… +' + (D.gate.length - 10) : '');
   } else if (timeBad.length) {
     txt += G.sec('⚠️', lb('時間有誤','Time to check','ម៉ោងត្រូវពិនិត្យ')) + '\n' + timeBad.slice(0, 6).map(function (r) { return '📅 ' + G.d(r.date) + ' ' + commuteGateLines(r, lang).join('\n'); }).join('\n');
   }
@@ -1430,6 +1452,11 @@ function commuteSummary(st) {
       var reps = D.rep.slice().sort(function (a, b) { return D.uniq[b].n - D.uniq[a].n; });
       txt += '\n🔁 ' + lb('遲到最多','Most late','មកយឺតច្រើនជាងគេ') + '\n' + reps.slice(0, 5).map(function (key) { var u = D.uniq[key]; return '• ' + SEC.esc(u.id || '—') + ' <b>' + SEC.esc(u.name || key) + '</b> · <b>' + u.n + '</b>' + lb('次','×','ដង'); }).join('\n') + (reps.length > 5 ? '\n… +' + (reps.length - 5) + ' · 📊 ' + lb('完整名單見圖表','full list in chart','បញ្ជីពេញក្នុងតារាង') : '');
     }
+  }
+  /* 數字核對（學考勤摘要）：機車 A＋B 要等於合計；對不上就列出是哪幾天 */
+  if (D.bike.length && commuteScopeOn(st,'bike')) {
+    var off = D.bike.filter(function (r) { return ((+r.a || 0) || (+r.b || 0)) && Math.abs((+r.a || 0) + (+r.b || 0) - (+r.total || 0)) > 0; });
+    txt += '\n\n' + (off.length ? '⚠️ ' + lb('機車 A＋B≠合計','Bikes A+B ≠ total','ម៉ូតូ A+B ≠ សរុប') + ' · ' + off.slice(0, 5).map(function (r) { return G.d(r.date); }).join(' ') : '✅ ' + lb('機車 A＋B＝合計，已核對正確','Bikes A+B = total — verified','ម៉ូតូ A+B = សរុប — បានផ្ទៀងផ្ទាត់'));
   }
   if (!D.car.length && !D.gate.length && !D.bike.length && !D.late.length) txt += '\n\nℹ️ ' + lb('這段期間沒有紀錄','No records in this period','គ្មានកំណត់ត្រាក្នុងរយៈពេលនេះ');
   return txt;
