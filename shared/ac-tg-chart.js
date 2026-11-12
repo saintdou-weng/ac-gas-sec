@@ -115,10 +115,13 @@
     var left = x + 16, top = y + 52, bottom = y + h - 40, width = w - 32, gap = 8, cw = Math.max(6, (width - gap * (n - 1)) / n);
     ctx.strokeStyle = T.grid; ctx.lineWidth = 1;
     for (var g = 0; g <= 4; g++) { var gy = bottom - (bottom - top) * g / 4; ctx.beginPath(); ctx.moveTo(left, gy); ctx.lineTo(left + width, gy); ctx.stroke(); }
+    if (b.legend && b.legend.length) { var lx = x + w - 16; ctx.textBaseline = 'middle'; ctx.font = f(13, true); b.legend.slice().reverse().forEach(function (lg) { var tw = ctx.measureText(lg.label).width; ctx.textAlign = 'right'; ctx.fillStyle = T.text; ctx.fillText(lg.label, lx, y + 26); lx -= tw + 8; ctx.fillStyle = lg.color; ctx.fillRect(lx - 14, y + 19, 14, 14); lx -= 14 + 16; }); }
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     items.forEach(function (it, i) {
       var v = +it.value || 0, ch = (bottom - top) * v / max, cx = left + i * (cw + gap);
-      ctx.fillStyle = it.color || b.color || T.accent; round(ctx, cx, bottom - ch, cw, ch, Math.min(6, cw / 2)); ctx.fill();
+      /* 2026-11-12 疊色直條：it.parts=[{value,color}]（例如 A 廠藍、B 廠橘），由下往上疊；沒有 parts 就是原本的單色 */
+      if (Array.isArray(it.parts) && it.parts.length) { var py = bottom; it.parts.forEach(function (pt) { var ph = (bottom - top) * (+pt.value || 0) / max; if (ph <= 0) return; ctx.fillStyle = pt.color || T.accent; ctx.fillRect(cx, py - ph, cw, ph); py -= ph; }); }
+      else { ctx.fillStyle = it.color || b.color || T.accent; round(ctx, cx, bottom - ch, cw, ch, Math.min(6, cw / 2)); ctx.fill(); }
       ctx.fillStyle = T.text; ctx.font = f(12, true); if (v) ctx.fillText(fmt(v), cx + cw / 2, bottom - ch - 16);
       ctx.fillStyle = T.muted; ctx.font = f(n > 14 ? 10 : 12); ctx.fillText(fit(ctx, it.label, cw + gap - 2), cx + cw / 2, bottom + 6);
     });
@@ -154,7 +157,8 @@
     cy += 34;
     rows.forEach(function (r, ri) {
       if (ri % 2) { ctx.fillStyle = T.card; ctx.fillRect(x + 12, cy, w - 24, 32); }
-      r.forEach(function (t, ci) { var c = t && typeof t === 'object' ? t : { text:t }; cell(c.text, ci, cy + 16, !!c.bold || ci === 0 && !!b.boldFirst, c.color); });
+      /* 2026-11-12 格子底色：{text,bg}（例如上午淡黃、下午淡藍） */
+      r.forEach(function (t, ci) { var c = t && typeof t === 'object' ? t : { text:t }; if (c.bg) { var bx = x + 16 + cw.slice(0, ci).reduce(function (a, v) { return a + v; }, 0); ctx.fillStyle = c.bg; round(ctx, bx + 2, cy + 3, cw[ci] - 4, 26, 6); ctx.fill(); } cell(c.text, ci, cy + 16, !!c.bold || ci === 0 && !!b.boldFirst, c.color); });
       cy += 32;
     });
     if (b.total) {
