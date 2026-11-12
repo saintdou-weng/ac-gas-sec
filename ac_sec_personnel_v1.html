@@ -1195,8 +1195,10 @@ function personnelRosterSummary(st) {
 }
 function personnelPersonLines(r, lang) {
   var G = SEC.TG, lb = function (zh, en, km) { return G.lbl(lang, zh, en, km); };
-  var l = '• ' + (r.empId ? SEC.esc(r.empId) + ' ' : '') + '<b>' + SEC.esc(r.name || '—') + '</b>' + (r.shift ? ' · ' + SEC.esc(r.shift) : '') + (r.post ? ' · ' + SEC.esc(r.post) : '') +
-    (r.status === 'resigned' || r.status === 'removed' ? ' · 🔴 ' + G.lbl('zh', SEC.esc(statusName(r.status, lang))) : '') + (r.photo ? ' · 📷' : '');
+  /* 2026-11-13：欄位固定 🟢在職／🔴離職｜工號｜姓名｜班別｜📍 崗位 */
+  var gone = r.status === 'resigned' || r.status === 'removed';
+  var l = (gone ? '🔴' : '🟢') + ' <code>' + SEC.esc(r.empId || '—') + '</code> <b>' + SEC.esc(r.name || '—') + '</b> · ' + lb('班', 'Shift', 'វេន') + ' ' + SEC.esc(r.shift || '—') + ' · 📍 ' + SEC.esc(r.post || '—') +
+    (gone ? ' · ' + G.lbl('zh', SEC.esc(statusName(r.status, lang))) : '') + (r.photo ? ' · 📷' : '');
   var info = [r.position ? G.lbl('zh', SEC.esc(trData(r.position, lang))) : '', r.company ? SEC.esc(r.company) : '', r.phone ? '☎ ' + SEC.esc(r.phone) : ''].filter(Boolean);
   var out = [l];
   if (info.length) out.push('   ' + info.join(' · '));
@@ -1259,14 +1261,12 @@ function personnelChangeLines(r, lang, short) {
     if (r.fromShift || r.toShift) details.push(lab('shift') + ' ' + SEC.esc(r.fromShift || '—') + ' → ' + SEC.esc(r.toShift || '—'));
     if (r.fromPost || r.toPost) details.push(lab('post') + ' ' + SEC.esc(r.fromPost || '—') + ' → ' + SEC.esc(r.toPost || '—'));
   }
-  var line = '• ' + (short ? G.d(r.date) + ' ' : '') + personnelChangeIcon(r.kind) + ' ' + G.lbl('zh', SEC.esc(kindName(r.kind, lang))) + ' · ' +
-    (r.empId ? SEC.esc(r.empId) + ' ' : '') + '<b>' + SEC.esc(r.name || '—') + '</b>' + (details.length ? ' · ' + details.join(' · ') : '');
+  /* 2026-11-13 Paul：列表欄位位置一致、一筆一行。固定：🟢新進／🔴離職／🟡異動｜日期｜工號｜姓名｜類別｜改了什麼｜📝 原因｜✍ 經辦；沒填顯示 — */
+  var light = r.kind === 'join' ? '🟢' : (r.kind === 'resign' || r.kind === 'remove') ? '🔴' : '🟡';
+  var line = light + ' <code>' + G.d(r.date) + '</code> · <code>' + SEC.esc(r.empId || '—') + '</code> <b>' + SEC.esc(r.name || '—') + '</b> · ' + personnelChangeIcon(r.kind) + ' ' + G.lbl('zh', SEC.esc(kindName(r.kind, lang))) + ' · ' + (details.length ? details.join(' · ') : '—');
   line = line.replace(/[\r\n]+/g, ' ');
   if (short) return [line];
-  var extra = [];
-  if (r.reason) extra.push('📝 ' + G.lbl('zh', SEC.esc(trData(r.reason, lang))));
-  extra.push('✍ ' + lb('經辦', 'By', 'ដោយ') + ' ' + SEC.esc(r.by || '—'));
-  return [line, ('   ' + extra.join(' · ')).replace(/[\r\n]+/g, ' ')];
+  return [(line + ' · 📝 ' + (r.reason ? G.lbl('zh', SEC.esc(trData(r.reason, lang))) : '—') + ' · ✍ ' + SEC.esc(r.by || '—')).replace(/[\r\n]+/g, ' ')];
 }
 function personnelChangeDefs(st){
   var lang = st.lang || 'zh', G = SEC.TG, lb = function (zh, en, km) { return G.lbl(lang, zh, en, km); }, list = personnelChanges(st), p = personnelSummaryPeriod(st);
@@ -1285,10 +1285,10 @@ function personnelChangeDefs(st){
   function flush() { if (!cur.length) return; defs.push({ text:(defs.length ? title : head + '\n') + '\n' + cur.join('\n'), photos:photos }); cur = []; size = 0; photos = []; lastDate = null; nRec = 0; }
   list.forEach(function (r) {
     var block = personnelChangeLines(r, lang).join('\n'), photo = st.includeDetails && ((r.after || {}).photo || r.photo), ph = photo && !seen[photo] ? [photo] : [];
-    var dateHead = '📅 <b>' + SEC.esc(G.d(r.date)) + '</b> · ' + perDay[r.date], need = tgLen(block) + 1 + (r.date !== lastDate ? tgLen(dateHead) + 1 : 0);
+    var dateHead = '📅 <b>' + SEC.esc(G.d(r.date)) + '</b> · ' + perDay[r.date], need = tgLen(block) + 1;
     /* 第 1 頁最多 6 筆，手機一眼看完 */
     if (cur.length && (size + need > 3000 || photos.length + ph.length > 4 || (!defs.length && nRec >= 6))) flush();
-    if (r.date !== lastDate) { cur.push(dateHead); size += tgLen(dateHead) + 1; lastDate = r.date; }
+    lastDate = r.date;
     cur.push(block); size += tgLen(block) + 1; nRec++;
     if (photo) seen[photo] = true; photos = photos.concat(ph);
   });

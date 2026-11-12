@@ -1253,9 +1253,10 @@ function attSummaryData(st) {
 function attWho(r) { return '• ' + (r.empId ? SEC.esc(r.empId) + ' ' : '') + '<b>' + SEC.esc(r.name || '—') + '</b>'; }
 function attBadLine(x, lang, day) {
   var G = SEC.TG, lb = function (zh, en, km) { return G.lbl(lang, zh, en, km); }, parts = [];
-  if (x.s.c.A) parts.push('❌ ' + lb('曠職', 'Absent', 'អវត្តមាន') + (day ? '' : ' ' + x.s.c.A + ' (' + G.ranges(x.cd.A) + ')'));
-  if (x.s.c.L) parts.push('🌴 ' + lb('請假', 'Leave', 'ច្បាប់') + (day ? '' : ' ' + x.s.c.L + ' (' + G.ranges(x.cd.L) + ')'));
-  return attWho(x.r) + ' · ' + parts.join(' · ');
+  /* 2026-11-13 Paul：列表欄位位置一致。一人一行固定：🔴有曠職／🟠只有請假｜工號｜姓名｜班別｜❌ 曠職 天數(日期)｜🌴 請假 天數(日期)；沒有顯示 — */
+  parts.push('❌ ' + lb('曠職', 'Absent', 'អវត្តមាន') + ' ' + (x.s.c.A ? (day ? '✓' : '<b>' + x.s.c.A + '</b> (' + G.ranges(x.cd.A) + ')') : '—'));
+  parts.push('🌴 ' + lb('請假', 'Leave', 'ច្បាប់') + ' ' + (x.s.c.L ? (day ? '✓' : '<b>' + x.s.c.L + '</b> (' + G.ranges(x.cd.L) + ')') : '—'));
+  return (x.s.c.A ? '🔴' : '🟠') + ' <code>' + SEC.esc(x.r.empId || '—') + '</code> <b>' + SEC.esc(x.r.name || '—') + '</b> · ' + lb('班', 'Shift', 'វេន') + ' ' + SEC.esc(x.r.shift || '—') + ' · ' + parts.join(' · ');
 }
 function attendanceSummary(st) {
   var lang = st.lang || 'zh', G = SEC.TG, lb = function (zh, en, km) { return G.lbl(lang, zh, en, km); }, D = attSummaryData(st), T = D.total, day = st.ptype === 'day';
@@ -1263,7 +1264,9 @@ function attendanceSummary(st) {
   var absN = D.bad.filter(function (x) { return x.s.c.A; }).length;
   txt += '\n' + G.verdict(absN ? 'bad' : D.bad.length ? 'warn' : 'ok', !D.staff.length ? lb('沒有資料', 'No data', 'គ្មានទិន្នន័យ') : absN ? lb('曠職 ' + absN + ' 人', absN + ' absent', 'អវត្តមាន ' + absN + ' នាក់') : D.bad.length ? lb('請假 ' + D.bad.length + ' 人', D.bad.length + ' on leave', 'ច្បាប់ ' + D.bad.length + ' នាក់') : lb('全員到齊', 'Everyone on duty', 'មកធ្វើការគ្រប់គ្នា'));
   var planned = (T.W + T.O + T.L + T.A);
-  if (planned) txt += '\n' + G.bar(T.W + T.O, planned) + ' ' + lb('出勤率', 'attendance', 'អត្រាវត្តមាន');
+  /* 2026-11-13：出勤率顏色照 Paul 定的考勤標準（HRA 同一套）：92% 以上綠、88–92% 黃、88% 以下紅 */
+  if (planned) { var ar = (T.W + T.O) / planned, an = Math.round(ar * 10), apct = Math.round(ar * 100), ablk = apct >= 92 ? '🟩' : apct >= 88 ? '🟨' : '🟥', abar = ''; for (var ai = 0; ai < 10; ai++) abar += ai < an ? ablk : '⬜';
+    txt += '\n' + abar + ' ' + Math.round(ar * 100) + '% ' + lb('出勤率', 'attendance', 'អត្រាវត្តមាន'); }
   txt += '\n' + G.kpis([
     ['👮', lb('在職', 'Staff', 'បុគ្គលិក'), D.active.length + (D.archived ? ' (+' + D.archived + ' ' + lb('歷史', 'former', 'ចាស់') + ')' : '')],
     ['📆', day ? lb('出勤', 'On duty', 'ធ្វើការ') : lb('出勤人日', 'Man-days', 'ថ្ងៃធ្វើការ'), T.W + T.O],
@@ -1275,6 +1278,11 @@ function attendanceSummary(st) {
   ], 2);
   txt += '\n🕐 ' + lb('班別', 'Shifts', 'វេន') + ' A <b>' + D.byShift.A + '</b> · B <b>' + D.byShift.B + '</b> · C <b>' + D.byShift.C + '</b>' +
     (D.other ? ' · ' + lb('未排', 'Other', 'ផ្សេង') + ' <b>' + D.other + '</b>' : '');
+  /* 數字核對：逐人逐日的出勤表加總（attCodeDates）要等於上面的總數（attendanceStatsFor） */
+  if (D.staff.length && planned) { var vs = { W:0, L:0, A:0 }; D.list.forEach(function (x) { vs.W += ((x.cd.W || []).length + (x.cd.O || []).length); vs.L += (x.cd.L || []).length; vs.A += (x.cd.A || []).length; });
+    var vok = vs.W === T.W + T.O && vs.L === T.L && vs.A === T.A;
+    txt += '\n' + (vok ? '✅ ' + lb('應出勤', 'Planned', 'គម្រោង') + ' ' + planned + '＝' + lb('出勤', 'worked', 'ធ្វើការ') + ' ' + (T.W + T.O) + '＋' + lb('請假', 'leave', 'ច្បាប់') + ' ' + T.L + '＋' + lb('曠職', 'absent', 'អវត្តមាន') + ' ' + T.A + ' · ' + lb('已核對正確', 'verified', 'បានផ្ទៀងផ្ទាត់') :
+      '⚠️ ' + lb('逐人加總和總數不符', 'Per-guard totals do not match', 'ចំនួនសរុបមិនស៊ីគ្នា') + '（' + lb('出勤', 'worked', 'ធ្វើការ') + ' ' + vs.W + '/' + (T.W + T.O) + ' · ' + lb('請假', 'leave', 'ច្បាប់') + ' ' + vs.L + '/' + T.L + ' · ' + lb('曠職', 'absent', 'អវត្តមាន') + ' ' + vs.A + '/' + T.A + '）'); }
   if (!D.staff.length) return txt + '\n\nℹ️ ' + lb('這段期間沒有保安人員資料', 'No staff data in this period', 'គ្មានទិន្នន័យបុគ្គលិកក្នុងរយៈពេលនេះ');
   /* 20261106 週報附圖（每人每天的出勤表）→ 文字只留請假／曠職名單，其餘看附圖。 */
   var chartLine = attendanceSummaryChart(st) ? '\n📊 ' + lb('每人每天的出勤見附圖', 'Each guard per day in the chart', 'មើលវត្តមានប្រចាំថ្ងៃក្នុងរូបភាព') : '';

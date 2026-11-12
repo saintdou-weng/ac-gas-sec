@@ -992,9 +992,13 @@ function expenseSummary(st) {
     else if (approved.length === fee.length) txt += '\n✅ ' + lb('保安服務費全部已核可', 'All security fees approved', 'ថ្លៃសេវាសន្តិសុខទាំងអស់បានអនុម័ត');
   }
   var ks = Object.keys(byC).sort(function (a, b) { return byC[b].a - byC[a].a; });
+  /* 2026-11-13 Paul：列表欄位位置一致＋色條。一類一行固定：色條（占合計比例）｜金額｜筆數｜分類（不用空白補齊，手機上才不會歪）；最後一行核對「各類加總＝合計」 */
+  var cw = Math.max.apply(null, ks.map(function (k) { return money(byC[k].a).length; })), nw = Math.max.apply(null, ks.map(function (k) { return String(byC[k].n).length; })), csum = 0;
   txt += G.sec('🏷', lb('分類', 'By category', 'តាមប្រភេទ')) + '\n' + ks.map(function (k) {
-    return '• ' + G.lbl('zh', SEC.esc(k)) + ' · ' + byC[k].n + ' · <b>' + money(byC[k].a) + '</b>';
-  }).join('\n') + '\n💵 ' + lb('合計', 'Total', 'សរុប') + ' <b>' + money(amt) + '</b>';
+    var n = amt > 0 ? Math.max(byC[k].a > 0 ? 1 : 0, Math.round(byC[k].a / amt * 6)) : 0, bar = ''; for (var i = 0; i < 6; i++) bar += i < n ? '🟦' : '⬜'; csum += byC[k].a;
+    return bar + ' <code>' + money(byC[k].a) + '</code> · <code>×' + byC[k].n + '</code> · <b>' + G.lbl('zh', SEC.esc(k)) + '</b>';
+  }).join('\n') + '\n' + (Math.abs(csum - amt) < 0.005 ? '✅ ' + lb('各類加總', 'Categories', 'ប្រភេទសរុប') + ' <b>' + money(csum) + '</b>＝' + lb('合計', 'total', 'សរុប') + ' <b>' + money(amt) + '</b> · ' + lb('已核對正確', 'verified', 'បានផ្ទៀងផ្ទាត់') :
+    '⚠️ ' + lb('各類加總和合計不符', 'Categories do not add up to the total', 'ចំនួនសរុបមិនស៊ីគ្នា') + '（' + money(csum) + ' ≠ ' + money(amt) + '）');
   return txt;
 }
 /* 與語言無關的長度：標籤（⟦…⟧）一律算 12 字，讓各語言版本在同一處換頁 */

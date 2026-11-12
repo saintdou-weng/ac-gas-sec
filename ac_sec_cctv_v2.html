@@ -1031,13 +1031,18 @@ function cctvSummary(st) {
   if (s.pending) k2.push(['⏳', lb('待確認', 'Pending', 'រង់ចាំពិនិត្យ'), s.pending]);
   if (s.dis) k2.push(['⚪', lb('停用', 'Disabled', 'បិទប្រើ'), s.dis]);
   txt += '\n' + G.kpis(k2, 3);
+  /* 數字核對（學考勤摘要）：攝影機＝正常＋異常＋待確認＋停用 */
+  if (rec && D.list.length) { var vd = D.list.length - (s.ok || 0) - bad - (s.pending || 0) - (s.dis || 0);
+    txt += '\n' + (vd ? '⚠️ ' + lb('攝影機數加總不符', 'Camera counts do not add up', 'ចំនួនកាមេរ៉ាមិនស៊ីគ្នា') + '（' + D.list.length + ' ≠ ' + (s.ok || 0) + '＋' + bad + '＋' + (s.pending || 0) + '＋' + (s.dis || 0) + '）' :
+      '✅ ' + lb('攝影機', 'Cameras', 'កាមេរ៉ា') + ' ' + D.list.length + '＝' + lb('正常', 'OK', 'ធម្មតា') + ' ' + (s.ok || 0) + '＋' + lb('異常', 'faulty', 'មានបញ្ហា') + ' ' + bad + (s.pending ? '＋' + lb('待確認', 'pending', 'រង់ចាំ') + ' ' + s.pending : '') + (s.dis ? '＋' + lb('停用', 'disabled', 'បិទប្រើ') + ' ' + s.dis : '') + ' · ' + lb('已核對正確', 'verified', 'បានផ្ទៀងផ្ទាត់')); }
   if (!rec) txt += '\n⚠️ ' + lb('本期間沒有巡檢紀錄，狀態視為待確認', 'No inspection in this period; status is pending', 'គ្មានកំណត់ត្រាត្រួតពិនិត្យក្នុងរយៈពេលនេះ; ស្ថានភាពនៅរង់ចាំពិនិត្យ');
-  else if (!bad && !s.pending && D.list.length) txt += '\n✅ ' + lb('全部正常', 'All cameras OK', 'កាមេរ៉ាទាំងអស់ធម្មតា');
+
   var f = [];
   ['a', 'b', 'common'].forEach(function (fk) {
     var g = D.list.filter(function (c) { return factoryOf(c) === fk; }); if (!g.length) return;
     var gs = cctvStats(g, rec);
-    f.push((fk === 'a' ? 'A' : fk === 'b' ? 'B' : lb('公共', 'Common', 'រួម')) + ' <b>' + (gs.ok || 0) + '</b>/' + g.length + ' ' + cctvCountTag(gs));
+    /* 2026-11-13：A 廠藍／B 廠橘，跟通勤停車同一組顏色 */
+    f.push((fk === 'a' ? '🟦 A' : fk === 'b' ? '🟧 B' : '⬜ ' + lb('公共', 'Common', 'រួម')) + ' <b>' + (gs.ok || 0) + '</b>/' + g.length + ' ' + cctvCountTag(gs));
   });
   if (f.length) txt += '\n🏭 ' + f.join(' · ');
   if (rec) txt += '\n🔍 ' + lb('最新巡檢', 'Latest check', 'ការត្រួតពិនិត្យចុងក្រោយ') + ' <b>' + SEC.esc(G.d(rec.date)) + '</b> · ' + SEC.esc(rec.by || '—') +
@@ -1053,7 +1058,9 @@ function cctvSummary(st) {
   var shown = !weekChart && areas.length <= 6 ? areas : areas.filter(function (x) { return x.prob; });
   if ((shown.length || weekChart) && areas.length > 1) {
     txt += G.sec('📍', lb('分區', 'Areas', 'តំបន់'));
-    shown.forEach(function (x) { txt += '\n• <b>' + cctvZoneLbl(x.id, lang) + '</b> ' + (x.s.ok || 0) + '/' + x.n + ' · ' + cctvCountTag(x.s); });
+    /* 2026-11-13：一區一行，燈號和數字固定在前面（🟢 全部正常／🔴 有異常／🟠 待確認），區名在後 */
+    var aw = String(Math.max.apply(null, areas.map(function (x) { return x.n; }))).length;
+    shown.forEach(function (x) { txt += '\n' + (cctvBadN(x.s) ? '🔴' : x.s.pending ? '🟠' : '🟢') + ' <code>' + String(x.s.ok || 0).padStart(aw, ' ') + '/' + String(x.n).padStart(aw, ' ') + '</code> · <b>' + cctvZoneLbl(x.id, lang) + '</b>' + (x.prob ? ' · ' + cctvCountTag(x.s) : ''); });
     if (!shown.length) txt += '\n• ✅ ' + lb('全部區域正常', 'All areas OK', 'តំបន់ទាំងអស់ធម្មតា') + ' · ' + areas.length;
     else if (shown.length < areas.length) txt += '\n• ✅ ' + lb('其他區域全部正常', 'Other areas all OK', 'តំបន់ផ្សេងទៀតធម្មតា') + ' · ' + (areas.length - shown.length);
   }
@@ -1071,8 +1078,9 @@ function cctvSummaryDetailList(st,rec){
 }
 function cctvBadLine(c, rec, lang) {
   var s = cctvRecordStatus(rec, c);
-  return '• ' + (STAT[s] || STAT.pending).icon + ' <b>' + SEC.esc(c.code || '—') + '</b>' + (c.name ? ' ' + SEC.esc(c.name) : '') + ' · ' + cctvZoneLbl(c.zone, lang) +
-    ' · ' + SEC.TG.lbl('zh', SEC.esc(statLabel(s, lang))) + (c.remark ? ' · 📝 ' + SEC.esc(c.remark) : '');
+  /* 2026-11-13：欄位固定 狀態燈｜編號｜狀態｜📍 區域｜🎥 位置名稱｜📝 備註；沒填顯示 — */
+  return (STAT[s] || STAT.pending).icon + ' <b>' + SEC.esc(c.code || '—') + '</b> · ' + SEC.TG.lbl('zh', SEC.esc(statLabel(s, lang))) + ' · 📍 ' + cctvZoneLbl(c.zone, lang) +
+    ' · 🎥 ' + (c.name ? SEC.esc(c.name) : '—') + ' · 📝 ' + (c.remark ? SEC.esc(String(c.remark).replace(/\s+/g, ' ').trim()) : '—');
 }
 /* 20261106 週報附圖（shared/ac-tg-chart.js）：重點數字＋一週檢查表（橫列＝各區域，直行＝週一到週六，週日有巡檢才顯示）
    ＋本週有異常的攝影機表。格子：綠＝該區全部正常（正常數/攝影機數）、紅＝有異常（✗ 台數＋編號）、橘＝有待確認、灰＝當天沒巡檢。

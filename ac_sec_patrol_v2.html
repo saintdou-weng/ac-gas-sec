@@ -1696,8 +1696,9 @@ function patrolCheckSumLine(checks, lang) {
 }
 /* 一圈一行：• 22:10–22:45 Kun Vin · 12/12 ✅ ／ · 10/12 ⚠️ 漏 2: Gate B, Canteen */
 function patrolRoundLine(r, lang, withDate) {
-  var G = SEC.TG, miss = roundMissing(r), nl = patrolNameLang(lang);
-  var s = '• ' + (withDate ? G.d(r.date) + ' ' : '') + (G.time(r.start) || '—') + '–' + (G.time(r.end) || '—') + ' ' + SEC.esc(r.g || '—') + ' · ' + r.chips.length + '/' + roundExpected(r);
+  /* 2026-11-13 Paul：列表欄位位置一致（同通勤出入閘／貨櫃）。一圈一行固定：🌙夜班／☀️日班｜開始→結束｜用時｜👮 巡邏員｜📍 刷到/應刷｜結果；沒填顯示 — */
+  var G = SEC.TG, miss = roundMissing(r), nl = patrolNameLang(lang), a = G.mins(r.start), b = G.mins(r.end), dm = (a != null && b != null && !isNaN(a) && !isNaN(b)) ? (b >= a ? b - a : b + 1440 - a) : 0;
+  var s = (r.night ? '🌙' : '☀️') + ' <code>' + (withDate ? G.d(r.date) + ' ' : '') + (G.time(r.start) || '--:--') + '→' + (G.time(r.end) || '--:--') + '</code> ⏱' + (G.dur(dm) || '—') + ' · 👮 <b>' + SEC.esc(r.g || '—') + '</b> · 📍 ' + r.chips.length + '/' + roundExpected(r);
   if (!miss.length) return s + ' ✅';
   var names = miss.slice(0, 3).map(function (c) { return SEC.esc(chipName(c, nl)); }).join(', ') + (miss.length > 3 ? ' …' : '');
   return s + ' · ⚠️ ' + G.lbl(lang, '漏', 'Missed', 'ខកខាន') + ' ' + miss.length + ': ' + names;
@@ -1861,13 +1862,10 @@ function patrolGuardLines(byG, lang) {
   var gk = Object.keys(byG).sort(function (a, b) { return byG[b] - byG[a] || a.localeCompare(b); });
   if (!gk.length) return '';
   var max = byG[gk[0]], min = byG[gk[gk.length - 1]];
-  if (gk.length <= 9 && min >= max * 0.8) {
-    var rows = [];
-    for (var i = 0; i < gk.length; i += 3) rows.push((i ? '   ' : '👮 ') + gk.slice(i, i + 3).map(function (k) { return SEC.esc(k) + ' ' + byG[k]; }).join(' · '));
-    return '\n\n' + rows.join('\n');
-  }
+  /* 2026-11-13：一人一行、色條在前（長度相對最多圈的人），數字和名字固定位置；圈數不到最多者一半亮 ⚠️ */
   return SEC.TG.sec('👮', SEC.TG.lbl(lang, '巡邏員圈數', 'Rounds by guard', 'ជុំតាមអ្នកល្បាត')) + '\n' +
-    gk.slice(0, 12).map(function (k) { return '• <b>' + SEC.esc(k) + '</b> · ' + byG[k] + (byG[k] < max * 0.5 ? ' ⚠️' : ''); }).join('\n') + (gk.length > 12 ? '\n… +' + (gk.length - 12) : '');
+    gk.slice(0, 12).map(function (k) { var n = Math.max(1, Math.round(byG[k] / max * 6)), low = byG[k] < max * 0.5, bar = ''; for (var i = 0; i < 6; i++) bar += i < n ? (low ? '🟧' : '🟦') : '⬜';
+      return bar + ' <b>' + byG[k] + '</b> · ' + SEC.esc(k) + (low ? ' ⚠️' : ''); }).join('\n') + (gk.length > 12 ? '\n… +' + (gk.length - 12) : '');
 }
 /* 每日圈數：正常的日子壓成日期區間「📅 09-14~18, 09-20~30 · 🔄 10 ✅」，只逐行列出圈數偏少或有未完整圈的日子 */
 /* 一般每天的圈數（出現最多次的圈數；同樣多取較大的）。少於它的日子＝圈數偏少。 */
@@ -1882,21 +1880,22 @@ function patrolDailyLines(byD, lang, onlyBad) {
   var G = SEC.TG, lb = patrolLb(lang), ds = Object.keys(byD).sort(), mode = patrolDailyMode(byD);
   var okBy = {}, bad = [];
   ds.forEach(function (d) { var x = byD[d]; if (x.n >= mode && !x.bad && !x.wand) (okBy[x.n] = okBy[x.n] || []).push(d); else bad.push(d); });
-  var out = onlyBad ? [] : Object.keys(okBy).sort(function (a, b) { return okBy[b].length - okBy[a].length; }).map(function (n) { return '📅 ' + G.ranges(okBy[n]) + ' · 🔄 ' + n + ' ✅'; });
+  var out = onlyBad ? [] : Object.keys(okBy).sort(function (a, b) { return okBy[b].length - okBy[a].length; }).map(function (n) { return '🟢 <code>' + G.ranges(okBy[n]) + '</code> · 🔄 ' + n + ' ✅'; });
   bad.slice(0, 10).forEach(function (d) {
     var x = byD[d], w = [];
     if (x.n < mode) w.push(lb('少', 'short', 'ខ្វះ') + ' ' + (mode - x.n));
     if (x.bad) w.push(lb('未完整', 'incomplete', 'មិនពេញលេញ') + ' ' + x.bad);
     if (x.wand) w.push('🔧 ' + lb('疑似巡更棒', 'wand?', 'ឧបករណ៍?') + ' ' + x.wand);
-    out.push('📅 <b>' + G.d(d) + '</b> · 🔄 ' + x.n + ' · ⚠️ ' + w.join(' · '));
+    out.push('⚠️ <code>' + G.d(d) + '</code> · 🔄 ' + x.n + ' · ' + w.join(' · '));
   });
   if (bad.length > 10) out.push('… +' + (bad.length - 10));
   return out;
 }
 function patrolManualLine(r, lang, withDate) {
   var G = SEC.TG, lb = patrolLb(lang);
-  return '• ' + (withDate ? G.d(r.date) + ' ' : '') + (G.time(r.time) || '—') + (r.shift === 'N' ? ' 🌙' : '') + ' <b>' + SEC.esc(r.guard || '—') + '</b> · 📍 ' + SEC.esc(dispName(r.location || '—', patrolNameLang(lang))) +
-    (r.status === 'issue' ? ' · ⚠️ ' + lb('異常', 'Issue', 'បញ្ហា') : ' ✅') + ((r.photos || []).length ? ' · 📷' + r.photos.length : '');
+  /* 2026-11-13：欄位固定 🌙／☀️｜日期 時間｜👮 巡邏員｜📍 地點｜結果｜📷 */
+  return (r.shift === 'N' ? '🌙' : '☀️') + ' <code>' + (withDate ? G.d(r.date) + ' ' : '') + (G.time(r.time) || '--:--') + '</code> · 👮 <b>' + SEC.esc(r.guard || '—') + '</b> · 📍 ' + SEC.esc(dispName(r.location || '—', patrolNameLang(lang))) +
+    (r.status === 'issue' ? ' · ⚠️ ' + lb('異常', 'Issue', 'បញ្ហា') : ' · ✅') + ((r.photos || []).length ? ' · 📷' + r.photos.length : '');
 }
 function patrolCheckShift(r, lang) {
   return r.shift === 'N' ? ' 🌙 ' + SEC.TG.lbl(lang, '夜班', 'Night', 'យប់') : r.shift === 'D' ? ' ☀️ ' + SEC.TG.lbl(lang, '日班', 'Day', 'ថ្ងៃ') : '';
@@ -1916,6 +1915,10 @@ function patrolSummary(st) {
     ['📝', lb('人工異常', 'Manual issues', 'បញ្ហាដោយដៃ'), D.issues.length],
     ['📋', lb('確認表', 'Check forms', 'ទម្រង់ពិនិត្យ'), D.checks.length]
   ], 2);
+  /* 數字核對（學考勤摘要）：圈數＝完整＋未完整＋疑似巡更棒 */
+  if (D.list.length) { var vdiff = D.list.length - D.full - D.inc.length - D.wand.length;
+    txt += '\n' + (vdiff ? '⚠️ ' + lb('圈數加總不符', 'Rounds do not add up', 'ចំនួនជុំមិនស៊ីគ្នា') + '（' + D.list.length + ' ≠ ' + D.full + '＋' + D.inc.length + '＋' + D.wand.length + '）' :
+      '✅ ' + lb('圈數', 'Rounds', 'ជុំ') + ' ' + D.list.length + '＝' + lb('完整', 'complete', 'ពេញលេញ') + ' ' + D.full + '＋' + lb('未完整', 'incomplete', 'មិនពេញលេញ') + ' ' + D.inc.length + (D.wand.length ? '＋🔧 ' + D.wand.length : '') + ' · ' + lb('已核對正確', 'verified', 'បានផ្ទៀងផ្ទាត់')); }
   var checkBad = D.checks.filter(patrolCheckHasIssue), warn = [];
   if (D.inc.length) warn.push('⚠️ ' + lb('未完整圈', 'Incomplete rounds', 'ជុំមិនពេញលេញ') + ' <b>' + D.inc.length + '</b>');
   if (D.wand.length) warn.push('🔧 ' + lb('疑似巡更棒問題', 'Possible wand fault', 'ឧបករណ៍ល្បាតអាចខូច') + ' <b>' + D.wand.length + '</b>' + lb('圈', ' rounds', ' ជុំ'));
@@ -1944,7 +1947,7 @@ function patrolSummary(st) {
     incKeys.slice(0, 6).forEach(function (k) { var o = incBy[k], parts = [];
       if (o.n) parts.push(lb('未完整', 'incomplete', 'មិនពេញលេញ') + ' <b>' + o.n + '</b>' + lb('圈', ' rounds', ' ជុំ') + ' · ' + lb('漏', 'missed', 'ខកខាន') + ' ' + o.miss + lb('點', ' pts', ' ចំណុច'));
       if (o.stray) parts.push('🔧 ' + lb('疑似巡更棒', 'wand?', 'ឧបករណ៍?') + ' ' + o.stray + lb('圈', ' rounds', ' ជុំ'));
-      att.push('• ' + G.d(o.date) + ' <b>' + SEC.esc(o.g) + '</b> · ' + parts.join(' · ')); });
+      att.push('⚠️ <code>' + G.d(o.date) + '</code> · 👮 <b>' + SEC.esc(o.g) + '</b> · ' + parts.join(' · ')); });
     if (incKeys.length > 6) att.push('… +' + (incKeys.length - 6));
   }
   D.issues.slice(0, 4).forEach(function (r) { att.push(patrolManualLine(r, lang, !day) + (r.note ? ' · 📝 ' + SEC.esc(String(r.note).slice(0, 80)) : '')); });
@@ -1964,7 +1967,7 @@ function patrolSummary(st) {
     if (o.miss.length) w.push('⚠️ ' + lb('未勾', 'Unchecked', 'មិនបានគូស') + ' ' + patrolPcGroup(o.miss, lang));
     if (!w.length) w.push('📝');
     var when = day ? '' : ' · ' + (o.dates.length > 1 ? '<b>' + o.dates.length + '</b>' + lb('天', ' days', ' ថ្ងៃ') + ' (' + G.ranges(o.dates) + ')' : G.d(o.dates[0]));
-    att.push('• 📋 ' + w.join(' · ') + when + ' · ' + Object.keys(o.guards).slice(0, 2).map(SEC.esc).join(', '));
+    att.push('📋 ' + w.join(' · ') + when + ' · 👮 ' + (Object.keys(o.guards).slice(0, 2).map(SEC.esc).join(', ') || '—'));
     if (o.note) att.push('   📝 ' + SEC.esc(o.note.length > 80 ? o.note.slice(0, 79) + '…' : o.note));
   });
   if (att.length > MAXN + 2) { att = att.slice(0, MAXN); att.push('… ' + lb('其餘請看明細', 'more in details', 'បន្ថែមក្នុងលម្អិត')); }

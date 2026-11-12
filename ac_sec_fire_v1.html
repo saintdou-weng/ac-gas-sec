@@ -1586,7 +1586,7 @@ function fireZoneLbl(id, lang) { return SEC.TG.lbl('zh', SEC.esc(zoneName(id, la
 function fireWhere(r, lang) { return r&&String(r.loc||'').trim() ? SEC.esc(String(r.loc).trim()) : fireZoneLbl(r&&r.zone, lang); }
 function fireScopeSub(st, lang) { return st.scope&&st.scope!=='all' ? '🗂 '+SEC.TG.lbl('zh', fireScopeLabel(st, lang)) : ''; }
 function fireFactoryLine(counts, lang) {
-  var parts=['a','b','common'].filter(function(k){return counts[k];}).map(function(k){return fireFactoryShort(k,lang)+' <b>'+counts[k]+'</b>';});
+  var parts=['a','b','common'].filter(function(k){return counts[k];}).map(function(k){/* 2026-11-13：A 廠藍／B 廠橘，跟通勤、CCTV 同一組顏色 */return (k==='a'?'🟦 ':k==='b'?'🟧 ':'⬜ ')+fireFactoryShort(k,lang)+' <b>'+counts[k]+'</b>';});
   return parts.length?'🏭 '+parts.join(' · '):'';
 }
 function fireLatestLine(date, by, year, lang) {
@@ -1681,14 +1681,14 @@ function fireStatusData(st) {
 function fireStatusMark(x) { return x.fault?'⚠️':x.s==='over'?'⛔':x.s==='soon'?'⏰':x.s==='off'?'⚪':x.r?'✅':'⏳'; }
 function fireEquipExLine(x, lang, year) {
   var lb=function(zh,en,km){return SEC.TG.lbl(lang,zh,en,km);}, e=x.e, r=x.r, due=dueDate(e), parts=[];
-  if(x.fault)parts.push(r.note?SEC.esc(r.note):lb('巡檢異常','Abnormal','មិនប្រក្រតី'));
+  if(x.fault)parts.push('📝 '+(r.note?SEC.esc(r.note):lb('巡檢異常','Abnormal','មិនប្រក្រតី')));
   if(x.s==='over'){
     if(e.status==='fault'){if(!x.fault)parts.push(lb('故障','Fault','ខូច')+(e.remark?' · '+SEC.esc(e.remark):''));}
     else if(due)parts.push(lb('已過期','Overdue','ហួសកំណត់')+' '+fireDay(due,year));
   }
   if(x.s==='soon')parts.push((x.fault?'⏰ ':'')+lb('到期','Due','ផុតកំណត់')+' '+fireDay(due,year));
   if(r&&r.date)parts.push('🔍 '+fireWho(r,year));
-  return '• '+fireStatusMark(x)+' <b>'+SEC.esc(e.code||'—')+'</b> · '+fireWhere(e,lang)+(parts.length?' · '+parts.join(' · '):'')+(x.fault?fireFaultExtras(r,lang,year):'');
+  return fireStatusMark(x)+' <b>'+SEC.esc(e.code||'—')+'</b> · 📍 '+fireWhere(e,lang)+(parts.length?' · '+parts.join(' · '):'')+(x.fault?fireFaultExtras(r,lang,year):'');
 }
 function fireSummary(st) {
   var lang=st.lang||'zh',G=SEC.TG,lb=function(zh,en,km){return G.lbl(lang,zh,en,km);},p=fireSummaryPeriod(st),year=fireRefYear(st),list=fireScopedEquipment(st),hs=fireHistoryStats(st);
@@ -1758,6 +1758,9 @@ function fireInspectionSummary(st) {
   txt+='\n'+G.kpis([['🔍',lb('已檢查','Checked','បានពិនិត្យ'),checked],['✅',lb('正常','Normal','ធម្មតា'),ok],['⚠️',lb('異常','Abnormal','មិនប្រក្រតី'),bad]],3);
   var total=fireScopedEquipment(st).length;
   if(rows.length===detail.length&&total>checked)txt+='\n'+G.kpis([['⏳',lb('未檢查','Not checked','មិនទាន់ពិនិត្យ'),(total-checked)+' / '+total]],1);
+  /* 數字核對（學考勤摘要）：設備＝正常＋異常＋未檢查（逐筆巡檢紀錄才核，舊的彙總紀錄不核） */
+  if(rows.length&&rows.length===detail.length&&total){var pend=Math.max(0,total-checked),vd=total-ok-bad-pend;
+    txt+='\n'+(vd?'⚠️ '+lb('巡檢筆數比設備多','More checks than equipment','ចំនួនពិនិត្យច្រើនជាងឧបករណ៍')+'（'+checked+' > '+total+'）':'✅ '+lb('設備','Equipment','ឧបករណ៍')+' '+total+'＝'+lb('正常','normal','ធម្មតា')+' '+ok+'＋'+lb('異常','abnormal','មិនប្រក្រតី')+' '+bad+'＋'+lb('未檢查','not checked','មិនទាន់ពិនិត្យ')+' '+pend+' · '+lb('已核對正確','verified','បានផ្ទៀងផ្ទាត់'));}
   var fl=fireFactoryLine(fc,lang);if(fl)txt+='\n'+fl;
   txt+='\n'+fireLatestLine(latest&&latest.date,latest&&latest.by,year,lang);
   var dates={},names={};rows.forEach(function(r){if(r.date)dates[r.date]=1;if(r.by)names[r.by]=1;});
@@ -1778,11 +1781,9 @@ function fireInspectionTypeStats(st) {
 function fireTypeLbl(k, lang) { return (TYPES[k]||TYPES.other).icon+' '+SEC.TG.lbl('zh', SEC.esc(fireTypeLabel(k, lang))); }
 /* 「🧯 滅火器 48 · ✅ 45 · ⚠️ 3 🟩🟩🟩🟩🟩🟩🟩🟩🟩🟨 94%」：色條＝本期已檢設備中正常的比例 */
 function fireTypeLine(s, lang) {
-  var parts=[fireTypeLbl(s.k,lang)+' <b>'+s.total+'</b>'];
-  if(s.checked)parts.push('✅ '+s.ok);
-  if(s.bad)parts.push('⚠️ '+s.bad);
-  if(s.pending)parts.push('⏳ '+s.pending);
-  return parts.join(' · ')+(s.checked?' '+SEC.TG.bar(s.ok,s.checked):'');
+  /* 2026-11-13 Paul：列表欄位位置一致。一種設備一行固定：色條（已檢中正常比例，還沒檢查＝全灰）｜✅ 正常｜⚠️ 異常｜⏳ 未檢｜種類 總數；色條和數字在前面才會上下對齊 */
+  var bar=s.checked?SEC.TG.bar(s.ok,s.checked,6):'⬜⬜⬜⬜⬜⬜ —', w=String(s.total).length, n=function(v){return '<b>'+v+'</b>';};
+  return bar+' · ✅ '+n(s.ok)+' · ⚠️ '+n(s.bad)+' · ⏳ '+n(s.pending)+' · '+fireTypeLbl(s.k,lang)+' <b>'+s.total+'</b>';
 }
 /* 異常項目尾巴：有沒有照片、預計完成日／完成日；沒有的就提醒（📷 無照片、📅 完成日未填） */
 function fireFaultExtras(r, lang, year) {
@@ -1795,7 +1796,8 @@ function fireFaultExtras(r, lang, year) {
 }
 function fireFaultLine(r, lang, year) {
   var lb=function(zh,en,km){return SEC.TG.lbl(lang,zh,en,km);};
-  return '• ⚠️ <b>'+SEC.esc(r.code||r.id||'—')+'</b> · '+fireWhere(r,lang)+' · '+(r.note?SEC.esc(r.note):lb('異常','Abnormal','មិនប្រក្រតី'))+' · '+fireWho(r,year)+fireFaultExtras(r,lang,year);
+  /* 2026-11-13：欄位固定 ⚠️｜編號｜📍 位置｜📝 異常內容｜🔍 巡檢日 巡檢人｜📷｜完成日 */
+  return '⚠️ <b>'+SEC.esc(r.code||r.id||'—')+'</b> · 📍 '+fireWhere(r,lang)+' · 📝 '+(r.note?SEC.esc(r.note):lb('異常','Abnormal','មិនប្រក្រតី'))+' · 🔍 '+(fireWho(r,year)||'—')+fireFaultExtras(r,lang,year);
 }
 /* 20261103 Telegram 摘要附圖（shared/ac-tg-chart.js）：各種類正常／異常橫條、正常／異常／未檢圓環、指標列、每次巡檢日期的檢查數。
    回傳 PNG dataURL；本期沒有巡檢、沒有 ACChart 或畫不出來時回傳 ''（摘要照常送，只是沒有圖）。
