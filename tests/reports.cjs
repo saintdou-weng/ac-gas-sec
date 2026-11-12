@@ -46,6 +46,7 @@ const plain=x=>JSON.parse(JSON.stringify(x));
   w.PER=new w.SEC.Period('month',new w.Date(2026,8,12));w.SEC.setCfg({gasUrl:'https://offline.test/gas'});
   const posted=[];w.fetch=async(url,opt)=>{posted.push(JSON.parse(opt.body));return {ok:true,text:async()=>JSON.stringify({ok:true,data:{sent:true,sentPages:2}})};};
   for(const details of [false,true]){
+    w.localStorage.removeItem('ac_sec_auto_sync_fire');/* 20261111 沒上雲不准發：這段只測訊息內容，先當作已上雲 */
     w.openFireInspectionTelegram();if(details){const cb=w.document.querySelector('#tgDetails');cb.checked=true;cb.onchange();}
     await w.document.querySelector('#tgSend').onclick();
     const body=posted.filter(p=>p.action==='telegramBatch').at(-1);assert(body);assert.equal(body.period,'2026-09');
