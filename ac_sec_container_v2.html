@@ -1326,16 +1326,21 @@ function containerDirLabel(r, lang) {
 function containerTruckLines(r, lang, withDate) {
   var G = SEC.TG, lb = function (zh, en, km) { return G.lbl(lang, zh, en, km); }, dir = containerDirLabel(r, lang), ph = truckAllPhotos(r).length;
   var sz = containerSizeOf(r), szTxt = sz ? (sz === '40HQ' ? '40HQ' : sz + 'ft') : '';
-  var head = '• ' + (withDate ? G.d(r.date) + ' ' : '') + '<b>' + SEC.esc(r.containerNo || r.truckNo || r.id || '—') + '</b>' + (szTxt && String(r.containerNo || '').toUpperCase().indexOf(sz.slice(0, 2)) < 0 ? ' ' + szTxt : '') + (dir ? ' · ' + dir : '') + (ph ? ' · 📷' + ph : '');
-  var who = [r.truckNo && r.containerNo ? '🚚 ' + SEC.esc(r.truckNo) : '', r.name ? SEC.esc(r.name) : '', r.company ? SEC.esc(r.company) : ''].filter(Boolean).join(' · ');
-  var t = '   🟢 ' + lb('進廠', 'In', 'ចូល') + ' ' + (G.time(r.timeIn) || '—') + (r.signIn ? ' ' + SEC.esc(r.signIn) : '') + ' → 🔴 ' + lb('出廠', 'Out', 'ចេញ') + ' ' +
-    (r.timeOut ? (G.time(r.timeOut) || SEC.esc(r.timeOut)) + (r.signOut ? ' ' + SEC.esc(r.signOut) : '') : lb('未出廠', 'still inside', 'នៅក្នុងរោងចក្រ'));
-  if (containerTimeIssue(r)) t += ' · ⚠️ ' + lb('出廠早於進廠', 'out before in', 'ចេញមុនចូល');
-  else { var d = G.dur(containerStayMins(r)); if (d) t += ' · ⏱' + d; }
-  var out = [head];
-  if (who) out.push('   ' + (who.indexOf('🚚') === 0 ? '' : '👤 ') + who);
-  out.push(t);
-  if (r.remark) out.push('   📝 ' + SEC.esc(r.remark));
+  /* 2026-11-12 Paul：列表欄位位置一致、上下午分色（同通勤出入閘）。一台一行：
+     🟡上午／🔵下午｜進→出｜停留｜📦 櫃號 尺寸｜進口／出口｜🚚 車牌｜👤 司機｜🏢 公司｜📝 備註｜📷 張數；沒填顯示 — */
+  var tin = G.time(r.timeIn) || '', pm = tin && (+tin.slice(0, 2) >= 12), bad = containerTimeIssue(r), d = bad ? '' : G.dur(containerStayMins(r));
+  var tm = (withDate ? G.d(r.date) + ' ' : '') + (tin || '--:--') + '→' + (r.timeOut ? (G.time(r.timeOut) || SEC.esc(r.timeOut)) : '--:--');
+  var line = (pm ? '🔵' : '🟡') + ' <code>' + tm + '</code> ' + (bad ? '⚠️ ' + lb('出廠早於進廠', 'out before in', 'ចេញមុនចូល') : !r.timeOut ? '🏭 ' + lb('未出廠', 'still inside', 'នៅក្នុងរោងចក្រ') : '⏱' + (d || '—')) +
+    ' · 📦 <b>' + SEC.esc(r.containerNo || r.truckNo || r.id || '—') + '</b>' + (szTxt && String(r.containerNo || '').toUpperCase().indexOf(sz.slice(0, 2)) < 0 ? ' ' + szTxt : '') + ' · ' + (dir || '—') +
+    ' · 🚚 ' + SEC.esc(r.truckNo && r.containerNo ? r.truckNo : '—') + ' · 👤 ' + SEC.esc(r.name || '—') + ' · 🏢 ' + SEC.esc(r.company || '—') + ' · 📝 ' + (r.remark ? SEC.esc(String(r.remark).replace(/\s+/g, ' ').trim()) : '—') + (ph ? ' · 📷' + ph : '');
+  return [line];
+}
+function containerTruckIsPm(r) { var t = SEC.TG.time(r.timeIn) || ''; return !!t && (+t.slice(0, 2) >= 12); }
+/* 貨櫃車清單分「🟡 上午／🔵 下午」兩段 */
+function containerTruckBlock(list, lang, withDate) {
+  var lb = function (zh, en, km) { return SEC.TG.lbl(lang, zh, en, km); }, am = list.filter(function (r) { return !containerTruckIsPm(r); }), pm = list.filter(containerTruckIsPm), out = [];
+  if (am.length) { out.push('🟡 <b>' + lb('上午', 'Morning', 'ព្រឹក') + '</b> · ' + am.length); am.forEach(function (r) { out.push(containerTruckLines(r, lang, withDate)[0]); }); }
+  if (pm.length) { out.push('🔵 <b>' + lb('下午', 'Afternoon', 'រសៀល') + '</b> · ' + pm.length); pm.forEach(function (r) { out.push(containerTruckLines(r, lang, withDate)[0]); }); }
   return out;
 }
 function containerInspLines(r, lang, withDate, brief) {
@@ -1421,7 +1426,7 @@ function containerSummary(st) {
   }
   if (warn.length) txt += '\n' + warn.join('  ·  ');
   if (day || D.tk.length <= 4) {
-    if (D.tk.length) txt += G.sec('🚛', lb('貨櫃車', 'Containers', 'កុងតឺន័រ')) + '\n' + D.tk.slice(0, 8).map(function (r) { return containerTruckLines(r, lang, !day).join('\n'); }).join('\n') + (D.tk.length > 8 ? '\n… +' + (D.tk.length - 8) : '');
+    if (D.tk.length) txt += G.sec('🚛', lb('貨櫃車', 'Containers', 'កុងតឺន័រ')) + '\n' + containerTruckBlock(D.tk.slice(0, 8), lang, !day).join('\n') + (D.tk.length > 8 ? '\n… +' + (D.tk.length - 8) : '');
   } else {
     if (D.timeBad.length) txt += G.sec('⚠️', lb('時間有誤', 'Time to check', 'ម៉ោងត្រូវពិនិត្យ')) + '\n' + D.timeBad.slice(0, 5).map(function (r) { return containerTruckLines(r, lang, true).join('\n'); }).join('\n') + (D.timeBad.length > 5 ? '\n… +' + (D.timeBad.length - 5) : '');
     var inside = D.inside.filter(function (r) { return D.timeBad.indexOf(r) < 0; });
