@@ -1916,7 +1916,7 @@ function patrolSummary(st) {
     ['📋', lb('確認表', 'Check forms', 'ទម្រង់ពិនិត្យ'), D.checks.length]
   ], 2);
   /* 數字核對（學考勤摘要）：圈數＝完整＋未完整＋疑似巡更棒 */
-  if (D.list.length) { var vdiff = D.list.length - D.full - D.inc.length - D.wand.length;
+  if (D.list.length) { /* 完整圈逐圈重新數一次，不直接用相減出來的數字 */ var vFull = D.list.filter(function (r) { return roundComplete(r) && !patrolWandSuspect(r); }).length, vdiff = (D.list.length - vFull - D.inc.length - D.wand.length) || (vFull !== D.full ? 1 : 0);
     txt += '\n' + (vdiff ? '⚠️ ' + lb('圈數加總不符', 'Rounds do not add up', 'ចំនួនជុំមិនស៊ីគ្នា') + '（' + D.list.length + ' ≠ ' + D.full + '＋' + D.inc.length + '＋' + D.wand.length + '）' :
       '✅ ' + lb('圈數', 'Rounds', 'ជុំ') + ' ' + D.list.length + '＝' + lb('完整', 'complete', 'ពេញលេញ') + ' ' + D.full + '＋' + lb('未完整', 'incomplete', 'មិនពេញលេញ') + ' ' + D.inc.length + (D.wand.length ? '＋🔧 ' + D.wand.length : '') + ' · ' + lb('已核對正確', 'verified', 'បានផ្ទៀងផ្ទាត់')); }
   var checkBad = D.checks.filter(patrolCheckHasIssue), warn = [];
