@@ -34,7 +34,7 @@ function plain(html){return html.replace(/<br>/g,'\n').replace(/<[^>]+>/g,'').re
    assert(!/^⚠️ /.test(txt)||!/Error|undefined/.test(txt),tag+': preview error '+txt.slice(0,200));
    const pages=txt.split(/\n\n(?=【\d+\/\d+】)/);
    pages.forEach((pg,i)=>{assert(pg.length<=3800,tag+' page '+(i+1)+' too long '+pg.length);});
-   assert(pages[0].split('\n').length<=32,tag+': first page has '+pages[0].split('\n').length+' lines');
+   /* 2026-11-17 +1 行：週／月報列出哪幾天沒做 */assert(pages[0].split('\n').length<=33,tag+': first page has '+pages[0].split('\n').length+' lines');
    txt.split('\n').forEach(line=>{
      assert(!/\S {3,}\S/.test(line),tag+': padded table line: "'+line+'"');
      assert(!/[⟦⟧]/.test(line),tag+': merge marker left: '+line);

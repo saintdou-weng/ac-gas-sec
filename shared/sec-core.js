@@ -1380,8 +1380,32 @@ function tgVerdict(level, text) {
   var dot = level === 'bad' ? '🔴' : level === 'warn' ? '🟠' : '🟢';
   return dot + ' <b>' + String(text == null ? '' : text) + '</b>';
 }
+/* 2026-11-17 Paul：週報要列出「哪幾個工作日沒做」（CCTV 日檢、巡邏、機車點數…；水桶、鑰匙這類不是每天做的不用）。
+   period＝SEC.Period；done＝有做的日期陣列；o.all＝每天都要做（含週日／假日，例如巡邏），否則只算工作日（週一～六扣 HRA 行事曆假日）。
+   今天還沒過完不算；日報（day）不列。回傳 { exp, done, miss, line }，line 已經是 Telegram HTML。 */
+function tgMissed(period, done, lang, o) {
+  o = o || {}; var out = { exp:0, done:0, miss:[], line:'' };
+  if (!period || !period.range || period.mode === 'day') return out;
+  var r = period.range(), t = new Date(), y = new Date(t.getFullYear(), t.getMonth(), t.getDate() - 1), upto = r.to < ymd(y) ? r.to : ymd(y);
+  if (upto < r.from) return out;
+  var H = (typeof window !== 'undefined' && window.ACHolidays) || null, exp = [];
+  for (var d = parseD(r.from); ymd(d) <= upto; d.setDate(d.getDate() + 1)) {
+    var k = ymd(d); if (!o.all && (d.getDay() === 0 || (H && H.has && H.has(k)))) continue; exp.push(k);
+  }
+  var set = {}; (done || []).forEach(function (x) { var m = String(x || '').match(/^\d{4}-\d{2}-\d{2}/); if (m) set[m[0]] = 1; });
+  var miss = exp.filter(function (k) { return !set[k]; });
+  out.exp = exp.length; out.done = exp.length - miss.length; out.miss = miss;
+  if (!exp.length) return out;
+  var what = o.what || ['日檢', 'Daily check', 'ការពិនិត្យប្រចាំថ្ងៃ'], L = function (zh, en, km) { return tgLbl(lang, zh, en, km); };
+  var WD = lang === 'en' ? ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] : lang === 'km' ? ['អា','ច','អ','ពុ','ព្រ','សុ','ស'] : ['日','一','二','三','四','五','六'];
+  var unit = o.all ? L('天', 'days', 'ថ្ងៃ') : L('個工作日', 'workdays', 'ថ្ងៃធ្វើការ');
+  if (!miss.length) { out.line = '✅ ' + L(what[0], what[1], what[2]) + ' <b>' + exp.length + '/' + exp.length + '</b> ' + unit + ' · ' + L('每天都有做', 'done every day', 'បានធ្វើរាល់ថ្ងៃ'); return out; }
+  var list = miss.length <= 7 ? miss.map(function (k) { return tgShortDate(k) + '(' + WD[parseD(k).getDay()] + ')'; }).join(' ') : tgDateRanges(miss);
+  out.line = '⚠️ ' + L(what[0] + '沒做', what[1] + ' missed', what[2] + ' មិនបានធ្វើ') + ' <b>' + miss.length + '/' + exp.length + '</b> ' + unit + '：<b>' + list + '</b>';
+  return out;
+}
 var TG = { lbl:tgLbl, strip:tgStrip, d:tgShortDate, time:tgTime, mins:tgMinutes, dur:tgDuration, ranges:tgDateRanges,
-  kpis:tgKpis, head:tgHead, sec:tgSec, fold:tgFold, chunk:tgChunk, bar:tgBar, verdict:tgVerdict };
+  kpis:tgKpis, head:tgHead, sec:tgSec, fold:tgFold, chunk:tgChunk, bar:tgBar, verdict:tgVerdict, missed:tgMissed };
 
 /* 送出成功動畫（只在網頁上，不影響 Telegram 內容） */
 function tgSentFx(text) {

@@ -91,4 +91,6 @@
   function name(ymd, lang) { var n = state.names[String(ymd || '').slice(0, 10)]; if (!n) return ''; return lang === 'en' ? (n.en || n.zh) : lang === 'km' ? (n.km || n.en || n.zh) : (n.zh || n.en); }
   function info() { return { source:state.source, count:state.set.size, loadedAt:state.loadedAt }; }
   root.ACHolidays = { load:load, has:has, isOff:isOff, isSunday:isSunday, workdays:workdays, days:days, name:name, info:info, compute:compute, _state:state };
+  /* 2026-11-17：一載入就先讀假日（本機／快取立刻可用，雲端背景更新），週報算「哪天沒做」才不會把假日算進去 */
+  try { if (typeof document !== 'undefined') load(); } catch (_) {}
 })(typeof window !== 'undefined' ? window : this);

@@ -236,8 +236,8 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
 <div class="mf"><button class="btn gray" onclick="SEC.closeModal('mDrivers')" data-t="cancel">取消</button>
 <button class="btn" id="btnSaveDrivers" onclick="saveDriverManager()" data-t="save">儲存</button></div></div></div>
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20261111a"></script>
-<script src="./shared/ac-holidays.js?v=20261103a"></script>
+<script src="./shared/sec-core.js?v=20261117m"></script>
+<script src="./shared/ac-holidays.js?v=20261117m"></script>
 <script src="./shared/ac-tg-chart.js?v=20261112a"></script>
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
 <script src="./shared/ac-report-doc.js?v=20261022a"></script>
@@ -1439,6 +1439,10 @@ function commuteSummary(st) {
   if (commuteScopeOn(st,'bike')) k.push(['🏍', day ? lb('機車','Bikes','ម៉ូតូ') : lb('機車日均','Bikes/day','ម៉ូតូ/ថ្ងៃ'), (day ? (D.bike[0] ? (+D.bike[0].total || 0) : 0) : avgB) + bikeAB]);
   if (commuteScopeOn(st,'late')) k.push(['⏰', lb('遲到','Late','មកយឺត'), D.late.length + (Object.keys(D.uniq).length && !day ? ' (' + Object.keys(D.uniq).length + ' ' + lb('人','ppl','នាក់') + ')' : '')]);
   txt += '\n' + G.kpis(k, 2);
+  /* 2026-11-17：週／月報列出哪幾個工作日沒記（機車點數每天點）；派車、出入閘、遲到是有才記，不列 */
+  if (G.missed) {
+    if (commuteScopeOn(st,'bike')) { var MB = G.missed(p, D.bike.map(function (r) { return r.date; }), lang, { what:['🏍 機車點數', '🏍 Bike count', '🏍 រាប់ម៉ូតូ'] }); if (MB.line) txt += '\n' + MB.line; }
+  }
   var warn = [];
   if (timeBad.length) warn.push('⚠️ ' + lb('出入閘時間有誤','Gate time to check','ម៉ោងច្រកត្រូវពិនិត្យ') + ' <b>' + timeBad.length + '</b>');
   if (D.rep.length && !day) warn.push('🔁 ' + lb('遲到 3 次以上','Late 3+ times','មកយឺត 3 ដង+') + ' <b>' + D.rep.length + '</b>');

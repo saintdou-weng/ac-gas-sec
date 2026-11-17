@@ -245,8 +245,8 @@
 <button class="btn" id="eSaveBtn" onclick="saveEdit()" data-t="save">儲存</button></div></div></div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20261111a"></script>
-<script src="./shared/ac-holidays.js?v=20261103a"></script>
+<script src="./shared/sec-core.js?v=20261117m"></script>
+<script src="./shared/ac-holidays.js?v=20261117m"></script>
 <script src="./shared/ac-tg-chart.js?v=20261106d"></script>
 <script src="./shared/sec-compact.js?v=20261113b"></script>
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
@@ -1024,8 +1024,11 @@ function cctvSummaryData(st) {
 function cctvSummary(st) {
   var lang = st.lang || 'zh', G = SEC.TG, lb = function (zh, en, km) { return G.lbl(lang, zh, en, km); }, D = cctvSummaryData(st), s = D.s, a = D.audit, rec = D.rec, bad = cctvBadN(s);
   var txt = G.head('📷', lb('CCTV 巡檢', 'CCTV check', 'ការត្រួតពិនិត្យ CCTV'), D.p.label(), st.scope && st.scope !== 'all' ? '🗂 ' + G.lbl('zh', SEC.esc(cctvScopeLabel(st, lang))) : '');
-  txt += '\n' + G.verdict(!rec ? 'warn' : bad ? 'bad' : s.pending ? 'warn' : 'ok', !rec ? lb('本期沒有巡檢', 'No check this period', 'គ្មានការត្រួតពិនិត្យ') : bad ? lb(bad + ' 台異常', bad + ' faulty', bad + ' មានបញ្ហា') : s.pending ? lb(s.pending + ' 台待確認', s.pending + ' pending', s.pending + ' រង់ចាំ') : lb('全部正常', 'All cameras OK', 'ធម្មតាទាំងអស់'));
+  /* 2026-11-17：週／月報列出哪幾個工作日沒做日檢 */
+  var MS = G.missed ? G.missed(D.p, D.logs.map(function (r) { return r.date; }), lang, { what:['日檢', 'Daily check', 'ការពិនិត្យប្រចាំថ្ងៃ'] }) : { miss:[] };
+  txt += '\n' + G.verdict(!rec ? 'warn' : bad ? 'bad' : (s.pending || MS.miss.length) ? 'warn' : 'ok', !rec ? lb('本期沒有巡檢', 'No check this period', 'គ្មានការត្រួតពិនិត្យ') : bad ? lb(bad + ' 台異常', bad + ' faulty', bad + ' មានបញ្ហា') : s.pending ? lb(s.pending + ' 台待確認', s.pending + ' pending', s.pending + ' រង់ចាំ') : lb('全部正常', 'All cameras OK', 'ធម្មតាទាំងអស់'));
   if (D.list.length && rec) txt += '\n' + G.bar(s.ok || 0, D.list.length) + ' ' + lb('正常', 'OK', 'ធម្មតា');
+  if (MS.line) txt += '\n' + MS.line;
   txt += '\n' + G.kpis([['📷', lb('攝影機', 'Cameras', 'កាមេរ៉ា'), D.list.length], ['✅', lb('正常', 'OK', 'ធម្មតា'), s.ok || 0], ['⚠️', lb('異常', 'Faulty', 'មានបញ្ហា'), bad]], 3);
   var k2 = [['📈', lb('可用率', 'Uptime', 'អត្រាដំណើរការ'), D.uptime == null ? '—' : D.uptime + '%']];
   if (s.pending) k2.push(['⏳', lb('待確認', 'Pending', 'រង់ចាំពិនិត្យ'), s.pending]);

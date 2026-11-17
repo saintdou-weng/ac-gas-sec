@@ -280,8 +280,8 @@
 </div>
 
 <div id="toastwrap"></div>
-<script src="./shared/sec-core.js?v=20261111a"></script>
-<script src="./shared/ac-holidays.js?v=20261103a"></script>
+<script src="./shared/sec-core.js?v=20261117m"></script>
+<script src="./shared/ac-holidays.js?v=20261117m"></script>
 <script src="./shared/ac-tg-chart.js?v=20261106d"></script>
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
 <script src="./shared/ac-report-doc.js?v=20261022a"></script>
@@ -1907,6 +1907,8 @@ function patrolSummary(st) {
   var nBad = D.inc.length + D.issues.length + D.badChecks.length + (D.wand.length ? 1 : 0), hasData = D.list.length || D.manual.length;
   txt += '\n' + G.verdict(!hasData ? 'warn' : nBad ? (D.inc.length || D.issues.length ? 'bad' : 'warn') : 'ok', !hasData ? lb('沒有巡邏資料', 'No patrol data', 'គ្មានទិន្នន័យល្បាត') : nBad ? lb(nBad + ' 項需注意', nBad + ' to check', nBad + ' ត្រូវពិនិត្យ') : lb('巡邏全部完整', 'All patrols complete', 'ល្បាតពេញលេញទាំងអស់'));
   if (D.list.length) txt += '\n' + G.bar(D.full, D.list.length) + ' ' + lb('完整率', 'complete', 'ពេញលេញ');
+  /* 2026-11-17：週／月報列出哪幾天沒有巡邏（保全每天都要巡，週日假日也算） */
+  if (G.missed) { var MS = G.missed(p, D.list.map(function (r) { return r.date; }), lang, { all:true, what:['巡邏', 'Patrol', 'ល្បាត'] }); if (MS.line) txt += '\n' + MS.line; }
   txt += '\n' + G.kpis([
     ['🔄', lb('圈數', 'Rounds', 'ជុំ'), D.list.length],
     ['✅', lb('完整', 'Complete', 'ពេញលេញ'), D.full + (D.list.length ? ' (' + Math.round(D.full / D.list.length * 100) + '%)' : '')],
