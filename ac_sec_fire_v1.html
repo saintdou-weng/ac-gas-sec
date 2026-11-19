@@ -298,6 +298,7 @@
     <div class="card">
       <h3>💾 <span data-zh="資料工具" data-en="Data Tools" data-km="ឧបករណ៍ទិន្នន័យ">資料工具</span></h3>
       <div class="row">
+        <button class="btn" onclick="firePhotoChart()">🖼️ <span data-zh="匯入照片表 Excel" data-en="Import photo chart" data-km="នាំចូលតារាងរូបថត">匯入照片表 Excel</span></button>
         <button class="btn" onclick="impExcel()">📥 <span data-zh="匯入設備清單 Excel" data-en="Import equipment" data-km="នាំចូលឧបករណ៍">匯入設備清單 Excel</span></button>
         <button class="btn gh" onclick="impHistExcel()">📜 <span data-zh="匯入歷史月檢表" data-en="Import past monthly checks" data-km="នាំចូលការត្រួតពិនិត្យចាស់">匯入歷史月檢表</span></button>
         <button class="btn" onclick="applyFireSeed(true)">🔄 <span data-zh="套用附件 Excel 基準" data-en="Apply supplied Excel baseline" data-km="អនុវត្តមូលដ្ឋាន Excel">套用附件 Excel 基準</span></button>
@@ -2083,5 +2084,13 @@ setTimeout(function(){applyFireLanguage();fireQrStart();},0);
 </script>
 <!-- VRT swipe-tabs：左右滑動（手指／滑鼠拖曳）切換分頁，只聽手勢、不改資料 -->
 <script src="https://saintdou-weng.github.io/ac-admin/shared/swipe-tabs.js" defer></script>
+<script src="./shared/vrt-photo-import-v1.js?v=20261119a"></script>
+<script src="./shared/sec-photo-chart.js?v=20261119a"></script>
+<script>
+/* 2026-11-19 照片表（編號＋貼上的照片）→ 每個設備的 ⭐ 標準照 */
+function firePhotoChart(){SEC.PhotoChart.open({L:L,title:L('消防設備照片表匯入','Fire equipment photo chart','នាំចូលរូបថតឧបករណ៍'),items:function(){return DB;},keyOf:function(e){return e.code;},labelOf:function(e){var ty=TYPES[e.type]||{};return (ty.icon||'')+' '+(ty.zh||e.type||'')+' · '+(e.loc||'');},maxW:760,
+  apply:function(e,d){var ph=Array.isArray(e.photos)?e.photos:[];if(ph[0]===d)return false;e.photos=[d].concat(ph.filter(function(p){return p!==d;})).slice(0,4);e.updatedAt=new Date().toISOString();if(SEC.clearDeleted)SEC.clearDeleted(TOOL,e);return true;},
+  done:async function(n){if(!n)return;ensureFireSyncKeys();await save();renderAll();SEC.scheduleAutoCloudSync(TOOL,'fire-photo-chart',n+' photos');}});}
+</script>
 </body>
 </html>

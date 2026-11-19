@@ -189,6 +189,7 @@
     <div class="card">
       <h3>💾 <span data-zh="資料工具" data-en="Data Tools" data-km="ឧបករណ៍">資料工具</span></h3>
       <div class="row">
+        <button class="btn" onclick="cctvPhotoChart()">🖼️ <span data-zh="匯入照片表 Excel" data-en="Import photo chart" data-km="នាំចូលតារាងរូបថត">匯入照片表 Excel</span></button>
         <button class="btn" onclick="impCamJson()">🎥 <span data-zh="匯入相機清單 JSON（vrt_cameras）" data-en="Import cameras JSON" data-km="នាំចូល JSON">匯入相機清單 JSON（vrt_cameras）</span></button>
         <button class="btn gh" onclick="impExcel()">📥 <span data-zh="匯入 Excel" data-en="Import Excel" data-km="នាំចូល">匯入 Excel</span></button>
         <button class="btn gh" onclick="migrateOld()">♻️ <span data-zh="轉入舊 security.html 資料" data-en="Migrate old data" data-km="នាំចូលចាស់">轉入舊 security.html 資料</span></button>
@@ -1730,5 +1731,13 @@ window.addEventListener('load', function () { setTimeout(function () { SEC.start
 </script>
 <!-- VRT swipe-tabs：左右滑動（手指／滑鼠拖曳）切換分頁，只聽手勢、不改資料 -->
 <script src="https://saintdou-weng.github.io/ac-admin/shared/swipe-tabs.js" defer></script>
+<script src="./shared/vrt-photo-import-v1.js?v=20261119a"></script>
+<script src="./shared/sec-photo-chart.js?v=20261119a"></script>
+<script>
+/* 2026-11-19 照片表（編號＋貼上的照片）→ 每支攝影機的 ⭐ 攝影機照 */
+function cctvPhotoChart(){SEC.PhotoChart.open({L:t,title:t('CCTV 照片表匯入','CCTV photo chart','នាំចូលរូបថត CCTV'),items:function(){return DB;},keyOf:function(c){return c.code;},labelOf:function(c){return c.name||'';},maxW:760,
+  apply:function(c,d){var ph=Array.isArray(c.photos)?c.photos:[];if(ph[0]===d)return false;c.photos=[d].concat(ph.filter(function(p){return p!==d;})).slice(0,4);c.updatedAt=new Date().toISOString();if(SEC.clearDeleted)SEC.clearDeleted(TOOL,c);return true;},
+  done:async function(n){if(!n)return;ensureCctvSyncKeys();await save();renderAll();SEC.scheduleAutoCloudSync(TOOL,'cctv-photo-chart',n+' photos');}});}
+</script>
 </body>
 </html>

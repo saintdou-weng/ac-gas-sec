@@ -160,6 +160,7 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
     <div class="card">
       <h3>💾 <span data-zh="資料工具" data-en="Data Tools" data-km="ឧបករណ៍ទិន្នន័យ">資料工具</span></h3>
       <div class="row">
+        <button class="btn" onclick="personnelPhotoChart()">🖼️ <span data-zh="匯入照片表 Excel" data-en="Import photo chart" data-km="នាំចូលតារាងរូបថត">匯入照片表 Excel</span></button>
         <button class="btn" onclick="impCards()">📇 <span data-zh="匯入保安資料卡（含照片）" data-en="Import ID Cards (with photos)" data-km="នាំចូលកាតព័ត៌មាន (មានរូបថត)">匯入保安資料卡（含照片）</span></button>
         <button class="btn" onclick="impRoster()">📋 <span data-zh="匯入 Security Roaster" data-en="Import Security Roaster" data-km="នាំចូលតារាងវេន">匯入 Security Roaster</span></button>
         <button class="btn gh" onclick="impExcel()">📥 <span data-zh="匯入一般名冊 Excel" data-en="Import Roster Excel" data-km="នាំចូលបញ្ជីឈ្មោះ Excel">匯入一般名冊 Excel</span></button>
@@ -1316,5 +1317,13 @@ window.addEventListener('load', function () { setTimeout(function () { SEC.start
 </script>
 <!-- VRT swipe-tabs：左右滑動（手指／滑鼠拖曳）切換分頁，只聽手勢、不改資料 -->
 <script src="https://saintdou-weng.github.io/ac-admin/shared/swipe-tabs.js" defer></script>
+<script src="./shared/vrt-photo-import-v1.js?v=20261119a"></script>
+<script src="./shared/sec-photo-chart.js?v=20261119a"></script>
+<script>
+/* 2026-11-19 保安人員照片表（工號＋貼上的照片）→ 換成新大頭照 */
+function personnelPhotoChart(){SEC.PhotoChart.open({L:L,title:L('保安人員照片表匯入','Security guard photo chart','នាំចូលរូបថតសន្តិសុខ'),items:function(){return DB.filter(function(r){return r.status==='active';});},keyOf:function(r){return r.empId;},labelOf:function(r){return (r.name||'')+' · '+(r.post||'');},maxW:480,
+  apply:function(r,d){if(r.photo===d)return false;r.photo=d;r.updatedAt=new Date().toISOString();return true;},
+  done:async function(n){if(!n)return;await save();renderAll();SEC.scheduleAutoCloudSync(TOOL,'personnel-photo-chart',n+' photos');}});}
+</script>
 </body>
 </html>
