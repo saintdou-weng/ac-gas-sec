@@ -2329,3 +2329,27 @@ G.SEC = {
   importFromFiles:importFromFiles, registerImporter:registerImporter, importers:importers, tgPreset:tgPreset, markPageReady:markPageReady,
 };
 })(window);
+
+/* ═══ 2026-11-22 雲端照片一定看得到（Drive 照片自動改用縮圖網址）═══
+   Paul：上傳到雲端的照片要隨時看得到。照片上傳後存的是 Google Drive 的 uc?export=view／open?id=／file/d/…/view 連結，
+   這種連結在手機瀏覽器常常被擋（圖片破掉，只剩「Photo 1」字樣）。這裡在整頁聽圖片載入失敗：
+   是 Drive 連結就改用 Drive 縮圖網址重試，再不行改用 lh3 網址；只換畫面上的網址，存的資料不變。 */
+(function () {
+  if (typeof document === 'undefined' || window.__vrtDriveImgFix) return; window.__vrtDriveImgFix = true;
+  function driveId(u) {
+    u = String(u || '');
+    if (!/(drive|docs)\.google\.com|googleusercontent\.com/.test(u)) return '';
+    var m = u.match(/[?&]id=([A-Za-z0-9_-]{10,})/) || u.match(/\/file\/d\/([A-Za-z0-9_-]{10,})/) || u.match(/googleusercontent\.com\/d\/([A-Za-z0-9_-]{10,})/);
+    return m ? m[1] : '';
+  }
+  window.vrtDriveThumb = function (u, w) { var id = driveId(u); return id ? 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(id) + '&sz=w' + (w || 1600) : String(u || ''); };
+  document.addEventListener('error', function (e) {
+    var im = e.target; if (!im || im.tagName !== 'IMG') return;
+    var src = im.currentSrc || im.src || '', id = driveId(src); if (!id) return;
+    var step = +(im.getAttribute('data-drive-try') || 0);
+    var next = step === 0 && !/\/thumbnail\?/.test(src) ? 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(id) + '&sz=w1600'
+      : step <= 1 ? 'https://lh3.googleusercontent.com/d/' + encodeURIComponent(id) + '=w1600' : '';
+    if (!next || next === src) { im.setAttribute('data-drive-failed', '1'); return; }
+    im.setAttribute('data-drive-try', String(step + 1)); im.src = next;
+  }, true);
+})();
