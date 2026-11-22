@@ -83,6 +83,7 @@
   <div id="mod-truck">
     <div class="tabs" data-tabs="truck">
       <button class="tab on" data-p="tk-board" data-zh="📋 進出清單" data-en="📋 Records" data-km="📋 កំណត់ត្រា">📋 進出清單</button>
+      <button class="tab" data-p="tk-photo" data-zh="📷 照片" data-en="📷 Photos" data-km="📷 រូបថត">📷 照片</button>
       <button class="tab" data-p="tk-ana" data-zh="📊 統計分析" data-en="📊 Analytics" data-km="📊 វិភាគ">📊 統計分析</button>
       <button class="tab" data-p="tk-co" data-zh="🏢 貨櫃車公司" data-en="🏢 Companies" data-km="🏢 ក្រុមហ៊ុន">🏢 貨櫃車公司</button>
       <button class="tab" data-p="tk-data" data-zh="💾 資料管理" data-en="💾 Data" data-km="💾 ទិន្នន័យ">💾 資料管理</button>
@@ -119,6 +120,7 @@
       </div>
     </div>
 
+    <div class="page" id="p-tk-photo" style="display:none"><div class="card"><div id="gal-tk-photo"></div></div></div>
     <div class="page" id="p-tk-ana" style="display:none">
       <div class="card"><h3>📈 <span data-zh="每日進出趨勢" data-en="Daily Trend" data-km="និន្នាការប្រចាំថ្ងៃ">每日進出趨勢</span></h3>
         <div style="height:250px"><canvas id="tkc1"></canvas></div></div>
@@ -171,6 +173,7 @@
     <div class="tabs" data-tabs="insp">
       <button class="tab on" data-p="ci-form" data-zh="📝 檢查登錄" data-en="📝 New" data-km="📝 បញ្ចូល">📝 檢查登錄</button>
       <button class="tab" data-p="ci-rec" data-zh="📋 檢查紀錄" data-en="📋 Records" data-km="📋 កំណត់ត្រា">📋 檢查紀錄</button>
+      <button class="tab" data-p="ci-photo" data-zh="📷 照片" data-en="📷 Photos" data-km="📷 រូបថត">📷 照片</button>
       <button class="tab" data-p="ci-ana" data-zh="📊 統計分析" data-en="📊 Analytics" data-km="📊 វិភាគ">📊 統計分析</button>
     </div>
 
@@ -222,6 +225,7 @@
       </div>
     </div>
 
+    <div class="page" id="p-ci-photo" style="display:none"><div class="card"><div id="gal-ci-photo"></div></div></div>
     <div class="page" id="p-ci-ana" style="display:none">
       <div class="grid g2">
         <div class="card"><h3>📈 <span data-zh="每日檢查數" data-en="Daily Count" data-km="ចំនួនប្រចាំថ្ងៃ">每日檢查數</span></h3>
@@ -241,6 +245,7 @@
     <div class="tabs" data-tabs="gate">
       <button class="tab on" data-p="gd-new" data-zh="🚪 開單" data-en="🚪 New Pass" data-km="🚪 បង្កើត">🚪 開單</button>
       <button class="tab" data-p="gd-rec" data-zh="📋 單據紀錄" data-en="📋 Records" data-km="📋 កំណត់ត្រា">📋 單據紀錄</button>
+      <button class="tab" data-p="gd-photo" data-zh="📷 照片" data-en="📷 Photos" data-km="📷 រូបថត">📷 照片</button>
       <button class="tab" data-p="gd-ana" data-zh="📊 統計分析" data-en="📊 Analytics" data-km="📊 វិភាគ">📊 統計分析</button>
     </div>
 
@@ -298,6 +303,7 @@
       </div>
     </div>
 
+    <div class="page" id="p-gd-photo" style="display:none"><div class="card"><div id="gal-gd-photo"></div></div></div>
     <div class="page" id="p-gd-ana" style="display:none">
       <div class="card"><h3>📈 <span data-zh="14 天單據趨勢" data-en="14-Day Trend" data-km="និន្នាការ ១៤ ថ្ងៃ">14 天單據趨勢</span></h3>
         <div style="height:250px"><canvas id="gdc1"></canvas></div></div>
@@ -356,7 +362,7 @@
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
 <script src="./shared/ac-report-doc.js?v=20261022a"></script>
 <script src="./shared/sec-report.js?v=20261022a"></script>
-<script src="./shared/sec-compact.js?v=20261122a"></script>
+<script src="./shared/sec-compact.js?v=20261122b"></script>
 <script src="./shared/sec-smart-sync.js?v=20261024d"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
@@ -536,7 +542,9 @@ document.querySelectorAll('.tabs').forEach(function (bar) {
     var host = document.getElementById('mod-' + mod);
     host.querySelectorAll('.page').forEach(function (p) { p.style.display = 'none'; });
     document.getElementById('p-' + b.dataset.p).style.display = '';
-    if (mod === 'truck') document.getElementById('pnavHost').style.display = (b.dataset.p === 'tk-data') ? 'none' : '';
+    if (mod === 'truck') document.getElementById('pnavHost').style.display = (b.dataset.p === 'tk-data' || b.dataset.p === 'tk-photo') ? 'none' : '';
+    /* 照片分頁列出所有月份（不受上面的期間限制），期間列在照片分頁收起來 */
+    var pn = document.getElementById('pnavHost'); if (pn && /-photo$/.test(b.dataset.p)) pn.style.display = 'none'; else if (pn && mod !== 'truck') pn.style.display = '';
     renderAll();
   });
 });
@@ -614,6 +622,7 @@ function renderAll() {
   if (MOD === 'truck') { renderTk(); renderTkCo(); renderTkAna(); }
   if (MOD === 'insp')  { renderCi(); renderCiAna(); }
   if (MOD === 'gate')  { renderGd(); renderGdAna(); }
+  if (window.CT_GAL) Object.keys(CT_GAL).forEach(function (k) { var g = CT_GAL[k], pg = document.getElementById('p-' + k); if (g && pg && pg.style.display !== 'none') g.refresh(); });
 }
 function inPer(arr) { return live(arr).filter(function (r) { return PER.has(r.date); }); }
 function paintEditBanners() {
@@ -1801,9 +1810,24 @@ setTimeout(containerQrStart,0);
 /* 2026-11-13 手機精簡清單（仿 VRT HR 員工頁，同消防設備／保安名冊）：篩選一小條、按鈕收進「⋯」、一筆一行、點開看詳細卡。
    只整理畫面：資料、按鈕、原本的函式都不變；電腦寬度表格照舊，點一列一樣會開詳細卡。 */
 if (SEC.Compact) {
-  SEC.Compact.attach({ card:'#p-tk-board .card', table:'#p-tk-board table', kpis:'#p-tk-board .grid.g4', keep:'h3 .sp>button[onclick^="tkAdd"]', cols:{ title:[2,5], sub:[0,1,3,4], right:[6,7], actions:9 } });
-  SEC.Compact.attach({ card:'#p-ci-rec .card', table:'#p-ci-rec table', cols:{ title:[1,5], sub:[0,2,3,6], right:[4], actions:7 } });
-  SEC.Compact.attach({ card:'#p-gd-rec .card', table:'#p-gd-rec table', cols:{ title:[0,1], sub:[2,3,4,5], right:[6], actions:7 } });
+  /* 2026-11-22 Paul：照片學消防設備——詳細卡表頭顯示照片（點了放大）、另有「📷 照片」分頁依月份列出；進／出時間加上標示 */
+  var ctRid = function (tr, fn) { var b = tr && tr.querySelector('[onclick^="' + fn + '("]'), m = b && String(b.getAttribute('onclick')).match(/'([^']*)'\)\s*;?\s*$/); return m ? m[1] : ''; };
+  var ctTk = function (tr) { var id = ctRid(tr, 'tkAdd'); return TK.filter(function (x) { return x.id === id; })[0] || null; };
+  var ctCi = function (tr) { var id = ctRid(tr, 'editCi'); return CI.filter(function (x) { return x.id === id; })[0] || null; };
+  var ctGd = function (tr) { var id = ctRid(tr, 'editGd'); return GD.filter(function (x) { return x.id === id; })[0] || null; };
+  var ctArr = function (v) { return Array.isArray(v) ? v.filter(Boolean) : []; };
+  window.CT_TK_CMP = SEC.Compact.attach({ card:'#p-tk-board .card', table:'#p-tk-board table', kpis:'#p-tk-board .grid.g4', keep:'h3 .sp>button[onclick^="tkAdd"]', cols:{ title:[2,5], sub:[0,1,3,4], right:[6,7], actions:9 }, labelRight:true,
+    photos:function (tr) { var r = ctTk(tr); return r ? truckAllPhotos(r) : []; },
+    photoGroups:function (tr) { var r = ctTk(tr); if (!r) return []; return [{ date:r.date, title:'🚛 ' + L('入廠', 'Entry', 'ចូល') + (r.timeIn ? ' ' + r.timeIn : ''), photos:truckEntryPhotos(r) }, { date:r.date, title:'🚚 ' + L('出廠', 'Exit', 'ចេញ') + (r.timeOut ? ' ' + r.timeOut : ''), photos:truckExitPhotos(r) }]; } });
+  window.CT_CI_CMP = SEC.Compact.attach({ card:'#p-ci-rec .card', table:'#p-ci-rec table', cols:{ title:[1,5], sub:[0,2,3,6], right:[4], actions:7 },
+    photos:function (tr) { var r = ctCi(tr); return r ? ctArr(r.photos) : []; }, photoDate:function (tr) { var r = ctCi(tr); return r ? r.date : ''; } });
+  window.CT_GD_CMP = SEC.Compact.attach({ card:'#p-gd-rec .card', table:'#p-gd-rec table', cols:{ title:[0,1], sub:[2,3,4,5], right:[6], actions:7 },
+    photos:function (tr) { var r = ctGd(tr); return r ? ctArr(r.photos) : []; }, photoDate:function (tr) { var r = ctGd(tr); return r ? r.date : ''; } });
+  if (SEC.Compact.gallery) window.CT_GAL = {
+    'tk-photo':SEC.Compact.gallery('#gal-tk-photo', function () { return live(TK).map(function (r) { return { date:r.date, title:[r.containerNo, r.truckNo, r.name].filter(Boolean).join(' · '), photos:truckAllPhotos(r), open:function () { showPage('truck', 'tk-board'); setTimeout(function () { if (window.CT_TK_CMP) CT_TK_CMP.openWhere(function (tr) { return ctRid(tr, 'tkAdd') === r.id; }, 'photo'); }, 80); } }; }); }, { note:L('點照片放大；按「看這筆」開詳細卡', 'Tap a photo to zoom; “Open” shows the record', 'ចុចរូបដើម្បីពង្រីក') }),
+    'ci-photo':SEC.Compact.gallery('#gal-ci-photo', function () { return live(CI).map(function (r) { return { date:r.date, title:[r.containerNo, r.by].filter(Boolean).join(' · '), photos:ctArr(r.photos), open:function () { showPage('insp', 'ci-rec'); setTimeout(function () { if (window.CT_CI_CMP) CT_CI_CMP.openWhere(function (tr) { return ctRid(tr, 'editCi') === r.id; }, 'photo'); }, 80); } }; }); }),
+    'gd-photo':SEC.Compact.gallery('#gal-gd-photo', function () { return live(GD).map(function (r) { return { date:r.date, title:[r.no, r.dept, r.by].filter(Boolean).join(' · '), photos:ctArr(r.photos), open:function () { showPage('gate', 'gd-rec'); setTimeout(function () { if (window.CT_GD_CMP) CT_GD_CMP.openWhere(function (tr) { return ctRid(tr, 'editGd') === r.id; }, 'photo'); }, 80); } }; }); })
+  };
 }
 </script>
 <!-- VRT swipe-tabs：左右滑動（手指／滑鼠拖曳）切換分頁，只聽手勢、不改資料 -->

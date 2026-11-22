@@ -1098,6 +1098,15 @@ SEC.registerAutoDownloader(TOOL, function (opts) { return doDownload(opts); });
 window.addEventListener('load', function () { setTimeout(function () { SEC.startAutoCloudSync(TOOL); }, 350); });
 </script>
 <!-- VRT swipe-tabs：左右滑動（手指／滑鼠拖曳）切換分頁，只聽手勢、不改資料 -->
+<script src="./shared/sec-compact.js?v=20261122b"></script>
+<script>
+/* 2026-11-22 Paul：keynote 點了要有反應——費用清單點一列開詳細卡（表格與勾選送核可不變）（單據照片放表頭、📷 照片分頁、◀ ▶ 換筆），按鈕還是原本那顆 */
+if (SEC.Compact) {
+  var exRec = function (tr) { var b = tr && tr.querySelector('[onclick^="editExpense("]'), m = b && String(b.getAttribute('onclick')).match(/'([^']*)'/); var id = m ? m[1] : ''; return DB.filter(function (x) { return x.id === id; })[0] || null; };
+  SEC.Compact.attach({ card:'#p-list .card', table:'#p-list table', kpis:'#p-list .grid.g4', cols:{ check:0, title:[3], sub:[2,1,4,5], right:[7,8], actions:9 }, phoneList:false,
+    photos:function (tr) { var r = exRec(tr); return r && Array.isArray(r.photos) ? r.photos.filter(Boolean) : []; }, photoDate:function (tr) { var r = exRec(tr); return r ? r.date : ''; } });
+}
+</script>
 <script src="https://saintdou-weng.github.io/ac-admin/shared/swipe-tabs.js" defer></script>
 </body>
 </html>

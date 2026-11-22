@@ -35,6 +35,7 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
   <button class="tab"    data-p="bike" data-zh="🏍 摩托車"   data-en="🏍 Motorbike" data-km="🏍 ម៉ូតូ">🏍 摩托車</button>
   <button class="tab"    data-p="gate" data-zh="🚛 車輛出入閘" data-en="🚛 Gate Log"   data-km="🚛 ច្រកចេញចូល">🚛 車輛出入閘</button>
   <button class="tab"    data-p="late" data-zh="⏰ 遲到登記" data-en="⏰ Come Late" data-km="⏰ មកយឺត">⏰ 遲到登記</button>
+  <button class="tab"    data-p="photo" data-zh="📷 照片" data-en="📷 Photos" data-km="📷 រូបថត">📷 照片</button>
   <button class="tab"    data-p="ana"  data-zh="📊 統計分析" data-en="📊 Analytics" data-km="📊 វិភាគ">📊 統計分析</button>
   <button class="tab"    data-p="data" data-zh="💾 資料管理" data-en="💾 Data"      data-km="💾 ទិន្នន័យ">💾 資料管理</button>
 </div>
@@ -170,6 +171,7 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
   </div>
 
   <!-- ═══ 統計 ═══ -->
+  <div class="page" id="p-photo" style="display:none"><div class="card"><div id="gal-photo"></div></div></div>
   <div class="page" id="p-ana" style="display:none">
     <div class="grid g2">
       <div class="card"><h3>🚐 <span data-zh="車輛里程趨勢" data-en="Vehicle KM Trend" data-km="និន្នាការគីឡូ">車輛里程趨勢</span></h3>
@@ -242,7 +244,7 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
 <script src="./shared/ac-report-doc.js?v=20261022a"></script>
 <script src="./shared/sec-report.js?v=20261022a"></script>
-<script src="./shared/sec-compact.js?v=20261122a"></script>
+<script src="./shared/sec-compact.js?v=20261122b"></script>
 <script src="./shared/sec-smart-sync.js?v=20261024d"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
@@ -364,8 +366,9 @@ document.getElementById('tabs').addEventListener('click', function (e) {
   b.classList.add('on');
   document.querySelectorAll('.page').forEach(function (p) { p.style.display = 'none'; });
   document.getElementById('p-' + b.dataset.p).style.display = '';
-  document.getElementById('pnavHost').style.display = (b.dataset.p === 'data') ? 'none' : '';
+  document.getElementById('pnavHost').style.display = (b.dataset.p === 'data' || b.dataset.p === 'photo') ? 'none' : '';
   renderAll();
+  if (b.dataset.p === 'photo' && window.CM_GAL) CM_GAL.refresh();
 });
 applyPageLang();
 window.onLangChange = function () {
@@ -1794,7 +1797,19 @@ window.addEventListener('load', function () { setTimeout(function () { SEC.start
 /* 2026-11-13 手機精簡清單（仿 VRT HR 員工頁，同消防設備／保安名冊）：篩選一小條、按鈕收進「⋯」、一筆一行、點開看詳細卡。
    只整理畫面：資料、按鈕、原本的函式都不變；電腦寬度表格照舊，點一列一樣會開詳細卡。 */
 if (SEC.Compact) {
-  SEC.Compact.attach({ card:'#p-car .card', table:'#p-car table', kpis:'#p-car .grid.g4', keep:'h3 .sp>button[onclick^="openAdd"]', cols:{ title:[2,1], sub:[0,3,4], right:[5,6,9], actions:11 } });
+  /* 2026-11-22 Paul：照片學消防設備——詳細卡表頭顯示照片、「📷 照片」分頁依月份列出；摩托車記錄也能點開詳細卡 */
+  var cmRid = function (tr) { var b = tr && tr.querySelector('[onclick^="editCommute("]'), m = b && String(b.getAttribute('onclick')).match(/'([^']*)'\s*\)\s*;?\s*$/); return m ? m[1] : ''; };
+  var cmRec = function (arr) { return function (tr) { var id = cmRid(tr); return arr().filter(function (x) { return x.id === id; })[0] || null; }; };
+  var cmCar = cmRec(function () { return CAR; }), cmBike = cmRec(function () { return BIKE; });
+  window.CM_CAR_CMP = SEC.Compact.attach({ card:'#p-car .card', table:'#p-car table', kpis:'#p-car .grid.g4', keep:'h3 .sp>button[onclick^="openAdd"]', cols:{ title:[2,1], sub:[0,3,4], right:[5,6,9], actions:11 }, labelRight:true,
+    photos:function (tr) { var r = cmCar(tr); return r ? commuteRecordPhotos(r) : []; }, photoDate:function (tr) { var r = cmCar(tr); return r ? r.date : ''; } });
+  window.CM_BIKE_CMP = SEC.Compact.attach({ card:'#p-bike .card', table:'#p-bike table', kpis:'#p-bike .grid.g4', keep:'h3 .sp>button[onclick^="openAdd"]', cols:{ title:[0], sub:[4], right:[1,2,3], actions:6 }, labelRight:true, rightRow:true,
+    photos:function (tr) { var r = cmBike(tr); return r ? commuteRecordPhotos(r) : []; }, photoDate:function (tr) { var r = cmBike(tr); return r ? r.date : ''; } });
+  if (SEC.Compact.gallery) window.CM_GAL = SEC.Compact.gallery('#gal-photo', function () {
+    function open(kind, r) { return function () { var t = document.querySelector('#tabs .tab[data-p="' + kind + '"]'); if (t) t.click(); setTimeout(function () { var c = kind === 'car' ? window.CM_CAR_CMP : window.CM_BIKE_CMP; if (c) c.openWhere(function (tr) { return cmRid(tr) === r.id; }, 'photo'); }, 80); }; }
+    return live(CAR).map(function (r) { return { date:r.date, title:'🚐 ' + [r.plate, r.driver, r.reason].filter(Boolean).join(' · '), photos:commuteRecordPhotos(r), open:open('car', r) }; })
+      .concat(live(BIKE).map(function (r) { return { date:r.date, title:'🏍 ' + L('摩托車', 'Motorbike', 'ម៉ូតូ') + ' ' + (r.total || 0) + (r.remark ? ' · ' + r.remark : ''), photos:commuteRecordPhotos(r), open:open('bike', r) }; }));
+  }, { note:L('點照片放大；按「看這筆」開詳細卡', 'Tap a photo to zoom; “Open” shows the record', 'ចុចរូបដើម្បីពង្រីក') });
   SEC.Compact.attach({ card:'#p-gate .card', table:'#p-gate table', kpis:'#p-gate .grid.g4', keep:'h3 .sp>button[onclick^="openAdd"]', cols:{ title:[1,2], sub:[0,3,4,9], right:[6,7], actions:11 } });
   SEC.Compact.attach(/* 遲到頁的第 4 格是文字（最常遲到部門），縮成四格一排會擠出畫面，所以這頁的數字格不縮 */ { card:'#p-late .card', table:'#p-late table', keep:'h3 .sp>button[onclick^="openAdd"]', cols:{ title:[1,2], sub:[0,3,7], right:[4,5], actions:9 } });
 }
