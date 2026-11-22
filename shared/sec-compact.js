@@ -26,16 +26,16 @@
     '.cmp-kpis .kpi{padding:6px 2px!important;border-radius:9px}.cmp-kpis .kpi .v{font-size:17px!important}.cmp-kpis .kpi .l{font-size:9.5px!important;line-height:1.2;margin-top:1px}',
     /* 篩選列：固定在上面，一小條 */
     '.cmp-card{padding:0!important;overflow:visible!important}',
-    '.cmp-card>h3{position:sticky;z-index:30;background:#fff;margin:0!important;padding:8px 10px 7px;border-bottom:1px solid var(--line);border-radius:12px 12px 0 0;display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13px}',
+    '.cmp-card>h3{position:sticky;z-index:30;background:#fff;margin:0!important;padding:6px 8px 5px;border-bottom:1px solid var(--line);border-radius:12px 12px 0 0;display:flex;flex-wrap:wrap;align-items:center;gap:5px;font-size:12.5px}',
     '.cmp-card>h3 .cmp-count{display:inline-block;margin-left:auto;font-size:11px;font-weight:700;color:var(--ink2);background:#eef4f8;border-radius:20px;padding:2px 9px}',
     '.cmp-card>h3 .sp{order:5;flex:1 1 100%;margin:0!important;display:flex!important;flex-wrap:wrap!important;gap:6px!important}',
     '.cmp-card>h3 .sp>button:not(.cmp-more),.cmp-card>h3 .sp>a,.cmp-card .cmp-tools-src{display:none!important}',
-    '.cmp-card>h3 .sp>input{order:-2;flex:1 1 0!important;width:auto!important;min-width:0;height:38px;font-size:14px}',
-    '.cmp-card>h3 .sp>.cmp-more{display:inline-flex;order:-1;flex:none;align-items:center;gap:4px;height:38px;padding:0 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--n1);font-weight:800;font-size:13px;font-family:inherit;cursor:pointer}',
+    '.cmp-card>h3 .sp>input{order:-2;flex:1 1 0!important;width:auto!important;min-width:0;height:34px;font-size:14px}',
+    '.cmp-card>h3 .sp>.cmp-more{display:inline-flex;order:-1;flex:none;align-items:center;gap:4px;height:34px;padding:0 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--n1);font-weight:800;font-size:13px;font-family:inherit;cursor:pointer}',
     /* 2026-11-13 cfg.keep：每天都要按的主要按鈕（例如「➕ 新增」）留在篩選列上，不收進「⋯」 */
-    '.cmp-card>h3 .sp>button.cmp-keep{display:inline-flex!important;order:-1;flex:none;align-items:center;height:38px;margin:0}',
+    '.cmp-card>h3 .sp>button.cmp-keep{display:inline-flex!important;order:-1;flex:none;align-items:center;height:34px;margin:0}',
     '.cmp-card>h3 .sp>.cmp-brk{order:0;flex:0 0 100%;height:0}',
-    '.cmp-card>h3 .sp>select{order:1;flex:1 1 0!important;width:auto!important;min-width:0;height:34px;padding:4px 6px;font-size:12.5px}',
+    '.cmp-card>h3 .sp>select{order:1;flex:1 1 0!important;width:auto!important;min-width:0;height:30px;padding:2px 6px;font-size:12px}',
     /* 清單：一筆一行 */
     '.cmp-card .tw{border:0!important;border-radius:0 0 12px 12px;overflow:visible!important}',
     'table.cmp-table{display:block!important;min-width:0!important;width:100%!important;font-size:13px!important}',
@@ -124,6 +124,20 @@
     '.cmp-zoom .zv{flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y pinch-zoom}',
     '.cmp-zoom .zv img{max-width:100%;max-height:100%;object-fit:contain;cursor:zoom-in;transition:transform .15s ease-out}',
     '.cmp-zoom .zv.big{display:block}.cmp-zoom .zv.big img{max-width:none;max-height:none;width:auto;cursor:zoom-out}',
+    /* 2026-11-22 Paul：有照片的模組學消防設備——照片放另一個分頁、依月份顯示（詳細卡的📷分頁＋頁面的「📷 照片」分頁） */
+    '@media(max-width:720px){table.cmp-rr td.cmp-right{flex-direction:row!important;align-items:center;gap:9px;max-width:60%}}',
+    'body:has(.cmp-mask) #ui-top,body:has(.cmp-zoom) #ui-top{display:none!important}',
+    '.cmp-rl{white-space:nowrap;font-size:12px;font-weight:700;color:var(--n1)}.cmp-rl small{font-size:10.5px;font-weight:600;color:var(--ink2)}',
+    '.cmp-mon{margin:0 0 10px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}',
+    '.cmp-mon>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:10px 12px;font-weight:800;font-size:14px;color:var(--n1);background:#f4f8fb}',
+    '.cmp-mon>summary::-webkit-details-marker{display:none}.cmp-mon>summary:after{content:"▾";margin-left:auto;color:#8aa0b3;transition:.15s}.cmp-mon:not([open])>summary:after{transform:rotate(-90deg)}',
+    '.cmp-mon>summary small{font-weight:700;font-size:11.5px;color:var(--ink2);background:#e8f0f6;border-radius:20px;padding:1px 8px}',
+    '.cmp-grec{padding:8px 12px 10px;border-top:1px solid #edf2f6}.cmp-grec h6{margin:0 0 6px;display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;color:var(--n1);min-width:0}',
+    '.cmp-grec h6 .d{flex:none;font-family:"DM Mono",monospace;color:var(--n2)}.cmp-grec h6 .t{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cmp-grec h6 .n{flex:none;font-size:11px;color:var(--ink2);font-weight:700}',
+    '.cmp-grec h6 button{flex:none;border:1px solid var(--line);background:#fff;border-radius:8px;font:700 11.5px/1 inherit;font-family:inherit;color:var(--n2);padding:5px 8px;cursor:pointer}',
+    '.cmp-gph{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.cmp-gph img{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;border:1px solid var(--line);cursor:zoom-in;background:#f4f7fb;display:block}',
+    '.cmp-gtop{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px;font-size:12.5px;color:var(--ink2)}.cmp-gtop b{color:var(--n1);font-size:14px}',
+    '@media(min-width:721px){.cmp-gph{grid-template-columns:repeat(8,minmax(0,1fr))}}',
     '.cmp-zoom .zh{flex:none;text-align:center;color:rgba(255,255,255,.65);font-size:11.5px;padding:6px 0 calc(10px + env(safe-area-inset-bottom))}',
   ].join('\n');
   function injectCss() { if (document.getElementById('cmpCss')) return; var s = document.createElement('style'); s.id = 'cmpCss'; s.textContent = CSS; document.head.appendChild(s); }
@@ -174,6 +188,78 @@
     document.body.appendChild(z); show();
   }
 
+  /* 依月份分組的照片清單（詳細卡📷分頁、頁面「📷 照片」分頁共用）
+     groups＝[{date:'2026-11-20', title:'ZCSU… · 司機', photos:[…], open:fn}]，新的月份在上面 */
+  function monthKey(d) { var m = String(d || '').match(/(\d{4})[-\/.](\d{1,2})/); return m ? m[1] + '-' + ('0' + m[2]).slice(-2) : L('未註明日期', 'No date', 'គ្មានកាលបរិច្ឆេទ'); }
+  function monthHtml(groups, opt) {
+    opt = opt || {}; var by = {}, order = [];
+    groups.slice().sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); }).forEach(function (g, i) {
+      var k = monthKey(g.date); if (!by[k]) { by[k] = []; order.push(k); } by[k].push(g);
+    });
+    return order.map(function (k, mi) {
+      var list = by[k], n = list.reduce(function (s, g) { return s + g.photos.length; }, 0);
+      return '<details class="cmp-mon"' + (opt.open === 'all' || mi < (opt.openFirst || 1) ? ' open' : '') + '><summary>🗓 ' + esc(k) + ' <small>' + n + ' ' + esc(L('張', 'photos', 'រូប')) + ' · ' + list.length + ' ' + esc(L('筆', 'records', 'កំណត់ត្រា')) + '</small></summary>' +
+        list.map(function (g) {
+          return '<div class="cmp-grec"' + (g._i != null ? ' data-gi="' + g._i + '"' : '') + '><h6><span class="d">' + esc(String(g.date).slice(5, 10) || '—') + '</span><span class="t">' + esc(g.title || '') + '</span><span class="n">📷 ' + g.photos.length + '</span>' +
+            (g.open ? '<button type="button" data-gopen>' + esc(L('看這筆', 'Open', 'បើក')) + ' ›</button>' : '') + '</h6>' +
+            '<div class="cmp-gph">' + g.photos.map(function (p, j) { return '<img loading="lazy" src="' + esc(psrc(p, 400)) + '" data-full="' + esc(p) + '" data-j="' + j + '" alt="">'; }).join('') + '</div></div>';
+        }).join('') + '</details>';
+    }).join('');
+  }
+  /* 頁面層的「📷 照片」分頁：gallery(容器, function(){ return groups })，每次呼叫重畫 */
+  function gallery(el, getGroups, opt) {
+    el = $(el); if (!el) return null; injectCss(); opt = opt || {};
+    var groups = [];
+    function paintG() {
+      groups = (getGroups() || []).map(function (g, i) { return { title:g.title || '', date:String(g.date || ''), photos:(g.photos || []).filter(Boolean), open:g.open, _i:i }; }).filter(function (g) { return g.photos.length; });
+      var n = groups.reduce(function (s, g) { return s + g.photos.length; }, 0);
+      el.innerHTML = '<div class="cmp-gtop"><b>📷 ' + esc(L('照片', 'Photos', 'រូបថត')) + '</b><span>' + n + ' ' + esc(L('張', 'photos', 'រូប')) + ' · ' + groups.length + ' ' + esc(L('筆', 'records', 'កំណត់ត្រា')) + '</span>' +
+        (opt.note ? '<span>· ' + esc(opt.note) + '</span>' : '') + '</div>' +
+        (groups.length ? monthHtml(groups, { openFirst:2 }) : '<p class="cmp-none">📷 ' + esc(L('這段期間還沒有照片', 'No photos in this period yet', 'មិនទាន់មានរូបថត')) + '</p>');
+    }
+    el.addEventListener('click', function (e) {
+      var rec = e.target.closest('.cmp-grec'); if (!rec) return; var g = groups.filter(function (x) { return String(x._i) === rec.getAttribute('data-gi'); })[0]; if (!g) return;
+      if (e.target.closest('[data-gopen]')) { if (g.open) g.open(); return; }
+      var im = e.target.closest('img[data-j]'); if (im) zoomPhoto(g.photos, +im.getAttribute('data-j'), (String(g.date).slice(0, 10) + ' ' + g.title).trim());
+    });
+    paintG();
+    return { refresh:paintG };
+  }
+
+  /* 沒有表格可接的清單（卡片列、別的版面）也能開同樣的詳細卡：
+     sheet({ items:[…], index:0, render:function(it){ return { title, sub, chips, kv:[[欄名,值]], photos:[], date } }, actions:function(it){ return [{ label, cls, fn }] } }) */
+  function sheet(o) {
+    injectCss(); var items = o.items || [], cur = Math.max(0, Math.min(items.length - 1, o.index || 0)), tab = o.tab || 'info'; if (!items.length) return;
+    var d = document.createElement('div'); d.className = 'cmp-drawer';
+    function paintS() {
+      var it = items[cur], v = o.render(it) || {}, ph = (v.photos || []).filter(Boolean), acts = o.actions ? (o.actions(it) || []) : [];
+      var kv = (v.kv || []).filter(function (x) { return x && x[0]; }).map(function (x) { var val = x[1] == null || String(x[1]).replace(/<[^>]+>/g, '').trim() === '' ? '—' : x[1]; return '<div' + (x[2] ? ' class="w"' : '') + '><dt>' + esc(x[0]) + '</dt><dd>' + val + '</dd></div>'; }).join('');
+      var slot = ph.length ? '<div class="cmp-pslot"><img class="cmp-pimg" src="' + esc(psrc(ph[0], 400)) + '" alt="" data-sz="0">' + (ph.length > 1 ? '<span class="n">' + ph.length + '</span>' : '') + '</div>' : '<button type="button" class="cmp-pnone" data-tab="photo"><b>📷</b>' + esc(L('尚無照片', 'No photo', 'គ្មានរូប')) + '</button>';
+      /* 學消防設備：照片放在另一個分頁「📷 照片」，依月份列出 */
+      var tabs = '<div class="cmp-tabs" data-noswipe><button type="button" data-tab="info" class="' + (tab === 'info' ? 'on' : '') + '">📋 ' + esc(L('現況', 'Current', 'បច្ចុប្បន្ន')) + '</button><button type="button" data-tab="photo" class="' + (tab === 'photo' ? 'on' : '') + '">📷 ' + esc(L('照片', 'Photos', 'រូបថត')) + ' <i' + (ph.length ? '' : ' class="z"') + '>' + ph.length + '</i></button></div>';
+      var body = tab === 'photo' ? (ph.length ? '<div class="cmp-phsec">' + monthHtml([{ date:v.date || '', title:'📷 ' + L('照片', 'Photos', 'រូបថត'), photos:ph }], { open:'all' }) + '</div>' : '<p class="cmp-none">📷 ' + esc(L('這筆沒有照片', 'No photos on this record', 'គ្មានរូបថត')) + '</p>') : '<dl class="cmp-kv">' + kv + '</dl>';
+      d.innerHTML = '<div class="cmp-dh"><div class="cmp-nav"><span class="cnt">' + (cur + 1) + '/' + items.length + '</span><span class="now">' + esc(String(v.title || '').replace(/<[^>]+>/g, '')) + '</span>' +
+        '<button type="button" data-step="-1" aria-label="Previous"' + (cur <= 0 ? ' disabled' : '') + '>◀</button><button type="button" data-step="1" aria-label="Next"' + (cur >= items.length - 1 ? ' disabled' : '') + '>▶</button><button type="button" data-x aria-label="Close">✕</button></div>' + tabs + '</div>' +
+        '<div class="cmp-db"><section class="cmp-rec"><div class="cmp-prof">' + slot + '<div style="min-width:0;flex:1 1 0"><div class="ttl"><span>' + (v.title || '') + '</span></div><div class="sub">' + (v.sub || '') + '</div><div class="chips">' + (v.chips || '') + '</div></div></div>' +
+        '<div class="cmp-body">' + body + '</div>' +
+        (acts.length ? '<div class="cmp-acts">' + acts.map(function (a, j) { return '<button type="button" data-sa="' + j + '" class="' + (a.cls || (j ? 'gh' : '')) + '">' + esc(a.label) + '</button>'; }).join('') + '</div>' : '') + '</section></div>';
+      d._acts = acts; d._ph = ph; d._title = String(v.title || '').replace(/<[^>]+>/g, '');
+    }
+    function stepS(dir) { var k = Math.max(0, Math.min(items.length - 1, cur + dir)); if (k !== cur) { cur = k; paintS(); } }
+    paintS(); overlay(d, { step:stepS });
+    d.addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (b && b.hasAttribute('data-x')) return closeOverlay();
+      if (b && b.dataset.step) return stepS(+b.dataset.step);
+      if (b && b.dataset.tab) { tab = b.dataset.tab; return paintS(); }
+      if (b && b.dataset.sa != null) { var a = d._acts[+b.dataset.sa]; closeOverlay(); if (a && a.fn) a.fn(); return; }
+      var im = e.target.closest('img'); if (im) { var j = im.hasAttribute('data-j') ? +im.getAttribute('data-j') : 0; return zoomPhoto(d._ph, j, d._title); }
+    });
+    var sx = 0, sy = 0, st = 0;
+    d.addEventListener('touchstart', function (e) { if (e.touches.length !== 1) { st = 0; return; } sx = e.touches[0].clientX; sy = e.touches[0].clientY; st = Date.now(); }, { passive:true });
+    d.addEventListener('touchend', function (e) { if (!st) return; var t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy, dt = Date.now() - st; st = 0; if (dt < 700 && Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.8) stepS(dx < 0 ? 1 : -1); }, { passive:true });
+  }
+
   function attach(cfg) {
     injectCss();
     var card = $(cfg.card), table = $(cfg.table); if (!card || !table) return null;
@@ -184,6 +270,8 @@
 
     function rows() { return $$('tr', tbody).filter(function (tr) { return !tr.classList.contains('cmp-empty') && !(tr.children.length === 1 && tr.children[0].colSpan > 1); }); }
     function cellHtml(tr, i) { var td = tr.children[i]; return td ? td.innerHTML : ''; }
+    /* 2026-11-22 cfg.labelRight：右側純文字欄（例如進廠／出廠時間）前面加欄名，不再只看到兩個時間 */
+    function rightCell(tr, i) { var v = cellHtml(tr, i), t = v.replace(/<[^>]+>/g, '').trim(); if (!cfg.labelRight || !t || t === '—' || /<(span|i|code|img)\b/i.test(v)) return v; return '<span class="cmp-rl"><small>' + esc(headLabel(i)) + '</small> ' + v + '</span>'; }
     function headLabel(i) { var th = table.tHead && table.tHead.rows[0] && table.tHead.rows[0].cells[i]; return th ? (th.textContent || '').trim() : ''; }
 
     /* 每次各頁重畫表格後：把每一列整理成「一行」 */
@@ -197,7 +285,7 @@
           main.innerHTML = '<div class="cmp-t">' + arr(cols.title).map(function (i) { return '<span>' + cellHtml(tr, i) + '</span>'; }).join('') + '</div>' +
             '<div class="cmp-s">' + arr(cols.sub).map(function (i) { return cellHtml(tr, i); }).filter(function (x) { return x && x.replace(/<[^>]+>/g, '').trim() && x.replace(/<[^>]+>/g, '').trim() !== '—'; }).join(' · ') + '</div>';
           var right = document.createElement('td'); right.className = 'cmp-right';
-          right.innerHTML = arr(cols.right).map(function (i) { return cellHtml(tr, i); }).filter(function (x) { var t = x.replace(/<[^>]+>/g, '').trim(); return t && t !== '—'; }).join(' ');   /* 2026-11-13：右側兩欄之間留一格（進廠、出廠時間原本黏在一起） */
+          right.innerHTML = arr(cols.right).map(function (i) { return rightCell(tr, i); }).filter(function (x) { var t = x.replace(/<[^>]+>/g, '').trim(); return t && t !== '—'; }).join(' ');   /* 2026-11-13：右側兩欄之間留一格（進廠、出廠時間原本黏在一起） */
           var go = document.createElement('td'); go.className = 'cmp-go'; go.textContent = '›';
           if (cols.check != null && tr.children[cols.check]) tr.children[cols.check].classList.add('cmp-check');
           tr.appendChild(main); tr.appendChild(right); tr.appendChild(go);
@@ -213,6 +301,17 @@
     /* 2026-11-11 Paul：詳細卡要像員工資料有分頁，把「現在」跟「歷史」分開（現況／歷史紀錄／異常／照片）。
        分頁由各頁提供：cfg.tabs=[{key,label(),count(tr),render(tr)}]；第一頁固定是「現況」（表格欄位）。 */
     var TABS = [{ key:'info', label:function () { return '📋 ' + L('現況', 'Current', 'បច្ចុប្បន្ន'); } }].concat(cfg.tabs || []), tabKey = 'info';
+    /* 2026-11-22：頁面有給 cfg.photos 但自己沒做照片分頁 → 自動加「📷 照片」分頁，依月份列出（cfg.photoGroups(tr) 可分入廠／出廠等組） */
+    if (cfg.photos && cfg.autoPhotoTab !== false && !TABS.some(function (t) { return t.key === 'photo'; })) {
+      TABS.push({ key:'photo', label:function () { return '📷 ' + L('照片', 'Photos', 'រូបថត'); },
+        count:function (tr) { return (cfg.photos(tr) || []).filter(Boolean).length; },
+        render:function (tr) {
+          var groups = cfg.photoGroups ? (cfg.photoGroups(tr) || []) : [{ title:'', date:cfg.photoDate ? cfg.photoDate(tr) : '', photos:cfg.photos(tr) || [] }];
+          groups = groups.map(function (g) { return { title:g.title || '', date:String(g.date || ''), photos:(g.photos || []).filter(Boolean) }; }).filter(function (g) { return g.photos.length; });
+          if (!groups.length) return '<p class="cmp-none">📷 ' + esc(L('這筆沒有照片', 'No photos on this record', 'គ្មានរូបថត')) + '</p>';
+          return monthHtml(groups, { open:'all' });
+        } });
+    }
     function curTab() { for (var i = 0; i < TABS.length; i++) if (TABS[i].key === tabKey) return TABS[i]; return TABS[0]; }
     function tabBody(tab, tr, k) { try { return tab.render(tr, k) || ''; } catch (e) { return '<p class="cmp-none">⚠ ' + esc(e.message) + '</p>'; } }
     function cardHtml(tr, k, total) {
@@ -233,7 +332,7 @@
       return '<section class="cmp-rec" data-k="' + k + '"><div class="cmp-prof">' + slot +
         '<div style="min-width:0;flex:1 1 0"><div class="ttl">' + arr(cols.title).map(function (i) { return '<span>' + cellHtml(tr, i) + '</span>'; }).join('') + '</div>' +
         '<div class="sub">' + arr(cols.sub).map(function (i) { return cellHtml(tr, i); }).filter(Boolean).join(' · ') + '</div>' +
-        '<div class="chips">' + arr(cols.right).map(function (i) { return cellHtml(tr, i); }).join(' ') + '</div></div><span class="no">' + (k + 1) + '/' + total + '</span></div>' +
+        '<div class="chips">' + arr(cols.right).map(function (i) { return rightCell(tr, i); }).join(' ') + '</div></div><span class="no">' + (k + 1) + '/' + total + '</span></div>' +
         '<div class="cmp-body">' + (tab && tab.render ? tabBody(tab, tr, k) : '<dl class="cmp-kv">' + kv + '</dl>') + '</div>' +
         (acts.length ? '<div class="cmp-acts">' + acts.map(function (b, j) { return '<button type="button" data-act="' + j + '" class="' + (/\berr\b/.test(b.className) ? 'err' : j ? 'gh' : '') + '">' + b.innerHTML + (label(b).replace(/[^\w㐀-鿿ក-៿]/g, '') ? '' : ' ' + esc(b.title || b.getAttribute('aria-label') || L('編輯', 'Edit', 'កែ'))) + '</button>'; }).join('') + '</div>' : '') +
         '</section>';
@@ -285,7 +384,7 @@
         var pt = e.target.closest('[data-ptab]');
         if (pt) { var kk = +pt.closest('.cmp-rec').dataset.k; cur = kk; setTab(pt.getAttribute('data-ptab')); return go(kk, false); }
         var im = e.target.closest('.cmp-body img');
-        if (im) { var imgs = $$('img', im.closest('.cmp-body')).map(function (x) { return x.getAttribute('src'); }), ix = $$('img', im.closest('.cmp-body')).indexOf(im); return zoomPhoto(imgs, ix, ''); }
+        if (im) { var imgs = $$('img', im.closest('.cmp-body')).map(function (x) { return x.getAttribute('data-full') || x.getAttribute('src'); }), ix = $$('img', im.closest('.cmp-body')).indexOf(im); return zoomPhoto(imgs, ix, ''); }
         var b = e.target.closest('button'); if (!b) return;
         if (b.hasAttribute('data-x')) return closeOverlay();
         if (b.dataset.step) return step(+b.dataset.step);
@@ -360,7 +459,7 @@
       if (h3) h3.style.top = ''; unpaint();
     }
     function relabel() { if (more) more.innerHTML = '⋯ ' + esc(L('工具', 'Tools', 'ឧបករណ៍')); }
-    function sync() { if (MQ.matches) enable(); else disable(); }
+    function sync() { if (MQ.matches && cfg.phoneList !== false) enable(); else disable(); }   /* cfg.phoneList:false＝手機也保留原表格（例如要勾選送核可），只加「點一列開詳細卡」 */
 
     tbody.addEventListener('click', function (e) {
       var tr = e.target.closest('tr'); if (!tr || tr.classList.contains('cmp-empty')) return;
@@ -373,8 +472,9 @@
     if (MQ.addEventListener) MQ.addEventListener('change', sync); else if (MQ.addListener) MQ.addListener(sync);
     root.addEventListener('resize', function () { if (on) stickyTop(); });
     if (cfg.desktop !== false) table.classList.add('cmp-click');
+    if (cfg.rightRow) table.classList.add('cmp-rr');
     sync();
     return { refresh:paint, open:openDetail, openWhere:function (fn, tab) { var list = rows(); for (var i = 0; i < list.length; i++) if (fn(list[i])) { if (tab) tabKey = tab; openDetail(i); return true; } return false; }, tab:function (k) { tabKey = k; }, tools:openTools, isOn:function () { return on; }, selectMode:selectMode };
   }
-  SEC.Compact = { attach:attach, close:closeOverlay, rerender:function () { if (OPEN && OPEN.rerender) OPEN.rerender(); } };
+  SEC.Compact = { attach:attach, gallery:gallery, sheet:sheet, zoom:zoomPhoto, close:closeOverlay, rerender:function () { if (OPEN && OPEN.rerender) OPEN.rerender(); } };
 })(typeof window !== 'undefined' ? window : this);
