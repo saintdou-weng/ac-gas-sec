@@ -10,7 +10,7 @@
 <script src="./shared/xlsx.full.min.js?v=20260929a"></script>
 <script src="./shared/qrcode-generator.js?v=20260929a"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="stylesheet" href="./shared/sec.css?v=20261122m">
+<link rel="stylesheet" href="./shared/sec.css?v=20261122n">
 <style>
 .subnav{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
 .subnav .sb{flex:1;min-width:96px;padding:11px 8px;border-radius:11px;border:1px solid var(--line);
@@ -362,7 +362,7 @@
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
 <script src="./shared/ac-report-doc.js?v=20261022a"></script>
 <script src="./shared/sec-report.js?v=20261022a"></script>
-<script src="./shared/sec-compact.js?v=20261122b"></script>
+<script src="./shared/sec-compact.js?v=20261122c"></script>
 <script src="./shared/sec-smart-sync.js?v=20261024d"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
@@ -1818,7 +1818,30 @@ if (SEC.Compact) {
   var ctArr = function (v) { return Array.isArray(v) ? v.filter(Boolean) : []; };
   window.CT_TK_CMP = SEC.Compact.attach({ card:'#p-tk-board .card', table:'#p-tk-board table', kpis:'#p-tk-board .grid.g4', keep:'h3 .sp>button[onclick^="tkAdd"]', cols:{ title:[2,5], sub:[0,1,3,4], right:[6,7], actions:9 }, labelRight:true,
     photos:function (tr) { var r = ctTk(tr); return r ? truckAllPhotos(r) : []; },
-    photoGroups:function (tr) { var r = ctTk(tr); if (!r) return []; return [{ date:r.date, title:'🚛 ' + L('入廠', 'Entry', 'ចូល') + (r.timeIn ? ' ' + r.timeIn : ''), photos:truckEntryPhotos(r) }, { date:r.date, title:'🚚 ' + L('出廠', 'Exit', 'ចេញ') + (r.timeOut ? ' ' + r.timeOut : ''), photos:truckExitPhotos(r) }]; } });
+    photoGroups:function (tr) { var r = ctTk(tr); if (!r) return []; return [{ date:r.date, title:'🚛 ' + L('入廠', 'Entry', 'ចូល') + (r.timeIn ? ' ' + r.timeIn : ''), photos:truckEntryPhotos(r) }, { date:r.date, title:'🚚 ' + L('出廠', 'Exit', 'ចេញ') + (r.timeOut ? ' ' + r.timeOut : ''), photos:truckExitPhotos(r) }]; },
+    /* 2026-11-22 Paul：同一個貨櫃號／同一台車的歷史進出記錄也要看得到（含照片） */
+    tabs:[{ key:'hist', label:function () { return '🔁 ' + L('歷史進出', 'History', 'ប្រវត្តិ'); },
+      count:function (tr) { return ctHist(ctTk(tr)).length; },
+      render:function (tr) { return ctHistHtml(ctTk(tr)); } }] });
+  function ctNorm(v) { return String(v || '').replace(/[\s\-]/g, '').toUpperCase(); }
+  function ctHist(r) {
+    if (!r) return []; var c = ctNorm(r.containerNo), t = ctNorm(r.truckNo);
+    return live(TK).filter(function (x) { return x.id !== r.id && ((c && ctNorm(x.containerNo) === c) || (t && ctNorm(x.truckNo) === t)); })
+      .sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')) || String(b.timeIn || '').localeCompare(String(a.timeIn || '')); });
+  }
+  function ctHistHtml(r) {
+    var list = ctHist(r); if (!r) return '';
+    var c = ctNorm(r.containerNo), t = ctNorm(r.truckNo);
+    var nc = list.filter(function (x) { return c && ctNorm(x.containerNo) === c; }).length, nt = list.filter(function (x) { return t && ctNorm(x.truckNo) === t; }).length;
+    var head = '<p class="cmp-none" style="text-align:left;padding:10px 12px 4px">' + SEC.esc(L('同貨櫃號', 'Same container', 'កុងតឺន័រដូចគ្នា')) + ' <b>' + nc + '</b> · ' + SEC.esc(L('同車號', 'Same truck', 'ឡានដូចគ្នា')) + ' <b>' + nt + '</b></p>';
+    if (!list.length) return head + '<p class="cmp-none">' + SEC.esc(L('沒有其他進出記錄', 'No other visits on record', 'គ្មានកំណត់ត្រាផ្សេង')) + '</p>';
+    return head + '<div class="cmp-hist">' + list.slice(0, 60).map(function (x) {
+      var ph = truckAllPhotos(x), same = (c && ctNorm(x.containerNo) === c ? '📦 ' : '') + (t && ctNorm(x.truckNo) === t ? '🚛 ' : '');
+      return '<div class="cmp-phsec" style="border-top:1px solid #edf2f6"><h5>' + same + SEC.esc(x.date || '') + ' ' + ieTags(x) + '<small>' + SEC.esc(L('入', 'In', 'ចូល')) + ' ' + SEC.esc(x.timeIn || '—') + ' · ' + SEC.esc(L('出', 'Out', 'ចេញ')) + ' ' + SEC.esc(x.timeOut || '—') + '</small></h5>' +
+        '<div style="font-size:12.5px;color:var(--ink2);margin-top:3px">' + [x.containerNo, x.truckNo, x.name, x.company].filter(Boolean).map(SEC.esc).join(' · ') + '</div>' +
+        (ph.length ? '<div class="cmp-ph">' + ph.slice(0, 6).map(function (p) { return '<img loading="lazy" src="' + SEC.esc(window.vrtDriveThumb ? vrtDriveThumb(p, 400) : p) + '" data-full="' + SEC.esc(p) + '" alt="">'; }).join('') + '</div>' : '') + '</div>';
+    }).join('') + '</div>';
+  }
   window.CT_CI_CMP = SEC.Compact.attach({ card:'#p-ci-rec .card', table:'#p-ci-rec table', cols:{ title:[1,5], sub:[0,2,3,6], right:[4], actions:7 },
     photos:function (tr) { var r = ctCi(tr); return r ? ctArr(r.photos) : []; }, photoDate:function (tr) { var r = ctCi(tr); return r ? r.date : ''; } });
   window.CT_GD_CMP = SEC.Compact.attach({ card:'#p-gd-rec .card', table:'#p-gd-rec table', cols:{ title:[0,1], sub:[2,3,4,5], right:[6], actions:7 },

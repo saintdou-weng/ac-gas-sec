@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
 <script src="./shared/xlsx.full.min.js?v=20260929a"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="stylesheet" href="./shared/sec.css?v=20261122m">
+<link rel="stylesheet" href="./shared/sec.css?v=20261122n">
 <style>
 .commute-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.commute-form-grid .full{grid-column:1/-1}
 .commute-repeat{border:1px solid var(--line);border-radius:12px;padding:10px;background:#f8fbfd}.commute-repeat h4{margin:0 0 8px;color:var(--n1)}
@@ -244,7 +244,7 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
 <script src="./shared/ac-report-doc.js?v=20261022a"></script>
 <script src="./shared/sec-report.js?v=20261022a"></script>
-<script src="./shared/sec-compact.js?v=20261122b"></script>
+<script src="./shared/sec-compact.js?v=20261122c"></script>
 <script src="./shared/sec-smart-sync.js?v=20261024d"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
@@ -1805,6 +1805,38 @@ if (SEC.Compact) {
     photos:function (tr) { var r = cmCar(tr); return r ? commuteRecordPhotos(r) : []; }, photoDate:function (tr) { var r = cmCar(tr); return r ? r.date : ''; } });
   window.CM_BIKE_CMP = SEC.Compact.attach({ card:'#p-bike .card', table:'#p-bike table', kpis:'#p-bike .grid.g4', keep:'h3 .sp>button[onclick^="openAdd"]', cols:{ title:[0], sub:[4], right:[1,2,3], actions:6 }, labelRight:true, rightRow:true,
     photos:function (tr) { var r = cmBike(tr); return r ? commuteRecordPhotos(r) : []; }, photoDate:function (tr) { var r = cmBike(tr); return r ? r.date : ''; } });
+  /* 2026-11-22 Paul：摩托車要有分析圖表 → 摩托車頁上方加「每日停放」長條圖（A 棟／B 棟疊起來、虛線＝平均），點一根看那天的詳細卡；年檢視改成每月平均 */
+  (function () {
+    var css = document.createElement('style');
+    css.textContent = '.bk-ch{padding:12px 12px 8px}.bk-ch h3{margin:0 0 6px;display:flex;align-items:center;gap:8px;font-size:14px}.bk-ch h3 small{margin-left:auto;font-weight:600;color:var(--ink2);font-size:11.5px}' +
+      '.bk-lg{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--ink2);margin-bottom:6px}.bk-lg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}' +
+      '.bk-plot{position:relative;height:150px;display:flex;align-items:flex-end;gap:3px;padding:0 2px;border-bottom:1px solid var(--line)}' +
+      '.bk-bar{flex:1 1 0;min-width:4px;display:flex;flex-direction:column-reverse;cursor:pointer;border-radius:4px 4px 0 0;overflow:hidden}.bk-bar:hover{filter:brightness(.92)}' +
+      '.bk-bar .a{background:#35a56b}.bk-bar .b{background:#3b82f6}.bk-avg{position:absolute;left:0;right:0;border-top:2px dashed #e9a23b;pointer-events:none}.bk-avg span{position:absolute;right:2px;top:-17px;font-size:10.5px;font-weight:800;color:#b7791f;background:#fff;padding:0 3px;border-radius:4px}' +
+      '.bk-x{display:flex;gap:3px;padding:3px 2px 0}.bk-x span{flex:1 1 0;min-width:4px;text-align:center;font-size:9.5px;color:var(--ink2);overflow:hidden;white-space:nowrap}' +
+      '.bk-st{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:8px}.bk-st div{background:#f4f8fb;border-radius:9px;padding:6px 8px;font-size:11px;color:var(--ink2)}.bk-st b{display:block;font-size:15px;color:var(--n1)}';
+    document.head.appendChild(css);
+    function host() { var el = document.getElementById('bikeChart'); if (!el) { var card = document.querySelector('#p-bike .card'); if (!card) return null; el = document.createElement('div'); el.id = 'bikeChart'; el.className = 'card bk-ch'; card.parentNode.insertBefore(el, card); el.addEventListener('click', function (e) { var b = e.target.closest('[data-bd]'); if (!b) return; var d = b.getAttribute('data-bd'); if (d.length === 10 && window.CM_BIKE_CMP) CM_BIKE_CMP.openWhere(function (tr) { var r = cmBike(tr); return r && r.date === d; }); }); } return el; }
+    function draw() {
+      var el = host(); if (!el) return;
+      var list = inP(BIKE).filter(function (r) { return r && r.date; }).sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
+      if (!list.length) { el.innerHTML = '<h3>📈 ' + SEC.esc(L('每日停放', 'Daily parking', 'ចំណតប្រចាំថ្ងៃ')) + '</h3><p class="cmp-none">' + SEC.esc(L('這段期間還沒有記錄', 'No records in this period', 'មិនទាន់មានកំណត់ត្រា')) + '</p>'; return; }
+      var pts = list, byMonth = list.length > 40;
+      if (byMonth) { var g = {}; list.forEach(function (r) { var k = String(r.date).slice(0, 7); (g[k] = g[k] || []).push(r); }); pts = Object.keys(g).sort().map(function (k) { var rs = g[k], n = rs.length; return { date:k, a:Math.round(rs.reduce(function (s, r) { return s + (+r.a || 0); }, 0) / n), b:Math.round(rs.reduce(function (s, r) { return s + (+r.b || 0); }, 0) / n) }; }); }
+      var tot = function (r) { return (+r.a || 0) + (+r.b || 0) || (+r.total || 0); };
+      var max = Math.max.apply(null, pts.map(tot).concat([1])), avg = pts.reduce(function (s, r) { return s + tot(r); }, 0) / pts.length;
+      var hi = pts.reduce(function (m, r) { return tot(r) > tot(m) ? r : m; }, pts[0]), lo = pts.reduce(function (m, r) { return tot(r) < tot(m) ? r : m; }, pts[0]);
+      var step = Math.ceil(pts.length / 10);
+      el.innerHTML = '<h3>📈 ' + SEC.esc(byMonth ? L('每月平均停放', 'Monthly average parking', 'មធ្យមប្រចាំខែ') : L('每日停放', 'Daily parking', 'ចំណតប្រចាំថ្ងៃ')) + '<small>' + SEC.esc(L('點一根看那天', 'Tap a bar for the day', 'ចុចមើលថ្ងៃ')) + '</small></h3>' +
+        '<div class="bk-lg"><span><i style="background:#35a56b"></i>' + SEC.esc(L('A 棟', 'Building A', 'អគារ A')) + '</span><span><i style="background:#3b82f6"></i>' + SEC.esc(L('B 棟', 'Building B', 'អគារ B')) + '</span><span><i style="background:#e9a23b"></i>' + SEC.esc(L('平均', 'Average', 'មធ្យម')) + ' ' + Math.round(avg) + '</span></div>' +
+        '<div class="bk-plot">' + pts.map(function (r) { var t = tot(r), a = +r.a || 0, b = +r.b || 0; if (!a && !b) a = t; return '<div class="bk-bar" data-bd="' + SEC.esc(r.date) + '" title="' + SEC.esc(r.date + ' · A ' + a + ' · B ' + b + ' · ' + t) + '" style="height:' + (t / max * 100).toFixed(1) + '%"><div class="a" style="height:' + (t ? a / t * 100 : 0).toFixed(1) + '%"></div><div class="b" style="height:' + (t ? b / t * 100 : 0).toFixed(1) + '%"></div></div>'; }).join('') +
+        '<div class="bk-avg" style="bottom:' + (avg / max * 100).toFixed(1) + '%"><span>' + Math.round(avg) + '</span></div></div>' +
+        '<div class="bk-x">' + pts.map(function (r, i) { return '<span>' + (i % step === 0 ? SEC.esc(byMonth ? String(r.date).slice(2) : String(r.date).slice(8)) : '') + '</span>'; }).join('') + '</div>' +
+        '<div class="bk-st"><div>' + SEC.esc(L('最多', 'Highest', 'ខ្ពស់បំផុត')) + '<b>' + tot(hi) + '</b>' + SEC.esc(String(hi.date).slice(5)) + '</div><div>' + SEC.esc(L('最少', 'Lowest', 'ទាបបំផុត')) + '<b>' + tot(lo) + '</b>' + SEC.esc(String(lo.date).slice(5)) + '</div><div>' + SEC.esc(L('A 棟占比', 'Building A share', 'ចំណែក A')) + '<b>' + Math.round(pts.reduce(function (s, r) { return s + (+r.a || 0); }, 0) / Math.max(1, pts.reduce(function (s, r) { return s + tot(r); }, 0)) * 100) + '%</b></div></div>';
+    }
+    var rb = renderBike; renderBike = function () { var v = rb.apply(this, arguments); try { draw(); } catch (e) { if (window.console) console.warn('bike chart', e); } return v; };
+    try { draw(); } catch (e) {}
+  })();
   if (SEC.Compact.gallery) window.CM_GAL = SEC.Compact.gallery('#gal-photo', function () {
     function open(kind, r) { return function () { var t = document.querySelector('#tabs .tab[data-p="' + kind + '"]'); if (t) t.click(); setTimeout(function () { var c = kind === 'car' ? window.CM_CAR_CMP : window.CM_BIKE_CMP; if (c) c.openWhere(function (tr) { return cmRid(tr) === r.id; }, 'photo'); }, 80); }; }
     return live(CAR).map(function (r) { return { date:r.date, title:'🚐 ' + [r.plate, r.driver, r.reason].filter(Boolean).join(' · '), photos:commuteRecordPhotos(r), open:open('car', r) }; })
