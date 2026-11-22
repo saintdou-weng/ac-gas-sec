@@ -357,7 +357,7 @@
 <script src="./shared/sec-core.js?v=20261117m"></script>
 <script src="./shared/ac-holidays.js?v=20261117m"></script>
 <script src="./shared/ac-tg-chart.js?v=20261106d"></script>
-<script src="./shared/sec-compact.js?v=20261113b"></script>
+<script src="./shared/sec-compact.js?v=20261122a"></script>
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
 <script src="./shared/ac-report-doc.js?v=20261022a"></script>
 <script src="./shared/sec-report.js?v=20261022a"></script>
@@ -704,6 +704,8 @@ function fireOpenDeviceCard(id, tab) {
 /* 2026-11-11 手機精簡清單（仿 VRT HR 員工頁）：篩選一小條、按鈕收進「⋯」、一筆一行、點開看詳細可左右滑 */
 if (SEC.Compact) window.FIRE_COMPACT = SEC.Compact.attach({ card:'#p-list .card', table:'#p-list table.fire-equipment-table', kpis:'#p-list .fire-list-kpis', tools:'#p-list .fire-master-tools',
   cols:{ check:0, title:[1,2], sub:[3,4], right:[10], wide:[9], actions:11 },
+  /* 2026-11-22 詳細卡表頭固定留設備照位置（學 PSJHR 員工頁），點了放大；沒照片點虛線框跳到照片分頁加 */
+  photos:function (tr) { var e = fireRowDevice(tr); return e && Array.isArray(e.photos) ? e.photos : []; }, photoTab:'photo',
   tabs:[
     { key:'hist', label:function () { return '🗓 ' + L('歷史紀錄', 'History', 'ប្រវត្តិ'); }, count:function (tr) { return fireDeviceHistory(fireRowDevice(tr)).length; }, render:function (tr) { return fireCardHistory(fireRowDevice(tr), false); } },
     { key:'bad', label:function () { return '⛔ ' + L('異常', 'Faults', 'មិនប្រក្រតី'); }, count:function (tr) { return fireDeviceHistory(fireRowDevice(tr)).filter(function (x) { return x.result === 'fault'; }).length; }, render:function (tr) { return fireCardHistory(fireRowDevice(tr), true); } },
