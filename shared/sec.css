@@ -253,3 +253,21 @@ td.num,th.num{text-align:right;font-family:'DM Mono',monospace}
 @keyframes tgFxFly{0%{transform:translate(-60px,20px) rotate(0)}60%{transform:translate(40px,-30px) rotate(-8deg);opacity:1}100%{transform:translate(140px,-90px) rotate(-15deg);opacity:0}}
 @keyframes tgFxPop{to{transform:scale(1)}}
 @media (prefers-reduced-motion:reduce){.tg-fx-plane,.tg-fx-check{animation:none;transform:none}}
+
+/* ───── 2026-11-22 手機頁首精簡（Paul：上方選項太佔空間、要精實）：一行＝圖示｜模組名｜語言（小）｜🏠｜⋯，雲端狀態縮成一小行 ───── */
+.more-item.m-only{display:none}
+@media(max-width:720px){
+  .hdr{padding:6px 10px 5px}
+  .hdr-top{flex-wrap:nowrap;gap:6px}
+  .hdr-ic{font-size:18px}
+  .hdr-title{flex:1 1 auto}
+  .hdr-t1{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal}
+  .hdr-t2{display:none}
+  .hdr-right{width:auto!important;gap:4px}
+  .lang-sw .lb{min-height:32px;min-width:30px;padding:0 6px;font-size:11px}
+  .ic-btn{min-width:34px;height:34px;padding:0 6px;font-size:15px;border-radius:9px}
+  #btnTg,#btnHub{display:none!important}
+  .more-item.m-only{display:flex}
+  .cloud-bar{margin-top:4px!important;padding:2px 8px!important;font-size:11px!important;min-height:0!important;gap:6px!important}
+  .cloud-bar .c-ts{font-size:10.5px!important}
+}

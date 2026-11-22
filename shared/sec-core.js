@@ -2100,6 +2100,9 @@ function headerHtml(icon, title, sub) {
         '<div class="more-wrap">' +
           hdrBtn('btnMore', '⋯', '管理', 'More', 'បន្ថែម', 'more-btn') +
           '<div class="more-menu" id="secMoreMenu" role="menu" hidden>' +
+            /* 2026-11-22 手機頁首精簡：Telegram、匯入中心在手機收進 ⋯（電腦版頁首照舊） */
+            '<button type="button" class="more-item m-only" role="menuitem" data-proxy="btnTg"><span class="ic-i" aria-hidden="true">✈️</span><span' + i18nAttrs('Telegram','Telegram','Telegram') + '>Telegram</span></button>' +
+            '<button type="button" class="more-item m-only" role="menuitem" data-proxy="btnHub"><span class="ic-i" aria-hidden="true">⇧</span><span' + i18nAttrs('智慧匯入中心','Smart import hub','មជ្ឈមណ្ឌលនាំចូល') + '>' + esc(L('智慧匯入中心','Smart import hub','មជ្ឈមណ្ឌលនាំចូល')) + '</span></button>' +
             menuItem('btnUp', '⬆️☁', '上傳雲端', 'Upload to cloud', 'ផ្ទុកឡើងពពក') +
             menuItem('btnDown', '⬇️☁', '從雲端更新', 'Update from cloud', 'ធ្វើបច្ចុប្បន្នភាពពីពពក') +
             menuItem('btnSmart', '📥', '智慧匯入 Excel', 'Smart Excel import', 'នាំចូល Excel ឆ្លាតវៃ') +
@@ -2133,6 +2136,10 @@ function bindHeader(tool, handlers) {
     document.addEventListener('click', function (ev) { if (!menu.hidden && !closest(ev.target, '.more-wrap')) closeMenu(); });
     document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') closeMenu(); });
   }
+  /* 手機 ⋯ 裡的 Telegram／匯入中心：按的是頁首原本那顆鈕（功能不變） */
+  document.querySelectorAll('.more-item[data-proxy]').forEach(function (it) {
+    it.onclick = function () { closeMenu(); var t = document.getElementById(it.getAttribute('data-proxy')); if (t) t.click(); };
+  });
   function run(fn, ev) {
     try {
       var out = fn(ev);
