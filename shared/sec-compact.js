@@ -109,7 +109,22 @@
     '.cmp-cmp img{width:100%;aspect-ratio:4/3;object-fit:cover;cursor:zoom-in;display:block}.cmp-cmp .ph0{aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;text-align:center;color:#9aa9b7;font-size:12px;padding:8px;line-height:1.4}',
     '.cmp-addph{display:inline-flex;align-items:center;gap:5px;margin-top:8px;min-height:38px;padding:0 14px;border:1px dashed var(--n2);border-radius:9px;background:#f3f9fc;color:var(--n1);font-weight:800;font-size:13px;font-family:inherit;cursor:pointer}',
     '.cmp-strip{display:flex;flex-wrap:wrap;gap:3px;padding:8px 12px 2px}.cmp-strip i{width:15px;height:15px;border-radius:4px;background:#e6edf2;display:block}.cmp-strip i.ok{background:#35a56b}.cmp-strip i.bad{background:#d9483b}.cmp-strip i.warn{background:#e9a23b}.cmp-strip i.off{background:#9aa9b7}',
-    '.cmp-bars{padding:6px 12px 10px}.cmp-bars .br{display:grid;grid-template-columns:54px 1fr auto;gap:8px;align-items:center;margin-top:7px;font-size:12.5px}.cmp-bars .br b{color:var(--n1)}.cmp-bars .bar{display:flex;height:14px;border-radius:7px;overflow:hidden;background:#edf2f6}.cmp-bars .bar span{display:block;height:100%}.cmp-bars .br small{color:var(--ink2);white-space:nowrap}'
+    '.cmp-bars{padding:6px 12px 10px}.cmp-bars .br{display:grid;grid-template-columns:54px 1fr auto;gap:8px;align-items:center;margin-top:7px;font-size:12.5px}.cmp-bars .br b{color:var(--n1)}.cmp-bars .bar{display:flex;height:14px;border-radius:7px;overflow:hidden;background:#edf2f6}.cmp-bars .bar span{display:block;height:100%}.cmp-bars .br small{color:var(--ink2);white-space:nowrap}',
+    /* 2026-11-22 Paul：詳細卡表頭學 PSJHR 員工頁——照片欄位固定留著（沒照片顯示虛線框），有照片直接顯示，點了放大看細節 */
+    '.cmp-pslot{flex:none;width:78px;height:78px;border-radius:12px;overflow:hidden;position:relative}',
+    '.cmp-prof .cmp-pslot img.cmp-pimg{width:78px;height:78px;object-fit:cover;border-radius:12px;border:1px solid var(--line);display:block;cursor:zoom-in;background:#f4f7fb}',
+    '.cmp-pslot .n{position:absolute;right:3px;bottom:3px;background:rgba(15,43,70,.78);color:#fff;font-size:10.5px;font-weight:800;border-radius:9px;padding:0 6px;line-height:17px}',
+    '.cmp-pnone{width:78px;height:78px;border-radius:12px;border:2px dashed #b3c2d0;background:#f7f9fb;color:#7d8fa1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:10.5px;font-weight:800;line-height:1.2;text-align:center;font-family:inherit;padding:2px;cursor:default}',
+    'button.cmp-pnone{cursor:pointer}.cmp-pnone b{font-size:22px;font-weight:400}.cmp-pnone small{font-size:9.5px;font-weight:700;color:var(--n2)}',
+    /* 放大看照片：點一下放大到原尺寸可拖曳／捲動看細節，再點一下縮回；可左右切換同一筆的照片 */
+    '.cmp-zoom{position:fixed;inset:0;z-index:4000;background:rgba(6,14,24,.94);display:flex;flex-direction:column}',
+    '.cmp-zoom .zb{flex:none;display:flex;align-items:center;gap:8px;padding:10px 12px calc(10px);color:#fff;font-size:13px;font-weight:700}',
+    '.cmp-zoom .zb span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+    '.cmp-zoom .zb button{width:44px;height:40px;border-radius:10px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;font-size:16px;cursor:pointer}',
+    '.cmp-zoom .zv{flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y pinch-zoom}',
+    '.cmp-zoom .zv img{max-width:100%;max-height:100%;object-fit:contain;cursor:zoom-in;transition:transform .15s ease-out}',
+    '.cmp-zoom .zv.big{display:block}.cmp-zoom .zv.big img{max-width:none;max-height:none;width:auto;cursor:zoom-out}',
+    '.cmp-zoom .zh{flex:none;text-align:center;color:rgba(255,255,255,.65);font-size:11.5px;padding:6px 0 calc(10px + env(safe-area-inset-bottom))}',
   ].join('\n');
   function injectCss() { if (document.getElementById('cmpCss')) return; var s = document.createElement('style'); s.id = 'cmpCss'; s.textContent = CSS; document.head.appendChild(s); }
 
@@ -124,6 +139,40 @@
     return m;
   }
   function label(btn) { return (btn.textContent || '').replace(/\s+/g, ' ').trim(); }
+  /* 照片網址：Drive 連結改縮圖網址（sec-core 的 vrtDriveThumb），手機才看得到 */
+  function psrc(u, w) { return u && root.vrtDriveThumb ? root.vrtDriveThumb(u, w || 1600) : (u || ''); }
+  /* 放大看照片（2026-11-22）：list＝同一筆的照片，i＝第幾張 */
+  function zoomPhoto(list, i, title) {
+    list = (list || []).filter(Boolean); if (!list.length) return; i = Math.max(0, Math.min(list.length - 1, i || 0));
+    var z = document.createElement('div'); z.className = 'cmp-zoom'; z.setAttribute('data-noswipe', '');
+    z.innerHTML = '<div class="zb"><span></span>' + (list.length > 1 ? '<button type="button" data-z="-1" aria-label="◀">◀</button><button type="button" data-z="1" aria-label="▶">▶</button>' : '') +
+      '<button type="button" data-zx aria-label="✕">✕</button></div><div class="zv"><img alt=""></div><div class="zh"></div>';
+    var img = z.querySelector('img'), zv = z.querySelector('.zv'), cap = z.querySelector('.zb span'), hint = z.querySelector('.zh');
+    function show() {
+      zv.classList.remove('big'); img.src = psrc(list[i], 2000);
+      cap.textContent = (title ? title + ' · ' : '') + (i + 1) + '/' + list.length;
+      hint.textContent = L('點照片放大看細節，再點一下縮回', 'Tap the photo to zoom in, tap again to fit', 'ចុចរូបដើម្បីពង្រីក');
+    }
+    function close() { z.remove(); document.removeEventListener('keydown', key, true); }
+    function key(e) { if (e.key === 'Escape') { e.stopPropagation(); close(); } else if (e.key === 'ArrowLeft' && list.length > 1) { e.stopPropagation(); i = (i - 1 + list.length) % list.length; show(); } else if (e.key === 'ArrowRight' && list.length > 1) { e.stopPropagation(); i = (i + 1) % list.length; show(); } }
+    z.addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (b && b.hasAttribute('data-zx')) return close();
+      if (b && b.dataset.z) { i = (i + (+b.dataset.z) + list.length) % list.length; return show(); }
+      if (e.target === img) {
+        if (!zv.classList.contains('big')) {
+          var r = img.getBoundingClientRect(), fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
+          zv.classList.add('big');
+          /* 以點的位置為中心放大 */
+          requestAnimationFrame(function () { zv.scrollLeft = Math.max(0, img.offsetWidth * fx - zv.clientWidth / 2); zv.scrollTop = Math.max(0, img.offsetHeight * fy - zv.clientHeight / 2); });
+        } else zv.classList.remove('big');
+        return;
+      }
+      if (e.target === zv || e.target === z) close();
+    });
+    document.addEventListener('keydown', key, true);
+    document.body.appendChild(z); show();
+  }
 
   function attach(cfg) {
     injectCss();
@@ -176,7 +225,12 @@
         kv += '<div' + (wide.indexOf(i) >= 0 ? ' class="w"' : '') + '><dt>' + esc(lb) + '</dt><dd>' + v + '</dd></div>';
       }
       var img = tr.querySelector('img'), acts = cols.actions != null && tr.children[cols.actions] ? $$('button,a', tr.children[cols.actions]) : [];
-      return '<section class="cmp-rec" data-k="' + k + '"><div class="cmp-prof">' + (img ? '<img src="' + esc(img.getAttribute('src')) + '" alt="">' : '') +
+      /* 照片欄位：頁面有給 cfg.photos(tr) 就固定留位置（沒照片＝虛線框，點了跳到照片分頁去加）；沒給就照舊用表格列裡的圖 */
+      var ph = cfg.photos ? (cfg.photos(tr) || []).filter(Boolean) : (img ? [img.getAttribute('src')] : []), slot = '';
+      if (ph.length) slot = '<div class="cmp-pslot"><img class="cmp-pimg" src="' + esc(psrc(ph[0], 400)) + '" alt="" data-pzoom="' + k + '">' + (ph.length > 1 ? '<span class="n">' + ph.length + '</span>' : '') + '</div>';
+      else if (cfg.photos) slot = cfg.photoTab ? '<button type="button" class="cmp-pnone" data-ptab="' + esc(cfg.photoTab) + '"><b>📷</b>' + esc(L('尚無照片', 'No photo', 'គ្មានរូប')) + '<small>' + esc(L('點這裡加', 'Tap to add', 'ចុចបន្ថែម')) + '</small></button>'
+        : '<div class="cmp-pnone"><b>📷</b>' + esc(L('尚無照片', 'No photo', 'គ្មានរូប')) + '</div>';
+      return '<section class="cmp-rec" data-k="' + k + '"><div class="cmp-prof">' + slot +
         '<div style="min-width:0;flex:1 1 0"><div class="ttl">' + arr(cols.title).map(function (i) { return '<span>' + cellHtml(tr, i) + '</span>'; }).join('') + '</div>' +
         '<div class="sub">' + arr(cols.sub).map(function (i) { return cellHtml(tr, i); }).filter(Boolean).join(' · ') + '</div>' +
         '<div class="chips">' + arr(cols.right).map(function (i) { return cellHtml(tr, i); }).join(' ') + '</div></div><span class="no">' + (k + 1) + '/' + total + '</span></div>' +
@@ -226,7 +280,12 @@
         });
       }, { passive:true });
       d.addEventListener('click', function (e) {
-        var im = e.target.closest('.cmp-body img'); if (im && SEC.viewPhoto) return SEC.viewPhoto(0, im);
+        var pz = e.target.closest('[data-pzoom]');
+        if (pz) { var trz = list[+pz.getAttribute('data-pzoom')], t0 = recs[+pz.getAttribute('data-pzoom')].querySelector('.ttl'); return zoomPhoto(cfg.photos ? cfg.photos(trz) : [pz.src], 0, t0 ? $$(':scope > span', t0).map(function (x) { return (x.textContent || '').replace(/\s+/g, ' ').trim(); }).filter(Boolean).join(' ') : ''); }
+        var pt = e.target.closest('[data-ptab]');
+        if (pt) { var kk = +pt.closest('.cmp-rec').dataset.k; cur = kk; setTab(pt.getAttribute('data-ptab')); return go(kk, false); }
+        var im = e.target.closest('.cmp-body img');
+        if (im) { var imgs = $$('img', im.closest('.cmp-body')).map(function (x) { return x.getAttribute('src'); }), ix = $$('img', im.closest('.cmp-body')).indexOf(im); return zoomPhoto(imgs, ix, ''); }
         var b = e.target.closest('button'); if (!b) return;
         if (b.hasAttribute('data-x')) return closeOverlay();
         if (b.dataset.step) return step(+b.dataset.step);
