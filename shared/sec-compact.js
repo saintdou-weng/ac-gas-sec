@@ -476,5 +476,7 @@
     sync();
     return { refresh:paint, open:openDetail, openWhere:function (fn, tab) { var list = rows(); for (var i = 0; i < list.length; i++) if (fn(list[i])) { if (tab) tabKey = tab; openDetail(i); return true; } return false; }, tab:function (k) { tabKey = k; }, tools:openTools, isOn:function () { return on; }, selectMode:selectMode };
   }
+  /* iOS Safari 要有 touchstart 監聽，卡片按壓變色（:active）才會出現 */
+  try { document.addEventListener('touchstart', function () {}, { passive:true }); } catch (e) {}
   SEC.Compact = { attach:attach, gallery:gallery, sheet:sheet, zoom:zoomPhoto, close:closeOverlay, rerender:function () { if (OPEN && OPEN.rerender) OPEN.rerender(); } };
 })(typeof window !== 'undefined' ? window : this);
