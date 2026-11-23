@@ -229,31 +229,53 @@
   /* 沒有表格可接的清單（卡片列、別的版面）也能開同樣的詳細卡：
      sheet({ items:[…], index:0, render:function(it){ return { title, sub, chips, kv:[[欄名,值]], photos:[], date } }, actions:function(it){ return [{ label, cls, fn }] } }) */
   function sheet(o) {
-    injectCss(); var items = o.items || [], cur = Math.max(0, Math.min(items.length - 1, o.index || 0)), tab = o.tab || 'info'; if (!items.length) return;
+    /* 2026-11-23 Paul：這種卡也要能一直往下滑、無縫接下一筆（原本一次只有一筆，要按 ▶ 才換）。
+       → 跟列表的卡（openDetail）同一個樣子：全部的筆一張接一張，捲到哪一張，上面的 3/16 和標題就跟著變；◀ ▶ 是捲過去。 */
+    injectCss(); var items = o.items || []; if (!items.length) return;
+    var cur = Math.max(0, Math.min(items.length - 1, o.index || 0)), tab = o.tab || 'info', total = items.length, views = [];
     var d = document.createElement('div'); d.className = 'cmp-drawer';
-    function paintS() {
-      var it = items[cur], v = o.render(it) || {}, ph = (v.photos || []).filter(Boolean), acts = o.actions ? (o.actions(it) || []) : [];
+    function recHtml(k) {
+      var it = items[k], v = o.render(it) || {}, ph = (v.photos || []).filter(Boolean), acts = o.actions ? (o.actions(it) || []) : [];
+      views[k] = { v:v, ph:ph, acts:acts, title:String(v.title || '').replace(/<[^>]+>/g, '') };
       var kv = (v.kv || []).filter(function (x) { return x && x[0]; }).map(function (x) { var val = x[1] == null || String(x[1]).replace(/<[^>]+>/g, '').trim() === '' ? '—' : x[1]; return '<div' + (x[2] ? ' class="w"' : '') + '><dt>' + esc(x[0]) + '</dt><dd>' + val + '</dd></div>'; }).join('');
-      var slot = ph.length ? '<div class="cmp-pslot"><img class="cmp-pimg" src="' + esc(psrc(ph[0], 400)) + '" alt="" data-sz="0">' + (ph.length > 1 ? '<span class="n">' + ph.length + '</span>' : '') + '</div>' : '<button type="button" class="cmp-pnone" data-tab="photo"><b>📷</b>' + esc(L('尚無照片', 'No photo', 'គ្មានរូប')) + '</button>';
-      /* 學消防設備：照片放在另一個分頁「📷 照片」，依月份列出 */
-      var tabs = '<div class="cmp-tabs" data-noswipe><button type="button" data-tab="info" class="' + (tab === 'info' ? 'on' : '') + '">📋 ' + esc(L('現況', 'Current', 'បច្ចុប្បន្ន')) + '</button><button type="button" data-tab="photo" class="' + (tab === 'photo' ? 'on' : '') + '">📷 ' + esc(L('照片', 'Photos', 'រូបថត')) + ' <i' + (ph.length ? '' : ' class="z"') + '>' + ph.length + '</i></button></div>';
+      var slot = ph.length ? '<div class="cmp-pslot"><img class="cmp-pimg" loading="lazy" src="' + esc(psrc(ph[0], 400)) + '" alt="" data-sz="0">' + (ph.length > 1 ? '<span class="n">' + ph.length + '</span>' : '') + '</div>' : '<button type="button" class="cmp-pnone" data-tab="photo"><b>📷</b>' + esc(L('尚無照片', 'No photo', 'គ្មានរូប')) + '</button>';
       var body = tab === 'photo' ? (ph.length ? '<div class="cmp-phsec">' + monthHtml([{ date:v.date || '', title:'📷 ' + L('照片', 'Photos', 'រូបថត'), photos:ph }], { open:'all' }) + '</div>' : '<p class="cmp-none">📷 ' + esc(L('這筆沒有照片', 'No photos on this record', 'គ្មានរូបថត')) + '</p>') : '<dl class="cmp-kv">' + kv + '</dl>';
-      d.innerHTML = '<div class="cmp-dh"><div class="cmp-nav"><span class="cnt">' + (cur + 1) + '/' + items.length + '</span><span class="now">' + esc(String(v.title || '').replace(/<[^>]+>/g, '')) + '</span>' +
-        '<button type="button" data-step="-1" aria-label="Previous"' + (cur <= 0 ? ' disabled' : '') + '>◀</button><button type="button" data-step="1" aria-label="Next"' + (cur >= items.length - 1 ? ' disabled' : '') + '>▶</button><button type="button" data-x aria-label="Close">✕</button></div>' + tabs + '</div>' +
-        '<div class="cmp-db"><section class="cmp-rec"><div class="cmp-prof">' + slot + '<div style="min-width:0;flex:1 1 0"><div class="ttl"><span>' + (v.title || '') + '</span></div><div class="sub">' + (v.sub || '') + '</div><div class="chips">' + (v.chips || '') + '</div></div></div>' +
+      return '<section class="cmp-rec" data-k="' + k + '"><div class="cmp-prof">' + slot + '<div style="min-width:0;flex:1 1 0"><div class="ttl"><span>' + (v.title || '') + '</span></div><div class="sub">' + (v.sub || '') + '</div><div class="chips">' + (v.chips || '') + '</div></div>' + (total > 1 ? '<span class="no">' + (k + 1) + '/' + total + '</span>' : '') + '</div>' +
         '<div class="cmp-body">' + body + '</div>' +
-        (acts.length ? '<div class="cmp-acts">' + acts.map(function (a, j) { return '<button type="button" data-sa="' + j + '" class="' + (a.cls || (j ? 'gh' : '')) + '">' + esc(a.label) + '</button>'; }).join('') + '</div>' : '') + '</section></div>';
-      d._acts = acts; d._ph = ph; d._title = String(v.title || '').replace(/<[^>]+>/g, '');
+        (acts.length ? '<div class="cmp-acts">' + acts.map(function (a, j) { return '<button type="button" data-sa="' + j + '" class="' + (a.cls || (j ? 'gh' : '')) + '">' + esc(a.label) + '</button>'; }).join('') + '</div>' : '') + '</section>';
     }
-    function stepS(dir) { var k = Math.max(0, Math.min(items.length - 1, cur + dir)); if (k !== cur) { cur = k; paintS(); } }
-    paintS(); overlay(d, { step:stepS });
+    d.innerHTML = '<div class="cmp-dh"><div class="cmp-nav"><span class="cnt"></span><span class="now"></span>' +
+      '<button type="button" data-step="-1" aria-label="Previous">◀</button><button type="button" data-step="1" aria-label="Next">▶</button><button type="button" data-x aria-label="Close">✕</button></div>' +
+      '<div class="cmp-tabs" data-noswipe></div></div><div class="cmp-db"></div>';
+    var body = d.querySelector('.cmp-db'), cnt = d.querySelector('.cnt'), now = d.querySelector('.now'), prev = d.querySelector('[data-step="-1"]'), next = d.querySelector('[data-step="1"]'), tabBar = d.querySelector('.cmp-tabs'), recs = [];
+    function paintAll() {
+      body.innerHTML = items.map(function (_, k) { return recHtml(k); }).join('') + (total > 1 ? '<p class="cmp-end">' + esc(L('— 最後一筆 —', '— End of list —', '— ចប់បញ្ជី —')) + '</p>' : '');
+      recs = $$('.cmp-rec', body);
+    }
+    function head() {
+      var w = views[cur] || { ph:[], title:'' };
+      cnt.textContent = (cur + 1) + '/' + total; now.textContent = w.title; prev.disabled = cur <= 0; next.disabled = cur >= total - 1;
+      tabBar.innerHTML = '<button type="button" data-tab="info" class="' + (tab === 'info' ? 'on' : '') + '">📋 ' + esc(L('現況', 'Current', 'បច្ចុប្បន្ន')) + '</button><button type="button" data-tab="photo" class="' + (tab === 'photo' ? 'on' : '') + '">📷 ' + esc(L('照片', 'Photos', 'រូបថត')) + ' <i' + (w.ph.length ? '' : ' class="z"') + '>' + w.ph.length + '</i></button>';
+    }
+    function go(k, smooth) { k = Math.max(0, Math.min(total - 1, k)); cur = k; head(); if (recs[k]) body.scrollTo({ top:recs[k].offsetTop - 6, behavior:smooth ? 'smooth' : 'auto' }); }
+    function stepS(dir) { go(cur + dir, true); }
+    paintAll(); overlay(d, { step:stepS, rerender:function () { paintAll(); go(cur, false); } }); go(cur, false);
+    var tick = 0;
+    body.addEventListener('scroll', function () {
+      if (tick) return; tick = requestAnimationFrame(function () {
+        tick = 0; var line = body.scrollTop + body.clientHeight * 0.3, k = cur;
+        while (k < total - 1 && recs[k + 1] && recs[k + 1].offsetTop <= line) k++;
+        while (k > 0 && recs[k] && recs[k].offsetTop > line) k--;
+        if (k !== cur) { cur = k; head(); }
+      });
+    }, { passive:true });
     d.addEventListener('click', function (e) {
-      var b = e.target.closest('button');
+      var b = e.target.closest('button'), rec = e.target.closest('.cmp-rec'), rk = rec ? +rec.dataset.k : cur, w = views[rk] || { ph:[], acts:[], title:'' };
       if (b && b.hasAttribute('data-x')) return closeOverlay();
       if (b && b.dataset.step) return stepS(+b.dataset.step);
-      if (b && b.dataset.tab) { tab = b.dataset.tab; return paintS(); }
-      if (b && b.dataset.sa != null) { var a = d._acts[+b.dataset.sa]; closeOverlay(); if (a && a.fn) a.fn(); return; }
-      var im = e.target.closest('img'); if (im) { var j = im.hasAttribute('data-j') ? +im.getAttribute('data-j') : 0; return zoomPhoto(d._ph, j, d._title); }
+      if (b && b.dataset.tab) { tab = b.dataset.tab; if (rec) cur = rk; paintAll(); return go(cur, false); }
+      if (b && b.dataset.sa != null) { var a = w.acts[+b.dataset.sa]; closeOverlay(); if (a && a.fn) a.fn(); return; }
+      var im = e.target.closest('img'); if (im) { var j = im.hasAttribute('data-j') ? +im.getAttribute('data-j') : 0; return zoomPhoto(w.ph, j, w.title); }
     });
     var sx = 0, sy = 0, st = 0;
     d.addEventListener('touchstart', function (e) { if (e.touches.length !== 1) { st = 0; return; } sx = e.touches[0].clientX; sy = e.touches[0].clientY; st = Date.now(); }, { passive:true });
