@@ -266,7 +266,7 @@ td.num,th.num{text-align:right;font-family:'DM Mono',monospace}
   .hdr-right{width:auto!important;gap:4px}
   .lang-sw .lb{min-height:32px;min-width:30px;padding:0 6px;font-size:11px}
   .ic-btn{min-width:34px;height:34px;padding:0 6px;font-size:15px;border-radius:9px}
-  #btnTg,#btnHub{display:none!important}
+  #btnTg,#btnHub,.ic-btn.d-only{display:none!important}
   .more-item.m-only{display:flex}
   .cloud-bar{margin-top:4px!important;padding:2px 8px!important;font-size:11px!important;min-height:0!important;gap:6px!important}
   .cloud-bar .c-ts{font-size:10.5px!important}

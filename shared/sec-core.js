@@ -2096,6 +2096,9 @@ function headerHtml(icon, title, sub) {
         '</div>' +
         hdrBtn('btnTg', '✈️', 'Telegram', 'Telegram', 'Telegram') +
         hdrBtn('btnHub', '⇧', '智慧匯入', 'Smart import', 'នាំចូលឆ្លាតវៃ', 'hub-btn') +
+        /* 2026-11-23 Paul：雲端上傳／下載是資料的起點，電腦版直接放在上方，不要只藏在「管理」裡（手機版位置不夠，仍在 ⋯） */
+        '<button type="button" class="ic-btn d-only" data-proxy="btnUp"' + i18nAttrs('上傳雲端', 'Upload to cloud', 'ផ្ទុកឡើងពពក', 'data-tip-') + '><span class="ic-i" aria-hidden="true">⬆️☁</span><span class="ic-lbl"' + i18nAttrs('上傳', 'Upload', 'ផ្ទុកឡើង') + '>' + esc(L('上傳', 'Upload', 'ផ្ទុកឡើង')) + '</span></button>' +
+        '<button type="button" class="ic-btn d-only" data-proxy="btnDown"' + i18nAttrs('從雲端更新', 'Update from cloud', 'ធ្វើបច្ចុប្បន្នភាពពីពពក', 'data-tip-') + '><span class="ic-i" aria-hidden="true">⬇️☁</span><span class="ic-lbl"' + i18nAttrs('下載', 'Download', 'ទាញយក') + '>' + esc(L('下載', 'Download', 'ទាញយក')) + '</span></button>' +
         hdrBtn('btnHome', '🏠', '首頁', 'Home', 'ទំព័រដើម', '', 'a', 'index.html') +
         '<div class="more-wrap">' +
           hdrBtn('btnMore', '⋯', '管理', 'More', 'បន្ថែម', 'more-btn') +
@@ -2137,7 +2140,7 @@ function bindHeader(tool, handlers) {
     document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') closeMenu(); });
   }
   /* 手機 ⋯ 裡的 Telegram／匯入中心：按的是頁首原本那顆鈕（功能不變） */
-  document.querySelectorAll('.more-item[data-proxy]').forEach(function (it) {
+  document.querySelectorAll('.more-item[data-proxy],.ic-btn[data-proxy]').forEach(function (it) {
     it.onclick = function () { closeMenu(); var t = document.getElementById(it.getAttribute('data-proxy')); if (t) t.click(); };
   });
   function run(fn, ev) {
