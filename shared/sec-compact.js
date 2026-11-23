@@ -78,6 +78,8 @@
     '.cmp-prof .sub{font-size:12.5px;color:var(--ink2);margin-top:3px;line-height:1.45}.cmp-prof .sub br{display:none}.cmp-prof .chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}',
     '.cmp-db{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:6px 10px 40vh;position:relative}',
     '.cmp-rec{background:#fff;border:1px solid var(--line);border-radius:14px;margin:0 0 12px;overflow:hidden;box-shadow:0 1px 3px rgba(15,43,70,.06)}',
+    /* 2026-11-23 Paul：寬螢幕放得下就並排 2～3 欄，一張卡不要佔一整列（手機、只有一筆時照舊一欄） */
+    '@media(min-width:1000px){.cmp-drawer:has(.cmp-db>.cmp-rec+.cmp-rec){max-width:min(1560px,96vw)}.cmp-db:has(>.cmp-rec+.cmp-rec){display:grid;grid-template-columns:repeat(auto-fill,minmax(430px,1fr));gap:12px;grid-auto-rows:max-content;align-content:start}.cmp-db:has(>.cmp-rec+.cmp-rec)>.cmp-rec{margin:0}.cmp-db:has(>.cmp-rec+.cmp-rec)>:not(.cmp-rec){grid-column:1/-1}}',
     '.cmp-rec .cmp-prof{margin:0;padding:12px 12px 10px;border-bottom:1px solid #edf2f6;align-items:flex-start}.cmp-rec .cmp-prof .no{flex:none;font-size:11.5px;color:var(--ink2);font-weight:700;font-family:"DM Mono",monospace;background:#eef4f8;border-radius:20px;padding:2px 8px}',
     '.cmp-rec .cmp-kv{border:0;border-radius:0}',
     '.cmp-acts{display:flex;gap:8px;padding:10px 12px 12px;border-top:1px solid #edf2f6}.cmp-acts button{flex:1 1 0;min-height:42px;border-radius:10px;border:1px solid var(--n1);background:var(--n1);color:#fff;font-weight:800;font-family:inherit;font-size:14px;cursor:pointer}',
