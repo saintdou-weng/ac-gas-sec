@@ -971,6 +971,9 @@ function saveDayNow(push) {
   var note = document.getElementById('cNote').value.trim();
   if (!d) { SEC.toast('⚠ ' + t('請選擇日期', 'Choose a date', 'សូមជ្រើសកាលបរិច្ឆេទ'), 'warn'); return; }
   if (!Object.keys(TODAY).length && !hasDayRecord()) { SEC.toast('⚠ ' + t('尚未標記任何攝影機', 'No camera has been marked yet', 'មិនទាន់សម្គាល់កាមេរ៉ាណាមួយទេ'), 'warn'); return; }
+  /* 2026-11-26：同一天已經有紀錄時，只覆蓋這次有按的攝影機，其餘保留（之前只按 3 台就把整天 35 台的紀錄蓋成 3 台） */
+  var oldDay = LOG.filter(function (l) { return l && l.date === d && !l._deleted; })[0];
+  if (oldDay && oldDay.st) TODAY = Object.assign({}, oldDay.st, TODAY);
   var c = { ok:0, off:0, blur:0, fault:0, dis:0 };
   var badList = [], now = new Date().toISOString();
   DB.forEach(function (cam) {
