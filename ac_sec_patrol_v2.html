@@ -67,6 +67,7 @@
 
 <div class="wrap">
   <div id="pnavHost"></div>
+  <div id="secPTab"></div>
 
   <!-- ═══ 巡邏確認（保安每日第一步） ═══ -->
   <div class="page" id="p-check">
@@ -281,6 +282,7 @@
 
 <div id="toastwrap"></div>
 <script src="./shared/sec-core.js?v=20261123b"></script>
+<script src="./shared/sec-period-table.js?v=20261126a"></script>
 <script src="./shared/ac-holidays.js?v=20261117m"></script>
 <script src="./shared/ac-tg-chart.js?v=20261106d"></script>
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
@@ -2271,6 +2273,13 @@ async function doDownload(opts) {
 SEC.registerAutoUploader(TOOL, function (opts) { return doUpload(opts); });
 SEC.registerAutoDownloader(TOOL, function (opts) { return doDownload(opts); });
 window.addEventListener('load', function () { setTimeout(function () { SEC.startAutoCloudSync(TOOL); }, 350); });
+
+/* 2026-11-26 日週月年期間總表（學 sewing，一體適用）：每次 renderAll 後畫 */
+(function(){var _ra=renderAll;renderAll=function(){var r=_ra.apply(this,arguments);try{if(SEC.periodTable){SEC.periodTable('secPTab',{per:PER,rows:ROUNDS,date:function(r){return r.date;},metrics:[
+ {zh:'巡邏圈數',en:'Rounds',km:'ជុំ',color:'#2563eb',v:function(a){return a.length;}},
+ {zh:'完整',en:'Complete',km:'ពេញលេញ',color:'#16a34a',v:function(a){return a.filter(function(r){return r.expected&&r.chips.length>=r.expected;}).length;}},
+ {zh:'缺點',en:'Missed points',km:'ខកខាន',color:'#dc2626',v:function(a){return a.filter(function(r){return r.expected&&r.chips.length<r.expected;}).length;}},
+ {zh:'夜間',en:'Night',km:'យប់',color:'#4f46e5',v:function(a){return a.filter(function(r){return r.night;}).length;}}],bar:[1,2]});}}catch(e){console.warn('period table',e);}return r;};})();
 </script>
 <!-- VRT swipe-tabs：左右滑動（手指／滑鼠拖曳）切換分頁，只聽手勢、不改資料 -->
 <script src="https://saintdou-weng.github.io/ac-admin/shared/swipe-tabs.js" defer></script>

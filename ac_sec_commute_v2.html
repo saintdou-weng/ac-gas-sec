@@ -81,6 +81,7 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
 
   <!-- ═══ 摩托車 ═══ -->
   <div class="page" id="p-bike" style="display:none">
+    <div id="bikePTab"></div>
     <div class="grid g4" style="margin-bottom:12px">
       <div class="kpi"><div class="v" id="bk1">0</div><div class="l" data-zh="記錄天數" data-en="Days" data-km="ចំនួនថ្ងៃ">記錄天數</div></div>
       <div class="kpi"><div class="v" id="bk2">0</div><div class="l" data-zh="平均每日總數" data-en="Avg total/day" data-km="មធ្យមសរុប/ថ្ងៃ">平均每日總數</div></div>
@@ -106,6 +107,7 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
 
   <!-- ═══ 交通車接送人數 ═══ -->
   <div class="page" id="p-shuttle" style="display:none">
+    <div id="shuttlePTab"></div>
     <div class="grid g4" style="margin-bottom:12px">
       <div class="kpi"><div class="v" id="sk1">0</div><div class="l" data-zh="記錄天數" data-en="Days" data-km="ចំនួនថ្ងៃ">記錄天數</div></div>
       <div class="kpi"><div class="v" id="sk2">0</div><div class="l" data-zh="平均上班人數" data-en="Avg morning riders" data-km="មធ្យមពេលព្រឹក">平均上班人數</div></div>
@@ -267,6 +269,7 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
 <div id="toastwrap"></div>
 <script src="./shared/shuttle-history.js?v=20261126b"></script>
 <script src="./shared/sec-core.js?v=20261123b"></script>
+<script src="./shared/sec-period-table.js?v=20261126a"></script>
 <script src="./shared/ac-holidays.js?v=20261117m"></script>
 <script src="./shared/ac-tg-chart.js?v=20261112a"></script>
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
@@ -507,7 +510,21 @@ function commuteRecordPhotos(r) {
   return out;
 }
 function ocrPhotoCount(r) { return commuteRecordPhotos(r).length; }
-function renderAll() { renderCar(); renderBike(); renderShuttle(); renderGate(); renderLate(); renderAna(); }
+function renderAll() { renderCar(); renderBike(); renderShuttle(); renderGate(); renderLate(); renderAna(); try { commutePeriodTables(); } catch (e) { console.warn('period table', e); } }
+/* 2026-11-26 日週月年期間總表（學 sewing）：摩托車 A／B 棟、交通車 上班／下班 */
+function commutePeriodTables() {
+  if (!SEC.periodTable) return;
+  SEC.periodTable('bikePTab', { per:PER, rows:live(BIKE), date:function (r) { return r.date; }, metrics:[
+    { zh:'A 棟', en:'Bldg A', km:'អាគារ A', color:'#2563eb', v:function (a) { return a.reduce(function (s, r) { return s + (+r.a || 0); }, 0); } },
+    { zh:'B 棟', en:'Bldg B', km:'អាគារ B', color:'#ea580c', v:function (a) { return a.reduce(function (s, r) { return s + (+r.b || 0); }, 0); } },
+    { zh:'合計', en:'Total', km:'សរុប', color:'#0f766e', v:function (a) { return a.reduce(function (s, r) { return s + (+r.total || ((+r.a || 0) + (+r.b || 0))); }, 0); } },
+    { zh:'每日平均', en:'Avg/day', km:'មធ្យម/ថ្ងៃ', total:false, v:function (a) { var d = {}; a.forEach(function (r) { d[r.date] = 1; }); var n = Object.keys(d).length || 1; return Math.round(a.reduce(function (s, r) { return s + (+r.total || ((+r.a || 0) + (+r.b || 0))); }, 0) / n); } }], bar:[0, 1] });
+  if (PER.mode === 'month') { var h = document.getElementById('shuttlePTab'); if (h) h.innerHTML = ''; return; }
+  SEC.periodTable('shuttlePTab', { per:PER, rows:shuttleDaily(live(SHUTTLE)), date:function (r) { return r.date; }, metrics:[
+    { zh:'☀️ 上班', en:'☀️ AM', km:'☀️ ព្រឹក', color:'#d97706', v:function (a) { return a.reduce(function (s, r) { return s + (+r.am || 0); }, 0); } },
+    { zh:'🌙 下班', en:'🌙 PM', km:'🌙 ល្ងាច', color:'#4f46e5', v:function (a) { return a.reduce(function (s, r) { return s + (+r.pm || 0); }, 0); } },
+    { zh:'車趟', en:'Trips', km:'ជើង', color:'#475569', v:function (a) { return a.length; } }], bar:[0, 1] });
+}
 function emptyRow(cols, zh, en, km) { return '<tr><td colspan="' + cols + '" class="empty">' + SEC.esc(L(zh, en, km)) + '</td></tr>'; }
 function rowActions(kind, r) {
   var id = SEC.esc(r.id);
