@@ -264,6 +264,7 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
 <div class="mf"><button class="btn gray" onclick="SEC.closeModal('mDrivers')" data-t="cancel">取消</button>
 <button class="btn" id="btnSaveDrivers" onclick="saveDriverManager()" data-t="save">儲存</button></div></div></div>
 <div id="toastwrap"></div>
+<script src="./shared/shuttle-history.js?v=20261126a"></script>
 <script src="./shared/sec-core.js?v=20261123b"></script>
 <script src="./shared/ac-holidays.js?v=20261117m"></script>
 <script src="./shared/ac-tg-chart.js?v=20261112a"></script>
@@ -329,6 +330,9 @@ function maybeAddDriver(name) {
 }
 
 var SHUTTLE_HR_MONTHLY=[["2020-01",181],["2020-02",181],["2020-03",177],["2020-04",155],["2020-05",138],["2020-06",136],["2020-07",132],["2020-08",110],["2020-09",99],["2020-10",92],["2020-11",120],["2020-12",109],["2021-01",102],["2021-02",102],["2021-03",46],["2021-04",91],["2021-05",91],["2021-06",89],["2021-07",87],["2021-08",82],["2021-09",84],["2021-10",88],["2021-11",91],["2021-12",91],["2022-01",91],["2022-02",85],["2022-03",44],["2022-04",47],["2022-05",41],["2022-06",63],["2022-07",59],["2022-08",60],["2022-09",60],["2022-10",58],["2022-11",58],["2022-12",58],["2023-01",57],["2023-02",58],["2023-03",58],["2023-04",58],["2023-05",59],["2023-06",67],["2023-07",66],["2023-08",61],["2023-09",61],["2024-01",60],["2024-02",60],["2024-03",61],["2024-04",58],["2024-05",56],["2024-06",55],["2024-07",56],["2024-08",56],["2024-09",53],["2024-10",54],["2024-11",61],["2024-12",62],["2025-01",61],["2025-02",61],["2025-03",59],["2025-04",60],["2025-05",59],["2025-06",59],["2025-07",62],["2025-08",62],["2025-09",62],["2025-10",65],["2025-11",65],["2025-12",65]];
+function seedShuttleDaily(){var H=window.SHUTTLE_DAILY_HISTORY||[];if(!H.length)return 0;var flag='ac_sec_shuttle_daily_seed_v1',done=localStorage.getItem(flag);if(done)return 0;var have={};SHUTTLE.forEach(function(r){if(!r.monthly)have[r.date]=1;});var n=0;
+  H.forEach(function(x){if(have[x[0]])return;SHUTTLE.push({id:'SHD-'+x[0],_k:'shuttle',date:x[0],am:x[1],pm:x[2],cars:x[3],total:x[1]+x[2],remark:'Bunna email 匯入',src:'email · Amount of employees apply car (Security Bunna)',updatedAt:'2026-11-26T08:00:00.000Z'});n++;});
+  try{localStorage.setItem(flag,'1');}catch(e){}return n;}
 function seedShuttleHr(){var have={};SHUTTLE.forEach(function(r){have[r.id]=1;});var flag='ac_sec_shuttle_hr_seed_v1',done={};try{done=JSON.parse(localStorage.getItem(flag)||'{}');}catch(e){}var n=0;
   SHUTTLE_HR_MONTHLY.forEach(function(x){var id='SHM-'+x[0];if(have[id]||done[id])return;SHUTTLE.push({id:id,_k:'shuttle',date:x[0]+'-01',am:x[1],pm:x[1],cars:0,total:x[1],monthly:true,remark:'HR 月報：登記搭交通車 '+x[1]+' 人（email 匯入）',src:'email · Transportation & Accommodation (HR Phary)',updatedAt:'2026-11-26T00:00:00.000Z'});done[id]=1;n++;});
   try{localStorage.setItem(flag,JSON.stringify(done));}catch(e){}return n;}
@@ -355,7 +359,7 @@ async function load() {
     else Object.keys(seed).forEach(function (k) { if (!old[k]) old[k]=seed[k]; });
   });
   cleanDriverMaster();
-  var shSeed = seedShuttleHr();
+  var shSeed = seedShuttleHr() + seedShuttleDaily();
   commuteDedupeAll();
   save();
   if (shSeed) try { SEC.scheduleAutoCloudSync(TOOL, 'commute-shuttle-hr-seed', ''); } catch (e) {}
