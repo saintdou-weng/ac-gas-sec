@@ -96,7 +96,7 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
         </span></h3>
       <div class="tw"><table><thead><tr>
         <th data-zh="日期" data-en="Date" data-km="កាលបរិច្ឆេទ">日期</th>
-        <th class="num" data-zh="A 棟" data-en="Building A" data-km="អគារ A">A 棟</th><th class="num" data-zh="B 棟" data-en="Building B" data-km="អគារ B">B 棟</th>
+        <th class="num" style="background:rgba(37,99,235,.14);color:#1d4ed8" data-zh="🟦 A 棟" data-en="🟦 Building A" data-km="🟦 អគារ A">🟦 A 棟</th><th class="num" style="background:rgba(234,88,12,.14);color:#c2410c" data-zh="🟧 B 棟" data-en="🟧 Building B" data-km="🟧 អគារ B">🟧 B 棟</th>
         <th class="num" data-zh="合計" data-en="Total" data-km="សរុប">合計</th>
         <th data-zh="備註" data-en="Remark" data-km="កំណត់ចំណាំ">備註</th>
         <th data-zh="照片" data-en="Photos" data-km="រូបថត">照片</th>
@@ -575,8 +575,8 @@ function renderBike() {
   var tb = document.getElementById('tbBike');
   tb.innerHTML = list.length ? list.slice().sort(function (x, y) { return (y.date || '').localeCompare(x.date || ''); })
     .map(function (r) {
-      return '<tr><td>' + SEC.esc(r.date) + '</td><td class="num">' + (r.a || 0) + '</td>' +
-        '<td class="num">' + (r.b || 0) + '</td><td class="num"><b>' + (r.total || 0) + '</b></td>' +
+      return '<tr><td>' + SEC.esc(r.date) + '</td><td class="num" style="background:rgba(37,99,235,.08);color:#1d4ed8;font-weight:700">' + (r.a || 0) + '</td>' +
+        '<td class="num" style="background:rgba(234,88,12,.08);color:#c2410c;font-weight:700">' + (r.b || 0) + '</td><td class="num"><b>' + (r.total || 0) + '</b></td>' +
         '<td>' + SEC.esc(r.remark || '') + '</td>' +
         '<td>' + (ocrPhotoCount(r) ? '📷 ' + ocrPhotoCount(r) : '—') + '</td>' + rowActions('bike', r) + '</tr>';
     }).join('') : emptyRow(7, '本期間尚無摩托車記錄。按「➕ 新增」或用「📥 Excel」匯入。', 'No motorbike records in this period. Tap “➕ Add” or import with “📥 Excel”.', 'មិនទាន់មានកំណត់ត្រាម៉ូតូ។ ចុច “➕ បន្ថែម” ឬនាំចូល “📥 Excel”។');
@@ -596,7 +596,7 @@ function renderShuttle() {
   var mon = list.filter(function (r) { return r.monthly; });
   var html = days.slice().reverse().map(function (d) {
     return '<tr style="background:rgba(13,148,136,.08)"><td><b>' + SEC.esc(d.date) + '</b></td><td colspan="2"><b>' + SEC.esc(L('當日合計','Day total','សរុបប្រចាំថ្ងៃ')) + '</b> · ' + d.cars + ' ' + SEC.esc(L('台車','vehicles','ឡាន')) + '</td><td class="num"><b>' + d.am + '</b></td><td class="num"><b>' + d.pm + '</b></td><td></td><td></td></tr>' +
-      d.rows.map(function (r) { return '<tr><td></td><td>' + SEC.esc(r.driver || '—') + '</td><td>' + SEC.esc(r.plate || '—') + '</td><td class="num">' + (r.am || 0) + '</td><td class="num">' + (r.pm || 0) + '</td><td>' + SEC.esc(r.remark || '') + '</td>' + rowActions('shuttle', r) + '</tr>'; }).join('');
+      d.rows.map(function (r) { return '<tr><td></td><td><b>🚌 ' + SEC.esc(r.driver || '—') + '</b></td><td>' + SEC.esc(r.plate || '—') + '</td><td class="num" style="background:rgba(245,158,11,.13)">☀️ ' + (r.am || 0) + '</td><td class="num" style="background:rgba(79,70,229,.13)">🌙 ' + (r.pm || 0) + '</td><td>' + SEC.esc(r.remark || '') + '</td>' + rowActions('shuttle', r) + '</tr>'; }).join('');
   }).join('') + mon.map(function (r) { return '<tr><td>' + SEC.esc(String(r.date).slice(0, 7)) + ' <span style="font-size:11px;background:#e0f2fe;color:#075985;border-radius:6px;padding:1px 6px">📋 ' + SEC.esc(L('HR 登記申請','HR applications','ការស្នើ HR')) + '</span></td><td colspan="2">' + SEC.esc(L('Phary 每月登記申請搭車人數','Monthly registered applicants (Phary)','ចំនួនស្នើជិះប្រចាំខែ')) + '</td><td class="num">' + (r.am || 0) + '</td><td class="num">—</td><td></td>' + rowActions('shuttle', r) + '</tr>'; }).join('');
   tb.innerHTML = html || emptyRow(7, '本期間尚無交通車人數。按「➕ 新增」每天一次填各台車上下班載幾人。', 'No shuttle records in this period. Tap “➕ Add” to log each vehicle’s morning and evening riders.', 'មិនទាន់មានកំណត់ត្រា។ ចុច “➕ បន្ថែម”។');
   try { renderShuttleGrid(); } catch (e) { console.warn('shuttle grid', e); }
@@ -634,15 +634,16 @@ function renderShuttleGrid(){var box=document.getElementById('shGrid'),lw=docume
   var r=PER.range(),y=r.fromD.getFullYear(),mo=r.fromD.getMonth(),nd=new Date(y,mo+1,0).getDate(),ym=y+'-'+('0'+(mo+1)).slice(-2);
   var rows=shuttleDaily(live(SHUTTLE)).filter(function(x){return String(x.date).slice(0,7)===ym;}),cars=shuttleGridCars(rows),idx={};
   rows.forEach(function(x){idx[x.date+'|'+shuttleSlug(x.driver||x.plate)]=x;});
+  var CC=['#2563eb','#db2777','#059669','#7c3aed','#d97706','#0891b2'],AMB='rgba(245,158,11,.13)',PMB='rgba(79,70,229,.13)';cars.forEach(function(c,i){c.col=CC[i%CC.length];});
   var today=SEC.ymd(),tA=0,tP=0,cA={},cP={};
-  var head='<tr><th rowspan="2">'+SEC.esc(L('日期','Date','កាលបរិច្ឆេទ'))+'</th>'+cars.map(function(c){return '<th colspan="2" style="text-align:center">🚌 '+SEC.esc(c.driver||'—')+'<br><small style="font-weight:400;opacity:.75">'+SEC.esc(c.plate||'')+'</small></th>';}).join('')+'<th colspan="2" style="text-align:center">Σ '+SEC.esc(L('合計','Total','សរុប'))+'</th></tr><tr>'+cars.map(function(){return '<th class="num">'+SEC.esc(L('上班','AM','ព្រឹក'))+'</th><th class="num">'+SEC.esc(L('下班','PM','ល្ងាច'))+'</th>';}).join('')+'<th class="num">'+SEC.esc(L('上班','AM','ព្រឹក'))+'</th><th class="num">'+SEC.esc(L('下班','PM','ល្ងាច'))+'</th></tr>';
+  var head='<tr><th rowspan="2">'+SEC.esc(L('日期','Date','កាលបរិច្ឆេទ'))+'</th>'+cars.map(function(c){return '<th colspan="2" style="text-align:center;background:'+c.col+'22;border-top:4px solid '+c.col+';color:'+c.col+'">🚌 '+SEC.esc(c.driver||'—')+'<br><small style="font-weight:400;opacity:.8">'+SEC.esc(c.plate||'')+'</small></th>';}).join('')+'<th colspan="2" style="text-align:center">Σ '+SEC.esc(L('合計','Total','សរុប'))+'</th></tr><tr>'+cars.map(function(c){return '<th class="num" style="background:'+AMB+';border-bottom:3px solid '+c.col+'">☀️ '+SEC.esc(L('上班','AM','ព្រឹក'))+'</th><th class="num" style="background:'+PMB+';border-bottom:3px solid '+c.col+'">🌙 '+SEC.esc(L('下班','PM','ល្ងាច'))+'</th>';}).join('')+'<th class="num" style="background:'+AMB+'">☀️ '+SEC.esc(L('上班','AM','ព្រឹក'))+'</th><th class="num" style="background:'+PMB+'">🌙 '+SEC.esc(L('下班','PM','ល្ងាច'))+'</th></tr>';
   var body='';for(var d=1;d<=nd;d++){var ds=ym+'-'+('0'+d).slice(-2),wd=new Date(y,mo,d).getDay(),sa=0,sp=0,any=false;
     var cells=cars.map(function(c){var x=idx[ds+'|'+c.k];if(x){any=true;sa+=(+x.am||0);sp+=(+x.pm||0);cA[c.k]=(cA[c.k]||0)+(+x.am||0);cP[c.k]=(cP[c.k]||0)+(+x.pm||0);}
-      var inp=function(f){return '<td class="num" style="padding:2px"><input type="number" min="0" inputmode="numeric" data-sh="'+ds+'|'+c.k+'|'+f+'" value="'+(x&&x[f]!=null&&(x[f]!==0||x.am||x.pm)?x[f]:'')+'" style="width:52px;text-align:right;padding:4px;border:1px solid var(--line,#d0d5e8);border-radius:6px;background:transparent;color:inherit;font:inherit"></td>';};
+      var inp=function(f){return '<td class="num" style="padding:2px;background:'+(f==='am'?AMB:PMB)+'"><input type="number" min="0" inputmode="numeric" data-sh="'+ds+'|'+c.k+'|'+f+'" value="'+(x&&x[f]?x[f]:'')+'" style="width:52px;text-align:right;padding:4px;border:2px solid '+c.col+'66;border-radius:6px;background:transparent;color:inherit;font:inherit"></td>';};
       return inp('am')+inp('pm');}).join('');
     tA+=sa;tP+=sp;
-    body+='<tr style="'+(wd===0?'opacity:.55;':'')+(ds===today?'outline:2px solid #0d9488;':'')+'"><td style="white-space:nowrap"><b>'+('0'+d).slice(-2)+'</b> <small>'+SEC.esc(L('日一二三四五六'.charAt(wd),['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][wd],['អា','ច','អ','ពុ','ព្រ','សុ','ស'][wd]))+'</small></td>'+cells+'<td class="num"><b>'+(any?sa:'')+'</b></td><td class="num"><b>'+(any?sp:'')+'</b></td></tr>';}
-  var foot='<tr style="background:rgba(13,148,136,.1)"><td><b>'+SEC.esc(L('月合計','Month total','សរុបខែ'))+'</b></td>'+cars.map(function(c){return '<td class="num"><b>'+(cA[c.k]||0)+'</b></td><td class="num"><b>'+(cP[c.k]||0)+'</b></td>';}).join('')+'<td class="num"><b>'+tA+'</b></td><td class="num"><b>'+tP+'</b></td></tr>';
+    body+='<tr style="'+(wd===0?'opacity:.55;':'')+(ds===today?'outline:2px solid #0d9488;':'')+'"><td style="white-space:nowrap"><b>'+('0'+d).slice(-2)+'</b> <small>'+SEC.esc(L('日一二三四五六'.charAt(wd),['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][wd],['អា','ច','អ','ពុ','ព្រ','សុ','ស'][wd]))+'</small></td>'+cells+'<td class="num" style="background:'+AMB+'"><b>'+(any?sa:'')+'</b></td><td class="num" style="background:'+PMB+'"><b>'+(any?sp:'')+'</b></td></tr>';}
+  var foot='<tr style="background:rgba(13,148,136,.1)"><td><b>'+SEC.esc(L('月合計','Month total','សរុបខែ'))+'</b></td>'+cars.map(function(c){return '<td class="num" style="color:'+c.col+'"><b>☀️ '+(cA[c.k]||0)+'</b></td><td class="num" style="color:'+c.col+'"><b>🌙 '+(cP[c.k]||0)+'</b></td>';}).join('')+'<td class="num"><b>'+tA+'</b></td><td class="num"><b>'+tP+'</b></td></tr>';
   box.innerHTML='<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0 8px"><b>'+SEC.esc(ym)+'</b><span style="font-size:12px;color:var(--sub,#6b7a9e)">'+SEC.esc(L('直接在格子打人數，離開格子就自動儲存並上傳','Type the counts in the cells; each one saves and syncs automatically','វាយចំនួនក្នុងប្រអប់ វានឹងរក្សាទុកស្វ័យប្រវត្តិ'))+'</span><button class="btn sm gh" onclick="shuttleAddCarCol()">➕ '+SEC.esc(L('加一台車','Add vehicle','បន្ថែមឡាន'))+'</button></div><div class="tw" style="overflow-x:auto"><table class="sh-grid" style="min-width:'+(160+cars.length*120)+'px"><thead>'+head+'</thead><tbody>'+body+foot+'</tbody></table></div>';
   box.querySelectorAll('input[data-sh]').forEach(function(el){el.addEventListener('change',shuttleGridSave);});}
 function shuttleAddCarCol(){var drv=prompt(L('司機姓名','Driver name','ឈ្មោះអ្នកបើកបរ'));if(!drv)return;var pl=prompt(L('車牌','Plate','ស្លាកលេខ'))||'';SH_EXTRA_CARS.push({driver:drv.trim(),plate:pl.trim(),k:shuttleSlug(drv)});renderShuttleGrid();}
