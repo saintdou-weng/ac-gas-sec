@@ -163,6 +163,7 @@
     <div class="card">
       <h3>📜 <span data-zh="每日巡檢紀錄" data-en="Daily Check History" data-km="ប្រវត្តិត្រួតពិនិត្យប្រចាំថ្ងៃ">每日巡檢紀錄</span>
         <span class="sp"><button class="btn sm gh" onclick="expLog()">📊 Excel</button></span></h3>
+      <div id="logSummary"></div>
       <div class="tw"><table><thead id="logHead"></thead><tbody id="tbLog"></tbody></table></div>
     </div>
   </div>
@@ -704,7 +705,87 @@ function applyCctvPageLanguage() {
   document.title = t('CCTV 監控', 'CCTV Monitoring', 'ការត្រួតពិនិត្យ CCTV') + ' | AC Security';
   paintCctvSyncStatus();
 }
-function renderAll() { applyCctvPageLanguage(); renderBoard(); renderKpi(); renderFault(); renderList(); renderLog(); renderAna(); }
+/* ═══ 2026-11-26：舊巡檢紀錄對回重建的攝影機（刪掉又重新加回的同編號攝影機 id 會變，舊紀錄才會變「待確認」） ═══ */
+function cctvRemapLogs() {
+  var byKey = {}; DB.forEach(function (c) { var k = cctvIdentity(c); if (k) byKey[k] = c.id; });
+  var gone = {}; (ASSET_CHANGES || []).forEach(function (a) { if (a && a.assetId && a.before && a.before.code) gone[a.assetId] = a.before; });
+  LOG.forEach(function (l) {
+    if (!l || !l.st) return;
+    var snap = {}; (Array.isArray(l.cameras) ? l.cameras : []).forEach(function (c) { if (c && c.id) snap[c.id] = c; });
+    Object.keys(l.st).forEach(function (oid) {
+      if (byKey[cctvIdentity(snap[oid] || gone[oid] || {})] === undefined) return;
+      var nid = byKey[cctvIdentity(snap[oid] || gone[oid])];
+      if (nid && nid !== oid && !Object.prototype.hasOwnProperty.call(l.st, nid)) l.st[nid] = l.st[oid];
+    });
+  });
+}
+/* ═══ 期間分析：每天每台的狀態（看板卡片、巡檢紀錄共用） ═══ */
+function cctvPeriodDays() {
+  var r = PER.range(), out = [], logs = {}; LOG.forEach(function (l) { if (l && !l._deleted && PER.has(l.date)) logs[l.date] = l; });
+  var today = SEC.ymd();
+  for (var d = new Date(r.fromD); d <= r.toD; d.setDate(d.getDate() + 1)) {
+    var ds = SEC.ymd(d); if (ds > today) break;
+    var l = logs[ds], wd = d.getDay(), row = { date:ds, wd:wd, log:l || null, ok:[], bad:[], pending:[], dis:[] };
+    if (l) DB.forEach(function (c) { var has = l.st && Object.prototype.hasOwnProperty.call(l.st, c.id), s = has ? cctvSafeStatus(l.st[c.id]) : 'pending'; if (s === 'ok') row.ok.push(c); else if (s === 'dis') row.dis.push(c); else if (s === 'pending') row.pending.push(c); else row.bad.push({ c:c, s:s }); });
+    out.push(row);
+  }
+  return out;
+}
+function cctvWd(w) { return t('日一二三四五六'.charAt(w), ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][w], ['អា','ច','អ','ពុ','ព្រ','សុ','ស'][w]); }
+function cctvDayBars(days) {
+  var n = DB.length || 1;
+  return '<div style="display:flex;gap:3px;align-items:flex-end;height:120px;padding:6px 0;overflow-x:auto">' + days.map(function (d) {
+    var lab = d.date.slice(8) + '<br>' + SEC.esc(cctvWd(d.wd));
+    if (!d.log) return '<div title="' + SEC.esc(d.date) + '" style="flex:1;min-width:18px;text-align:center;font-size:10px;color:#94a3b8"><div style="height:' + (d.wd === 0 ? 4 : 100) + 'px;border:1px dashed ' + (d.wd === 0 ? '#e2e8f0' : '#f59e0b') + ';border-radius:4px;margin-bottom:2px"></div>' + lab + '</div>';
+    var hOk = Math.round(d.ok.length / n * 100), hBad = Math.round(d.bad.length / n * 100), hP = Math.round(d.pending.length / n * 100);
+    return '<div title="' + SEC.esc(d.date + ' ✅' + d.ok.length + ' ⚠' + d.bad.length + ' ⏳' + d.pending.length) + '" style="flex:1;min-width:18px;text-align:center;font-size:10px"><div style="height:100px;display:flex;flex-direction:column-reverse;border-radius:4px;overflow:hidden;background:#eef2f6;margin-bottom:2px"><i style="height:' + hOk + '%;background:#22a06b"></i><i style="height:' + hBad + '%;background:#ef4444"></i><i style="height:' + hP + '%;background:#f59e0b"></i></div>' + lab + '</div>';
+  }).join('') + '</div><div style="font-size:11px;color:#64748b">🟩 ' + SEC.esc(t('正常','OK','ធម្មតា')) + ' · 🟥 ' + SEC.esc(t('異常','Abnormal','មិនប្រក្រតី')) + ' · 🟧 ' + SEC.esc(t('待確認','Pending','រង់ចាំ')) + ' · ⬚ ' + SEC.esc(t('黃框＝工作日沒有檢查','orange frame = workday not checked','ថ្ងៃធ្វើការមិនបានពិនិត្យ')) + '</div>';
+}
+function cctvDayList(days, kind) {
+  var rows = days.filter(function (d) { return d.log && (kind === 'bad' ? d.bad.length : kind === 'pending' ? d.pending.length : kind === 'ok' ? d.ok.length : true); });
+  if (kind === 'miss') rows = days.filter(function (d) { return !d.log && d.wd !== 0; });
+  if (!rows.length) return '<div class="kn-ref" style="margin:8px 0">' + SEC.esc(kind === 'miss' ? t('沒有漏檢的工作日 ✅','No missed workdays ✅','គ្មានថ្ងៃខកខាន ✅') : t('這段期間沒有','None in this period','គ្មាន')) + '</div>';
+  return '<div style="display:grid;gap:5px">' + rows.map(function (d) {
+    var items = kind === 'bad' ? d.bad.map(function (x) { return (x.c.code || '') + ' ' + (x.c.name || '') + ' (' + statLabel(x.s) + ')'; }) : kind === 'pending' ? d.pending.map(function (c) { return (c.code || '') + ' ' + (c.name || ''); }) : [];
+    var right = kind === 'miss' ? '⬚ ' + t('沒檢查','not checked','មិនបានពិនិត្យ') : kind === 'bad' ? '⚠ ' + d.bad.length : kind === 'pending' ? '⏳ ' + d.pending.length : '✅ ' + d.ok.length + '/' + DB.length;
+    return '<div style="padding:7px 9px;border-radius:9px;background:' + (kind === 'bad' ? 'rgba(239,68,68,.08)' : kind === 'pending' || kind === 'miss' ? 'rgba(245,158,11,.1)' : 'rgba(34,160,107,.08)') + '"><div style="display:flex;justify-content:space-between;gap:8px"><b>' + SEC.esc(d.date + ' ' + cctvWd(d.wd)) + '</b><span style="font-weight:800">' + SEC.esc(right) + '</span></div>' + (d.log ? '<div style="font-size:12px;color:#64748b">' + SEC.esc((d.log.by || '—') + (d.log.note ? ' · ' + d.log.note : '')) + '</div>' : '') + (items.length ? '<div style="font-size:12px;margin-top:3px">' + items.map(SEC.esc).join('<br>') + '</div>' : '') + '</div>';
+  }).join('') + '</div>';
+}
+function cctvPeriodHead(days) {
+  var chk = days.filter(function (d) { return d.log; }), work = days.filter(function (d) { return d.wd !== 0; }), bad = chk.reduce(function (a, d) { return a + d.bad.length; }, 0), okc = chk.reduce(function (a, d) { return a + d.ok.length; }, 0), live = chk.reduce(function (a, d) { return a + d.ok.length + d.bad.length; }, 0), miss = work.filter(function (d) { return !d.log; }).length;
+  var box = function (v, l, c) { return '<div style="background:var(--card,#fff);border:1px solid var(--line,#e2e6f0);border-radius:10px;padding:8px 10px"><div style="font-size:20px;font-weight:800;color:' + (c || 'inherit') + '">' + v + '</div><div style="font-size:11.5px;color:#64748b">' + SEC.esc(l) + '</div></div>'; };
+  return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;margin:6px 0">' + box(chk.length + ' / ' + work.length, t('檢查天數／工作日','Checked / workdays','ថ្ងៃពិនិត្យ / ថ្ងៃធ្វើការ')) + box(DB.length, t('攝影機','Cameras','កាមេរ៉ា')) + box(bad, t('異常台次','Abnormal camera-days','មិនប្រក្រតី'), bad ? '#dc2626' : '#16a34a') + box(live ? Math.round(okc / live * 100) + '%' : '—', t('正常率','Normal rate','អត្រាធម្មតា')) + box(miss, t('漏檢工作日','Missed workdays','ថ្ងៃខកខាន'), miss ? '#d97706' : '#16a34a') + '</div>';
+}
+/* 看板 KPI 卡 → keynote 內容 */
+window.acKeynoteCard = function (el) {
+  var k = el && (el.querySelector && el.querySelector('.v[id^="k"]') || (el.id && /^k\d$/.test(el.id) ? el : null)); if (!k || !document.getElementById('p-board').contains(el)) return null;
+  var id = k.id, days = cctvPeriodDays(), P = PER.label ? PER.label(SEC.lang()) : '', head = cctvPeriodHead(days), chart = head + cctvDayBars(days);
+  var zones = {}; DB.forEach(function (c) { var z = zn(c.zone); (zones[z] = zones[z] || []).push(c); });
+  var camList = Object.keys(zones).map(function (z) { return '<div style="margin:8px 0 3px;font-weight:800">📍 ' + SEC.esc(z) + ' · ' + zones[z].length + '</div>' + zones[z].map(function (c) { return '<div style="font-size:12.5px;padding:2px 0"><code>' + SEC.esc(c.code || '') + '</code> ' + SEC.esc(c.name || '') + '</div>'; }).join(''); }).join('');
+  var map = { k1:['📷', t('攝影機','Cameras','កាមេរ៉ា'), [['list', '📋 ' + t('清單','List','បញ្ជី'), camList], ['chart', '📊 ' + t('每天狀態','Daily status','ស្ថានភាពប្រចាំថ្ងៃ'), chart]]],
+    k2:['✅', t('正常','Normal','ធម្មតា'), [['days', '📅 ' + t('哪幾天','Which days','ថ្ងៃណា'), cctvDayList(days, 'ok')], ['chart', '📊 ' + t('圖表','Chart','តារាង'), chart]]],
+    k3:['⚠️', t('異常','Abnormal','មិនប្រក្រតី'), [['days', '📅 ' + t('哪天哪台','Which day / camera','ថ្ងៃ / កាមេរ៉ា'), cctvDayList(days, 'bad')], ['chart', '📊 ' + t('圖表','Chart','តារាង'), chart]]],
+    k4:['📈', t('正常率','Normal rate','អត្រាធម្មតា'), [['chart', '📊 ' + t('每天狀態','Daily status','ស្ថានភាពប្រចាំថ្ងៃ'), chart], ['days', '📅 ' + t('檢查日','Checked days','ថ្ងៃពិនិត្យ'), cctvDayList(days, 'all')]]],
+    k5:['⏳', t('待確認','Pending check','រង់ចាំពិនិត្យ'), [['days', '📅 ' + t('哪天哪台','Which day / camera','ថ្ងៃ / កាមេរ៉ា'), cctvDayList(days, 'pending')], ['miss', '⬚ ' + t('漏檢工作日','Missed workdays','ថ្ងៃខកខាន'), cctvDayList(days, 'miss')], ['chart', '📊 ' + t('圖表','Chart','តារាង'), chart]]],
+    k6:['🚫', t('無影像','No video','គ្មានរូបភាព'), [['chart', '📊 ' + t('每天狀態','Daily status','ស្ថានភាពប្រចាំថ្ងៃ'), chart]]],
+    k7:['🏭', t('廠區分布','Factory split','តាមរោងចក្រ'), [['list', '📋 ' + t('清單','List','បញ្ជី'), camList]]] }[id];
+  if (!map) return null;
+  return { icon:map[0], title:map[1] + ' · ' + P, chips:[k.textContent], panes:map[2] };
+};
+/* 巡檢紀錄上方：一眼看到 天數／台數／異常／漏檢＋每天圖 */
+function renderLogSummary() {
+  var box = document.getElementById('logSummary'); if (!box) return;
+  if (PER.mode === 'day') { box.innerHTML = ''; return; }
+  var days = cctvPeriodDays();
+  if (PER.mode === 'year') {
+    var by = {}; days.forEach(function (d) { var m = d.date.slice(0, 7), o = by[m] || (by[m] = { chk:0, work:0, bad:0 }); if (d.wd !== 0) o.work++; if (d.log) { o.chk++; o.bad += d.bad.length; } });
+    var ks = Object.keys(by);
+    box.innerHTML = cctvPeriodHead(days) + '<div style="display:grid;gap:4px;margin-top:6px">' + ks.map(function (m) { var o = by[m], pct = o.work ? Math.round(o.chk / o.work * 100) : 0; return '<div style="display:grid;grid-template-columns:70px 1fr 90px 60px;gap:8px;align-items:center;font-size:12.5px;cursor:pointer" onclick="jumpCctvPeriod(\'' + m + '\')"><b>' + m + '</b><span style="background:#eef2f6;border-radius:6px;height:12px;overflow:hidden"><i style="display:block;height:100%;width:' + pct + '%;background:' + (pct >= 80 ? '#22a06b' : pct >= 40 ? '#f59e0b' : '#ef4444') + '"></i></span><span>' + o.chk + ' / ' + o.work + ' ' + SEC.esc(t('天','days','ថ្ងៃ')) + '</span><span style="color:' + (o.bad ? '#dc2626' : '#16a34a') + '">' + (o.bad ? '⚠ ' + o.bad : '✅') + '</span></div>'; }).join('') + '</div><div style="font-size:11px;color:#64748b;margin-top:4px">' + SEC.esc(t('橫條＝檢查天數 ÷ 工作日；點月份看那個月','Bar = checked days ÷ workdays; tap a month to open it','របារ = ថ្ងៃពិនិត្យ ÷ ថ្ងៃធ្វើការ')) + '</div>';
+    return;
+  }
+  box.innerHTML = cctvPeriodHead(days) + cctvDayBars(days);
+}
+function renderAll() { try { cctvRemapLogs(); } catch (e) { console.warn('cctv remap', e); } applyCctvPageLanguage(); renderBoard(); renderKpi(); renderFault(); renderList(); renderLog(); try { renderLogSummary(); } catch (e) { console.warn(e); } renderAna(); }
 
 /* ═══ 狀態盤 ═══ */
 function setBrush(s, silent) {
