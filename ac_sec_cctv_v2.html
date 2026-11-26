@@ -113,6 +113,7 @@
         <div class="photo-drop" onclick="addCctvPhoto()">📷 <span data-zh="拍照或選擇照片（最多4張）" data-en="Take/select photos (max 4)" data-km="ថត/ជ្រើសរូបថត (អតិបរមា 4)">拍照或選擇照片（最多4張）</span></div>
         <div id="cctvPhotos"></div>
       </div>
+      <div style="display:flex;gap:6px;justify-content:flex-end;margin:6px 0"><button type="button" class="btn sm gh" id="vwList" onclick="setCamView('list')">📋 <span data-zh="列表" data-en="List" data-km="បញ្ជី">列表</span></button><button type="button" class="btn sm gh" id="vwGrid" onclick="setCamView('grid')">🔲 <span data-zh="格子" data-en="Grid" data-km="ក្រឡា">格子</span></button></div>
       <div class="cams" id="camGrid"></div>
 
       <p class="hint" id="boardHint" style="margin-top:10px" data-zh="紅點閃爍＝該機今天被標記異常。先選正常／離線／模糊／故障／停用，再點攝影機；左上角鉛筆可編輯主檔。每天存一次，統計分析就能算出各機的可用率與重複故障排名。" data-en="A flashing red dot means the camera is abnormal today. Select Online, Offline, Blurry, Fault or Disabled, then tap a camera; use its pencil to edit master data. Save once per day to calculate uptime and repeat-fault rankings." data-km="ចំណុចក្រហមភ្លឹបភ្លែត = កាមេរ៉ាមិនប្រក្រតីថ្ងៃនេះ។ ជ្រើសស្ថានភាព រួចចុចកាមេរ៉ា; ចុចខ្មៅដៃដើម្បីកែទិន្នន័យកាមេរ៉ា។ រក្សាទុករាល់ថ្ងៃ ដើម្បីគណនាអត្រាដំណើរការ និងចំណាត់ថ្នាក់ខូចញឹកញាប់។">紅點閃爍＝該機今天被標記異常。先選正常／離線／模糊／故障／停用，再點攝影機；左上角鉛筆可編輯主檔。每天存一次，統計分析就能算出各機的可用率與重複故障排名。</p>
@@ -888,9 +889,27 @@ function dayStatus(c) {
   return 'pending';
 }
 function noVideo(c) { return !!(c && (c.noVideo || /no\s*video|無影像|沒有畫面/i.test(String(c.remark || '') + ' ' + String(c.name || '')))); }
+function camView() { try { return localStorage.getItem('ac_sec_cctv_view') || 'list'; } catch (e) { return 'list'; } }
+function setCamView(v) { try { localStorage.setItem('ac_sec_cctv_view', v); } catch (e) {} renderBoard(); }
+function setCamStatus(id, st) { TODAY = TODAY && typeof TODAY === 'object' ? TODAY : {}; if (TODAY[id] === st) delete TODAY[id]; else TODAY[id] = st; renderBoard(); renderKpi(); renderFault();
+  var cam = DB.filter(function (c) { return c.id === id; })[0], hint = document.getElementById('brushHint'); if (hint && cam) hint.textContent = (STAT[TODAY[id] || 'pending'] || STAT.pending).icon + ' ' + (cam.code || '') + ' → ' + statLabel(TODAY[id] || 'pending') + t('；完成後請按「儲存」', ' · press Save when finished', ' · ចុច «រក្សាទុក»'); }
+function renderBoardList(g, lang) {
+  var cols = { ok:'#16a34a', off:'#dc2626', blur:'#ca8a04', fault:'#b91c1c', dis:'#64748b', pending:'#d97706' };
+  var byZ = {}; DB.forEach(function (c) { (byZ[c.zone || 'yard'] = byZ[c.zone || 'yard'] || []).push(c); });
+  var zs = ZONES.map(function (z) { return z.id; }); Object.keys(byZ).forEach(function (k) { if (zs.indexOf(k) < 0) zs.push(k); });
+  var btn = function (c, k, cur) { var on = cur === k; return '<button type="button" data-cs="' + SEC.esc(c.id) + '|' + k + '" style="border:2px solid ' + cols[k] + ';background:' + (on ? cols[k] : 'transparent') + ';color:' + (on ? '#fff' : cols[k]) + ';border-radius:8px;padding:4px 5px;font:inherit;font-size:12px;font-weight:800;cursor:pointer;min-width:36px">' + STAT[k].icon + (on ? ' ' + SEC.esc(statLabel(k)) : '') + '</button>'; };
+  g.innerHTML = '<div style="grid-column:1/-1;display:grid;gap:6px;width:100%">' + zs.map(function (z) { var list = byZ[z]; if (!list) return ''; list = list.slice().sort(function (a, b) { return String(a.code).localeCompare(String(b.code), undefined, { numeric:true }); });
+    var bad = list.filter(function (c) { return isBad(dayStatus(c)); }).length, done = list.filter(function (c) { return dayStatus(c) !== 'pending'; }).length;
+    return '<div class="zonehead" style="margin-top:8px">' + SEC.esc(znLang(z, lang)) + '　<span style="font-weight:400;color:var(--ink2)">' + done + '/' + list.length + (bad ? '　<span style="color:var(--err)">⚠️ ' + bad + '</span>' : '') + '</span></div>' + list.map(function (c) { var cur = dayStatus(c);
+      return '<div style="display:grid;grid-template-columns:1fr auto;gap:4px 8px;align-items:center;padding:6px 8px;border-radius:10px;border-left:5px solid ' + cols[cur] + ';background:' + (cur === 'pending' ? 'rgba(217,119,6,.06)' : cur === 'ok' ? 'rgba(22,163,74,.07)' : 'rgba(220,38,38,.07)') + '"><div style="min-width:0"><b style="font-family:ui-monospace,monospace">' + SEC.esc(c.code || '') + '</b> <span style="font-size:12px;font-weight:800;color:' + cols[cur] + '">' + STAT[cur].icon + ' ' + SEC.esc(statLabel(cur)) + '</span><div style="font-size:11.5px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + SEC.esc(c.name || '') + '</div></div><div style="display:flex;gap:4px;justify-content:flex-end;align-items:center">' + btn(c, 'ok', cur) + btn(c, 'off', cur) + btn(c, 'blur', cur) + btn(c, 'fault', cur) + '<button type="button" class="cam-edit" data-edit-id="' + SEC.esc(c.id) + '" style="position:static">✏️</button></div></div>'; }).join(''); }).join('') + '</div>';
+  g.onclick = function (ev) { var e = SEC.closest(ev.target, '.cam-edit'); if (e) { ev.preventDefault(); openEdit(e.dataset.editId); return; } var b = SEC.closest(ev.target, '[data-cs]'); if (!b) return; ev.preventDefault(); var p = b.dataset.cs.split('|'); setCamStatus(p[0], p[1]); };
+  g.onkeydown = null;
+}
 function renderBoard() {
   var lang = SEC.lang();
   var g = document.getElementById('camGrid');
+  var vl = document.getElementById('vwList'), vg = document.getElementById('vwGrid'); if (vl && vg) { var lv = camView() === 'list'; vl.style.outline = lv ? '2px solid #0f766e' : ''; vg.style.outline = lv ? '' : '2px solid #0f766e'; }
+  if (DB.length && camView() === 'list') return renderBoardList(g, lang);
   if (!DB.length) {
     /* 空白狀態直接提供「產生攝影機編號」與「匯入」按鈕，不必切到別的分頁。 */
     g.innerHTML = '<div class="cctv-empty">' + SEC.esc(t('尚無攝影機。可直接產生 41 支正式編號（CCTV A-01／B-01），或匯入現有清單。',
@@ -933,7 +952,7 @@ function camTile(c) {
     (isBad(s) ? '<span class="dot rec"></span>' : '') +
     (c.photos && c.photos[0] ? '<img class="thumb" src="' + SEC.esc(c.photos[0]) + '" alt="camera">' : '') +
     '<div class="n">' + SEC.esc(shortCode(c.code)) + '</div>' +
-    '<div class="z">' + SEC.esc((c.name || '').slice(0, 12)) + '</div></div>';
+    '<div class="z">' + SEC.esc((c.name || '').slice(0, 12)) + '</div><div style="font-size:11px;font-weight:800">' + (STAT[s] || STAT.pending).icon + ' ' + SEC.esc(statLabel(s)) + '</div></div>';
 }
 function shortCode(code) {
   var m = String(code || '').match(/(\d+)\s*$/);
