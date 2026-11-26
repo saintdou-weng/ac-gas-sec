@@ -63,7 +63,7 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
           <button class="btn sm gh" onclick="commuteOcrStart('car')">📷 <span data-zh="表單辨識" data-en="Scan form" data-km="ស្កេនទម្រង់">表單辨識</span></button>
           <button class="btn sm gh" onclick="impCar()">📥 Excel</button>
         </span></h3>
-      <div class="tw"><table><thead><tr>
+      <div class="tw" id="shListWrap"><table><thead><tr>
         <th data-zh="日期" data-en="Date" data-km="កាលបរិច្ឆេទ">日期</th>
         <th data-zh="司機" data-en="Driver" data-km="អ្នកបើកបរ">司機</th>
         <th data-zh="車牌" data-en="Plate" data-km="ស្លាកលេខ">車牌</th>
@@ -112,6 +112,7 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
       <div class="kpi ok"><div class="v" id="sk3">0</div><div class="l" data-zh="平均下班人數" data-en="Avg evening riders" data-km="មធ្យមពេលល្ងាច">平均下班人數</div></div>
       <div class="kpi ok"><div class="v" id="sk4">0</div><div class="l" data-zh="平均每台每趟載客" data-en="Avg riders / vehicle / trip" data-km="មធ្យម/ឡាន/ដង">平均每台每趟載客</div></div>
     </div>
+    <div class="sh-grid-card" style="background:var(--card,#fff);border:1px solid var(--line,#e2e6f0);border-radius:14px;padding:12px;margin-bottom:12px"><div id="shGrid"></div></div>
     <div class="card">
       <h3>🚌 <span data-zh="公司車接送員工上下班（每天每台車）" data-en="Company shuttle riders (per vehicle, daily)" data-km="ឡានក្រុមហ៊ុនដឹកបុគ្គលិក (ឡាននីមួយៗ ប្រចាំថ្ងៃ)">公司車接送員工上下班（每天每台車）</span>
         <span class="sp">
@@ -598,6 +599,7 @@ function renderShuttle() {
       d.rows.map(function (r) { return '<tr><td></td><td>' + SEC.esc(r.driver || '—') + '</td><td>' + SEC.esc(r.plate || '—') + '</td><td class="num">' + (r.am || 0) + '</td><td class="num">' + (r.pm || 0) + '</td><td>' + SEC.esc(r.remark || '') + '</td>' + rowActions('shuttle', r) + '</tr>'; }).join('');
   }).join('') + mon.map(function (r) { return '<tr><td>' + SEC.esc(String(r.date).slice(0, 7)) + ' <span style="font-size:11px;background:#e0f2fe;color:#075985;border-radius:6px;padding:1px 6px">📋 ' + SEC.esc(L('HR 登記申請','HR applications','ការស្នើ HR')) + '</span></td><td colspan="2">' + SEC.esc(L('Phary 每月登記申請搭車人數','Monthly registered applicants (Phary)','ចំនួនស្នើជិះប្រចាំខែ')) + '</td><td class="num">' + (r.am || 0) + '</td><td class="num">—</td><td></td>' + rowActions('shuttle', r) + '</tr>'; }).join('');
   tb.innerHTML = html || emptyRow(7, '本期間尚無交通車人數。按「➕ 新增」每天一次填各台車上下班載幾人。', 'No shuttle records in this period. Tap “➕ Add” to log each vehicle’s morning and evening riders.', 'មិនទាន់មានកំណត់ត្រា។ ចុច “➕ បន្ថែម”។');
+  try { renderShuttleGrid(); } catch (e) { console.warn('shuttle grid', e); }
   var m = {}; shuttleByDay(live(SHUTTLE)).forEach(function (d) { var k = d.date.slice(0, 7), o = m[k] || (m[k] = { s: 0, n: 0 }); o.s += d.am; o.n++; });
   live(SHUTTLE).filter(function (r) { return r.monthly; }).forEach(function (r) { var k = String(r.date).slice(0, 7); if (!m[k]) m[k] = { s: 0, n: 0, mon: +r.am || 0 }; });
   var ks = Object.keys(m).sort().slice(-36), vals = ks.map(function (k) { return m[k].n ? Math.round(m[k].s / m[k].n) : (m[k].mon || 0); }), mx = Math.max.apply(null, [1].concat(vals));
@@ -620,6 +622,36 @@ function saveShuttleMulti(){var date=document.getElementById('m_date').value,rem
     var o={id:'SHC-'+date+'-'+shuttleSlug(drv||pl),_k:'shuttle',date:date,driver:drv,plate:pl,am:Number(am)||0,pm:Number(pm)||0,remark:remark,updatedAt:at};o.total=o.am+o.pm;var dup=commuteFindDuplicate('shuttle',o);if(dup)Object.assign(dup,o,{id:dup.id});else SHUTTLE.push(o);SEC.clearDeleted(TOOL,o);n++;});
   if(!n){SEC.toast('⚠ '+L('至少填一台車的人數','Fill in at least one vehicle','សូមបំពេញយ៉ាងហោចណាស់មួយឡាន'),'warn');return;}
   save();renderAll();SEC.scheduleAutoCloudSync(TOOL,'commute-shuttle-save',date);closeAdd();SEC.toast('✅ '+L('已儲存 ','Saved ','បានរក្សាទុក ')+n+' '+L('台車','vehicles','ឡាន'),'ok');}
+/* 月份表格（像水桶頁）：每天一列、每台車兩格（上班／下班），直接打數字就存，右邊自動加總 */
+var SH_EXTRA_CARS=[];
+function shuttleGridCars(rows){var seen={},out=[];rows.forEach(function(r){var k=shuttleSlug(r.driver||r.plate);if(!k||seen[k])return;seen[k]=1;out.push({driver:r.driver||'',plate:r.plate||'',k:k});});
+  var ds=shuttleByDay(live(SHUTTLE)).filter(function(d){return d.date<=(rows[0]?String(rows[0].date).slice(0,7):'9999')+'-31';});var lastFull=null;for(var i=ds.length-1;i>=0;i--){if(ds[i].rows.length>=2||i===0){lastFull=ds[i];break;}}
+  (lastFull?lastFull.rows.map(function(r){return {driver:r.driver||'',plate:r.plate||''};}):shuttleDriverOpts().slice(0,3)).forEach(function(x){var k=shuttleSlug(x.driver||x.plate);if(k&&!seen[k]){seen[k]=1;out.push({driver:x.driver,plate:x.plate,k:k});}});
+  SH_EXTRA_CARS.forEach(function(x){if(!seen[x.k]){seen[x.k]=1;out.push(x);}});return out;}
+function renderShuttleGrid(){var box=document.getElementById('shGrid'),lw=document.getElementById('shListWrap');if(!box)return;
+  if(PER.mode!=='month'){box.innerHTML='';if(lw)lw.style.display='';return;}
+  if(lw)lw.style.display='none';
+  var r=PER.range(),y=r.fromD.getFullYear(),mo=r.fromD.getMonth(),nd=new Date(y,mo+1,0).getDate(),ym=y+'-'+('0'+(mo+1)).slice(-2);
+  var rows=shuttleDaily(live(SHUTTLE)).filter(function(x){return String(x.date).slice(0,7)===ym;}),cars=shuttleGridCars(rows),idx={};
+  rows.forEach(function(x){idx[x.date+'|'+shuttleSlug(x.driver||x.plate)]=x;});
+  var today=SEC.ymd(),tA=0,tP=0,cA={},cP={};
+  var head='<tr><th rowspan="2">'+SEC.esc(L('日期','Date','កាលបរិច្ឆេទ'))+'</th>'+cars.map(function(c){return '<th colspan="2" style="text-align:center">🚌 '+SEC.esc(c.driver||'—')+'<br><small style="font-weight:400;opacity:.75">'+SEC.esc(c.plate||'')+'</small></th>';}).join('')+'<th colspan="2" style="text-align:center">Σ '+SEC.esc(L('合計','Total','សរុប'))+'</th></tr><tr>'+cars.map(function(){return '<th class="num">'+SEC.esc(L('上班','AM','ព្រឹក'))+'</th><th class="num">'+SEC.esc(L('下班','PM','ល្ងាច'))+'</th>';}).join('')+'<th class="num">'+SEC.esc(L('上班','AM','ព្រឹក'))+'</th><th class="num">'+SEC.esc(L('下班','PM','ល្ងាច'))+'</th></tr>';
+  var body='';for(var d=1;d<=nd;d++){var ds=ym+'-'+('0'+d).slice(-2),wd=new Date(y,mo,d).getDay(),sa=0,sp=0,any=false;
+    var cells=cars.map(function(c){var x=idx[ds+'|'+c.k];if(x){any=true;sa+=(+x.am||0);sp+=(+x.pm||0);cA[c.k]=(cA[c.k]||0)+(+x.am||0);cP[c.k]=(cP[c.k]||0)+(+x.pm||0);}
+      var inp=function(f){return '<td class="num" style="padding:2px"><input type="number" min="0" inputmode="numeric" data-sh="'+ds+'|'+c.k+'|'+f+'" value="'+(x&&x[f]!=null&&(x[f]!==0||x.am||x.pm)?x[f]:'')+'" style="width:52px;text-align:right;padding:4px;border:1px solid var(--line,#d0d5e8);border-radius:6px;background:transparent;color:inherit;font:inherit"></td>';};
+      return inp('am')+inp('pm');}).join('');
+    tA+=sa;tP+=sp;
+    body+='<tr style="'+(wd===0?'opacity:.55;':'')+(ds===today?'outline:2px solid #0d9488;':'')+'"><td style="white-space:nowrap"><b>'+('0'+d).slice(-2)+'</b> <small>'+SEC.esc(L('日一二三四五六'.charAt(wd),['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][wd],['អា','ច','អ','ពុ','ព្រ','សុ','ស'][wd]))+'</small></td>'+cells+'<td class="num"><b>'+(any?sa:'')+'</b></td><td class="num"><b>'+(any?sp:'')+'</b></td></tr>';}
+  var foot='<tr style="background:rgba(13,148,136,.1)"><td><b>'+SEC.esc(L('月合計','Month total','សរុបខែ'))+'</b></td>'+cars.map(function(c){return '<td class="num"><b>'+(cA[c.k]||0)+'</b></td><td class="num"><b>'+(cP[c.k]||0)+'</b></td>';}).join('')+'<td class="num"><b>'+tA+'</b></td><td class="num"><b>'+tP+'</b></td></tr>';
+  box.innerHTML='<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0 8px"><b>'+SEC.esc(ym)+'</b><span style="font-size:12px;color:var(--sub,#6b7a9e)">'+SEC.esc(L('直接在格子打人數，離開格子就自動儲存並上傳','Type the counts in the cells; each one saves and syncs automatically','វាយចំនួនក្នុងប្រអប់ វានឹងរក្សាទុកស្វ័យប្រវត្តិ'))+'</span><button class="btn sm gh" onclick="shuttleAddCarCol()">➕ '+SEC.esc(L('加一台車','Add vehicle','បន្ថែមឡាន'))+'</button></div><div class="tw" style="overflow-x:auto"><table class="sh-grid" style="min-width:'+(160+cars.length*120)+'px"><thead>'+head+'</thead><tbody>'+body+foot+'</tbody></table></div>';
+  box.querySelectorAll('input[data-sh]').forEach(function(el){el.addEventListener('change',shuttleGridSave);});}
+function shuttleAddCarCol(){var drv=prompt(L('司機姓名','Driver name','ឈ្មោះអ្នកបើកបរ'));if(!drv)return;var pl=prompt(L('車牌','Plate','ស្លាកលេខ'))||'';SH_EXTRA_CARS.push({driver:drv.trim(),plate:pl.trim(),k:shuttleSlug(drv)});renderShuttleGrid();}
+function shuttleGridSave(e){var el=e.target,p=el.dataset.sh.split('|'),ds=p[0],k=p[1],f=p[2],v=el.value===''?'':Math.max(0,Number(el.value)||0);
+  var x=SHUTTLE.filter(function(r){return !r.monthly&&!r._deleted&&r.date===ds&&shuttleSlug(r.driver||r.plate)===k;})[0];
+  if(!x){if(v==='')return;var c=shuttleGridCars(shuttleDaily(live(SHUTTLE)).filter(function(r){return String(r.date).slice(0,7)===ds.slice(0,7);})).filter(function(z){return z.k===k;})[0]||{driver:k,plate:''};x={id:'SHC-'+ds+'-'+k,_k:'shuttle',date:ds,driver:c.driver,plate:c.plate,am:0,pm:0,remark:''};SHUTTLE.push(x);}
+  x[f]=v===''?0:v;x.total=(+x.am||0)+(+x.pm||0);x.updatedAt=new Date().toISOString();SEC.clearDeleted(TOOL,x);
+  if(!x.am&&!x.pm){SEC.markDeleted(TOOL,Object.assign({_k:'shuttle'},x));SHUTTLE=SHUTTLE.filter(function(r){return r!==x;});}
+  save();SEC.scheduleAutoCloudSync(TOOL,'commute-shuttle-grid',ds);var keep=el.dataset.sh;renderShuttle();var n=document.querySelector('input[data-sh="'+keep+'"]');if(n){var all=[].slice.call(document.querySelectorAll('input[data-sh]')),i=all.indexOf(n);}}
 function commuteShuttleImport() {
   var inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.xlsx,.xls,.csv';
   inp.onchange = async function () { var f = inp.files[0]; if (!f) return; try {

@@ -1366,6 +1366,17 @@ function logBadList(l, lang) {
   }
   return Array.isArray(l && l.badList) ? l.badList : [];
 }
+/* 期間列的「檢查日 N 天」按下去 → 列出是哪幾天（keynote 共用 hook） */
+window.acKeynoteRowExtra = function (row, col, tbl) {
+  if (!row || !row.parentElement || row.parentElement.id !== 'tbLog' || !(PER.mode === 'month' || PER.mode === 'year')) return '';
+  var key = String(row.cells[0] && row.cells[0].textContent || '').replace(/[◀\s]/g, ''); if (!/^20\d\d(-\d\d)?$/.test(key)) return '';
+  var days = LOG.filter(function (x) { return x && !x._deleted && String(x.date).indexOf(key) === 0; }).sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
+  if (!days.length) return '<div class="kn-ref" style="margin:8px 0">' + SEC.esc(t('這段期間沒有檢查紀錄', 'No checks in this period', 'គ្មានការត្រួតពិនិត្យ')) + '</div>';
+  var wd = function (d) { var w = new Date(d + 'T00:00:00').getDay(); return t('日一二三四五六'.charAt(w), ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][w], ['អា','ច','អ','ពុ','ព្រ','សុ','ស'][w]); };
+  return '<div style="margin:10px 0 4px;font-weight:800">📅 ' + SEC.esc(t('檢查了哪幾天', 'Which days were checked', 'ថ្ងៃដែលបានពិនិត្យ')) + ' · ' + days.length + '</div>' +
+    '<div style="display:grid;gap:4px">' + days.map(function (x) { var bad = (x.off || 0) + (x.blur || 0) + (x.fault || 0);
+      return '<div style="display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;padding:6px 8px;border-radius:8px;background:' + (bad ? 'rgba(220,38,38,.08)' : 'rgba(5,150,105,.08)') + '"><b>' + SEC.esc(x.date) + ' ' + SEC.esc(wd(x.date)) + '</b><span style="font-size:12px">' + SEC.esc((x.by || '—') + (x.note ? ' · ' + x.note : '')) + '</span><span style="font-weight:800;color:' + (bad ? 'var(--err,#dc2626)' : 'var(--ok,#059669)') + '">' + (bad ? '⚠ ' + bad : '✅ ' + (x.ok || 0) + '/' + (x.n || 0)) + '</span></div>'; }).join('') + '</div>';
+};
 function renderLog() {
   var l = SEC.lang(), sep = l === 'zh' ? '；' : '; ';
   var list = LOG.filter(function (x) { return PER.has(x.date); });
