@@ -29,8 +29,9 @@
     '.cmp-card>h3{position:sticky;z-index:30;background:#fff;margin:0!important;padding:6px 8px 5px;border-bottom:1px solid var(--line);border-radius:12px 12px 0 0;display:flex;flex-wrap:wrap;align-items:center;gap:5px;font-size:12.5px}',
     '.cmp-card>h3 .cmp-count{display:inline-block;margin-left:auto;font-size:11px;font-weight:700;color:var(--ink2);background:#eef4f8;border-radius:20px;padding:2px 9px}',
     '.cmp-card>h3 .sp{order:5;flex:1 1 100%;margin:0!important;display:flex!important;flex-wrap:wrap!important;gap:6px!important}',
-    '.cmp-card>h3 .sp>button:not(.cmp-more),.cmp-card>h3 .sp>a,.cmp-card .cmp-tools-src{display:none!important}',
+    '.cmp-card>h3 .sp>button:not(.cmp-more):not(.cmp-add),.cmp-card>h3 .sp>a,.cmp-card .cmp-tools-src{display:none!important}',
     '.cmp-card>h3 .sp>input{order:-2;flex:1 1 0!important;width:auto!important;min-width:0;height:34px;font-size:14px}',
+    '.cmp-card>h3 .sp>button.cmp-add{display:inline-flex!important;order:-2;flex:none;align-items:center;gap:4px;height:34px;padding:0 12px;border:0;border-radius:8px;background:#0f766e;color:#fff;font-weight:800;font-size:13px;font-family:inherit;cursor:pointer}',
     '.cmp-card>h3 .sp>.cmp-more{display:inline-flex;order:-1;flex:none;align-items:center;gap:4px;height:34px;padding:0 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--n1);font-weight:800;font-size:13px;font-family:inherit;cursor:pointer}',
     /* 2026-11-13 cfg.keep：每天都要按的主要按鈕（例如「➕ 新增」）留在篩選列上，不收進「⋯」 */
     '.cmp-card>h3 .sp>button.cmp-keep{display:inline-flex!important;order:-1;flex:none;align-items:center;height:34px;margin:0}',
@@ -470,6 +471,7 @@
     function enable() {
       if (on) return; on = true;
       card.classList.add('cmp-card'); table.classList.add('cmp-table'); if (kpis) kpis.classList.add('cmp-kpis'); if (toolsSrc) toolsSrc.classList.add('cmp-tools-src');
+      if (sp) $$(':scope > button', sp).forEach(function (b) { if (/^\s*➕/.test(b.textContent) || /openAdd\(|openEdit\(\)/.test(b.getAttribute('onclick') || '')) b.classList.add('cmp-add'); });
       if (sp && !more) {
         more = document.createElement('button'); more.type = 'button'; more.className = 'cmp-more'; more.onclick = openTools; sp.appendChild(more);
         var brk = document.createElement('span'); brk.className = 'cmp-brk'; sp.appendChild(brk);
