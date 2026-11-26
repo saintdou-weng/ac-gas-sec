@@ -10,7 +10,7 @@
 <script src="./shared/xlsx.full.min.js?v=20260929a"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<link rel="stylesheet" href="./shared/sec.css?v=20261123b">
+<link rel="stylesheet" href="./shared/sec.css?v=20261126b">
 <style>
 .avt{width:38px;height:38px;border-radius:9px;object-fit:cover;border:1px solid var(--line);background:#eef2f6;display:block}
 .avt-ph{width:38px;height:38px;border-radius:9px;background:#eef2f6;display:flex;align-items:center;
@@ -68,6 +68,7 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
         <th data-zh="照片" data-en="Photo" data-km="រូបភាព">照片</th>
         <th data-zh="工號" data-en="ID" data-km="អត្តលេខ">工號</th>
         <th data-zh="姓名" data-en="Name" data-km="ឈ្មោះ">姓名</th>
+        <th data-zh="性別／年齡" data-en="Gender / Age" data-km="ភេទ / អាយុ">性別／年齡</th>
         <th data-zh="職稱" data-en="Position" data-km="តំណែង">職稱</th>
         <th data-zh="班別" data-en="Shift" data-km="វេន">班別</th>
         <th data-zh="崗位" data-en="Post" data-km="ប៉ុស្តិ៍">崗位</th>
@@ -190,7 +191,7 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
 <script src="./shared/sec-import-hub.js?v=20261022a"></script>
 <script src="./shared/ac-report-doc.js?v=20261022a"></script>
 <script src="./shared/sec-report.js?v=20261022a"></script>
-<script src="./shared/sec-personnel.js?v=20260929a"></script>
+<script src="./shared/sec-personnel.js?v=20261126b"></script>
 <script src="./shared/sec-smart-sync.js?v=20261024d"></script>
 <script>
 /* ═══ 相依防護：shared/sec-core.js 未載入時給明確提示，不讓整頁死掉 ═══ */
@@ -208,7 +209,7 @@ if (typeof SEC === 'undefined') {
 }
 
 var LS = 'ac_sec_personnel_db', LSC = 'ac_sec_personnel_chg', LS_ROSTER = 'ac_sec_roster_schedule', LS_ROSTER_REV='ac_sec_roster_schedule_rev_v1', PER = new SEC.Period('month');
-var DB = [], CHG = [], ROSTER = {}, ROSTER_REV='', CH = {}, TOOL = 'personnel', EDIT_CHANGE_ID = '', CHANGE_BUSY=false;
+var ATT_CACHE = {}, DB = [], CHG = [], ROSTER = {}, ROSTER_REV='', CH = {}, TOOL = 'personnel', EDIT_CHANGE_ID = '', CHANGE_BUSY=false;
 var BUSY = {}, OPENING_EDIT = false;
 
 /* ═══ 三語 ═══ */
@@ -248,6 +249,7 @@ function applyPageLang() {
 async function load() {
   DB = await SEC.dbGet(LS, []);
   CHG = await SEC.dbGet(LSC, []);
+  try { ATT_CACHE = await SEC.dbGet('ac_sec_att_db', {}) || {}; } catch (e) { ATT_CACHE = {}; }
   ROSTER = await SEC.dbGet(LS_ROSTER, {});
   ROSTER_REV = String(await SEC.dbGet(LS_ROSTER_REV, '') || '');
   if (!Array.isArray(DB)) DB = [];
@@ -348,7 +350,7 @@ function pCardChanges(r) {
     if (c.fromPost || c.toPost) mv.push(L('崗位', 'Post', 'ប៉ុស្តិ៍') + ' ' + (c.fromPost || '—') + ' → ' + (c.toPost || '—'));
     return '<li><div class="h1"><span>' + SEC.esc(c.date || '—') + '</span><span class="tag info">' + (k.icon || '') + ' ' + SEC.esc(kindName(c.kind)) + '</span></div>' + (mv.length ? '<div class="h2">' + SEC.esc(mv.join(' · ')) + '</div>' : '') + (c.note || c.reason ? '<div class="h3">' + SEC.esc(c.note || c.reason) + '</div>' : '') + '</li>'; }).join('') + '</ul>';
 }
-if (SEC.Compact) SEC.Compact.attach({ card:'#p-ros .card', table:'#p-ros table', kpis:'#p-ros .grid.g4', cols:{ title:[0,2], sub:[1,3,5], right:[4,8], actions:9 },
+if (SEC.Compact) SEC.Compact.attach({ card:'#p-ros .card', table:'#p-ros table', kpis:'#p-ros .grid.g4', cols:{ title:[0,2], sub:[1,3,4,6], right:[5,9], actions:10 },
   /* 2026-11-22 詳細卡表頭固定留大頭照位置，點了放大 */
   photos:function (tr) { var r = pRowPerson(tr); return r && r.photo ? [r.photo] : []; },
   tabs:[
@@ -391,6 +393,54 @@ function renderAll() { renderRos(); renderChg(); renderShift(); renderRosterSche
 
 /* ═══ 名冊 ═══ */
 function active() { return SEC.Personnel.list(DB,personnelMonth()); }
+/* 2026-11-26 Paul：保安資料太少 → 年齡、性別、學歷、婚姻、地址、緊急聯絡、在職／離職、考勤（像員工頁） */
+function personAge(r) { var b = String(r.birthDate || ''); if (!/^\d{4}-\d{2}-\d{2}/.test(b)) return ''; var d = new Date(), y = d.getFullYear() - +b.slice(0,4); if (SEC.ymd(d).slice(5) < b.slice(5,10)) y--; return y > 0 && y < 100 ? y : ''; }
+function personGA(r) { var g = r.gender === 'M' ? '<span style="color:#2563eb;font-weight:800">♂</span>' : r.gender === 'F' ? '<span style="color:#e11d74;font-weight:800">♀</span>' : ''; var a = personAge(r); return (g || a) ? g + (a ? ' ' + a + SEC.esc(L('歲','y','ឆ្នាំ')) : '') : '<span class="hint">—</span>'; }
+function personTenure(r) { var j = String(r.joinDate || ''); if (!/^\d{4}-\d{2}/.test(j)) return ''; var end = r.status !== 'active' && r.resignDate ? SEC.parseD(r.resignDate) : new Date(), st = SEC.parseD(j), m = (end.getFullYear() - st.getFullYear()) * 12 + end.getMonth() - st.getMonth(); if (m < 0) return ''; return m >= 12 ? Math.floor(m / 12) + L(' 年 ',' y ',' ឆ្នាំ ') + (m % 12) + L(' 個月',' m',' ខែ') : m + L(' 個月',' months',' ខែ'); }
+var EDU_N = { primary:['小學','Primary','បឋមសិក្សា'], lower:['國中','Lower secondary','អនុវិទ្យាល័យ'], upper:['高中','Upper secondary','វិទ្យាល័យ'], voc:['職校／專科','Vocational','វិជ្ជាជីវៈ'], uni:['大學以上','University+','សាកលវិទ្យាល័យ'], none:['未就學','None','មិនបានសិក្សា'] };
+var MAR_N = { single:['未婚','Single','នៅលីវ'], married:['已婚','Married','រៀបការ'], other:['其他','Other','ផ្សេងៗ'] };
+function nm3(m, k) { var v = m[k]; return v ? L(v[0], v[1], v[2]) : (k || ''); }
+function paintRosStatBar() {
+  var card = document.querySelector('#p-ros .card'); if (!card) return; var bar = document.getElementById('rosStatBar');
+  if (!bar) { bar = document.createElement('div'); bar.id = 'rosStatBar'; bar.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:0 0 10px'; card.parentNode.insertBefore(bar, card); }
+  var all = SEC.Personnel.list(DB, personnelMonth(), true), cur = document.getElementById('fStat').value;
+  var n = { active:0, resigned:0, removed:0 }; all.forEach(function (r) { n[r.status || 'active'] = (n[r.status || 'active'] || 0) + 1; });
+  var b = function (v, ic, zh, en, km, c, col) { return '<button type="button" data-st="' + v + '" style="border:2px solid ' + (cur === v ? col : 'transparent') + ';background:' + col + '18;color:' + col + ';border-radius:10px;padding:7px 4px;font:inherit;font-weight:800;cursor:pointer">' + ic + ' ' + SEC.esc(L(zh, en, km)) + ' <b style="font-size:16px">' + c + '</b></button>'; };
+  bar.innerHTML = b('active', '👮', '在職', 'Active', 'កំពុងធ្វើការ', n.active, '#0f766e') + b('resigned', '🚪', '已離職', 'Resigned', 'បានឈប់', n.resigned, '#b91c1c') + b('', '📋', '全部', 'All', 'ទាំងអស់', all.length, '#475569');
+  bar.querySelectorAll('[data-st]').forEach(function (x) { x.onclick = function () { document.getElementById('fStat').value = x.dataset.st; renderRos(); }; });
+}
+function personAttHtml(r) {
+  var keys = [r._attKey, r.empId, r.name, r.id].filter(Boolean).map(String), months = Object.keys(ATT_CACHE || {}).sort().reverse().slice(0, 6), rows = [];
+  months.forEach(function (m) { var M = ATT_CACHE[m] || {}, k = keys.filter(function (x) { return M[x]; })[0]; if (!k) { var nk = Object.keys(M).filter(function (x) { return keys.some(function (y) { return SEC.norm(x) === SEC.norm(y); }); })[0]; k = nk; } if (!k) return;
+    var c = { W:0, O:0, R:0, L:0, A:0, H:0 }; Object.keys(M[k] || {}).forEach(function (d) { var v = M[k][d]; if (c[v] != null) c[v]++; }); rows.push({ m:m, c:c }); });
+  if (!rows.length) return '<div class="hint">' + SEC.esc(L('考勤頁還沒有這個人的紀錄（匯入考勤後就會顯示）', 'No attendance records for this person yet (shows after attendance import)', 'មិនទាន់មានវត្តមាន')) + '</div>';
+  var cols = [['W','#16a34a','出勤','Work','ធ្វើការ'],['O','#2563eb','加班','OT','ថែមម៉ោង'],['L','#f59e0b','請假','Leave','ច្បាប់'],['A','#dc2626','曠職','Absent','អវត្តមាន'],['R','#94a3b8','例休','Rest','សម្រាក']];
+  var mx = Math.max.apply(null, rows.map(function (x) { return cols.reduce(function (a, c) { return a + x.c[c[0]]; }, 0); })) || 1;
+  return '<div style="font-size:11px;margin:2px 0 6px">' + cols.map(function (c) { return '<span style="display:inline-block;margin-right:8px"><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:' + c[1] + '"></i> ' + SEC.esc(L(c[2], c[3], c[4])) + '</span>'; }).join('') + '</div>' +
+    rows.map(function (x) { var tot = cols.reduce(function (a, c) { return a + x.c[c[0]]; }, 0), wk = x.c.W + x.c.O, rate = (wk + x.c.L + x.c.A) ? Math.round(wk / (wk + x.c.L + x.c.A) * 100) : 0, rc = rate >= 92 ? '#16a34a' : rate >= 88 ? '#d97706' : '#dc2626';
+      return '<div style="display:grid;grid-template-columns:62px 1fr 92px;gap:6px;align-items:center;margin:4px 0;font-size:12px"><b>' + SEC.esc(x.m) + '</b><div style="display:flex;height:16px;border-radius:5px;overflow:hidden;background:#eef2f6;width:' + Math.max(8, tot / mx * 100) + '%">' + cols.map(function (c) { return x.c[c[0]] ? '<i title="' + SEC.esc(L(c[2], c[3], c[4])) + ' ' + x.c[c[0]] + '" style="flex:' + x.c[c[0]] + ';background:' + c[1] + '"></i>' : ''; }).join('') + '</div><span>' + SEC.esc(L('出勤','Work','ធ្វើការ')) + ' <b>' + wk + '</b> · <b style="color:' + rc + '">' + rate + '%</b></span></div>' +
+        '<div style="font-size:11px;color:var(--ink2);margin:-2px 0 4px 68px">' + cols.slice(2).map(function (c) { return SEC.esc(L(c[2], c[3], c[4])) + ' ' + x.c[c[0]]; }).join(' · ') + '</div>'; }).join('');
+}
+window.acKeynoteExtra = function (row, table) {
+  if (!table || !table.querySelector('#tbRos') || !row || !row.dataset.id) return '';
+  var raw = DB.filter(function (x) { return String(x.id) === row.dataset.id; })[0]; if (!raw) return '';
+  var r = SEC.Personnel.snapshot(raw, personnelMonth()) || SEC.Personnel.fields(raw), age = personAge(r);
+  var it = function (ic, zh, en, km, v) { return '<div style="padding:7px 9px;border:1px solid var(--line,#e2e6f0);border-radius:9px"><div style="font-size:11px;color:var(--ink2)">' + ic + ' ' + SEC.esc(L(zh, en, km)) + '</div><b>' + (v === '' || v == null ? '<span class="hint">—</span>' : SEC.esc(String(v))) + '</b></div>'; };
+  var base = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">' +
+    it(r.gender === 'F' ? '♀' : '♂', '性別', 'Gender', 'ភេទ', r.gender === 'M' ? L('男','Male','ប្រុស') : r.gender === 'F' ? L('女','Female','ស្រី') : '') +
+    it('🎂', '年齡', 'Age', 'អាយុ', age ? age + L(' 歲',' years',' ឆ្នាំ') + (r.birthDate ? ' (' + r.birthDate + ')' : '') : '') +
+    it('🎓', '學歷', 'Education', 'កម្រិតវប្បធម៌', r.education ? nm3(EDU_N, r.education) : '') +
+    it('💍', '婚姻狀況', 'Marital status', 'ស្ថានភាពគ្រួសារ', r.marital ? nm3(MAR_N, r.marital) : '') +
+    it('📅', '到職日', 'Join date', 'ថ្ងៃចូលធ្វើការ', r.joinDate || '') + it('⏳', '年資', 'Tenure', 'អតីតភាព', personTenure(r)) +
+    it(r.status === 'active' ? '🟢' : '🔴', '狀態', 'Status', 'ស្ថានភាព', statusName(r.status || 'active') + (r.resignDate && r.status !== 'active' ? ' · ' + r.resignDate : '')) +
+    it('🏢', '公司', 'Company', 'ក្រុមហ៊ុន', r.company || '') + '</div>' +
+    '<div style="display:grid;gap:6px;margin-top:6px">' + it('🏠', '地址', 'Address', 'អាសយដ្ឋាន', r.address || '') + it('🆘', '緊急聯絡人', 'Emergency contact', 'ទំនាក់ទំនងបន្ទាន់', r.emergency || '') + (r.status !== 'active' ? it('🚪', '離職原因', 'Resign reason', 'មូលហេតុឈប់', r.resignReason || '') : '') + '</div>';
+  var chg = CHG.filter(function (c) { return !c._deleted && (c.personId === raw.id || (c.empId && c.empId === r.empId) || (!c.empId && c.name === r.name)); }).sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); }).slice(0, 12);
+  var chgH = chg.length ? chg.map(function (c) { var k = KIND[c.kind] || KIND.update; return '<div style="display:flex;gap:8px;padding:5px 0;border-bottom:1px dashed var(--line,#e2e6f0);font-size:12px"><b style="white-space:nowrap">' + SEC.esc(c.date || '') + '</b><span>' + SEC.esc(L(k.zh, k.en, k.km || k.en)) + (c.reason ? ' · ' + SEC.esc(c.reason) : '') + '</span></div>'; }).join('') : '<div class="hint">' + SEC.esc(L('沒有異動紀錄', 'No change records', 'គ្មានការផ្លាស់ប្តូរ')) + '</div>';
+  var sec = function (t, h) { return '<div style="margin-top:12px"><div style="font-weight:800;margin-bottom:6px">' + t + '</div>' + h + '</div>'; };
+  return sec('👤 ' + SEC.esc(L('個人資料', 'Personal details', 'ព័ត៌មានផ្ទាល់ខ្លួន')), base) + sec('🕐 ' + SEC.esc(L('考勤（近 6 個月）', 'Attendance (last 6 months)', 'វត្តមាន (6 ខែចុងក្រោយ)')), personAttHtml(r)) + sec('🔄 ' + SEC.esc(L('異動紀錄', 'Change history', 'ប្រវត្តិផ្លាស់ប្តូរ')), chgH) +
+    '<div style="margin-top:10px"><button class="btn sm" onclick="openEdit(\'' + SEC.esc(raw.id) + '\')">✏️ ' + SEC.esc(L('編輯／補資料', 'Edit / fill in', 'កែ / បំពេញ')) + '</button></div>';
+};
 function renderRos() {
   var list = SEC.Personnel.list(DB,personnelMonth(),true);
   var st = document.getElementById('fStat').value;
@@ -406,9 +456,10 @@ function renderRos() {
   ['A','B','C'].forEach(function (s, i) {
     document.getElementById('k' + (i + 2)).textContent = a.filter(function (r) { return r.shift === s; }).length;
   });
+  paintRosStatBar();
   var tb = document.getElementById('tbRos');
   if (!list.length) {
-    tb.innerHTML = '<tr><td colspan="10" class="empty">' + SEC.esc(DB.length
+    tb.innerHTML = '<tr><td colspan="11" class="empty">' + SEC.esc(DB.length
       ? L('沒有符合篩選條件的人員。請調整班別／狀態篩選或搜尋字。', 'No staff match the filters. Change the shift / status filter or search text.', 'គ្មានបុគ្គលិកត្រូវនឹងតម្រង។ សូមប្តូរតម្រងវេន / ស្ថានភាព ឬពាក្យស្វែងរក។')
       : L('尚無人員。請按「➕ 新增人員」，或到「💾 資料管理」匯入保安資料卡、Security Roaster 或名冊 Excel。', 'No staff yet. Tap “➕ Add person”, or import ID cards, the Security Roaster or a roster Excel under “💾 Data”.', 'មិនទាន់មានបុគ្គលិក។ ចុច “➕ បន្ថែមបុគ្គលិក” ឬនាំចូលកាតព័ត៌មាន Security Roaster ឬ Excel នៅ “💾 ទិន្នន័យ”។')) + '</td></tr>';
     return;
@@ -417,6 +468,7 @@ function renderRos() {
     var id = SEC.esc(r.id);
     return '<tr data-id="' + SEC.esc(String(r.id)) + '"><td>' + avatarHtml(r) + '</td><td><code>' + SEC.esc(r.empId || '') + '</code></td>' +
       '<td><b>' + SEC.esc(r.name || '') + '</b></td>' +
+      '<td>' + personGA(r) + '</td>' +
       '<td>' + SEC.esc(trData(r.position || '')) + '</td>' +
       '<td>' + (r.shift ? '<span class="tag info">' + SEC.esc(r.shift) + '</span>' : '<span class="tag gray">' + SEC.esc(L('未排', 'None', 'គ្មាន')) + '</span>') + '</td>' +
       '<td>' + SEC.esc(r.post || '') + '</td>' +
