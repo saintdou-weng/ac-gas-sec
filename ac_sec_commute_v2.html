@@ -118,7 +118,7 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
           <button class="btn sm" onclick="openAdd('shuttle')">➕ <span data-t="add">新增</span></button>
           <button class="btn sm gh" onclick="commuteShuttleImport()">📥 Excel</button>
         </span></h3>
-      <div style="font-size:12px;color:var(--sub,#6b7a9e);margin:-2px 0 8px">跟摩托車一樣每天記一筆：上班載幾人、下班載幾人、出幾台車。標「📋 月登記」的是 HR 每月交通車登記人數（舊 email 匯入，不算進每日平均）。</div>
+      <div style="font-size:12px;color:var(--sub,#6b7a9e);margin:-2px 0 8px" data-zh="跟摩托車一樣每天記一筆：上班載幾人、下班載幾人、出幾台車。標「📋 月登記」的是 HR 每月交通車登記人數（舊 email 匯入，不算進每日平均）。" data-en="Log one line per day like motorbikes: riders in the morning, riders in the evening, vehicles used. Rows marked “📋 Monthly” are HR monthly registered riders (imported from old emails, not in the daily average)." data-km="កត់មួយបន្ទាត់រាល់ថ្ងៃដូចម៉ូតូ៖ អ្នកជិះពេលព្រឹក ពេលល្ងាច និងចំនួនឡាន។ ជួរ “📋 ប្រចាំខែ” ជាចំនួនចុះឈ្មោះប្រចាំខែពី HR (នាំចូលពីអ៊ីមែលចាស់ មិនគិតក្នុងមធ្យមប្រចាំថ្ងៃ)។">跟摩托車一樣每天記一筆：上班載幾人、下班載幾人、出幾台車。標「📋 月登記」的是 HR 每月交通車登記人數（舊 email 匯入，不算進每日平均）。</div>
       <div class="tw"><table><thead><tr>
         <th data-zh="日期" data-en="Date" data-km="កាលបរិច្ឆេទ">日期</th>
         <th class="num" data-zh="上班" data-en="Morning" data-km="ព្រឹក">上班</th><th class="num" data-zh="下班" data-en="Evening" data-km="ល្ងាច">下班</th>
@@ -582,12 +582,12 @@ function renderShuttle() {
   document.getElementById('sk3').textContent = Math.round(pm / n);
   document.getElementById('sk4').textContent = cars ? (Math.round(Math.max(am, pm) / cars * 10) / 10) : '—';
   tb.innerHTML = list.length ? list.slice().sort(function (x, y) { return (y.date || '').localeCompare(x.date || ''); }).map(function (r) {
-    return '<tr><td>' + SEC.esc(r.monthly ? String(r.date).slice(0, 7) : r.date) + (r.monthly ? ' <span style="font-size:11px;background:#e0f2fe;color:#075985;border-radius:6px;padding:1px 6px">📋 月登記</span>' : '') + '</td><td class="num">' + (r.am || 0) + '</td>' +
+    return '<tr><td>' + SEC.esc(r.monthly ? String(r.date).slice(0, 7) : r.date) + (r.monthly ? ' <span style="font-size:11px;background:#e0f2fe;color:#075985;border-radius:6px;padding:1px 6px">📋 ' + SEC.esc(L('月登記', 'Monthly', 'ប្រចាំខែ')) + '</span>' : '') + '</td><td class="num">' + (r.am || 0) + '</td>' +
       '<td class="num">' + (r.pm || 0) + '</td><td class="num">' + (r.cars || '—') + '</td><td>' + SEC.esc(r.remark || '') + '</td>' + rowActions('shuttle', r) + '</tr>';
   }).join('') : emptyRow(6, '本期間尚無交通車人數。按「➕ 新增」每天記一筆。', 'No shuttle records in this period. Tap “➕ Add” to log each day.', 'មិនទាន់មានកំណត់ត្រា។ ចុច “➕ បន្ថែម”។');
   var m = {}; live(SHUTTLE).forEach(function (r) { var k = String(r.date || '').slice(0, 7); if (!k) return; var o = m[k] || (m[k] = { s: 0, n: 0, mon: 0 }); if (r.monthly) o.mon = +r.am || 0; else { o.s += (+r.am || 0); o.n++; } });
   var ks = Object.keys(m).sort().slice(-24), vals = ks.map(function (k) { return m[k].n ? Math.round(m[k].s / m[k].n) : m[k].mon; }), mx = Math.max.apply(null, [1].concat(vals));
-  var tr = document.getElementById('shTrend'); if (tr) tr.innerHTML = ks.length ? ks.map(function (k, i) { return '<div style="display:grid;grid-template-columns:70px 1fr 40px;gap:8px;align-items:center;margin:4px 0;font-size:12px"><span>' + k + '</span><span style="background:#e2e8f0;border-radius:6px;height:12px;overflow:hidden"><i style="display:block;height:100%;width:' + (vals[i] / mx * 100) + '%;background:' + (m[k].n ? '#0d9488' : '#7dd3fc') + '"></i></span><b style="text-align:right">' + vals[i] + '</b></div>'; }).join('') + '<div style="font-size:11px;color:#94a3b8;margin-top:4px">綠＝每日記錄平均上班人數；淺藍＝HR 月登記人數</div>' : '<div style="color:#94a3b8;font-size:12px">尚無資料</div>';
+  var tr = document.getElementById('shTrend'); if (tr) tr.innerHTML = ks.length ? ks.map(function (k, i) { return '<div style="display:grid;grid-template-columns:70px 1fr 40px;gap:8px;align-items:center;margin:4px 0;font-size:12px"><span>' + k + '</span><span style="background:#e2e8f0;border-radius:6px;height:12px;overflow:hidden"><i style="display:block;height:100%;width:' + (vals[i] / mx * 100) + '%;background:' + (m[k].n ? '#0d9488' : '#7dd3fc') + '"></i></span><b style="text-align:right">' + vals[i] + '</b></div>'; }).join('') + '<div style="font-size:11px;color:#94a3b8;margin-top:4px">' + SEC.esc(L('綠＝每日記錄平均上班人數；淺藍＝HR 月登記人數', 'Green = daily average morning riders; light blue = HR monthly registered', 'បៃតង = មធ្យមប្រចាំថ្ងៃ; ខៀវស្រាល = ចុះឈ្មោះប្រចាំខែ HR')) + '</div>' : '<div style="color:#94a3b8;font-size:12px">' + SEC.esc(L('尚無資料', 'No data yet', 'មិនទាន់មានទិន្នន័យ')) + '</div>';
 }
 function commuteShuttleImport() {
   var inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.xlsx,.xls,.csv';
