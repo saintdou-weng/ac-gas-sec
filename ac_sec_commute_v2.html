@@ -110,19 +110,19 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
       <div class="kpi"><div class="v" id="sk1">0</div><div class="l" data-zh="記錄天數" data-en="Days" data-km="ចំនួនថ្ងៃ">記錄天數</div></div>
       <div class="kpi"><div class="v" id="sk2">0</div><div class="l" data-zh="平均上班人數" data-en="Avg morning riders" data-km="មធ្យមពេលព្រឹក">平均上班人數</div></div>
       <div class="kpi ok"><div class="v" id="sk3">0</div><div class="l" data-zh="平均下班人數" data-en="Avg evening riders" data-km="មធ្យមពេលល្ងាច">平均下班人數</div></div>
-      <div class="kpi ok"><div class="v" id="sk4">0</div><div class="l" data-zh="平均每台載客" data-en="Avg riders / vehicle" data-km="មធ្យម/ឡាន">平均每台載客</div></div>
+      <div class="kpi ok"><div class="v" id="sk4">0</div><div class="l" data-zh="平均每台每趟載客" data-en="Avg riders / vehicle / trip" data-km="មធ្យម/ឡាន/ដង">平均每台每趟載客</div></div>
     </div>
     <div class="card">
-      <h3>🚌 <span data-zh="公司車接送員工上下班（每天）" data-en="Company shuttle riders (daily)" data-km="ឡានក្រុមហ៊ុនដឹកបុគ្គលិក (ប្រចាំថ្ងៃ)">公司車接送員工上下班（每天）</span>
+      <h3>🚌 <span data-zh="公司車接送員工上下班（每天每台車）" data-en="Company shuttle riders (per vehicle, daily)" data-km="ឡានក្រុមហ៊ុនដឹកបុគ្គលិក (ឡាននីមួយៗ ប្រចាំថ្ងៃ)">公司車接送員工上下班（每天每台車）</span>
         <span class="sp">
           <button class="btn sm" onclick="openAdd('shuttle')">➕ <span data-t="add">新增</span></button>
           <button class="btn sm gh" onclick="commuteShuttleImport()">📥 Excel</button>
         </span></h3>
-      <div style="font-size:12px;color:var(--sub,#6b7a9e);margin:-2px 0 8px" data-zh="跟摩托車一樣每天記一筆：上班載幾人、下班載幾人、出幾台車。標「📋 月登記」的是 HR 每月交通車登記人數（舊 email 匯入，不算進每日平均）。" data-en="Log one line per day like motorbikes: riders in the morning, riders in the evening, vehicles used. Rows marked “📋 Monthly” are HR monthly registered riders (imported from old emails, not in the daily average)." data-km="កត់មួយបន្ទាត់រាល់ថ្ងៃដូចម៉ូតូ៖ អ្នកជិះពេលព្រឹក ពេលល្ងាច និងចំនួនឡាន។ ជួរ “📋 ប្រចាំខែ” ជាចំនួនចុះឈ្មោះប្រចាំខែពី HR (នាំចូលពីអ៊ីមែលចាស់ មិនគិតក្នុងមធ្យមប្រចាំថ្ងៃ)។">跟摩托車一樣每天記一筆：上班載幾人、下班載幾人、出幾台車。標「📋 月登記」的是 HR 每月交通車登記人數（舊 email 匯入，不算進每日平均）。</div>
+      <div style="font-size:12px;color:var(--sub,#6b7a9e);margin:-2px 0 8px" data-zh="保安每天記：每台車（司機／車牌）上班載幾人、下班載幾人。標「📋 HR 登記申請」的是 Phary 每月登記申請搭車的人數，不算每日。" data-en="Security logs each day: per vehicle (driver / plate) how many riders in the morning and in the evening. Rows marked “📋 HR applications” are Phary’s monthly registered applicants, not daily riders." data-km="សន្តិសុខកត់រាល់ថ្ងៃ៖ ឡាននីមួយៗ (អ្នកបើកបរ / ស្លាកលេខ) ដឹកប៉ុន្មាននាក់ពេលព្រឹក និងពេលល្ងាច។ “📋 ការស្នើ HR” ជាចំនួនស្នើប្រចាំខែរបស់ Phary។">保安每天記：每台車（司機／車牌）上班載幾人、下班載幾人。標「📋 HR 登記申請」的是 Phary 每月登記申請搭車的人數，不算每日。</div>
       <div class="tw"><table><thead><tr>
         <th data-zh="日期" data-en="Date" data-km="កាលបរិច្ឆេទ">日期</th>
+        <th data-zh="司機" data-en="Driver" data-km="អ្នកបើកបរ">司機</th><th data-zh="車牌" data-en="Plate" data-km="ស្លាកលេខ">車牌</th>
         <th class="num" data-zh="上班" data-en="Morning" data-km="ព្រឹក">上班</th><th class="num" data-zh="下班" data-en="Evening" data-km="ល្ងាច">下班</th>
-        <th class="num" data-zh="車數" data-en="Vehicles" data-km="ឡាន">車數</th>
         <th data-zh="備註" data-en="Remark" data-km="កំណត់ចំណាំ">備註</th>
         <th></th></tr></thead><tbody id="tbShuttle"></tbody></table></div>
     </div>
@@ -264,7 +264,7 @@ label.req::after{content:' *';color:#dc2626;font-weight:800}
 <div class="mf"><button class="btn gray" onclick="SEC.closeModal('mDrivers')" data-t="cancel">取消</button>
 <button class="btn" id="btnSaveDrivers" onclick="saveDriverManager()" data-t="save">儲存</button></div></div></div>
 <div id="toastwrap"></div>
-<script src="./shared/shuttle-history.js?v=20261126a"></script>
+<script src="./shared/shuttle-history.js?v=20261126b"></script>
 <script src="./shared/sec-core.js?v=20261123b"></script>
 <script src="./shared/ac-holidays.js?v=20261117m"></script>
 <script src="./shared/ac-tg-chart.js?v=20261112a"></script>
@@ -330,8 +330,14 @@ function maybeAddDriver(name) {
 }
 
 var SHUTTLE_HR_MONTHLY=[["2020-01",181],["2020-02",181],["2020-03",177],["2020-04",155],["2020-05",138],["2020-06",136],["2020-07",132],["2020-08",110],["2020-09",99],["2020-10",92],["2020-11",120],["2020-12",109],["2021-01",102],["2021-02",102],["2021-03",46],["2021-04",91],["2021-05",91],["2021-06",89],["2021-07",87],["2021-08",82],["2021-09",84],["2021-10",88],["2021-11",91],["2021-12",91],["2022-01",91],["2022-02",85],["2022-03",44],["2022-04",47],["2022-05",41],["2022-06",63],["2022-07",59],["2022-08",60],["2022-09",60],["2022-10",58],["2022-11",58],["2022-12",58],["2023-01",57],["2023-02",58],["2023-03",58],["2023-04",58],["2023-05",59],["2023-06",67],["2023-07",66],["2023-08",61],["2023-09",61],["2024-01",60],["2024-02",60],["2024-03",61],["2024-04",58],["2024-05",56],["2024-06",55],["2024-07",56],["2024-08",56],["2024-09",53],["2024-10",54],["2024-11",61],["2024-12",62],["2025-01",61],["2025-02",61],["2025-03",59],["2025-04",60],["2025-05",59],["2025-06",59],["2025-07",62],["2025-08",62],["2025-09",62],["2025-10",65],["2025-11",65],["2025-12",65]];
-function seedShuttleDaily(){var H=window.SHUTTLE_DAILY_HISTORY||[];if(!H.length)return 0;var flag='ac_sec_shuttle_daily_seed_v1',done=localStorage.getItem(flag);if(done)return 0;var have={};SHUTTLE.forEach(function(r){if(!r.monthly)have[r.date]=1;});var n=0;
-  H.forEach(function(x){if(have[x[0]])return;SHUTTLE.push({id:'SHD-'+x[0],_k:'shuttle',date:x[0],am:x[1],pm:x[2],cars:x[3],total:x[1]+x[2],remark:'Bunna email 匯入',src:'email · Amount of employees apply car (Security Bunna)',updatedAt:'2026-11-26T08:00:00.000Z'});n++;});
+function shuttleSlug(v){return String(v||'').trim().toLowerCase().replace(/[^a-z0-9\u0080-￿]+/g,'-');}
+function seedShuttleDaily(){var n=0;
+  /* v1 曾把每天合計成一筆（SHD-*）；改成每車一筆，舊合計列移除 */
+  var old=SHUTTLE.filter(function(r){return /^SHD-/.test(String(r.id||''));});
+  if(old.length){SEC.markDeletedMany(TOOL,old.map(function(r){return Object.assign({_k:'shuttle'},r);}));SHUTTLE=SHUTTLE.filter(function(r){return !/^SHD-/.test(String(r.id||''));});n+=old.length;}
+  var H=window.SHUTTLE_CAR_HISTORY||[];if(!H.length)return n;var flag='ac_sec_shuttle_car_seed_v2';try{if(localStorage.getItem(flag))return n;}catch(e){}
+  var have={};SHUTTLE.forEach(function(r){have[r.id]=1;if(!r.monthly)have['k|'+r.date+'|'+shuttleSlug(r.driver||r.plate)]=1;});
+  H.forEach(function(x){var id='SHC-'+x[0]+'-'+shuttleSlug(x[1]);if(have[id]||have['k|'+x[0]+'|'+shuttleSlug(x[1])])return;SHUTTLE.push({id:id,_k:'shuttle',date:x[0],driver:x[1],plate:x[2],am:x[3],pm:x[4],total:x[3]+x[4],remark:(x[5]&&x[5].replace(/[\s:]/g,'')!==String(x[2]).replace(/^.*?-(?=\w+-\d)/,'').replace(/[\s:-]/g,'')?'email 車牌 '+x[5]:''),src:'email · Amount of employees apply car (Security Bunna)',updatedAt:'2026-11-26T08:30:00.000Z'});n++;});
   try{localStorage.setItem(flag,'1');}catch(e){}return n;}
 function seedShuttleHr(){var have={};SHUTTLE.forEach(function(r){have[r.id]=1;});var flag='ac_sec_shuttle_hr_seed_v1',done={};try{done=JSON.parse(localStorage.getItem(flag)||'{}');}catch(e){}var n=0;
   SHUTTLE_HR_MONTHLY.forEach(function(x){var id='SHM-'+x[0];if(have[id]||done[id])return;SHUTTLE.push({id:id,_k:'shuttle',date:x[0]+'-01',am:x[1],pm:x[1],cars:0,total:x[1],monthly:true,remark:'HR 月報：登記搭交通車 '+x[1]+' 人（email 匯入）',src:'email · Transportation & Accommodation (HR Phary)',updatedAt:'2026-11-26T00:00:00.000Z'});done[id]=1;n++;});
@@ -575,33 +581,54 @@ function renderBike() {
     }).join('') : emptyRow(7, '本期間尚無摩托車記錄。按「➕ 新增」或用「📥 Excel」匯入。', 'No motorbike records in this period. Tap “➕ Add” or import with “📥 Excel”.', 'មិនទាន់មានកំណត់ត្រាម៉ូតូ។ ចុច “➕ បន្ថែម” ឬនាំចូល “📥 Excel”។');
 }
 
-/* ═══ 交通車接送人數（每天一筆，跟摩托車同做法） ═══ */
+/* ═══ 交通車接送人數：每天每台車一筆（司機／車牌／上班載幾人／下班載幾人） ═══ */
 function shuttleDaily(list){return list.filter(function(r){return !r.monthly;});}
+function shuttleByDay(list){var m={};shuttleDaily(list).forEach(function(r){var o=m[r.date]||(m[r.date]={date:r.date,am:0,pm:0,cars:0,rows:[]});o.am+=(+r.am||0);o.pm+=(+r.pm||0);o.cars++;o.rows.push(r);});return Object.keys(m).sort().map(function(k){return m[k];});}
 function renderShuttle() {
   var tb = document.getElementById('tbShuttle'); if (!tb) return;
-  var list = inP(SHUTTLE), d = shuttleDaily(list), n = d.length || 1;
-  var am = d.reduce(function (s, r) { return s + (+r.am || 0); }, 0), pm = d.reduce(function (s, r) { return s + (+r.pm || 0); }, 0), cars = d.reduce(function (s, r) { return s + (+r.cars || 0); }, 0);
-  document.getElementById('sk1').textContent = d.length;
+  var list = inP(SHUTTLE), days = shuttleByDay(list), n = days.length || 1, cars = days.reduce(function (s, d) { return s + d.cars; }, 0);
+  var am = days.reduce(function (s, d) { return s + d.am; }, 0), pm = days.reduce(function (s, d) { return s + d.pm; }, 0);
+  document.getElementById('sk1').textContent = days.length;
   document.getElementById('sk2').textContent = Math.round(am / n);
   document.getElementById('sk3').textContent = Math.round(pm / n);
-  document.getElementById('sk4').textContent = cars ? (Math.round(Math.max(am, pm) / cars * 10) / 10) : '—';
-  tb.innerHTML = list.length ? list.slice().sort(function (x, y) { return (y.date || '').localeCompare(x.date || ''); }).map(function (r) {
-    return '<tr><td>' + SEC.esc(r.monthly ? String(r.date).slice(0, 7) : r.date) + (r.monthly ? ' <span style="font-size:11px;background:#e0f2fe;color:#075985;border-radius:6px;padding:1px 6px">📋 ' + SEC.esc(L('月登記', 'Monthly', 'ប្រចាំខែ')) + '</span>' : '') + '</td><td class="num">' + (r.am || 0) + '</td>' +
-      '<td class="num">' + (r.pm || 0) + '</td><td class="num">' + (r.cars || '—') + '</td><td>' + SEC.esc(r.remark || '') + '</td>' + rowActions('shuttle', r) + '</tr>';
-  }).join('') : emptyRow(6, '本期間尚無交通車人數。按「➕ 新增」每天記一筆。', 'No shuttle records in this period. Tap “➕ Add” to log each day.', 'មិនទាន់មានកំណត់ត្រា។ ចុច “➕ បន្ថែម”។');
-  var m = {}; live(SHUTTLE).forEach(function (r) { var k = String(r.date || '').slice(0, 7); if (!k) return; var o = m[k] || (m[k] = { s: 0, n: 0, mon: 0 }); if (r.monthly) o.mon = +r.am || 0; else { o.s += (+r.am || 0); o.n++; } });
-  var ks = Object.keys(m).sort().slice(-24), vals = ks.map(function (k) { return m[k].n ? Math.round(m[k].s / m[k].n) : m[k].mon; }), mx = Math.max.apply(null, [1].concat(vals));
-  var tr = document.getElementById('shTrend'); if (tr) tr.innerHTML = ks.length ? ks.map(function (k, i) { return '<div style="display:grid;grid-template-columns:70px 1fr 40px;gap:8px;align-items:center;margin:4px 0;font-size:12px"><span>' + k + '</span><span style="background:#e2e8f0;border-radius:6px;height:12px;overflow:hidden"><i style="display:block;height:100%;width:' + (vals[i] / mx * 100) + '%;background:' + (m[k].n ? '#0d9488' : '#7dd3fc') + '"></i></span><b style="text-align:right">' + vals[i] + '</b></div>'; }).join('') + '<div style="font-size:11px;color:#94a3b8;margin-top:4px">' + SEC.esc(L('綠＝每日記錄平均上班人數；淺藍＝HR 月登記人數', 'Green = daily average morning riders; light blue = HR monthly registered', 'បៃតង = មធ្យមប្រចាំថ្ងៃ; ខៀវស្រាល = ចុះឈ្មោះប្រចាំខែ HR')) + '</div>' : '<div style="color:#94a3b8;font-size:12px">' + SEC.esc(L('尚無資料', 'No data yet', 'មិនទាន់មានទិន្នន័យ')) + '</div>';
+  document.getElementById('sk4').textContent = cars ? (Math.round((am + pm) / 2 / cars * 10) / 10) : '—';
+  var mon = list.filter(function (r) { return r.monthly; });
+  var html = days.slice().reverse().map(function (d) {
+    return '<tr style="background:rgba(13,148,136,.08)"><td><b>' + SEC.esc(d.date) + '</b></td><td colspan="2"><b>' + SEC.esc(L('當日合計','Day total','សរុបប្រចាំថ្ងៃ')) + '</b> · ' + d.cars + ' ' + SEC.esc(L('台車','vehicles','ឡាន')) + '</td><td class="num"><b>' + d.am + '</b></td><td class="num"><b>' + d.pm + '</b></td><td></td><td></td></tr>' +
+      d.rows.map(function (r) { return '<tr><td></td><td>' + SEC.esc(r.driver || '—') + '</td><td>' + SEC.esc(r.plate || '—') + '</td><td class="num">' + (r.am || 0) + '</td><td class="num">' + (r.pm || 0) + '</td><td>' + SEC.esc(r.remark || '') + '</td>' + rowActions('shuttle', r) + '</tr>'; }).join('');
+  }).join('') + mon.map(function (r) { return '<tr><td>' + SEC.esc(String(r.date).slice(0, 7)) + ' <span style="font-size:11px;background:#e0f2fe;color:#075985;border-radius:6px;padding:1px 6px">📋 ' + SEC.esc(L('HR 登記申請','HR applications','ការស្នើ HR')) + '</span></td><td colspan="2">' + SEC.esc(L('Phary 每月登記申請搭車人數','Monthly registered applicants (Phary)','ចំនួនស្នើជិះប្រចាំខែ')) + '</td><td class="num">' + (r.am || 0) + '</td><td class="num">—</td><td></td>' + rowActions('shuttle', r) + '</tr>'; }).join('');
+  tb.innerHTML = html || emptyRow(7, '本期間尚無交通車人數。按「➕ 新增」每天一次填各台車上下班載幾人。', 'No shuttle records in this period. Tap “➕ Add” to log each vehicle’s morning and evening riders.', 'មិនទាន់មានកំណត់ត្រា។ ចុច “➕ បន្ថែម”។');
+  var m = {}; shuttleByDay(live(SHUTTLE)).forEach(function (d) { var k = d.date.slice(0, 7), o = m[k] || (m[k] = { s: 0, n: 0 }); o.s += d.am; o.n++; });
+  live(SHUTTLE).filter(function (r) { return r.monthly; }).forEach(function (r) { var k = String(r.date).slice(0, 7); if (!m[k]) m[k] = { s: 0, n: 0, mon: +r.am || 0 }; });
+  var ks = Object.keys(m).sort().slice(-36), vals = ks.map(function (k) { return m[k].n ? Math.round(m[k].s / m[k].n) : (m[k].mon || 0); }), mx = Math.max.apply(null, [1].concat(vals));
+  var tr = document.getElementById('shTrend'); if (tr) tr.innerHTML = ks.length ? ks.map(function (k, i) { return '<div style="display:grid;grid-template-columns:70px 1fr 40px;gap:8px;align-items:center;margin:4px 0;font-size:12px"><span>' + k + '</span><span style="background:#e2e8f0;border-radius:6px;height:12px;overflow:hidden"><i style="display:block;height:100%;width:' + (vals[i] / mx * 100) + '%;background:' + (m[k].n ? '#0d9488' : '#7dd3fc') + '"></i></span><b style="text-align:right">' + vals[i] + '</b></div>'; }).join('') + '<div style="font-size:11px;color:#94a3b8;margin-top:4px">' + SEC.esc(L('綠＝每天上班載客合計的月平均；淺藍＝沒有每日記錄的月份，顯示 HR 登記申請人數', 'Green = monthly average of daily morning riders; light blue = months without daily data (HR applicants)', 'បៃតង = មធ្យមប្រចាំខែ; ខៀវស្រាល = ខែគ្មានទិន្នន័យប្រចាំថ្ងៃ')) + '</div>' : '<div style="color:#94a3b8;font-size:12px">' + SEC.esc(L('尚無資料', 'No data yet', 'មិនទាន់មានទិន្នន័យ')) + '</div>';
 }
+function shuttleDriverOpts(){var seen={},out=[];live(SHUTTLE).filter(function(r){return !r.monthly&&r.driver;}).sort(function(a,b){return String(b.date).localeCompare(String(a.date));}).forEach(function(r){var k=shuttleSlug(r.driver);if(seen[k])return;seen[k]=1;out.push({driver:r.driver,plate:r.plate||''});});
+  DRIVER_PROFILES.forEach(function(p){if(p&&!p.removedAt&&p.name&&!seen[shuttleSlug(p.name)]){seen[shuttleSlug(p.name)]=1;out.push({driver:p.name,plate:p.plate||''});}});return out;}
+function shuttleLastDayDrivers(){var d=shuttleByDay(live(SHUTTLE));var last=d[d.length-1];return last?last.rows.map(function(r){return {driver:r.driver||'',plate:r.plate||''};}):shuttleDriverOpts().slice(0,3);}
+var SHUTTLE_ROW_NO=0;
+function addShuttleRow(x){x=x||{};var i=++SHUTTLE_ROW_NO,box=document.getElementById('shuttleRows');if(!box)return;var d=document.createElement('div');d.className='commute-form-grid shuttle-row';d.style.cssText='border:1px solid var(--line,#e2e6f0);border-radius:10px;padding:8px;margin:6px 0';
+  d.innerHTML='<div class="f"><label>'+SEC.esc(L('司機','Driver','អ្នកបើកបរ'))+'</label><input class="sr-driver" list="shuttleDriverList" value="'+SEC.esc(x.driver||'')+'"></div><div class="f"><label>'+SEC.esc(L('車牌','Plate','ស្លាកលេខ'))+'</label><input class="sr-plate" value="'+SEC.esc(x.plate||'')+'"></div><div class="f"><label>'+SEC.esc(L('上班載幾人','Morning riders','អ្នកជិះពេលព្រឹក'))+'</label><input class="sr-am" type="number" min="0" value="'+(x.am==null?'':x.am)+'"></div><div class="f"><label>'+SEC.esc(L('下班載幾人','Evening riders','អ្នកជិះពេលល្ងាច'))+'</label><input class="sr-pm" type="number" min="0" value="'+(x.pm==null?'':x.pm)+'"></div><div class="f" style="align-self:end"><button type="button" class="btn sm err" onclick="this.closest(\'.shuttle-row\').remove()">🗑</button></div>';
+  box.appendChild(d);var dr=d.querySelector('.sr-driver');dr.addEventListener('change',function(){var o=shuttleDriverOpts().filter(function(z){return shuttleSlug(z.driver)===shuttleSlug(dr.value);})[0];if(o&&!d.querySelector('.sr-plate').value)d.querySelector('.sr-plate').value=o.plate;});}
+function openShuttleMulti(){var body=document.getElementById('mBody'),today=SEC.ymd();SHUTTLE_ROW_NO=0;
+  body.innerHTML='<div class="commute-form-grid"><div class="f"><label class="req">'+fieldLabel('date','Date')+'</label><input id="m_date" type="date" value="'+today+'"></div><div class="f"><label>'+SEC.esc(L('備註','Remark','កំណត់ចំណាំ'))+'</label><input id="m_remark"></div></div>'+
+   '<div style="font-size:12px;color:var(--sub,#6b7a9e);margin:6px 0">'+SEC.esc(L('每台車一列：司機、車牌、上班載幾人、下班載幾人（上下班人數可以不一樣）。','One line per vehicle: driver, plate, morning riders, evening riders (they can differ).','មួយបន្ទាត់ក្នុងមួយឡាន៖ អ្នកបើកបរ ស្លាកលេខ ព្រឹក ល្ងាច។'))+'</div><div id="shuttleRows"></div><button type="button" class="btn sm gh" onclick="addShuttleRow()">➕ '+SEC.esc(L('加一台車','Add vehicle','បន្ថែមឡាន'))+'</button>'+
+   '<datalist id="shuttleDriverList">'+shuttleDriverOpts().map(function(o){return '<option value="'+SEC.esc(o.driver)+'">';}).join('')+'</datalist>';
+  shuttleLastDayDrivers().forEach(function(x){addShuttleRow({driver:x.driver,plate:x.plate});});if(!SHUTTLE_ROW_NO)addShuttleRow();}
+function saveShuttleMulti(){var date=document.getElementById('m_date').value,remark=(document.getElementById('m_remark').value||'').trim();if(!date){markBad(['m_date']);SEC.toast('⚠ '+L('請填日期','Enter a date','សូមបញ្ចូលកាលបរិច្ឆេទ'),'warn');return;}
+  var n=0,at=new Date().toISOString();document.querySelectorAll('#shuttleRows .shuttle-row').forEach(function(d){var drv=d.querySelector('.sr-driver').value.trim(),pl=d.querySelector('.sr-plate').value.trim(),am=d.querySelector('.sr-am').value,pm=d.querySelector('.sr-pm').value;if(!drv&&!pl)return;if(am===''&&pm==='')return;
+    var o={id:'SHC-'+date+'-'+shuttleSlug(drv||pl),_k:'shuttle',date:date,driver:drv,plate:pl,am:Number(am)||0,pm:Number(pm)||0,remark:remark,updatedAt:at};o.total=o.am+o.pm;var dup=commuteFindDuplicate('shuttle',o);if(dup)Object.assign(dup,o,{id:dup.id});else SHUTTLE.push(o);SEC.clearDeleted(TOOL,o);n++;});
+  if(!n){SEC.toast('⚠ '+L('至少填一台車的人數','Fill in at least one vehicle','សូមបំពេញយ៉ាងហោចណាស់មួយឡាន'),'warn');return;}
+  save();renderAll();SEC.scheduleAutoCloudSync(TOOL,'commute-shuttle-save',date);closeAdd();SEC.toast('✅ '+L('已儲存 ','Saved ','បានរក្សាទុក ')+n+' '+L('台車','vehicles','ឡាន'),'ok');}
 function commuteShuttleImport() {
   var inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.xlsx,.xls,.csv';
   inp.onchange = async function () { var f = inp.files[0]; if (!f) return; try {
     var wb = XLSX.read(await f.arrayBuffer(), { type: 'array', cellDates: true }), add = 0, upd = 0, skip = 0;
     wb.SheetNames.forEach(function (sn) { var A = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: '' }); var hi = -1, c = {};
-      for (var i = 0; i < Math.min(A.length, 10) && hi < 0; i++) { var row = A[i].map(function (x) { return String(x).trim().toLowerCase(); }); var di = row.findIndex(function (x) { return /^(date|日期)$/.test(x); }); if (di < 0) continue; c = { d: di, am: row.findIndex(function (x) { return /上班|morning|in\b|am\b/.test(x); }), pm: row.findIndex(function (x) { return /下班|evening|out\b|pm\b/.test(x); }), cars: row.findIndex(function (x) { return /車數|vehicle|car|bus/.test(x); }), rm: row.findIndex(function (x) { return /備註|remark/.test(x); }) }; hi = i; }
+      for (var i = 0; i < Math.min(A.length, 10) && hi < 0; i++) { var row = A[i].map(function (x) { return String(x).trim().toLowerCase(); }); var di = row.findIndex(function (x) { return /^(date|日期)$/.test(x); }); if (di < 0) continue; c = { d: di, am: row.findIndex(function (x) { return /上班|morning|in\b|am\b/.test(x); }), pm: row.findIndex(function (x) { return /下班|evening|out\b|pm\b/.test(x); }), cars: -1, dv: row.findIndex(function (x) { return /司機|driver/.test(x); }), pl: row.findIndex(function (x) { return /車牌|plate/.test(x); }), rm: row.findIndex(function (x) { return /備註|remark/.test(x); }) }; hi = i; }
       if (hi < 0) return;
       A.slice(hi + 1).forEach(function (r) { var d = r[c.d]; d = d instanceof Date ? SEC.ymd(d) : String(d || '').trim(); if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { var dd = SEC.parseD && SEC.parseD(d); d = dd ? SEC.ymd(dd) : ''; } if (!d) return;
-        var row = { date: d, am: c.am >= 0 ? (+r[c.am] || 0) : 0, pm: c.pm >= 0 ? (+r[c.pm] || 0) : 0, cars: c.cars >= 0 ? (+r[c.cars] || 0) : 0, remark: c.rm >= 0 ? String(r[c.rm] || '').trim() : '' };
+        var row = { date: d, driver: c.dv >= 0 ? String(r[c.dv] || '').trim() : '', plate: c.pl >= 0 ? String(r[c.pl] || '').trim() : '', am: c.am >= 0 ? (+r[c.am] || 0) : 0, pm: c.pm >= 0 ? (+r[c.pm] || 0) : 0, remark: c.rm >= 0 ? String(r[c.rm] || '').trim() : '' }; if (!row.driver && !row.plate) return; row.id = 'SHC-' + d + '-' + shuttleSlug(row.driver || row.plate);
         row.total = row.am + row.pm; var act = commuteImportUpsert('shuttle', row); if (act === 'added') add++; else if (act === 'updated') upd++; else skip++; }); });
     save(); renderAll(); SEC.scheduleAutoCloudSync(TOOL, 'commute-shuttle-import', PER.key()); SEC.toast('🚌 ' + L('匯入：新增 ', 'Imported: added ', 'នាំចូល៖ ') + add + ' / ' + L('更新 ', 'updated ', 'កែ ') + upd + ' / ' + L('重複 ', 'same ', 'ដដែល ') + skip, 'ok');
   } catch (e) { SEC.toast('⚠ ' + e.message, 'err'); } };
@@ -779,7 +806,7 @@ var FIELDS = {
   car : [['date','日期','date'],['driver','司機','text'],['type','用途','text'],['reason','事由','text'],
          ['outTime','出發時間','time'],['inTime','回廠時間','time'],['km','里程 KM','number']],
   bike: [['date','日期','date'],['a','Building A','number'],['b','Building B','number'],['remark','備註','text']],
-  shuttle: [['date','日期','date'],['am','上班人數','number'],['pm','下班人數','number'],['cars','車數','number'],['remark','備註','text']],
+  shuttle: [['date','日期','date'],['driver','司機','text'],['plate','車牌','text'],['am','上班人數','number'],['pm','下班人數','number'],['remark','備註','text']],
   gate: [['date','日期','date'],['plate','車牌','text'],['driver','司機','text'],['passenger','乘客','text'],
          ['dept','部門','text'],['pax','人數','number'],['inTime','進廠時間','time'],['outTime','出廠時間','time'],
          ['km','里程 KM','number'],['reason','用車原因','text']],
@@ -795,7 +822,7 @@ var FIELD_LABELS = {
   dept:['部門','Department','ផ្នែក'], pax:['人數','Passengers','ចំនួនអ្នកដំណើរ'], empId:['工號','Employee ID','អត្តលេខ'],
   name:['姓名','Name','ឈ្មោះ'], checkIn:['入廠時間','Check-in time','ម៉ោងចូល'], checkOut:['出廠時間','Check-out time','ម៉ោងចេញ'],
   gate:['門衛','Gatekeeper','សន្តិសុខ'], note:['說明','Note','កំណត់ចំណាំ'],
-  am:['上班人數（早上載幾人）','Morning riders','អ្នកជិះពេលព្រឹក'], pm:['下班人數（下午載幾人）','Evening riders','អ្នកជិះពេលល្ងាច'], cars:['出車數','Vehicles used','ចំនួនឡាន']
+  am:['上班載幾人','Morning riders','អ្នកជិះពេលព្រឹក'], pm:['下班載幾人','Evening riders','អ្នកជិះពេលល្ងាច'], cars:['出車數','Vehicles used','ចំនួនឡាន']
 };
 function fieldLabel(key, fallback) { var x = FIELD_LABELS[key]; return x ? L(x[0], x[1], x[2]) : fallback; }
 var COMMUTE_EDIT_ID = '', COMMUTE_CAR_PHOTOS = [], COMMUTE_CAR_ROW_NO = 0, COMMUTE_APPROVER_ROW_NO = 0, COMMUTE_LATE_ROW_NO = 0;
@@ -825,7 +852,8 @@ function openAdd(kind) {
   document.getElementById('mTitle').textContent = modalTitle(kind, false);
   var banner = document.getElementById('mEditBanner'); banner.style.display = 'none'; banner.textContent = '';
   var body = document.getElementById('mBody'), today = SEC.ymd();
-  if (kind === 'car') {
+  if (kind === 'shuttle' && !window.__shEdit) { openShuttleMulti(); }
+  else if (kind === 'car') {
     body.innerHTML = '<div class="commute-form-grid">' +
       '<div class="f"><label class="req">' + fieldLabel('date', 'Date') + '</label><input id="m_date" type="date" value="' + today + '"></div>' +
       '<div class="f"><label>' + L('重複結束日', 'Repeat end date', 'ថ្ងៃបញ្ចប់ការធ្វើម្តងទៀត') + '</label><input id="m_endDate" type="date" value="' + today + '"></div>' +
@@ -886,6 +914,7 @@ function saveAdd() {
   try {
     if (ADDKIND === 'car') return saveCar();
     if (ADDKIND === 'late') return saveLate();
+    if (ADDKIND === 'shuttle' && !COMMUTE_EDIT_ID) return saveShuttleMulti();
     return saveSimple();
   } finally { BUSY.saveAdd = false; if (btn) btn.disabled = false; }
 }
@@ -985,7 +1014,7 @@ function editCar(id) {
 function editCommute(kind, id) {
   if (kind === 'car') return editCar(id);
   var arr = kind === 'bike' ? BIKE : kind === 'shuttle' ? SHUTTLE : kind === 'gate' ? GATE : LATE, r = arr.filter(function (x) { return x.id === id; })[0]; if (!r) return;
-  openAdd(kind); COMMUTE_EDIT_ID = id; COMMUTE_CAR_PHOTOS = (r.photos || []).slice(0, 4);
+  window.__shEdit = kind === 'shuttle'; openAdd(kind); window.__shEdit = false; COMMUTE_EDIT_ID = id; COMMUTE_CAR_PHOTOS = (r.photos || []).slice(0, 4);
   if (kind === 'late') { document.getElementById('lateRows').innerHTML = ''; COMMUTE_LATE_ROW_NO = 0; addLateRow(r); }
   else FIELDS[kind].forEach(function (f) { var el = document.getElementById('m_' + f[0]); if (el) el.value = r[f[0]] == null ? '' : r[f[0]]; });
   commuteRenderCarPhotos(); showEditBanner(kind, r);
@@ -1108,7 +1137,7 @@ function scheduleCommuteImport(arr, from, reason) {
   (arr || []).slice(from || 0).forEach(function (r) { if (/^\d{4}-\d{2}/.test(String(r.date || ''))) dates[r.date] = true; });
   Object.keys(dates).forEach(function (d) { SEC.scheduleAutoCloudSync(TOOL, reason, d); });
 }
-function commuteImportComparable(kind,r){var f=kind==='car'?['date','driver','plate','type','category','reason','outTime','inTime','km']:kind==='bike'?['date','a','b','total','remark']:kind==='shuttle'?['date','am','pm','cars','total','remark','monthly']:kind==='gate'?['date','plate','driver','passenger','dept','pax','outTime','inTime','outKm','inKm','km','reason']:['date','empId','name','dept','checkIn','checkOut','gate','note'];return JSON.stringify(f.map(function(k){return r&&r[k]==null?'':r[k];}));}
+function commuteImportComparable(kind,r){var f=kind==='car'?['date','driver','plate','type','category','reason','outTime','inTime','km']:kind==='bike'?['date','a','b','total','remark']:kind==='shuttle'?['date','driver','plate','am','pm','total','remark','monthly']:kind==='gate'?['date','plate','driver','passenger','dept','pax','outTime','inTime','outKm','inKm','km','reason']:['date','empId','name','dept','checkIn','checkOut','gate','note'];return JSON.stringify(f.map(function(k){return r&&r[k]==null?'':r[k];}));}
 function commuteImportUpsert(kind,row){
   var arr=kind==='car'?CAR:kind==='bike'?BIKE:kind==='shuttle'?SHUTTLE:kind==='gate'?GATE:LATE,old=commuteFindDuplicate(kind,row);row._k=kind;row.updatedAt=new Date().toISOString();
   if(!old){arr.push(row);return 'added';}if(commuteImportComparable(kind,old)===commuteImportComparable(kind,row))return 'skipped';
@@ -1504,7 +1533,7 @@ function commuteTripLine(g, lang, withDate) {
 function commuteSummaryData(st) {
   var p = commuteSummaryPeriod(st), inP2 = function (arr, kind) { return commuteScopeOn(st, kind) ? live(arr).filter(function (r) { return p.has(r.date); }) : []; };
   var sortBy = function (f) { return function (a, b) { return String(a.date || '').localeCompare(String(b.date || '')) || String(a[f] || '').localeCompare(String(b[f] || '')); }; };
-  var c = inP2(CAR, 'vehicle').sort(sortBy('outTime')), b = inP2(BIKE, 'bike').sort(sortBy('date')), l = inP2(LATE, 'late').sort(sortBy('checkIn')), g = inP2(GATE, 'gate').sort(sortBy('outTime')), sh = inP2(SHUTTLE, 'vehicle').filter(function (r) { return !r.monthly; }).sort(sortBy('date'));
+  var c = inP2(CAR, 'vehicle').sort(sortBy('outTime')), b = inP2(BIKE, 'bike').sort(sortBy('date')), l = inP2(LATE, 'late').sort(sortBy('checkIn')), g = inP2(GATE, 'gate').sort(sortBy('outTime')), sh = shuttleByDay(inP2(SHUTTLE, 'vehicle'));
   var uniq = {};
   l.forEach(function (r) { var k = r.empId || r.name || '—'; if (!uniq[k]) uniq[k] = { n:0, name:r.name, dept:r.dept, id:r.empId }; uniq[k].n++; });
   return { p:p, car:c, bike:b, shuttle:sh, late:l, gate:g, uniq:uniq, rep:Object.keys(uniq).filter(function (k) { return uniq[k].n >= 3; }), trips:commuteVehicleGroups(c) };
@@ -1796,6 +1825,7 @@ function commuteOcrStableKey(kind,r){
   if(kind==='gate'){var gp=commuteOcrNorm(r.plate),gd=commuteOcrNorm(r.driver||r.passenger);if(!gp&&!gd)return '';return [kind,d,gp,gd,String(r.outTime||'')].join('|');}
   if(kind==='late'){/* 同一人同一天視為同一筆；重新匯入可補回 TIME IN，而不是因時間從空白變有值就新增重複。 */var lid=commuteOcrNorm(r.empId),lname=commuteOcrNorm(r.name),who=lid&&lname?(lid+'@'+lname):(lid||lname);if(!who)return '';return [kind,d,who].join('|');}
   if(kind==='shuttle'&&r.monthly)return 'shuttle|M|'+d.slice(0,7);
+  if(kind==='shuttle'){var sd=commuteOcrNorm(r.driver||r.plate);return 'shuttle|'+d+'|'+sd;}
   return kind+'|'+d;
 }
 function commuteFindDuplicate(kind,row){var key=commuteOcrStableKey(kind,row);if(!key)return null;return commuteOcrArray(kind).filter(function(x){return commuteOcrStableKey(kind,x)===key;})[0]||null;}
