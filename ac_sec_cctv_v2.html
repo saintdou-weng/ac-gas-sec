@@ -101,6 +101,7 @@
         <button type="button" class="bb dis" data-s="dis" aria-pressed="false" onclick="setBrush('dis')"><span data-zh="⚪ 停用" data-en="⚪ Disabled" data-km="⚪ បិទប្រើ">⚪ 停用</span></button>
         <span style="margin-left:auto;display:flex;gap:5px;flex-wrap:wrap">
           <button class="btn sm ok" onclick="allOk()">✅ <span data-zh="全部正常" data-en="All OK" data-km="ធម្មតាទាំងអស់">全部正常</span></button>
+          <button class="btn sm gh" onclick="clearDayMarks()">🧹 <span data-zh="全部取消" data-en="Clear all" data-km="សម្អាតទាំងអស់">全部取消</span></button>
           <button class="btn sm gh" onclick="loadPrev()">📋 <span data-zh="沿用上次" data-en="Copy last" data-km="ចម្លង">沿用上次</span></button>
           <button class="btn sm" id="cSaveBtn" onclick="saveDay()">💾 <span data-zh="儲存" data-en="Save" data-km="រក្សាទុក">儲存</span></button>
           <button class="btn sm gh" id="cSavePushBtn" onclick="saveDay(true)">💾✈️ <span data-zh="儲存並推送" data-en="Save & send" data-km="រក្សាទុក និងផ្ញើ">儲存並推送</span></button>
@@ -806,6 +807,7 @@ function applyCctvBrush(id) {
   if(hint){hint.dataset.active=BRUSH;hint.textContent=st.icon+' '+SEC.str(cam.code||cam.name||cam.id)+' → '+statLabel(BRUSH)+t('；完成後請按「儲存」',' · press Save when finished',' · ចុច «រក្សាទុក» ពេលរួច');}
 }
 function loadDay() {
+  CCTV_REPLACE_DAY = false;
   var d = document.getElementById('cDate').value;
   var rec = LOG.filter(function (l) { return l.date === d; })[0];
   TODAY = rec && rec.st && typeof rec.st === 'object' ? Object.assign({}, rec.st) : {};
@@ -826,6 +828,12 @@ function loadPrev() {
   renderBoard(); renderKpi(); renderFault();
   SEC.toast('📋 ' + t('已沿用 ' + prev.date + ' 的狀態，請只改有變動的', 'Copied statuses from ' + prev.date + '; change only what differs', 'បានចម្លងស្ថានភាពពី ' + prev.date + '; កែតែអ្វីដែលខុសប៉ុណ្ណោះ'), 'ok', 4000);
 }
+var CCTV_REPLACE_DAY = false;
+function clearDayMarks() {
+  TODAY = {}; CCTV_REPLACE_DAY = true;
+  renderBoard(); renderKpi(); renderFault();
+  SEC.toast('🧹 ' + t('已全部取消，請重新點選或按「全部正常」後再儲存', 'All cleared — mark again or tap “All OK”, then Save', 'បានសម្អាត — សូមសម្គាល់ម្ដងទៀត រួចរក្សាទុក'), 'ok');
+}
 function allOk() {
   TODAY = TODAY && typeof TODAY === 'object' ? TODAY : {};
   var active = DB.filter(function (c) { return c.status !== 'dis'; });
@@ -834,6 +842,7 @@ function allOk() {
     if (alreadyAllOk) delete TODAY[c.id];
     else TODAY[c.id] = 'ok';
   });
+  CCTV_REPLACE_DAY = true;
   renderBoard(); renderKpi(); renderFault();
   SEC.toast(alreadyAllOk ? '↩️ ' + t('已清除本日狀態', 'Cleared today\'s statuses', 'បានសម្អាតស្ថានភាពថ្ងៃនេះ') : '✅ ' + t('已全部標記正常', 'All active cameras marked Online', 'កាមេរ៉ាទាំងអស់ត្រូវបានសម្គាល់ថាដំណើរការ'), 'ok', 3500);
 }
@@ -860,7 +869,9 @@ function cctvPeriodRecord() {
   return logs.length ? logs[0] : null;
 }
 function cctvPeriodStats() {
-  var rec = cctvPeriodRecord(), s = { ok:0, off:0, blur:0, fault:0, dis:0, pending:0 }, noVideoCount = 0;
+  var rec = cctvPeriodRecord(), ed = document.getElementById('cDate');
+  if (PER.mode === 'day' && ed && PER.has(ed.value)) rec = Object.assign({}, rec || { date:ed.value }, { st:Object.assign({}, TODAY || {}) });
+  var _unused = 0, s = { ok:0, off:0, blur:0, fault:0, dis:0, pending:0 }, noVideoCount = 0;
   if (!rec) return { record:null, checkedDays:0, stats:{ ok:0, off:0, blur:0, fault:0, dis:0, pending:DB.length }, noVideo:0, rate:null };
   DB.forEach(function (c) {
     var has = rec.st && typeof rec.st === 'object' && Object.prototype.hasOwnProperty.call(rec.st, c.id);
@@ -973,7 +984,8 @@ function saveDayNow(push) {
   if (!Object.keys(TODAY).length && !hasDayRecord()) { SEC.toast('⚠ ' + t('尚未標記任何攝影機', 'No camera has been marked yet', 'មិនទាន់សម្គាល់កាមេរ៉ាណាមួយទេ'), 'warn'); return; }
   /* 2026-11-26：同一天已經有紀錄時，只覆蓋這次有按的攝影機，其餘保留（之前只按 3 台就把整天 35 台的紀錄蓋成 3 台） */
   var oldDay = LOG.filter(function (l) { return l && l.date === d && !l._deleted; })[0];
-  if (oldDay && oldDay.st) TODAY = Object.assign({}, oldDay.st, TODAY);
+  if (oldDay && oldDay.st && !CCTV_REPLACE_DAY) TODAY = Object.assign({}, oldDay.st, TODAY);
+  CCTV_REPLACE_DAY = false;
   var c = { ok:0, off:0, blur:0, fault:0, dis:0 };
   var badList = [], now = new Date().toISOString();
   DB.forEach(function (cam) {
