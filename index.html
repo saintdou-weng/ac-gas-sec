@@ -285,7 +285,11 @@ async function renderGrid() {
       '<span class="mb-ic">' + m.ic + '</span>' +
       '<span class="mb-t1">' + (m[L] || m.zh) + '</span>' +
       '<span class="mb-t2">' + m.sub + '</span></a>';
-  }).join('');
+  }).join('') +
+    /* 2026-11-28 證件參考＋叉車／發電機每日使用＋柴油核對：自己同步（與 GA-EXP 工務設備同一份資料），不列入「全部同步」 */
+    '<a class="mod-btn" href="ac_sec_passes_v1.html?v=20261128a"><span class="mb-ic">🪪</span>' +
+      '<span class="mb-t1">' + ({ zh:'證件・設備使用', en:'Passes & Equipment', km:'ប័ណ្ណ និងឧបករណ៍' }[L] || '證件・設備使用') + '</span>' +
+      '<span class="mb-t2">PASSES / FORKLIFT / GENERATOR</span></a>';
   /* 原本這裡還有一顆「🌙 夜間巡邏達標檢查」連到巡邏頁，與「保安巡邏」模組及管理區的「夜巡檢查」重複，已移除。 */
 }
 

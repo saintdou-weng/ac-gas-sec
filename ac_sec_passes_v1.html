@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Passes & Equipment Use | AC Security</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600&display=swap" rel="stylesheet">
+<script src="./shared/xlsx.full.min.js?v=20260929a"></script>
+<link rel="stylesheet" href="./shared/sec.css?v=20261126b">
+<style>
+/* 2026-11-28 證件參考＋叉車／發電機每日使用＋柴油核對：內容由共用元件 ga-usage.js 畫（GA-EXP 工務設備頁是同一份資料） */
+#useRoot{margin-top:4px}
+.pu-links{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 30px;font-size:12px}
+.pu-links a{color:var(--ink2,#475569);border:1px solid #d0d5e8;background:#fff;border-radius:999px;padding:5px 11px;text-decoration:none;font-weight:700}
+</style>
+</head>
+<body>
+<div id="hdr"></div>
+<div class="wrap">
+  <div id="useRoot"></div>
+  <div class="pu-links">
+    <a href="../ac-ga-exp/fuel.html">⛽ <span data-zh="燃油中心（總務加油登記）" data-en="Fuel Center (GA fuel records)" data-km="មជ្ឈមណ្ឌលប្រេង">燃油中心（總務加油登記）</span></a>
+    <a href="../ac-ga-exp/facility.html">⚡ <span data-zh="工務設備・發電機紀錄" data-en="Facility · Generator log" data-km="បរិក្ខារ · ម៉ាស៊ីនភ្លើង">工務設備・發電機紀錄</span></a>
+    <a href="ac_sec_commute_v2.html">🚐 <span data-zh="通勤交通（派車里程）" data-en="Commute (dispatch km)" data-km="ដំណើរ (គីឡូម៉ែត្រ)">通勤交通（派車里程）</span></a>
+  </div>
+</div>
+<div id="toastwrap"></div>
+<script src="./shared/sec-core.js?v=20261123b"></script>
+<script src="../ac-ga-exp/shared/ga-smart-sync.js?v=3.9.31"></script>
+<script src="../ac-ga-exp/shared/ga-usage.js?v=20261128a"></script>
+<script>
+if (typeof SEC === 'undefined') {
+  document.addEventListener('DOMContentLoaded', function () {
+    var b = document.createElement('div');
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#991b1b;color:#fff;padding:12px 16px;font:600 13px/1.5 system-ui,sans-serif;text-align:center';
+    b.innerHTML = '⚠ shared/sec-core.js could not be loaded / 共用元件未能載入。';
+    document.body.insertBefore(b, document.body.firstChild);
+  });
+  throw new Error('sec-core.js not loaded');
+}
+var TOOL = 'passes', INST = null;
+function L(zh, en, km) { return SEC.L(zh, en, km); }
+function pageTitle() { return L('證件・設備使用', 'Passes & Equipment Use', 'ប័ណ្ណ និងការប្រើឧបករណ៍'); }
+document.getElementById('hdr').innerHTML = SEC.headerHtml('🪪', pageTitle(), 'AC SECURITY · PASSES / FORKLIFT / GENERATOR / DIESEL');
+SEC.bindHeader(TOOL, {
+  onUpload: function () { return INST ? INST.upload() : null; },
+  onDownload: function () { return INST ? INST.download() : null; }
+});
+/* 這頁沒有接「智慧匯入中心」與 Word 報告：把那兩顆藏起來，避免按了沒反應 */
+['btnHub', 'btnReport'].forEach(function (id) {
+  var el = document.getElementById(id); if (el) el.style.display = 'none';
+  document.querySelectorAll('[data-proxy="' + id + '"]').forEach(function (x) { x.style.display = 'none'; });
+});
+function applyPageLang() {
+  var h = document.querySelector('.hdr-t1'); if (h) h.textContent = pageTitle();
+  document.title = pageTitle() + ' | AC Security';
+  if (INST) INST.render();
+}
+window.onLangChange = applyPageLang;
+SEC.dataReady().then(function () {
+  if (!window.GAUsage) { SEC.toast('⚠ ' + L('元件 ga-usage.js 未載入，請重新整理', 'Component ga-usage.js did not load. Please refresh.', 'សូមផ្ទុកឡើងវិញ'), 'err', 0); return; }
+  var q = new URLSearchParams(location.search);
+  INST = GAUsage.mount(document.getElementById('useRoot'), { tabs:['pass', 'fk', 'gen', 'chk', 'set'], tab:q.get('tab') || '', facilityLink:'../ac-ga-exp/facility.html' });
+  applyPageLang();
+}).catch(SEC.bootError);
+</script>
+</body>
+</html>
